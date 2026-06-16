@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import { streamText, embed } from 'ai';
-import { google } from '@ai-sdk/google';
+import { createGoogleGenerativeAI } from '@ai-sdk/google';
 import { z } from 'zod';
 
 // Input validation schema
@@ -45,6 +45,10 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Gemini integration misconfigured' }, { status: 500 });
     }
 
+    const google = createGoogleGenerativeAI({
+      apiKey: geminiApiKey,
+    });
+
     const supabaseAdmin = getSupabaseAdmin();
 
     // 2. Validate request body
@@ -80,7 +84,7 @@ export async function POST(request: Request) {
     let queryEmbedding: number[];
     try {
       const { embedding } = await embed({
-        model: google.textEmbeddingModel('gemini-embedding-001'),
+        model: google.textEmbeddingModel('text-embedding-004'),
         value: message,
         providerOptions: {
           google: {
@@ -190,7 +194,7 @@ export async function POST(request: Request) {
     console.log(`[Chat Stream][${requestId}] Initializing Vercel AI SDK text stream (gemini-1.5-flash)...`);
 
     // 9. Invoke streamText and setup async database transaction logging
-    const result = streamText({
+    const result = await streamText({
       model: google('gemini-1.5-flash'),
       system: systemPrompt,
       messages: formattedMessages,
