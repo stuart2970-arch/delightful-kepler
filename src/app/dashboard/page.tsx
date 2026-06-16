@@ -32,7 +32,7 @@ async function createSupabaseServerClient() {
 
 export default async function DashboardPage() {
   let isDevMode = false;
-  let tenantId = 'd1a11111-1111-4111-8111-111111111111'; // Fallback to Acme Corp Seed
+  let tenantId = 't0000000-0000-0000-0000-000000000001'; // Fallback to Acme Corp Seed
   let tenantName = 'Acme Corp (Development)';
   let userEmail = 'admin@acme.com';
   let userName = 'Acme Admin';
