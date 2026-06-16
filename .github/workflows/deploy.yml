@@ -1,0 +1,80 @@
+name: Production CI/CD Ingestion RAG Deployment
+
+on:
+  push:
+    branches:
+      - main
+
+env:
+  GCP_PROJECT_ID: ${{ secrets.GCP_PROJECT_ID }} # GCP Project ID
+  GCP_REGION: europe-west2 # UK GDPR Compliance: London
+  AR_REPO_NAME: styleflo-repo # Matches Terraform registry repository ID
+  SERVICE_NAME: styleflo-app # Matches Cloud Run Service name
+
+jobs:
+  deploy:
+    name: Build, Push, and Deploy to GCP
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write # Required for Workload Identity Federation authentication
+
+    steps:
+      # 1. Checkout codebase
+      - name: Checkout Source Code
+        uses: actions/checkout@v4
+
+      # 2. Authenticate with Google Cloud Platform
+      # Recommended best practice: Workload Identity Federation (avoids static passwords in secrets)
+      - name: Authenticate to Google Cloud
+        id: auth
+        uses: google-github-actions/auth@v2
+        with:
+          token_format: access_token
+          # Configure these variables in GitHub Secrets after setting up GCP Workload Identity Pool
+          workload_identity_provider: ${{ secrets.GCP_WIP_PROVIDER_ID }}
+          service_account: ${{ secrets.GCP_SA_EMAIL }}
+          
+          # ALTERNATIVE: Static Service Account Key fallback (uncomment below if not using federation)
+          # credentials_json: ${{ secrets.GCP_SA_KEY_JSON }}
+
+      # 3. Authenticate Docker cli against Google Artifact Registry
+      - name: Authenticate Docker Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.GCP_REGION }}-docker.pkg.dev
+          username: oauth2accesstoken
+          password: ${{ steps.auth.outputs.access_token }}
+
+      # 4. Set up Docker Buildx (enables layer caching for speed)
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      # 5. Build and Push Docker image to GCP Artifact Registry
+      # Caches layers inside GitHub Actions to reduce consecutive build times from minutes to seconds
+      - name: Build and Push Docker Image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: ./Dockerfile
+          push: true
+          tags: |
+            ${{ env.GCP_REGION }}-docker.pkg.dev/${{ env.GCP_PROJECT_ID }}/${{ env.AR_REPO_NAME }}/${{ env.SERVICE_NAME }}:${{ github.sha }}
+            ${{ env.GCP_REGION }}-docker.pkg.dev/${{ env.GCP_PROJECT_ID }}/${{ env.AR_REPO_NAME }}/${{ env.SERVICE_NAME }}:latest
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      # 6. Deploy Docker container image to Google Cloud Run (zero-downtime rolling release)
+      - name: Deploy to Cloud Run
+        id: deploy
+        uses: google-github-actions/deploy-cloudrun@v2
+        with:
+          service: ${{ env.SERVICE_NAME }}
+          region: ${{ env.GCP_REGION }}
+          image: ${{ env.GCP_REGION }}-docker.pkg.dev/${{ env.GCP_PROJECT_ID }}/${{ env.AR_REPO_NAME }}/${{ env.SERVICE_NAME }}:${{ github.sha }}
+
+      # 7. Print deployment summary
+      - name: Output Service URL
+        run: |
+          echo "Deployment successful!"
+          echo "App URL: ${{ steps.deploy.outputs.url }}"

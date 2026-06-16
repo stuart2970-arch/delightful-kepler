@@ -1,0 +1,53 @@
+import { NextResponse } from 'next/server';
+import { createClient } from '@supabase/supabase-js';
+
+// Initialize Supabase Admin Client using service role key
+function getSupabaseAdmin() {
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+
+  if (!supabaseUrl || !serviceRoleKey) {
+    throw new Error('Supabase admin environment variables are missing');
+  }
+
+  return createClient(supabaseUrl, serviceRoleKey, {
+    auth: {
+      persistSession: false,
+      autoRefreshToken: false,
+    },
+  });
+}
+
+export async function GET(
+  request: Request,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  try {
+    const { id } = await params;
+
+    // Validate UUID format
+    if (!id || !/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(id)) {
+      return NextResponse.json({ error: 'Invalid chatbot ID format' }, { status: 400 });
+    }
+
+    const supabaseAdmin = getSupabaseAdmin();
+    const { data: chatbot, error: chatbotError } = await supabaseAdmin
+      .from('chatbots')
+      .select('name, primary_color')
+      .eq('id', id)
+      .single();
+
+    if (chatbotError || !chatbot) {
+      console.warn(`[Chatbot Config API] Chatbot not found: ${id}`);
+      return NextResponse.json({ error: 'Chatbot not found' }, { status: 404 });
+    }
+
+    return NextResponse.json({
+      name: chatbot.name,
+      primaryColor: chatbot.primary_color,
+    });
+  } catch (err: any) {
+    console.error('[Chatbot Config API] Unexpected failure:', err);
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
+  }
+}

@@ -1,0 +1,38 @@
+{
+  "name": "delightful-kepler",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build && npm run build:widget",
+    "start": "next start",
+    "lint": "eslint",
+    "build:widget": "node scripts/build-widget.js"
+  },
+  "dependencies": {
+    "@ai-sdk/google": "^3.0.82",
+    "@ai-sdk/openai": "^3.0.71",
+    "@google/genai": "^2.8.0",
+    "@langchain/textsplitters": "^1.0.1",
+    "@supabase/ssr": "^0.12.0",
+    "@supabase/supabase-js": "^2.108.2",
+    "ai": "^6.0.205",
+    "cheerio": "^1.2.0",
+    "next": "16.2.9",
+    "openai": "^6.42.0",
+    "react": "19.2.4",
+    "react-dom": "19.2.4",
+    "zod": "^4.4.3"
+  },
+  "devDependencies": {
+    "@tailwindcss/postcss": "^4",
+    "@types/node": "^20",
+    "@types/react": "^19",
+    "@types/react-dom": "^19",
+    "esbuild": "^0.28.1",
+    "eslint": "^9",
+    "eslint-config-next": "16.2.9",
+    "tailwindcss": "^4",
+    "typescript": "^5"
+  }
+}
