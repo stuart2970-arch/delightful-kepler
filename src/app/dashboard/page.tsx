@@ -3,16 +3,16 @@ import { cookies } from 'next/headers';
 import DashboardClient from '@/components/DashboardClient';
 
 // Helper to create server-side Supabase client
-async function createSupabaseServerClient() {
+async function createSupabaseServerClient(useServiceKey = false) {
   const cookieStore = await cookies();
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+  const key = useServiceKey ? process.env.SUPABASE_SERVICE_ROLE_KEY : process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 
-  if (!supabaseUrl || !supabaseAnonKey) {
+  if (!supabaseUrl || !key) {
     return null;
   }
 
-  return createServerClient(supabaseUrl, supabaseAnonKey, {
+  return createServerClient(supabaseUrl, key, {
     cookies: {
       getAll() {
         return cookieStore.getAll();
@@ -45,7 +45,8 @@ export default async function DashboardPage() {
   };
   let conversations: any[] = [];
 
-  const supabase = await createSupabaseServerClient();
+  const supabase = await createSupabaseServerClient(false);
+  let dbClient = supabase;
 
   // If Supabase is not configured or auth session is missing, run in Development Seed Mode
   if (!supabase) {
@@ -61,6 +62,9 @@ export default async function DashboardPage() {
       if (authError || !user) {
         isDevMode = true;
         console.warn('[Dashboard] No active session found. Running in development seed mode.');
+        
+        // Fetch service key client to bypass RLS in development seed mode
+        dbClient = await createSupabaseServerClient(true);
       } else {
         userEmail = user.email || '';
         userName = user.user_metadata?.name || 'User';
@@ -87,22 +91,21 @@ export default async function DashboardPage() {
           }
         } else {
           isDevMode = true;
+          dbClient = await createSupabaseServerClient(true);
         }
       }
     } catch (err) {
       isDevMode = true;
+      dbClient = await createSupabaseServerClient(true);
       console.warn('[Dashboard] Failed to fetch session, falling back to seed mode:', err);
     }
   }
 
-  // If we are in dev mode, we can fetch from Supabase using service key, or mock.
-  // Wait! To make sure the developer sees their seed data even if not logged in,
-  // we can fetch the seed data from the database using a service client or direct select if permitted.
   // If the user runs Supabase locally, they can query. Let's write the query to get data for tenantId.
-  if (supabase) {
+  if (dbClient) {
     try {
       // 1. Fetch Chatbots
-      const { data: bots } = await supabase
+      const { data: bots } = await dbClient
         .from('chatbots')
         .select('*')
         .eq('tenant_id', tenantId)
@@ -111,13 +114,13 @@ export default async function DashboardPage() {
       if (bots) chatbots = bots;
 
       // 2. Fetch Metrics (Chunks count)
-      const { count: chunksCount } = await supabase
+      const { count: chunksCount } = await dbClient
         .from('document_chunks')
         .select('*', { count: 'exact', head: true })
         .eq('tenant_id', tenantId);
 
       // 3. Fetch conversations
-      const { data: convs } = await supabase
+      const { data: convs } = await dbClient
         .from('conversations')
         .select('*')
         .eq('tenant_id', tenantId)
@@ -126,7 +129,7 @@ export default async function DashboardPage() {
       if (convs) conversations = convs;
 
       // 4. Fetch metrics
-      const { count: msgsCount } = await supabase
+      const { count: msgsCount } = await dbClient
         .from('messages')
         .select('*', { count: 'exact', head: true })
         .eq('tenant_id', tenantId);
