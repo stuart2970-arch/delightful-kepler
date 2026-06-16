@@ -51,6 +51,11 @@ export async function POST(request: Request) {
   const requestId = crypto.randomUUID();
   console.log(`[Ingest Route][${requestId}] Processing crawling request...`);
 
+  // Map GEMINI_API_KEY to GOOGLE_GENERATIVE_AI_API_KEY for the @ai-sdk/google provider
+  if (process.env.GEMINI_API_KEY && !process.env.GOOGLE_GENERATIVE_AI_API_KEY) {
+    process.env.GOOGLE_GENERATIVE_AI_API_KEY = process.env.GEMINI_API_KEY;
+  }
+
   // Detect if required environment keys are missing for mock mode fallback
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;

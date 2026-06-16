@@ -32,6 +32,11 @@ export async function POST(request: Request) {
   const requestId = crypto.randomUUID();
   console.log(`[Chat Stream][${requestId}] Inbound chat request...`);
 
+  // Map GEMINI_API_KEY to GOOGLE_GENERATIVE_AI_API_KEY for the @ai-sdk/google provider
+  if (process.env.GEMINI_API_KEY && !process.env.GOOGLE_GENERATIVE_AI_API_KEY) {
+    process.env.GOOGLE_GENERATIVE_AI_API_KEY = process.env.GEMINI_API_KEY;
+  }
+
   try {
     // 1. Check env configuration
     const geminiApiKey = process.env.GEMINI_API_KEY;
