@@ -87,6 +87,8 @@
   let agentRole = 'AI Support Agent';
   let agentAvatarUrl = '/avatars/avatar1.png';
 
+  let welcomeMessage = 'Hello! How can I help you today?';
+
   // 6. Fetch Chatbot Public Configuration
   async function fetchConfig() {
     try {
@@ -98,6 +100,7 @@
         agentName = config.agentName || botName;
         agentRole = config.agentRole || 'AI Support Agent';
         agentAvatarUrl = config.agentAvatarUrl || '/avatars/avatar1.png';
+        welcomeMessage = config.welcomeMessage || 'Hello! How can I help you today?';
       }
     } catch (err) {
       console.warn('[StyleFlo Widget] Failed to fetch chatbot config, using defaults:', err);
@@ -149,7 +152,7 @@
         <div class="flex items-start gap-2.5">
           <img src="${apiHost}${agentAvatarUrl}" alt="Agent Avatar" class="w-7 h-7 rounded-full object-cover bg-white border border-gray-100" />
           <div class="p-3 bg-white border border-gray-100 text-gray-800 rounded-2xl rounded-tl-none text-sm max-w-[75%] shadow-sm leading-relaxed">
-            Hello! How can I help you today?
+            ${welcomeMessage}
           </div>
         </div>
       </div>

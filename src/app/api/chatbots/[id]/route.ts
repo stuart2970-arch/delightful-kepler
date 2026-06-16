@@ -52,6 +52,7 @@ export async function GET(
       agentName: config.agent_name || chatbot.name,
       agentRole: config.agent_role || 'AI Assistant',
       agentAvatarUrl: config.agent_avatar_url || '/avatars/avatar1.png',
+      welcomeMessage: config.welcome_message || 'Hello! How can I help you today?',
     }, {
       headers: {
         'Cache-Control': 'no-store, no-cache, must-revalidate, proxy-revalidate',
