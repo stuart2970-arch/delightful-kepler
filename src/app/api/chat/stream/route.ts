@@ -55,7 +55,7 @@ export async function POST(request: Request) {
     const geminiApiKey = process.env.GEMINI_API_KEY || process.env.GOOGLE_GENERATIVE_AI_API_KEY;
     if (!geminiApiKey) {
       console.error(`[Chat Stream][${requestId}] GEMINI_API_KEY environment variable is missing`);
-      return NextResponse.json({ error: 'Gemini integration misconfigured' }, { status: 500, headers: corsHeaders });
+      return NextResponse.json({ error: 'Gemini integration misconfigured: missing API key' }, { status: 200, headers: corsHeaders });
     }
 
     const google = createGoogleGenerativeAI({
@@ -71,7 +71,7 @@ export async function POST(request: Request) {
     if (!validation.success) {
       const errorMsg = validation.error.issues.map((issue) => issue.message).join(', ');
       console.warn(`[Chat Stream][${requestId}] Validation failed: ${errorMsg}`);
-      return NextResponse.json({ error: errorMsg }, { status: 400, headers: corsHeaders });
+      return NextResponse.json({ error: `Validation error: ${errorMsg}` }, { status: 200, headers: corsHeaders });
     }
 
     const { message, chatbotId, sessionId } = validation.data;
@@ -86,7 +86,7 @@ export async function POST(request: Request) {
 
     if (chatbotError || !chatbot) {
       console.warn(`[Chat Stream][${requestId}] Chatbot validation failed or not found:`, chatbotError);
-      return NextResponse.json({ error: 'Chatbot not found' }, { status: 404, headers: corsHeaders });
+      return NextResponse.json({ error: `Chatbot not found: ${chatbotError?.message}` }, { status: 200, headers: corsHeaders });
     }
 
     const tenantId = chatbot.tenant_id;
@@ -108,7 +108,7 @@ export async function POST(request: Request) {
       queryEmbedding = embedding;
     } catch (embeddingErr: any) {
       console.error(`[Chat Stream][${requestId}] Gemini embedding creation failed:`, embeddingErr);
-      return NextResponse.json({ error: 'Failed to process message query' }, { status: 502, headers: corsHeaders });
+      return NextResponse.json({ error: `Embedding failed: ${embeddingErr.message}` }, { status: 200, headers: corsHeaders });
     }
 
     // 5. Query matching documents using the match_documents RPC (strictly filtered by tenant_id & chatbot_id)
@@ -123,7 +123,7 @@ export async function POST(request: Request) {
 
     if (rpcError) {
       console.error(`[Chat Stream][${requestId}] match_documents RPC failed:`, rpcError);
-      return NextResponse.json({ error: 'Context retrieval failed' }, { status: 500, headers: corsHeaders });
+      return NextResponse.json({ error: `Context retrieval failed: ${rpcError.message}` }, { status: 200, headers: corsHeaders });
     }
 
     const contextText = matchedDocuments && matchedDocuments.length > 0
@@ -145,7 +145,7 @@ export async function POST(request: Request) {
 
     if (convError) {
       console.error(`[Chat Stream][${requestId}] Conversation query failed:`, convError);
-      return NextResponse.json({ error: 'Failed to access conversation session' }, { status: 500, headers: corsHeaders });
+      return NextResponse.json({ error: `Conversation query failed: ${convError.message}` }, { status: 200, headers: corsHeaders });
     }
 
     if (!conversation) {
@@ -162,7 +162,7 @@ export async function POST(request: Request) {
 
       if (createConvError || !newConv) {
         console.error(`[Chat Stream][${requestId}] Conversation creation failed:`, createConvError);
-        return NextResponse.json({ error: 'Failed to initialize conversation session' }, { status: 500, headers: corsHeaders });
+        return NextResponse.json({ error: `Conversation creation failed: ${createConvError?.message}` }, { status: 200, headers: corsHeaders });
       }
       conversationId = newConv.id;
       console.log(`[Chat Stream][${requestId}] Initialized new conversation: ${conversationId}`);
@@ -255,8 +255,8 @@ export async function POST(request: Request) {
   } catch (err: any) {
     console.error(`[Chat Stream][${requestId}] Unexpected route failure:`, err);
     return NextResponse.json(
-      { error: 'An unexpected internal error occurred' },
-      { status: 500, headers: corsHeaders }
+      { error: `Unexpected failure: ${err.message}` },
+      { status: 200, headers: corsHeaders }
     );
   }
 }
