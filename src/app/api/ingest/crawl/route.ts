@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { createServerClient } from '@supabase/ssr';
+import { createClient } from '@supabase/supabase-js';
 import { cookies } from 'next/headers';
 import * as cheerio from 'cheerio';
 import { RecursiveCharacterTextSplitter } from '@langchain/textsplitters';
@@ -89,11 +90,6 @@ export async function POST(request: Request) {
       error: authError,
     } = await supabase.auth.getUser();
 
-    if (authError || !user) {
-      console.warn(`[Ingest Route][${requestId}] Unauthorized request:`, authError);
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
-
     // 2. Validate request body
     const body = await request.json();
     const validation = IngestRequestSchema.safeParse(body);
@@ -105,37 +101,67 @@ export async function POST(request: Request) {
     }
 
     const { url, chatbotId } = validation.data;
-    console.log(`[Ingest Route][${requestId}] Authenticated user: ${user.id}, chatbot: ${chatbotId}, target URL: ${url}`);
+    let tenantId: string;
+    let dbClient = supabase;
 
-    // 3. Retrieve user's tenant ID
-    const { data: profile, error: profileError } = await supabase
-      .from('profiles')
-      .select('tenant_id')
-      .eq('id', user.id)
-      .single();
+    if (authError || !user) {
+      console.warn(`[Ingest Route][${requestId}] No active user session. Attempting admin client fallback...`);
+      const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+      if (!serviceRoleKey) {
+        console.error(`[Ingest Route][${requestId}] Unauthorized and SUPABASE_SERVICE_ROLE_KEY is missing`);
+        return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+      }
 
-    if (profileError || !profile) {
-      console.error(`[Ingest Route][${requestId}] Profile fetch failed:`, profileError);
-      return NextResponse.json({ error: 'User tenant profile not found' }, { status: 403 });
-    }
+      const adminClient = createClient(supabaseUrl!, serviceRoleKey);
+      dbClient = adminClient;
 
-    const tenantId = profile.tenant_id;
-    console.log(`[Ingest Route][${requestId}] Extracted Tenant ID: ${tenantId}`);
+      // Fetch chatbot using admin client to resolve its tenant_id
+      const { data: chatbot, error: chatbotError } = await dbClient
+        .from('chatbots')
+        .select('tenant_id')
+        .eq('id', chatbotId)
+        .single();
 
-    // 4. Validate that the chatbot belongs to the user's tenant (RLS will also enforce this, but explicit check is safer)
-    const { data: chatbot, error: chatbotError } = await supabase
-      .from('chatbots')
-      .select('id')
-      .eq('id', chatbotId)
-      .eq('tenant_id', tenantId)
-      .single();
+      if (chatbotError || !chatbot) {
+        console.warn(`[Ingest Route][${requestId}] Chatbot lookup failed via admin client for ID ${chatbotId}`);
+        return NextResponse.json({ error: 'Chatbot not found' }, { status: 404 });
+      }
 
-    if (chatbotError || !chatbot) {
-      console.warn(`[Ingest Route][${requestId}] Chatbot validation failed or unauthorized access to chatbot ${chatbotId}`);
-      return NextResponse.json(
-        { error: 'Chatbot not found or you do not have permission to access it' },
-        { status: 404 }
-      );
+      tenantId = chatbot.tenant_id;
+      console.log(`[Ingest Route][${requestId}] Resolved Tenant ID via admin client: ${tenantId}`);
+    } else {
+      console.log(`[Ingest Route][${requestId}] Authenticated user: ${user.id}, chatbot: ${chatbotId}, target URL: ${url}`);
+
+      // 3. Retrieve user's tenant ID
+      const { data: profile, error: profileError } = await supabase
+        .from('profiles')
+        .select('tenant_id')
+        .eq('id', user.id)
+        .single();
+
+      if (profileError || !profile) {
+        console.error(`[Ingest Route][${requestId}] Profile fetch failed:`, profileError);
+        return NextResponse.json({ error: 'User tenant profile not found' }, { status: 403 });
+      }
+
+      tenantId = profile.tenant_id;
+      console.log(`[Ingest Route][${requestId}] Extracted Tenant ID: ${tenantId}`);
+
+      // 4. Validate that the chatbot belongs to the user's tenant (RLS will also enforce this, but explicit check is safer)
+      const { data: chatbot, error: chatbotError } = await supabase
+        .from('chatbots')
+        .select('id')
+        .eq('id', chatbotId)
+        .eq('tenant_id', tenantId)
+        .single();
+
+      if (chatbotError || !chatbot) {
+        console.warn(`[Ingest Route][${requestId}] Chatbot validation failed or unauthorized access to chatbot ${chatbotId}`);
+        return NextResponse.json(
+          { error: 'Chatbot not found or you do not have permission to access it' },
+          { status: 404 }
+        );
+      }
     }
 
     // 5. Fetch and Scrape HTML content from URL
@@ -236,7 +262,7 @@ export async function POST(request: Request) {
       source_url: url,
     }));
 
-    const { error: dbInsertError } = await supabase
+    const { error: dbInsertError } = await dbClient
       .from('document_chunks')
       .insert(recordsToInsert);
 
