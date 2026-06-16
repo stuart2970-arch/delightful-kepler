@@ -11,7 +11,7 @@ import { z } from 'zod';
 // Input validation schema
 const IngestRequestSchema = z.object({
   url: z.string().url({ message: 'Invalid URL format' }),
-  chatbotId: z.string().uuid({ message: 'Invalid chatbot ID format' }),
+  chatbotId: z.string().regex(/^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/, { message: 'Invalid chatbot ID format' }),
 });
 
 // Helper function to initialize Supabase client with request/cookie context

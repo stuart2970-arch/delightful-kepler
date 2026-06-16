@@ -7,7 +7,7 @@ import { z } from 'zod';
 // Input validation schema
 const ChatRequestSchema = z.object({
   message: z.string().min(1, { message: 'Message cannot be empty' }),
-  chatbotId: z.string().uuid({ message: 'Invalid chatbot ID format' }),
+  chatbotId: z.string().regex(/^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/, { message: 'Invalid chatbot ID format' }),
   sessionId: z.string().min(1, { message: 'Session ID cannot be empty' }),
 });
 
