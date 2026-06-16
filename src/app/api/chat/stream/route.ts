@@ -4,6 +4,19 @@ import { streamText, embed } from 'ai';
 import { createGoogleGenerativeAI } from '@ai-sdk/google';
 import { z } from 'zod';
 
+const corsHeaders = {
+  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Methods': 'POST, OPTIONS',
+  'Access-Control-Allow-Headers': 'Content-Type',
+};
+
+export async function OPTIONS() {
+  return new NextResponse(null, {
+    status: 200,
+    headers: corsHeaders,
+  });
+}
+
 // Input validation schema
 const ChatRequestSchema = z.object({
   message: z.string().min(1, { message: 'Message cannot be empty' }),
@@ -39,10 +52,10 @@ export async function POST(request: Request) {
 
   try {
     // 1. Check env configuration
-    const geminiApiKey = process.env.GEMINI_API_KEY;
+    const geminiApiKey = process.env.GEMINI_API_KEY || process.env.GOOGLE_GENERATIVE_AI_API_KEY;
     if (!geminiApiKey) {
       console.error(`[Chat Stream][${requestId}] GEMINI_API_KEY environment variable is missing`);
-      return NextResponse.json({ error: 'Gemini integration misconfigured' }, { status: 500 });
+      return NextResponse.json({ error: 'Gemini integration misconfigured' }, { status: 500, headers: corsHeaders });
     }
 
     const google = createGoogleGenerativeAI({
@@ -58,7 +71,7 @@ export async function POST(request: Request) {
     if (!validation.success) {
       const errorMsg = validation.error.issues.map((issue) => issue.message).join(', ');
       console.warn(`[Chat Stream][${requestId}] Validation failed: ${errorMsg}`);
-      return NextResponse.json({ error: errorMsg }, { status: 400 });
+      return NextResponse.json({ error: errorMsg }, { status: 400, headers: corsHeaders });
     }
 
     const { message, chatbotId, sessionId } = validation.data;
@@ -73,7 +86,7 @@ export async function POST(request: Request) {
 
     if (chatbotError || !chatbot) {
       console.warn(`[Chat Stream][${requestId}] Chatbot validation failed or not found:`, chatbotError);
-      return NextResponse.json({ error: 'Chatbot not found' }, { status: 404 });
+      return NextResponse.json({ error: 'Chatbot not found' }, { status: 404, headers: corsHeaders });
     }
 
     const tenantId = chatbot.tenant_id;
@@ -95,7 +108,7 @@ export async function POST(request: Request) {
       queryEmbedding = embedding;
     } catch (embeddingErr: any) {
       console.error(`[Chat Stream][${requestId}] Gemini embedding creation failed:`, embeddingErr);
-      return NextResponse.json({ error: 'Failed to process message query' }, { status: 502 });
+      return NextResponse.json({ error: 'Failed to process message query' }, { status: 502, headers: corsHeaders });
     }
 
     // 5. Query matching documents using the match_documents RPC (strictly filtered by tenant_id & chatbot_id)
@@ -110,7 +123,7 @@ export async function POST(request: Request) {
 
     if (rpcError) {
       console.error(`[Chat Stream][${requestId}] match_documents RPC failed:`, rpcError);
-      return NextResponse.json({ error: 'Context retrieval failed' }, { status: 500 });
+      return NextResponse.json({ error: 'Context retrieval failed' }, { status: 500, headers: corsHeaders });
     }
 
     const contextText = matchedDocuments && matchedDocuments.length > 0
@@ -132,7 +145,7 @@ export async function POST(request: Request) {
 
     if (convError) {
       console.error(`[Chat Stream][${requestId}] Conversation query failed:`, convError);
-      return NextResponse.json({ error: 'Failed to access conversation session' }, { status: 500 });
+      return NextResponse.json({ error: 'Failed to access conversation session' }, { status: 500, headers: corsHeaders });
     }
 
     if (!conversation) {
@@ -149,7 +162,7 @@ export async function POST(request: Request) {
 
       if (createConvError || !newConv) {
         console.error(`[Chat Stream][${requestId}] Conversation creation failed:`, createConvError);
-        return NextResponse.json({ error: 'Failed to initialize conversation session' }, { status: 500 });
+        return NextResponse.json({ error: 'Failed to initialize conversation session' }, { status: 500, headers: corsHeaders });
       }
       conversationId = newConv.id;
       console.log(`[Chat Stream][${requestId}] Initialized new conversation: ${conversationId}`);
@@ -235,13 +248,15 @@ export async function POST(request: Request) {
       },
     });
 
-    return result.toTextStreamResponse();
+    return result.toTextStreamResponse({
+      headers: corsHeaders,
+    });
 
   } catch (err: any) {
     console.error(`[Chat Stream][${requestId}] Unexpected route failure:`, err);
     return NextResponse.json(
       { error: 'An unexpected internal error occurred' },
-      { status: 500 }
+      { status: 500, headers: corsHeaders }
     );
   }
 }
