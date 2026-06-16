@@ -34,14 +34,13 @@ export async function GET(request: Request) {
     let query = supabaseAdmin
       .from('messages')
       .select('*')
-      .eq('conversation_id', conversationId)
-      .order('created_at', { ascending: true });
+      .eq('conversation_id', conversationId);
 
-    if (tenantId) {
+    if (tenantId && tenantId !== 'undefined') {
       query = query.eq('tenant_id', tenantId);
     }
 
-    const { data: messages, error } = await query;
+    const { data: messages, error } = await query.order('created_at', { ascending: true });
 
     if (error) {
       console.error('[Messages API] Error querying database:', error);
