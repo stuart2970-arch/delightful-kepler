@@ -33,7 +33,7 @@ export async function GET(
     const supabaseAdmin = getSupabaseAdmin();
     const { data: chatbot, error: chatbotError } = await supabaseAdmin
       .from('chatbots')
-      .select('name, primary_color')
+      .select('name, primary_color, configuration_json')
       .eq('id', id)
       .single();
 
@@ -42,9 +42,14 @@ export async function GET(
       return NextResponse.json({ error: 'Chatbot not found' }, { status: 404 });
     }
 
+    const config = (chatbot.configuration_json || {}) as Record<string, any>;
+
     return NextResponse.json({
       name: chatbot.name,
       primaryColor: chatbot.primary_color,
+      agentName: config.agent_name || chatbot.name,
+      agentRole: config.agent_role || 'AI Assistant',
+      agentAvatarUrl: config.agent_avatar_url || '/avatars/avatar1.png',
     });
   } catch (err: any) {
     console.error('[Chatbot Config API] Unexpected failure:', err);

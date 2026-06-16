@@ -10,6 +10,9 @@ interface Chatbot {
   configuration_json: {
     welcome_message?: string;
     suggested_prompts?: string[];
+    agent_name?: string;
+    agent_role?: string;
+    agent_avatar_url?: string;
   };
   created_at: string;
 }
@@ -70,6 +73,9 @@ export default function DashboardClient({
   const [newBotName, setNewBotName] = useState('');
   const [newBotColor, setNewBotColor] = useState('#4F46E5');
   const [newBotWelcome, setNewBotWelcome] = useState('Hello! How can I help you today?');
+  const [newAgentName, setNewAgentName] = useState('');
+  const [newAgentRole, setNewAgentRole] = useState('AI Assistant');
+  const [newAgentAvatar, setNewAgentAvatar] = useState('/avatars/avatar1.png');
   const [isCreatingBot, setIsCreatingBot] = useState(false);
 
   const [crawlBotId, setCrawlBotId] = useState(initialChatbots[0]?.id || '');
@@ -162,6 +168,9 @@ export default function DashboardClient({
       primary_color: newBotColor,
       configuration_json: {
         welcome_message: newBotWelcome,
+        agent_name: newAgentName.trim() || newBotName,
+        agent_role: newAgentRole.trim(),
+        agent_avatar_url: newAgentAvatar,
       },
       created_at: new Date().toISOString(),
     };
@@ -176,6 +185,9 @@ export default function DashboardClient({
           name: newBotName,
           configuration_json: {
             welcome_message: newBotWelcome,
+            agent_name: newAgentName.trim() || newBotName,
+            agent_role: newAgentRole.trim(),
+            agent_avatar_url: newAgentAvatar,
           },
           primary_color: newBotColor,
         });
@@ -201,6 +213,9 @@ export default function DashboardClient({
       }));
       setNewBotName('');
       setNewBotWelcome('Hello! How can I help you today?');
+      setNewAgentName('');
+      setNewAgentRole('AI Assistant');
+      setNewAgentAvatar('/avatars/avatar1.png');
     }
     setIsCreatingBot(false);
   };
@@ -403,7 +418,7 @@ export default function DashboardClient({
                       </div>
                     </div>
                   </div>
-                  <div>
+                   <div>
                     <label className="block text-xs font-semibold text-gray-400 mb-1.5">Welcome Message</label>
                     <input
                       type="text"
@@ -412,6 +427,62 @@ export default function DashboardClient({
                       className="w-full bg-gray-950 border border-gray-800 rounded-xl px-3.5 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-indigo-500 text-white"
                       required
                     />
+                  </div>
+
+                  <div className="border-t border-gray-800/80 pt-4 space-y-4">
+                    <h4 className="text-xs font-bold text-indigo-400 uppercase tracking-wider">Agent Profile Persona</h4>
+                    
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div>
+                        <label className="block text-xs font-semibold text-gray-400 mb-1.5">Agent Display Name</label>
+                        <input
+                          type="text"
+                          placeholder="e.g. Emma (AI Agent)"
+                          value={newAgentName}
+                          onChange={(e) => setNewAgentName(e.target.value)}
+                          className="w-full bg-gray-950 border border-gray-800 rounded-xl px-3.5 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-indigo-500 text-white"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-xs font-semibold text-gray-400 mb-1.5">Agent Role Subtitle</label>
+                        <input
+                          type="text"
+                          placeholder="e.g. StyleFlo Advisor"
+                          value={newAgentRole}
+                          onChange={(e) => setNewAgentRole(e.target.value)}
+                          className="w-full bg-gray-950 border border-gray-800 rounded-xl px-3.5 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-indigo-500 text-white"
+                        />
+                      </div>
+                    </div>
+
+                    <div>
+                      <label className="block text-xs font-semibold text-gray-400 mb-2">Select Agent Avatar Preset</label>
+                      <div className="flex gap-4">
+                        {[
+                          { id: '/avatars/avatar1.png', label: 'Robo Assistant' },
+                          { id: '/avatars/avatar2.png', label: 'Support Specialist' },
+                          { id: '/avatars/avatar3.png', label: 'Brand Mascot' },
+                        ].map((avatar) => (
+                          <button
+                            key={avatar.id}
+                            type="button"
+                            onClick={() => setNewAgentAvatar(avatar.id)}
+                            className={`flex flex-col items-center gap-1.5 p-2 rounded-xl border transition-all ${
+                              newAgentAvatar === avatar.id
+                                ? 'bg-indigo-950/20 border-indigo-500 shadow-md shadow-indigo-500/10'
+                                : 'bg-gray-950/40 border-gray-800 hover:border-gray-700'
+                            }`}
+                          >
+                            <img
+                              src={avatar.id}
+                              alt={avatar.label}
+                              className="w-12 h-12 rounded-full border border-gray-800 object-cover bg-gray-900"
+                            />
+                            <span className="text-[10px] text-gray-400 font-medium">{avatar.label}</span>
+                          </button>
+                        ))}
+                      </div>
+                    </div>
                   </div>
                   <button
                     type="submit"
@@ -438,6 +509,24 @@ export default function DashboardClient({
                     <div className="bg-gray-950/60 p-3 rounded-xl text-xs text-gray-300 italic border border-gray-950">
                       "{bot.configuration_json?.welcome_message || 'Hello!'}"
                     </div>
+
+                    <div className="flex items-center gap-3 bg-gray-950/40 p-2.5 rounded-xl border border-gray-950/50">
+                      <img
+                        src={bot.configuration_json?.agent_avatar_url || '/avatars/avatar1.png'}
+                        alt="Agent Avatar"
+                        className="w-9 h-9 rounded-full border bg-gray-900 object-cover"
+                        style={{ borderColor: bot.primary_color }}
+                      />
+                      <div>
+                        <div className="text-xs font-semibold text-white">
+                          {bot.configuration_json?.agent_name || bot.name}
+                        </div>
+                        <div className="text-[10px] text-gray-400">
+                          {bot.configuration_json?.agent_role || 'AI Assistant'}
+                        </div>
+                      </div>
+                    </div>
+
                     <div className="flex gap-2">
                       <button
                         onClick={() => setTestWidgetBotId(testWidgetBotId === bot.id ? null : bot.id)}

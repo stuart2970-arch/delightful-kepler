@@ -83,6 +83,9 @@
 
   let primaryColor = '#4F46E5'; // Default Indigo-600
   let botName = 'AI Assistant';
+  let agentName = 'AI Assistant';
+  let agentRole = 'AI Support Agent';
+  let agentAvatarUrl = '/avatars/avatar1.png';
 
   // 6. Fetch Chatbot Public Configuration
   async function fetchConfig() {
@@ -92,6 +95,9 @@
         const config = await response.json();
         if (config.name) botName = config.name;
         if (config.primaryColor) primaryColor = config.primaryColor;
+        agentName = config.agentName || botName;
+        agentRole = config.agentRole || 'AI Support Agent';
+        agentAvatarUrl = config.agentAvatarUrl || '/avatars/avatar1.png';
       }
     } catch (err) {
       console.warn('[StyleFlo Widget] Failed to fetch chatbot config, using defaults:', err);
@@ -123,9 +129,12 @@
     chatWindow.innerHTML = `
       <!-- Header -->
       <div class="p-4 text-white flex items-center justify-between shadow-md" style="background-color: ${primaryColor};">
-        <div>
-          <h3 class="font-bold text-base leading-tight">${botName}</h3>
-          <p class="text-xs opacity-75 mt-0.5">Powered by StyleFlo</p>
+        <div class="flex items-center gap-3">
+          <img src="${apiHost}${agentAvatarUrl}" alt="Agent Avatar" class="w-10 h-10 rounded-full border border-white/20 bg-white/10 object-cover" />
+          <div>
+            <h3 class="font-bold text-base leading-tight">${agentName}</h3>
+            <p class="text-[10px] opacity-75 mt-0.5">${agentRole}</p>
+          </div>
         </div>
         <button id="styleflo-close-btn" class="text-white opacity-80 hover:opacity-100 focus:outline-none transition-opacity">
           <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -138,7 +147,8 @@
       <div id="styleflo-messages" class="flex-1 overflow-y-auto p-4 space-y-4 bg-gray-50 styleflo-scrollbar">
         <!-- Welcome Message -->
         <div class="flex items-start gap-2.5">
-          <div class="p-3 bg-white border border-gray-100 text-gray-800 rounded-2xl rounded-tl-none text-sm max-w-[85%] shadow-sm leading-relaxed">
+          <img src="${apiHost}${agentAvatarUrl}" alt="Agent Avatar" class="w-7 h-7 rounded-full object-cover bg-white border border-gray-100" />
+          <div class="p-3 bg-white border border-gray-100 text-gray-800 rounded-2xl rounded-tl-none text-sm max-w-[75%] shadow-sm leading-relaxed">
             Hello! How can I help you today?
           </div>
         </div>
@@ -211,10 +221,18 @@
       const wrapper = document.createElement('div');
       wrapper.className = sender === 'user' ? 'flex justify-end' : 'flex items-start gap-2.5';
       
+      if (sender === 'bot') {
+        const avatarImg = document.createElement('img');
+        avatarImg.src = `${apiHost}${agentAvatarUrl}`;
+        avatarImg.alt = 'Agent Avatar';
+        avatarImg.className = 'w-7 h-7 rounded-full object-cover bg-white border border-gray-100 flex-shrink-0';
+        wrapper.appendChild(avatarImg);
+      }
+      
       const msgDiv = document.createElement('div');
       msgDiv.className = sender === 'user'
         ? 'p-3 text-white rounded-2xl rounded-tr-none text-sm max-w-[85%] shadow-sm leading-relaxed'
-        : 'p-3 bg-white border border-gray-100 text-gray-800 rounded-2xl rounded-tl-none text-sm max-w-[85%] shadow-sm leading-relaxed';
+        : 'p-3 bg-white border border-gray-100 text-gray-800 rounded-2xl rounded-tl-none text-sm max-w-[75%] shadow-sm leading-relaxed';
       
       if (sender === 'user') {
         msgDiv.style.backgroundColor = primaryColor;
@@ -234,6 +252,7 @@
       wrapper.className = 'flex items-start gap-2.5';
       
       wrapper.innerHTML = `
+        <img src="${apiHost}${agentAvatarUrl}" alt="Agent Avatar" class="w-7 h-7 rounded-full object-cover bg-white border border-gray-100 flex-shrink-0" />
         <div class="flex items-center gap-1.5 p-3.5 bg-white border border-gray-100 rounded-2xl rounded-tl-none shadow-sm">
           <div class="styleflo-dot"></div>
           <div class="styleflo-dot"></div>
