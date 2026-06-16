@@ -248,8 +248,27 @@ export async function POST(request: Request) {
       },
     });
 
-    return result.toTextStreamResponse({
-      headers: corsHeaders,
+    const encoder = new TextEncoder();
+    const stream = new ReadableStream({
+      async start(controller) {
+        try {
+          for await (const chunk of result.textStream) {
+            controller.enqueue(encoder.encode(chunk));
+          }
+        } catch (err: any) {
+          console.error(`[Chat Stream][${requestId}] In-stream generation error:`, err);
+          controller.enqueue(encoder.encode(`\n[STREAM ERROR: ${err.message}]`));
+        } finally {
+          controller.close();
+        }
+      }
+    });
+
+    return new Response(stream, {
+      headers: {
+        ...corsHeaders,
+        'Content-Type': 'text/plain; charset=utf-8',
+      },
     });
 
   } catch (err: any) {
