@@ -147,7 +147,7 @@
       </div>
 
       <!-- Messages Area -->
-      <div id="styleflo-messages" class="flex-1 overflow-y-auto p-4 space-y-4 bg-gray-50 styleflo-scrollbar">
+      <div id="styleflo-messages" class="flex-1 min-h-0 overflow-y-auto p-4 space-y-4 bg-gray-50 styleflo-scrollbar">
         <!-- Welcome Message -->
         <div class="flex items-start gap-2.5">
           <img src="${apiHost}${agentAvatarUrl}" alt="Agent Avatar" class="w-7 h-7 rounded-full object-cover bg-white border border-gray-100" />
