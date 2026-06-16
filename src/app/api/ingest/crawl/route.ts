@@ -123,7 +123,7 @@ export async function POST(request: Request) {
         .single();
 
       if (chatbotError || !chatbot) {
-        console.warn(`[Ingest Route][${requestId}] Chatbot lookup failed via admin client for ID ${chatbotId}`);
+        console.warn(`[Ingest Route][${requestId}] Chatbot lookup failed via admin client for ID ${chatbotId}:`, chatbotError);
         return NextResponse.json({ error: 'Chatbot not found' }, { status: 404 });
       }
 
