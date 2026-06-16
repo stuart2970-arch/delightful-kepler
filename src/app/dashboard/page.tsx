@@ -2,6 +2,8 @@ import { createServerClient } from '@supabase/ssr';
 import { cookies } from 'next/headers';
 import DashboardClient from '@/components/DashboardClient';
 
+export const dynamic = 'force-dynamic';
+
 // Helper to create server-side Supabase client
 async function createSupabaseServerClient(useServiceKey = false) {
   const cookieStore = await cookies();

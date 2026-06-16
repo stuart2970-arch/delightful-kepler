@@ -54,3 +54,7 @@ override.tf.json
 .terraformrc
 terraform.rc
 
+# Local Scratch folder
+scratch/
+
+
