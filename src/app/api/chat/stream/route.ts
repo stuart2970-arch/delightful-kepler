@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
-import { generateText, embed } from 'ai';
+import { streamText, embed } from 'ai';
 import { createGoogleGenerativeAI } from '@ai-sdk/google';
 import { z } from 'zod';
 
@@ -204,46 +204,50 @@ export async function POST(request: Request) {
       content: message,
     });
 
-    console.log(`[Chat Stream][${requestId}] Initializing Vercel AI SDK text generation (gemini-1.5-flash)...`);
+    console.log(`[Chat Stream][${requestId}] Initializing Vercel AI SDK text stream (gemini-3.5-flash)...`);
 
-    // 9. Invoke generateText and setup async database transaction logging
-    const result = await generateText({
-      model: google('gemini-1.5-flash'),
+    // 9. Invoke streamText and setup async database transaction logging
+    const result = await streamText({
+      model: google('gemini-3.5-flash'),
       system: systemPrompt,
       messages: formattedMessages,
-    });
+      onFinish: async (event) => {
+        console.log(`[Chat Stream][${requestId}] AI stream finished. Logging conversation in background...`);
+        try {
+          const userMessageInsert = supabaseAdmin.from('messages').insert({
+            tenant_id: tenantId,
+            conversation_id: conversationId,
+            sender_type: 'user',
+            text_content: message,
+          });
 
-    console.log(`[Chat Stream][${requestId}] AI generation finished. Logging conversation in background...`);
-    // Run DB logging in background without blocking response
-    Promise.all([
-      supabaseAdmin.from('messages').insert({
-        tenant_id: tenantId,
-        conversation_id: conversationId,
-        sender_type: 'user',
-        text_content: message,
-      }),
-      supabaseAdmin.from('messages').insert({
-        tenant_id: tenantId,
-        conversation_id: conversationId,
-        sender_type: 'bot',
-        text_content: result.text,
-      })
-    ]).catch(dbErr => {
-      console.error(`[Chat Stream][${requestId}] Database logging failed:`, dbErr);
+          const assistantMessageInsert = supabaseAdmin.from('messages').insert({
+            tenant_id: tenantId,
+            conversation_id: conversationId,
+            sender_type: 'bot',
+            text_content: event.text,
+          });
+
+          const [userInsertRes, assistantInsertRes] = await Promise.all([
+            userMessageInsert,
+            assistantMessageInsert,
+          ]);
+
+          if (userInsertRes.error) console.error(`[Chat Stream][${requestId}] Failed to log user message:`, userInsertRes.error);
+          if (assistantInsertRes.error) console.error(`[Chat Stream][${requestId}] Failed to log assistant response:`, assistantInsertRes.error);
+        } catch (dbErr) {
+          console.error(`[Chat Stream][${requestId}] Background DB logging failed:`, dbErr);
+        }
+      },
     });
 
     const encoder = new TextEncoder();
     const stream = new ReadableStream({
       async start(controller) {
         try {
-          // Send the entire generated text as a single chunk to the stream
-          controller.enqueue(encoder.encode('[TEST-START] '));
-          if (result && result.text) {
-             controller.enqueue(encoder.encode(result.text));
-          } else {
-             controller.enqueue(encoder.encode('[NO-TEXT-FOUND]'));
+          for await (const chunk of result.textStream) {
+            controller.enqueue(encoder.encode(chunk));
           }
-          controller.enqueue(encoder.encode(' [TEST-END]'));
         } catch (err: any) {
           console.error(`[Chat Stream][${requestId}] In-stream generation error:`, err);
           controller.enqueue(encoder.encode(`\n[STREAM ERROR: ${err.message}]`));
@@ -252,6 +256,7 @@ export async function POST(request: Request) {
         }
       }
     });
+
 
     return new Response(stream, {
       headers: {
