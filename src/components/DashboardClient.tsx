@@ -77,6 +77,7 @@ export default function DashboardClient({
   const [newAgentRole, setNewAgentRole] = useState('AI Assistant');
   const [newAgentAvatar, setNewAgentAvatar] = useState('/avatars/avatar1.png');
   const [isCreatingBot, setIsCreatingBot] = useState(false);
+  const [editingBotId, setEditingBotId] = useState<string | null>(null);
 
   const [crawlBotId, setCrawlBotId] = useState(initialChatbots[0]?.id || '');
   const [crawlUrl, setCrawlUrl] = useState('');
@@ -211,6 +212,62 @@ export default function DashboardClient({
         ...prev,
         chatbotsCount: prev.chatbotsCount + 1,
       }));
+      setNewBotName('');
+      setNewBotWelcome('Hello! How can I help you today?');
+      setNewAgentName('');
+      setNewAgentRole('AI Assistant');
+      setNewAgentAvatar('/avatars/avatar1.png');
+    }
+    setIsCreatingBot(false);
+  };
+
+  const handleUpdateChatbot = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingBotId || !newBotName.trim()) return;
+
+    setIsCreatingBot(true);
+
+    const updatedConfig = {
+      welcome_message: newBotWelcome,
+      agent_name: newAgentName.trim() || newBotName,
+      agent_role: newAgentRole.trim(),
+      agent_avatar_url: newAgentAvatar,
+    };
+
+    let successfullySaved = false;
+
+    if (supabase && !isDev) {
+      try {
+        const { error } = await supabase
+          .from('chatbots')
+          .update({
+            name: newBotName,
+            configuration_json: updatedConfig,
+            primary_color: newBotColor,
+          })
+          .eq('id', editingBotId);
+
+        if (!error) {
+          successfullySaved = true;
+        } else {
+          alert(`Database error: ${error.message}`);
+        }
+      } catch (err: any) {
+        alert(`Failed to save to database: ${err.message}`);
+      }
+    } else {
+      successfullySaved = true;
+    }
+
+    if (successfullySaved) {
+      setChatbots(chatbots.map(bot => bot.id === editingBotId ? {
+        ...bot,
+        name: newBotName,
+        primary_color: newBotColor,
+        configuration_json: updatedConfig
+      } : bot));
+      
+      setEditingBotId(null);
       setNewBotName('');
       setNewBotWelcome('Hello! How can I help you today?');
       setNewAgentName('');
@@ -386,8 +443,10 @@ export default function DashboardClient({
             <div className="space-y-6">
               {/* Create Chatbot Card */}
               <div className="bg-gray-900/30 border border-gray-900 p-6 rounded-2xl shadow-xl">
-                <h3 className="text-lg font-bold text-white mb-4">Create New Chatbot</h3>
-                <form onSubmit={handleCreateChatbot} className="space-y-4">
+                <h3 className="text-lg font-bold text-white mb-4">
+                  {editingBotId ? `Edit Chatbot: ${newBotName}` : 'Create New Chatbot'}
+                </h3>
+                <form onSubmit={editingBotId ? handleUpdateChatbot : handleCreateChatbot} className="space-y-4">
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div>
                       <label className="block text-xs font-semibold text-gray-400 mb-1.5">Chatbot Name</label>
@@ -484,13 +543,31 @@ export default function DashboardClient({
                       </div>
                     </div>
                   </div>
-                  <button
-                    type="submit"
-                    disabled={isCreatingBot}
-                    className="bg-indigo-600 hover:bg-indigo-500 text-white text-sm font-semibold py-2 px-5 rounded-xl shadow-lg shadow-indigo-500/10 transition-colors disabled:opacity-50"
-                  >
-                    {isCreatingBot ? 'Creating...' : 'Create Chatbot'}
-                  </button>
+                  <div className="flex gap-3">
+                    <button
+                      type="submit"
+                      disabled={isCreatingBot}
+                      className="bg-indigo-600 hover:bg-indigo-500 text-white text-sm font-semibold py-2 px-5 rounded-xl shadow-lg shadow-indigo-500/10 transition-colors disabled:opacity-50"
+                    >
+                      {isCreatingBot ? 'Saving...' : (editingBotId ? 'Save Changes' : 'Create Chatbot')}
+                    </button>
+                    {editingBotId && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setEditingBotId(null);
+                          setNewBotName('');
+                          setNewBotWelcome('Hello! How can I help you today?');
+                          setNewAgentName('');
+                          setNewAgentRole('AI Assistant');
+                          setNewAgentAvatar('/avatars/avatar1.png');
+                        }}
+                        className="bg-gray-800 hover:bg-gray-700 text-gray-300 text-sm font-semibold py-2 px-5 rounded-xl transition-colors"
+                      >
+                        Cancel
+                      </button>
+                    )}
+                  </div>
                 </form>
               </div>
 
@@ -533,6 +610,23 @@ export default function DashboardClient({
                         className="flex-1 bg-gray-950 hover:bg-gray-900 text-gray-300 hover:text-white border border-gray-800 py-1.5 px-3 rounded-xl text-xs font-semibold transition-colors"
                       >
                         {testWidgetBotId === bot.id ? 'Hide Embed Code' : 'Embed Code'}
+                      </button>
+                      <button
+                        onClick={() => {
+                          setEditingBotId(bot.id);
+                          setNewBotName(bot.name);
+                          setNewBotColor(bot.primary_color);
+                          setNewBotWelcome(bot.configuration_json?.welcome_message || 'Hello!');
+                          setNewAgentName(bot.configuration_json?.agent_name || bot.name);
+                          setNewAgentRole(bot.configuration_json?.agent_role || 'AI Assistant');
+                          setNewAgentAvatar(bot.configuration_json?.agent_avatar_url || '/avatars/avatar1.png');
+                          
+                          // Scroll form into view
+                          window.scrollTo({ top: 0, behavior: 'smooth' });
+                        }}
+                        className="flex-1 bg-indigo-950/40 hover:bg-indigo-950/70 text-indigo-300 hover:text-indigo-200 border border-indigo-900/50 py-1.5 px-3 rounded-xl text-xs font-semibold transition-colors"
+                      >
+                        Edit Persona
                       </button>
                     </div>
 
