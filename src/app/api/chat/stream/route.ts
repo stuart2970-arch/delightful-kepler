@@ -187,11 +187,11 @@ export async function POST(request: Request) {
       content: message,
     });
 
-    console.log(`[Chat Stream][${requestId}] Initializing Vercel AI SDK text stream (gemini-3.5-flash)...`);
+    console.log(`[Chat Stream][${requestId}] Initializing Vercel AI SDK text stream (gemini-1.5-flash)...`);
 
     // 9. Invoke streamText and setup async database transaction logging
     const result = streamText({
-      model: google('gemini-3.5-flash'),
+      model: google('gemini-1.5-flash'),
       system: systemPrompt,
       messages: formattedMessages,
       onFinish: async (event) => {
