@@ -117,7 +117,7 @@ resource "google_sql_database_instance" "db_instance" {
     
     ip_configuration {
       ipv4_enabled = true # Supports connecting securely via Cloud Run Auth Proxy
-      ssl_mode     = "TRUSTED_CLIENT_CERTIFICATE_REQUIRED"
+      ssl_mode     = "ENCRYPTED_ONLY"
     }
 
     # GDPR requirement: Enable automated daily backups with point-in-time recovery
