@@ -245,8 +245,13 @@ export async function POST(request: Request) {
 
     try {
       const { embeddings: generatedEmbeddings } = await embedMany({
-        model: google.textEmbeddingModel('text-embedding-004'),
+        model: google.textEmbeddingModel('gemini-embedding-001'),
         values: chunks,
+        providerOptions: {
+          google: {
+            outputDimensionality: 768,
+          },
+        },
       });
 
       embeddings = generatedEmbeddings;

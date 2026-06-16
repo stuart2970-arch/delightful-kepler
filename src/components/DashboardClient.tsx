@@ -228,7 +228,7 @@ export default function DashboardClient({
         setCrawlLogs((prev) => [...prev, `[LangChain] Parsing text into 1,000 character chunks...`]);
       }, 2400));
       timeouts.push(setTimeout(() => {
-        setCrawlLogs((prev) => [...prev, `[Gemini] Generating 768-dim embeddings via text-embedding-004...`]);
+        setCrawlLogs((prev) => [...prev, `[Gemini] Generating 768-dim embeddings via gemini-embedding-001...`]);
       }, 3200));
 
       // Perform actual POST request to our API endpoint
