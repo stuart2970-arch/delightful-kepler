@@ -237,7 +237,13 @@ export async function POST(request: Request) {
       async start(controller) {
         try {
           // Send the entire generated text as a single chunk to the stream
-          controller.enqueue(encoder.encode(result.text));
+          controller.enqueue(encoder.encode('[TEST-START] '));
+          if (result && result.text) {
+             controller.enqueue(encoder.encode(result.text));
+          } else {
+             controller.enqueue(encoder.encode('[NO-TEXT-FOUND]'));
+          }
+          controller.enqueue(encoder.encode(' [TEST-END]'));
         } catch (err: any) {
           console.error(`[Chat Stream][${requestId}] In-stream generation error:`, err);
           controller.enqueue(encoder.encode(`\n[STREAM ERROR: ${err.message}]`));
