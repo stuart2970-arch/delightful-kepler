@@ -240,25 +240,36 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Gemini integration misconfigured' }, { status: 500 });
     }
 
-    console.log(`[Ingest Route][${requestId}] Generating vector embeddings for ${chunks.length} chunks via text-embedding-004...`);
-    let embeddings: number[][];
-
-    try {
-      const { embeddings: generatedEmbeddings } = await embedMany({
-        model: google.textEmbeddingModel('gemini-embedding-001'),
-        values: chunks,
-        providerOptions: {
-          google: {
-            outputDimensionality: 768,
+    const chunkData = chunks.map(chunk => ({ content: chunk, source_url: url }));
+    const embeddingPromises = chunkData.map(async (chunk) => {
+      try {
+        const { embedding } = await embed({
+          model: google.textEmbeddingModel('gemini-embedding-001'),
+          value: chunk.content,
+          providerOptions: {
+            google: {
+              outputDimensionality: 768,
+            },
           },
-        },
-      });
+        });
+        return {
+          content: chunk.content,
+          source_url: chunk.source_url,
+          embedding,
+        };
+      } catch (err) {
+        console.warn(`[Ingest Route][${requestId}] Failed to embed chunk from ${chunk.source_url}:`, err);
+        return null;
+      }
+    });
 
-      embeddings = generatedEmbeddings;
-    } catch (geminiErr: any) {
-      console.error(`[Ingest Route][${requestId}] Gemini Embeddings creation failed:`, geminiErr);
+    console.log(`[Ingest Route][${requestId}] Generating vector embeddings for ${chunks.length} chunks via gemini-embedding-001...`);
+    const results = await Promise.all(embeddingPromises);
+    const validResults = results.filter((r): r is { content: string; source_url: string; embedding: number[] } => r !== null);
+
+    if (validResults.length === 0) {
       return NextResponse.json(
-        { error: `Embedding generation failed: ${geminiErr.message || geminiErr}` },
+        { error: 'Failed to generate any embeddings for the chunks' },
         { status: 502 }
       );
     }

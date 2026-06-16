@@ -97,7 +97,7 @@ export async function POST(request: Request) {
     let queryEmbedding: number[];
     try {
       const { embedding } = await embed({
-        model: google.textEmbeddingModel('text-embedding-004'),
+        model: google.textEmbeddingModel('gemini-embedding-001'),
         value: message,
         providerOptions: {
           google: {
