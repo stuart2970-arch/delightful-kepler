@@ -311,6 +311,7 @@
 
         // 4. Create bot response container
         const botResponseContainer = appendMessage('bot', '');
+        let rawText = '';
 
         // 5. Read stream chunks and update UI
         while (true) {
@@ -318,7 +319,16 @@
           if (done) break;
 
           const chunk = decoder.decode(value, { stream: true });
-          botResponseContainer.textContent += chunk;
+          rawText += chunk;
+          
+          // Lightweight markdown parsing for the widget
+          let formattedText = rawText
+            // Replace bold **text**
+            .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
+            // Convert newlines to <br>
+            .replace(/\n/g, '<br/>');
+
+          botResponseContainer.innerHTML = formattedText;
           scrollToBottom();
         }
 
