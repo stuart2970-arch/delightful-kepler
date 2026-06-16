@@ -5,7 +5,7 @@ import { cookies } from 'next/headers';
 import * as cheerio from 'cheerio';
 import { RecursiveCharacterTextSplitter } from '@langchain/textsplitters';
 import { google } from '@ai-sdk/google';
-import { embedMany } from 'ai';
+import { embed, embedMany } from 'ai';
 import { z } from 'zod';
 
 // Input validation schema
@@ -276,12 +276,12 @@ export async function POST(request: Request) {
 
     // 9. Batch insert document chunks into public.document_chunks
     console.log(`[Ingest Route][${requestId}] Saving document chunks to database...`);
-    const recordsToInsert = chunks.map((chunk, index) => ({
+    const recordsToInsert = validResults.map((result) => ({
       tenant_id: tenantId,
       chatbot_id: chatbotId,
-      content: chunk,
-      embedding: embeddings[index],
-      source_url: url,
+      content: result.content,
+      embedding: result.embedding,
+      source_url: result.source_url,
     }));
 
     const { error: dbInsertError } = await dbClient
