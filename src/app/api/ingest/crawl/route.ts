@@ -92,6 +92,7 @@ export async function POST(request: Request) {
 
     // 2. Validate request body
     const body = await request.json();
+    console.log(`[Ingest Route][${requestId}] Raw request body:`, JSON.stringify(body));
     const validation = IngestRequestSchema.safeParse(body);
 
     if (!validation.success) {
