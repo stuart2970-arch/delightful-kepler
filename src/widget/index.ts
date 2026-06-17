@@ -73,6 +73,28 @@
       scrollbar-width: thin;
       scrollbar-color: #D1D5DB transparent;
     }
+
+    /* Custom sizing since Tailwind v2 CDN doesn't support arbitrary values */
+    .styleflo-chat-window {
+      width: calc(100vw - 40px);
+      height: 550px;
+      max-height: calc(100vh - 100px);
+    }
+    @supports (max-height: 100dvh) {
+      .styleflo-chat-window {
+        max-height: calc(100dvh - 100px);
+      }
+    }
+    @media (min-width: 640px) {
+      .styleflo-chat-window {
+        width: 380px;
+      }
+    }
+    .styleflo-text-17 { font-size: 17px; }
+    .styleflo-text-15 { font-size: 15px; }
+    .styleflo-text-11 { font-size: 11px; }
+    .styleflo-mw-85 { max-width: 85%; }
+    .styleflo-mw-75 { max-width: 75%; }
   `;
   shadowRoot.appendChild(styleTag);
 
@@ -128,15 +150,15 @@
 
     // Chat Window
     const chatWindow = document.createElement('div');
-    chatWindow.className = 'fixed z-50 flex flex-col bg-white overflow-hidden transition-all duration-300 transform scale-90 opacity-0 pointer-events-none origin-bottom-right bottom-20 right-5 w-[calc(100vw-40px)] sm:w-[380px] h-[550px] max-h-[calc(100dvh-100px)] rounded-2xl border border-gray-100 shadow-2xl';
+    chatWindow.className = 'fixed z-50 flex flex-col bg-white overflow-hidden transition-all duration-300 transform scale-90 opacity-0 pointer-events-none origin-bottom-right bottom-20 right-5 rounded-2xl border border-gray-100 shadow-2xl styleflo-chat-window';
     chatWindow.innerHTML = `
       <!-- Header -->
       <div class="p-4 text-white flex items-center justify-between shadow-md shrink-0 z-10" style="background-color: ${primaryColor};">
         <div class="flex items-center gap-3">
           <img src="${apiHost}${agentAvatarUrl}" alt="Agent Avatar" class="w-10 h-10 rounded-full border border-white/20 bg-white/10 object-cover" />
           <div>
-            <h3 class="font-bold text-[17px] leading-tight">${agentName}</h3>
-            <p class="text-[11px] opacity-75 mt-0.5">${agentRole}</p>
+            <h3 class="font-bold styleflo-text-17 leading-tight">${agentName}</h3>
+            <p class="styleflo-text-11 opacity-75 mt-0.5">${agentRole}</p>
           </div>
         </div>
         <button id="styleflo-close-btn" class="text-white opacity-80 hover:opacity-100 focus:outline-none transition-opacity">
@@ -151,7 +173,7 @@
         <!-- Welcome Message -->
         <div class="flex items-start gap-2.5">
           <img src="${apiHost}${agentAvatarUrl}" alt="Agent Avatar" class="w-7 h-7 rounded-full object-cover bg-white border border-gray-100" />
-          <div class="p-3 bg-white border border-gray-100 text-gray-800 rounded-2xl rounded-tl-none text-[15px] max-w-[75%] shadow-sm leading-relaxed">
+          <div class="p-3 bg-white border border-gray-100 text-gray-800 rounded-2xl rounded-tl-none styleflo-text-15 styleflo-mw-75 shadow-sm leading-relaxed">
             ${welcomeMessage}
           </div>
         </div>
@@ -163,7 +185,7 @@
           id="styleflo-input" 
           type="text" 
           placeholder="Type your message..." 
-          class="flex-1 px-3 py-2 text-[15px] border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:border-transparent transition-all"
+          class="flex-1 px-3 py-2 styleflo-text-15 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:border-transparent transition-all"
           style="--tw-ring-color: ${primaryColor};"
           autocomplete="off"
         />
@@ -234,8 +256,8 @@
       
       const msgDiv = document.createElement('div');
       msgDiv.className = sender === 'user'
-        ? 'p-3 text-white rounded-2xl rounded-tr-none text-[15px] max-w-[85%] shadow-sm leading-relaxed'
-        : 'p-3 bg-white border border-gray-100 text-gray-800 rounded-2xl rounded-tl-none text-[15px] max-w-[75%] shadow-sm leading-relaxed';
+        ? 'p-3 text-white rounded-2xl rounded-tr-none styleflo-text-15 styleflo-mw-85 shadow-sm leading-relaxed'
+        : 'p-3 bg-white border border-gray-100 text-gray-800 rounded-2xl rounded-tl-none styleflo-text-15 styleflo-mw-75 shadow-sm leading-relaxed';
       
       if (sender === 'user') {
         msgDiv.style.backgroundColor = primaryColor;
