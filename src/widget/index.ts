@@ -128,7 +128,7 @@
 
     // Chat Window
     const chatWindow = document.createElement('div');
-    chatWindow.className = 'fixed z-50 flex flex-col bg-white overflow-hidden transition-all duration-300 transform scale-90 opacity-0 pointer-events-none origin-bottom-right inset-0 w-full h-[100dvh] rounded-none sm:inset-auto sm:bottom-24 sm:right-5 sm:w-[380px] sm:h-[550px] sm:max-h-[calc(100vh-120px)] sm:rounded-2xl sm:border sm:border-gray-100 sm:shadow-2xl';
+    chatWindow.className = 'fixed z-50 flex flex-col bg-white overflow-hidden transition-all duration-300 transform scale-90 opacity-0 pointer-events-none origin-bottom-right bottom-20 right-5 w-[calc(100vw-40px)] sm:w-[380px] h-[550px] max-h-[calc(100dvh-100px)] rounded-2xl border border-gray-100 shadow-2xl';
     chatWindow.innerHTML = `
       <!-- Header -->
       <div class="p-4 text-white flex items-center justify-between shadow-md shrink-0 z-10" style="background-color: ${primaryColor};">
