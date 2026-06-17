@@ -315,7 +315,7 @@ export default function DashboardClient({
     setCrawlResult(null);
     setCrawlLogs([`[System] Initializing scraper for URLs...`]);
 
-    const urls = crawlUrl.split(',').map(u => u.trim()).filter(u => u);
+    const urls = crawlUrl.split(/[\s,]+/).map(u => u.trim()).filter(u => u);
     let totalChunks = 0;
     let hasError = false;
 
@@ -699,7 +699,7 @@ export default function DashboardClient({
                     </select>
                   </div>
                   <div className="md:col-span-2">
-                    <label className="block text-xs font-semibold text-gray-400 mb-1.5">Website URLs to Scrape (CSV format)</label>
+                    <label className="block text-xs font-semibold text-gray-400 mb-1.5">Website URLs to Scrape (comma or space separated)</label>
                     <textarea
                       placeholder="https://example.com/about, https://example.com/pricing"
                       value={crawlUrl}
