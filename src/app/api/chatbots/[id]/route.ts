@@ -3,6 +3,16 @@ import { createClient } from '@supabase/supabase-js';
 
 export const dynamic = 'force-dynamic';
 
+const corsHeaders = {
+  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS, PATCH',
+  'Access-Control-Allow-Headers': 'Content-Type, Authorization',
+};
+
+export async function OPTIONS() {
+  return NextResponse.json({}, { headers: corsHeaders });
+}
+
 // Initialize Supabase Admin Client using service role key
 function getSupabaseAdmin() {
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
@@ -55,12 +65,13 @@ export async function GET(
       welcomeMessage: config.welcome_message || 'Hello! How can I help you today?',
     }, {
       headers: {
+        ...corsHeaders,
         'Cache-Control': 'no-store, no-cache, must-revalidate, proxy-revalidate',
       }
     });
   } catch (err: any) {
     console.error('[Chatbot Config API] Unexpected failure:', err);
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500, headers: corsHeaders });
   }
 }
 
