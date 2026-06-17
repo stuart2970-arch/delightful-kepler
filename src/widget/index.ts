@@ -131,12 +131,12 @@
     chatWindow.className = 'fixed z-50 flex flex-col bg-white overflow-hidden transition-all duration-300 transform scale-90 opacity-0 pointer-events-none origin-bottom-right inset-0 w-full h-[100dvh] rounded-none sm:inset-auto sm:bottom-24 sm:right-5 sm:w-[380px] sm:h-[550px] sm:max-h-[calc(100vh-120px)] sm:rounded-2xl sm:border sm:border-gray-100 sm:shadow-2xl';
     chatWindow.innerHTML = `
       <!-- Header -->
-      <div class="p-4 text-white flex items-center justify-between shadow-md" style="background-color: ${primaryColor};">
+      <div class="p-4 text-white flex items-center justify-between shadow-md shrink-0 z-10" style="background-color: ${primaryColor};">
         <div class="flex items-center gap-3">
           <img src="${apiHost}${agentAvatarUrl}" alt="Agent Avatar" class="w-10 h-10 rounded-full border border-white/20 bg-white/10 object-cover" />
           <div>
-            <h3 class="font-bold text-base leading-tight">${agentName}</h3>
-            <p class="text-[10px] opacity-75 mt-0.5">${agentRole}</p>
+            <h3 class="font-bold text-[17px] leading-tight">${agentName}</h3>
+            <p class="text-[11px] opacity-75 mt-0.5">${agentRole}</p>
           </div>
         </div>
         <button id="styleflo-close-btn" class="text-white opacity-80 hover:opacity-100 focus:outline-none transition-opacity">
@@ -151,19 +151,19 @@
         <!-- Welcome Message -->
         <div class="flex items-start gap-2.5">
           <img src="${apiHost}${agentAvatarUrl}" alt="Agent Avatar" class="w-7 h-7 rounded-full object-cover bg-white border border-gray-100" />
-          <div class="p-3 bg-white border border-gray-100 text-gray-800 rounded-2xl rounded-tl-none text-sm max-w-[75%] shadow-sm leading-relaxed">
+          <div class="p-3 bg-white border border-gray-100 text-gray-800 rounded-2xl rounded-tl-none text-[15px] max-w-[75%] shadow-sm leading-relaxed">
             ${welcomeMessage}
           </div>
         </div>
       </div>
 
       <!-- Input Area -->
-      <form id="styleflo-chat-form" class="p-3 bg-white border-t border-gray-100 flex items-center gap-2">
+      <form id="styleflo-chat-form" class="p-3 bg-white border-t border-gray-100 flex items-center gap-2 shrink-0 z-10">
         <input 
           id="styleflo-input" 
           type="text" 
           placeholder="Type your message..." 
-          class="flex-1 px-3 py-2 text-sm border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:border-transparent transition-all"
+          class="flex-1 px-3 py-2 text-[15px] border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:border-transparent transition-all"
           style="--tw-ring-color: ${primaryColor};"
           autocomplete="off"
         />
@@ -234,8 +234,8 @@
       
       const msgDiv = document.createElement('div');
       msgDiv.className = sender === 'user'
-        ? 'p-3 text-white rounded-2xl rounded-tr-none text-sm max-w-[85%] shadow-sm leading-relaxed'
-        : 'p-3 bg-white border border-gray-100 text-gray-800 rounded-2xl rounded-tl-none text-sm max-w-[75%] shadow-sm leading-relaxed';
+        ? 'p-3 text-white rounded-2xl rounded-tr-none text-[15px] max-w-[85%] shadow-sm leading-relaxed'
+        : 'p-3 bg-white border border-gray-100 text-gray-800 rounded-2xl rounded-tl-none text-[15px] max-w-[75%] shadow-sm leading-relaxed';
       
       if (sender === 'user') {
         msgDiv.style.backgroundColor = primaryColor;
