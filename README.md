@@ -1,36 +1,52 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# StyleFlo AI Chatbot Platform
+
+This is a Next.js web application built with Supabase and Gemini, offering an embeddable support chat widget and a dashboard interface.
 
 ## Getting Started
 
-First, run the development server:
+1. **Install dependencies**:
+   ```bash
+   npm install
+   ```
 
-```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
-```
+2. **Run the development server**:
+   ```bash
+   npm run dev
+   ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+3. **Build the production application and widget script**:
+   ```bash
+   npm run build
+   ```
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+---
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+## Session Enhancements & Runbook (June 2026)
 
-## Learn More
+This runbook documents the key fixes and architecture enhancements implemented during the recent pair-programming sessions. Use this as reference context for debugging or extending the codebase.
 
-To learn more about Next.js, take a look at the following resources:
+### 1. Conversation Explorer Fix (Transcript Loading)
+* **Problem**: Selecting a logged conversation in the Dashboard Explorer did not load or display messages in the **Transcript Viewer**. This happened because the client-side dashboard attempted direct queries to the Supabase `messages` table which were blocked by Row Level Security (RLS) policies under the unauthenticated development mode.
+* **Solution**:
+  - Created a new GET API endpoint at `src/app/api/messages/route.ts` that retrieves transcripts using the Supabase Admin Client (`supabaseAdmin`), bypassing client-side RLS constraints.
+  - Updated `src/components/DashboardClient.tsx` to query this API fallback whenever the client-side direct request returns empty or fails.
+  - Applied `export const dynamic = 'force-dynamic'` and `Cache-Control: no-store` headers to guarantee dynamic retrieval on demand.
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+### 2. Chatbot Save & Edit Persistence
+* **Problem**: Editing or creating chatbots via the Dashboard "Edit Persona" form updated the local React state but failed to persist in the database, reverting on page refresh. Client-side browser inserts/updates to the `chatbots` table were blocked by RLS. Furthermore, if client-side environment keys were absent at build-time, the browser client silently mocked success without attempting API requests.
+* **Solution**:
+  - Created a POST endpoint at `src/app/api/chatbots/route.ts` and a PATCH endpoint at `src/app/api/chatbots/[id]/route.ts` using the Supabase Admin Client to bypass RLS.
+  - Modified the dashboard submit handlers in `src/components/DashboardClient.tsx` to **always** route inserts and updates through these secure API endpoints directly.
+  - Added cache-busting headers to prevent Next.js from caching GET requests to `/api/chatbots/[id]`.
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+### 3. Dynamic Welcome Message in Widget
+* **Problem**: The chatbot widget loaded the agent's name, avatar, and color, but the greeting message was hardcoded in the template to `"Hello! How can I help you today?"` instead of showing the configured welcome message from the database.
+* **Solution**:
+  - Updated the public GET endpoint `/api/chatbots/[id]/route.ts` to return the `welcomeMessage` string extracted from the database (`configuration_json.welcome_message`).
+  - Modified the widget script `src/widget/index.ts` to dynamically fetch this property from the API response and inject it into the welcome message container in the Shadow DOM.
 
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+### 4. Corrected Gemini Streaming Model (Hanging Agent Fix)
+* **Problem**: When testing the widget, sending a query caused the typing indicator (3 dots) to loop infinitely, and the chatbot hung. The server logs showed failures inside `src/app/api/chat/stream/route.ts` because it attempted to invoke `gemini-3.5-flash`, which is an invalid model name.
+* **Solution**:
+  - Corrected the model name to `gemini-1.5-flash` in the `streamText` configuration.
+  - Pushed the change to GitHub to trigger CI/CD, which successfully resolved the hang.
