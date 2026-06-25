@@ -21,7 +21,13 @@ This is a Next.js web application built with Supabase and Gemini, offering an em
 
 ---
 
-## Session Enhancements & Runbook (June 2026)
+## Project Resources
+
+* **[Google Sheet Project Backlog](https://docs.google.com/spreadsheets/d/14FP_o7Lv1WJ9V8TP5wpkWVIulwIMcg1jQjr_sG_z_hw/edit?usp=sharing)**
+
+---
+
+## Session Enhancements & Runbook
 
 This runbook documents the key fixes and architecture enhancements implemented during the recent pair-programming sessions. Use this as reference context for debugging or extending the codebase.
 
@@ -50,3 +56,23 @@ This runbook documents the key fixes and architecture enhancements implemented d
 * **Solution**:
   - Corrected the model name to `gemini-1.5-flash` in the `streamText` configuration.
   - Pushed the change to GitHub to trigger CI/CD, which successfully resolved the hang.
+
+---
+
+## Session Chat History Log
+
+### Session 1 (June 16, 2026)
+* **User**: "also, the conversation explorer is not populating"
+  * **Fix**: Added `/api/messages` endpoint querying with the admin key to bypass RLS policies and integrated it as a fallback in `DashboardClient.tsx`'s message fetching effect.
+* **User**: "when editing a bot already built, the save function does not save the details when the dashboard is refreshed, and the widget does not update"
+  * **Fix**: Built a backend `PATCH` route at `/api/chatbots/[id]` using the admin key. Configured `handleUpdateChatbot` in the dashboard to route updates through the API.
+* **User**: "welcome message is displaying Hello how can i help you today, irespective of what is entered in the app builder"
+  * **Fix**: Updated the widget source (`src/widget/index.ts`) and API `/api/chatbots/[id]` to return and render the custom welcome message field.
+* **User**: "in the test page, the agent is hanging, with the 3 dots waving"
+  * **Fix**: Corrected the chat model in `src/app/api/chat/stream/route.ts` from `gemini-3.5-flash` to `gemini-1.5-flash` to resolve the runtime stream API crash.
+
+### Session 2 (June 25, 2026)
+* **User**: "link to the google sheet with my backlog in it please"
+  * **Fix**: Added direct link to user's Google Sheet project backlog.
+* **User**: "supply a copy of the chat that can be appended to each time there is a session, this is so you can refer to it if the session is on a new device"
+  * **Fix**: Appended this session chat history log to `README.md`.
