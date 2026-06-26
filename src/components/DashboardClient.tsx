@@ -126,63 +126,55 @@ export default function DashboardClient({
 
     async function fetchMessages() {
       setIsFetchingMessages(true);
-      if (supabase) {
-        try {
-          const { data, error } = await supabase
-            .from('messages')
-            .select('*')
-            .eq('conversation_id', convoId)
-            .eq('tenant_id', tenantId)
-            .order('created_at', { ascending: true });
-
-          if (!error && data && data.length > 0) {
-            setConversationMessages(data);
-          } else {
-            // If error occurred (e.g. RLS block) or no messages returned, try the API endpoint fallback
-            const response = await fetch(
-              `/api/messages?conversationId=${encodeURIComponent(convoId)}&tenantId=${encodeURIComponent(tenantId)}`
-            );
-            if (response.ok) {
-              const resData = await response.json();
-              setConversationMessages(resData.messages || []);
-            } else {
-              if (error) console.error('Error fetching messages client-side:', error);
-              setConversationMessages([]);
-            }
-          }
-        } catch (err) {
-          console.error('Failed to fetch messages client-side, trying API fallback:', err);
-          try {
-            const response = await fetch(
-              `/api/messages?conversationId=${encodeURIComponent(convoId)}&tenantId=${encodeURIComponent(tenantId)}`
-            );
-            if (response.ok) {
-              const resData = await response.json();
-              setConversationMessages(resData.messages || []);
-            }
-          } catch (fallbackErr) {
-            console.error('Failed to fetch messages via API fallback:', fallbackErr);
-          }
-        }
-      } else {
-        // Fallback mock messages for Acme Seed conversation in visual-only mode
-        if (convoId === 'ea111111-1111-4111-8111-111111111111') {
-          setConversationMessages([
-            {
-              id: 'm1',
-              sender_type: 'user',
-              text_content: 'What is Acme?',
-              created_at: new Date(Date.now() - 300000).toISOString(),
-            },
-            {
-              id: 'm2',
-              sender_type: 'bot',
-              text_content: 'Acme Corp is a globally renowned supplier of premium anvils, rockets, and giant magnets.',
-              created_at: new Date(Date.now() - 240000).toISOString(),
-            },
-          ]);
+      
+      try {
+        // Always attempt to fetch from our secure API first to bypass RLS and function when client-side Supabase client is uninitialized
+        const response = await fetch(
+          `/api/messages?conversationId=${encodeURIComponent(convoId)}&tenantId=${encodeURIComponent(tenantId)}`
+        );
+        if (response.ok) {
+          const resData = await response.json();
+          setConversationMessages(resData.messages || []);
         } else {
-          setConversationMessages([]);
+          throw new Error(response.statusText);
+        }
+      } catch (err) {
+        console.error('Failed to fetch messages via API, trying direct client query:', err);
+        if (supabase) {
+          try {
+            const { data, error } = await supabase
+              .from('messages')
+              .select('*')
+              .eq('conversation_id', convoId)
+              .eq('tenant_id', tenantId)
+              .order('created_at', { ascending: true });
+
+            if (!error && data) {
+              setConversationMessages(data);
+            }
+          } catch (clientErr) {
+            console.error('Client-side messages fetch failed:', clientErr);
+          }
+        } else {
+          // Fallback mock messages for Acme Seed conversation in visual-only mode if API completely failed
+          if (convoId === 'ea111111-1111-4111-8111-111111111111') {
+            setConversationMessages([
+              {
+                id: 'm1',
+                sender_type: 'user',
+                text_content: 'What is Acme?',
+                created_at: new Date(Date.now() - 300000).toISOString(),
+              },
+              {
+                id: 'm2',
+                sender_type: 'bot',
+                text_content: 'Acme Corp is a globally renowned supplier of premium anvils, rockets, and giant magnets.',
+                created_at: new Date(Date.now() - 240000).toISOString(),
+              },
+            ]);
+          } else {
+            setConversationMessages([]);
+          }
         }
       }
       setIsFetchingMessages(false);

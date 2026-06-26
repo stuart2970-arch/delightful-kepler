@@ -88,3 +88,5 @@ This runbook documents the key fixes and architecture enhancements implemented d
 ### Session 3 (June 26, 2026)
 * **User**: "Add a trackable link to the bottom of the free version of the chat bot... When i do want to change the landing page URL Then i must be able to do do this in the admin back office by adding a html entry area... at the end of this session you must update the readme.md file"
   * **Fix**: Implemented the "Platform Settings" tab in the dashboard. Forced the widget to pull this global config and display an HTML footer. Setup an `/api/track` route to log to `referral_clicks` table and redirect to the customizable landing page. Updated README.md.
+* **User**: "lets fix the bug that is stopping the transcript from loading in the transcript viewer / conversation explorer"
+  * **Fix**: Re-architected `fetchMessages` in `DashboardClient.tsx` to be API-first. It now queries the secure backend `/api/messages` endpoint directly, bypassing RLS constraints and resolving blank screens when the client-side `supabase` browser client is null (uninitialized).
