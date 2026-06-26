@@ -110,6 +110,7 @@
   let agentAvatarUrl = '/avatars/avatar1.png';
 
   let welcomeMessage = 'Hello! How can I help you today?';
+  let brandingHtml = '<span style="opacity: 0.6; font-size: 11px;">⚡ Powered by <strong>StyleFlo</strong></span>';
 
   // 6. Fetch Chatbot Public Configuration
   async function fetchConfig() {
@@ -123,6 +124,7 @@
         agentRole = config.agentRole || 'AI Support Agent';
         agentAvatarUrl = config.agentAvatarUrl || '/avatars/avatar1.png';
         welcomeMessage = config.welcomeMessage || 'Hello! How can I help you today?';
+        brandingHtml = config.brandingHtml || brandingHtml;
       }
     } catch (err) {
       console.warn('[StyleFlo Widget] Failed to fetch chatbot config, using defaults:', err);
@@ -199,6 +201,11 @@
           </svg>
         </button>
       </form>
+
+      <!-- Branding Footer -->
+      <a href="${apiHost}/api/track?ref=${chatbotId}&source=${encodeURIComponent(window.location.hostname)}" target="_blank" rel="noopener noreferrer" class="w-full bg-gray-50 text-center py-1.5 border-t border-gray-100 block hover:bg-gray-100 transition-colors cursor-pointer text-gray-500 flex items-center justify-center">
+        ${brandingHtml}
+      </a>
     `;
     widgetContainer.appendChild(chatWindow);
 

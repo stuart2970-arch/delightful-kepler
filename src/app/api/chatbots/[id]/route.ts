@@ -43,17 +43,24 @@ export async function GET(
     }
 
     const supabaseAdmin = getSupabaseAdmin();
-    const { data: chatbot, error: chatbotError } = await supabaseAdmin
+    const globalSettingsId = '00000000-0000-0000-0000-000000000000';
+    const { data: chatbots, error: chatbotError } = await supabaseAdmin
       .from('chatbots')
-      .select('name, primary_color, configuration_json')
-      .eq('id', id)
-      .single();
+      .select('id, name, primary_color, configuration_json')
+      .in('id', [id, globalSettingsId]);
 
-    if (chatbotError || !chatbot) {
-      console.warn(`[Chatbot Config API] Chatbot not found: ${id}`);
+    if (chatbotError || !chatbots || chatbots.length === 0) {
+      console.warn(`[Chatbot Config API] Error fetching chatbots: ${id}`);
       return NextResponse.json({ error: 'Chatbot not found' }, { status: 404 });
     }
 
+    const chatbot = chatbots.find(b => b.id === id);
+    if (!chatbot) {
+      return NextResponse.json({ error: 'Chatbot not found' }, { status: 404 });
+    }
+
+    const globalBot = chatbots.find(b => b.id === globalSettingsId);
+    const globalConfig = (globalBot?.configuration_json || {}) as Record<string, any>;
     const config = (chatbot.configuration_json || {}) as Record<string, any>;
 
     return NextResponse.json({
@@ -63,6 +70,8 @@ export async function GET(
       agentRole: config.agent_role || 'AI Assistant',
       agentAvatarUrl: config.agent_avatar_url || '/avatars/avatar1.png',
       welcomeMessage: config.welcome_message || 'Hello! How can I help you today?',
+      brandingHtml: globalConfig.branding_html || '<span style="opacity: 0.6; font-size: 11px;">⚡ Powered by <strong>StyleFlo</strong></span>',
+      brandingUrl: globalConfig.branding_url || 'https://styleflo.ai',
     }, {
       headers: {
         ...corsHeaders,

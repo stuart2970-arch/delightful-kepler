@@ -57,6 +57,14 @@ This runbook documents the key fixes and architecture enhancements implemented d
   - Corrected the model name to `gemini-1.5-flash` in the `streamText` configuration.
   - Pushed the change to GitHub to trigger CI/CD, which successfully resolved the hang.
 
+### 5. Global Branding & Referral Tracking
+* **Problem**: Needed a way to watermark all chatbots ("Powered by StyleFlo") and track which clients' websites were referring potential customers back to the StyleFlo landing page, while allowing the global admin to edit this URL and HTML string dynamically.
+* **Solution**:
+  - Added a "Platform Settings" tab to the Dashboard that saves the global configuration into the `chatbots` table using a reserved UUID (`00000000-0000-0000-0000-000000000000`), avoiding complex schema migrations.
+  - Modified the widget config endpoint `/api/chatbots/[id]/route.ts` to fetch and return these global properties.
+  - Injected an `<a>` tag at the bottom of the widget (`src/widget/index.ts`) pointing to `/api/track?ref=[chatbot_id]&source=[host]`.
+  - Created a new tracking endpoint `/api/track/route.ts` that logs the click into a `referral_clicks` Supabase table before issuing a `302 Redirect` to the global tracking URL.
+
 ---
 
 ## Session Chat History Log
@@ -76,3 +84,7 @@ This runbook documents the key fixes and architecture enhancements implemented d
   * **Fix**: Added direct link to user's Google Sheet project backlog.
 * **User**: "supply a copy of the chat that can be appended to each time there is a session, this is so you can refer to it if the session is on a new device"
   * **Fix**: Appended this session chat history log to `README.md`.
+
+### Session 3 (June 26, 2026)
+* **User**: "Add a trackable link to the bottom of the free version of the chat bot... When i do want to change the landing page URL Then i must be able to do do this in the admin back office by adding a html entry area... at the end of this session you must update the readme.md file"
+  * **Fix**: Implemented the "Platform Settings" tab in the dashboard. Forced the widget to pull this global config and display an HTML footer. Setup an `/api/track` route to log to `referral_clicks` table and redirect to the customizable landing page. Updated README.md.

@@ -13,6 +13,8 @@ interface Chatbot {
     agent_name?: string;
     agent_role?: string;
     agent_avatar_url?: string;
+    branding_html?: string;
+    branding_url?: string;
   };
   created_at: string;
 }
@@ -67,9 +69,13 @@ export default function DashboardClient({
   const [selectedConversation, setSelectedConversation] = useState<string | null>(null);
   const [conversationMessages, setConversationMessages] = useState<Message[]>([]);
   const [isFetchingMessages, setIsFetchingMessages] = useState(false);
-  const [activeTab, setActiveTab] = useState<'chatbots' | 'crawler' | 'conversations'>('chatbots');
+  const [activeTab, setActiveTab] = useState<'chatbots' | 'crawler' | 'conversations' | 'settings'>('chatbots');
 
-  // Form states
+  // Global settings state
+  const globalBotId = '00000000-0000-0000-0000-000000000000';
+  const [globalBrandingHtml, setGlobalBrandingHtml] = useState('<span style="opacity: 0.6; font-size: 11px;">⚡ Powered by <strong>StyleFlo</strong></span>');
+  const [globalTrackingUrl, setGlobalTrackingUrl] = useState('https://styleflo.ai');
+  const [isSavingGlobal, setIsSavingGlobal] = useState(false);  // Form states
   const [newBotName, setNewBotName] = useState('');
   const [newBotColor, setNewBotColor] = useState('#4F46E5');
   const [newBotWelcome, setNewBotWelcome] = useState('Hello! How can I help you today?');
@@ -96,10 +102,16 @@ export default function DashboardClient({
 
   const isDev = serverDevMode || !supabase;
 
-  // Auto-select first chatbot for crawler if available
+  // Auto-select first real chatbot for crawler if available, and load global settings
   useEffect(() => {
-    if (chatbots.length > 0 && !crawlBotId) {
-      setCrawlBotId(chatbots[0].id);
+    const realBots = chatbots.filter(b => b.id !== globalBotId);
+    if (!crawlBotId && realBots.length > 0) {
+      setCrawlBotId(realBots[0].id);
+    }
+    const globalBot = chatbots.find(b => b.id === globalBotId);
+    if (globalBot?.configuration_json) {
+      if (globalBot.configuration_json.branding_html) setGlobalBrandingHtml(globalBot.configuration_json.branding_html);
+      if (globalBot.configuration_json.branding_url) setGlobalTrackingUrl(globalBot.configuration_json.branding_url);
     }
   }, [chatbots, crawlBotId]);
 
@@ -306,6 +318,46 @@ export default function DashboardClient({
     setIsCreatingBot(false);
   };
 
+  const handleSaveGlobalSettings = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setIsSavingGlobal(true);
+    try {
+      const response = await fetch(`/api/chatbots`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          id: globalBotId,
+          tenant_id: tenantId,
+          name: 'GLOBAL_PLATFORM_SETTINGS',
+          primary_color: '#000000',
+          configuration_json: {
+            branding_html: globalBrandingHtml,
+            branding_url: globalTrackingUrl,
+          },
+        }),
+      });
+      if (!response.ok) {
+        const errData = await response.json();
+        throw new Error(errData.error || response.statusText);
+      }
+      // Update local state
+      setChatbots(prev => {
+        const existing = prev.find(b => b.id === globalBotId);
+        if (existing) {
+          return prev.map(b => b.id === globalBotId ? { ...b, configuration_json: { ...b.configuration_json, branding_html: globalBrandingHtml, branding_url: globalTrackingUrl } } : b);
+        } else {
+          return [{ id: globalBotId, name: 'GLOBAL_PLATFORM_SETTINGS', primary_color: '#000000', configuration_json: { branding_html: globalBrandingHtml, branding_url: globalTrackingUrl }, created_at: new Date().toISOString() }, ...prev];
+        }
+      });
+      alert('Global platform settings saved successfully!');
+    } catch (err: any) {
+      console.error('Failed to save global settings:', err);
+      alert(`Failed to save: ${err.message}`);
+    } finally {
+      setIsSavingGlobal(false);
+    }
+  };
+
   // Crawling Trigger handler
   const handleTriggerCrawl = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -434,9 +486,10 @@ export default function DashboardClient({
       {/* Tabs */}
       <div className="flex border-b border-gray-900 gap-6">
         {[
-          { id: 'chatbots', label: 'Chatbots Manager', count: chatbots.length },
+          { id: 'chatbots', label: 'Chatbots Manager', count: chatbots.filter(b => b.id !== globalBotId).length },
           { id: 'crawler', label: 'Crawl Console' },
           { id: 'conversations', label: 'Conversation Logs', count: conversations.length },
+          { id: 'settings', label: 'Platform Settings' },
         ].map((tab) => (
           <button
             key={tab.id}
@@ -597,7 +650,7 @@ export default function DashboardClient({
 
               {/* Chatbots Grid */}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {chatbots.map((bot) => (
+                {chatbots.filter(b => b.id !== globalBotId).map((bot) => (
                   <div key={bot.id} className="bg-gray-900/40 border border-gray-900 p-5 rounded-2xl shadow-md space-y-4 hover:border-gray-800 transition-colors relative overflow-hidden group">
                     <div className="absolute top-0 left-0 w-1.5 h-full" style={{ backgroundColor: bot.primary_color }} />
                     <div className="flex items-start justify-between">
@@ -691,7 +744,7 @@ export default function DashboardClient({
                       required
                     >
                       <option value="" disabled>Select chatbot...</option>
-                      {chatbots.map((bot) => (
+                      {chatbots.filter(b => b.id !== globalBotId).map((bot) => (
                         <option key={bot.id} value={bot.id}>
                           {bot.name}
                         </option>
@@ -755,6 +808,52 @@ export default function DashboardClient({
             <div className="bg-gray-900/30 border border-gray-900 p-6 rounded-2xl shadow-xl">
               <h3 className="text-lg font-bold text-white mb-2">Conversation Session Index</h3>
               <p className="text-xs text-gray-400">Select any chat session from the explorer panel on the right to browse user transcripts.</p>
+            </div>
+          )}
+
+          {/* Platform Settings Tab */}
+          {activeTab === 'settings' && (
+            <div className="bg-gray-900/30 border border-gray-900 p-6 rounded-2xl shadow-xl space-y-6">
+              <div>
+                <h3 className="text-lg font-bold text-white">Global Platform Settings</h3>
+                <p className="text-xs text-gray-400 mt-0.5">Manage system-wide configurations, including the chatbot widget branding.</p>
+              </div>
+
+              <form onSubmit={handleSaveGlobalSettings} className="space-y-4">
+                <div>
+                  <label className="block text-xs font-semibold text-gray-400 mb-1.5">Branding HTML (Footer Watermark)</label>
+                  <textarea
+                    value={globalBrandingHtml}
+                    onChange={(e) => setGlobalBrandingHtml(e.target.value)}
+                    className="w-full bg-gray-950 border border-gray-800 rounded-xl px-3.5 py-2 text-sm text-white focus:outline-none focus:ring-1 focus:ring-indigo-500 font-mono min-h-[80px]"
+                    placeholder='<span style="opacity: 0.6; font-size: 11px;">⚡ Powered by StyleFlo</span>'
+                  />
+                  <p className="text-[10px] text-gray-500 mt-1">This HTML is injected at the bottom of all chatbot widgets. It will automatically be wrapped in an anchor tag pointing to the URL below.</p>
+                </div>
+                
+                <div>
+                  <label className="block text-xs font-semibold text-gray-400 mb-1.5">Tracking Destination URL</label>
+                  <input
+                    type="url"
+                    value={globalTrackingUrl}
+                    onChange={(e) => setGlobalTrackingUrl(e.target.value)}
+                    className="w-full bg-gray-950 border border-gray-800 rounded-xl px-3.5 py-2 text-sm text-white focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                    placeholder="https://styleflo.ai"
+                    required
+                  />
+                  <p className="text-[10px] text-gray-500 mt-1">Users clicking the watermark will be tracked and redirected here. Originating chatbot ID will be appended as ?ref=...</p>
+                </div>
+
+                <div className="pt-2">
+                  <button
+                    type="submit"
+                    disabled={isSavingGlobal}
+                    className="bg-indigo-600 hover:bg-indigo-500 text-white text-sm font-semibold py-2 px-5 rounded-xl shadow-lg shadow-indigo-500/10 transition-colors disabled:opacity-50"
+                  >
+                    {isSavingGlobal ? 'Saving Settings...' : 'Save Global Settings'}
+                  </button>
+                </div>
+              </form>
             </div>
           )}
 
