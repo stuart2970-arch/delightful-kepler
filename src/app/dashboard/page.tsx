@@ -1,17 +1,18 @@
 import { createServerClient } from '@supabase/ssr';
 import { cookies } from 'next/headers';
 import DashboardClient from '@/components/DashboardClient';
+import { redirect } from 'next/navigation';
 
 export const dynamic = 'force-dynamic';
 
-// Helper to create server-side Supabase client
-async function createSupabaseServerClient(useServiceKey = false) {
+// Helper to create server-side Supabase client (Always uses Anon Key + User Token)
+async function createSupabaseServerClient() {
   const cookieStore = await cookies();
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const key = useServiceKey ? process.env.SUPABASE_SERVICE_ROLE_KEY : process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+  const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 
   if (!supabaseUrl || !key) {
-    return null;
+    throw new Error('Missing Supabase environment variables');
   }
 
   return createServerClient(supabaseUrl, key, {
@@ -33,159 +34,105 @@ async function createSupabaseServerClient(useServiceKey = false) {
 }
 
 export default async function DashboardPage() {
-  let isDevMode = false;
-  let tenantId = '10000000-0000-0000-0000-000000000001'; // Fallback to Acme Corp Seed
-  let tenantName = 'Acme Corp (Development)';
-  let userEmail = 'admin@acme.com';
-  let userName = 'Acme Admin';
+  const supabase = await createSupabaseServerClient();
+  
+  const {
+    data: { user },
+    error: authError,
+  } = await supabase.auth.getUser();
+
+  // 1. Enforce Authentication Redirect
+  if (authError || !user) {
+    redirect('/login');
+  }
+
+  const userEmail = user.email || '';
+  const userName = user.user_metadata?.full_name || user.user_metadata?.name || 'User';
+
+  let tenantId = '';
+  let tenantName = 'My Workspace';
+  let isSuperAdmin = false;
+  
   let chatbots: any[] = [];
+  let conversations: any[] = [];
   let metrics = {
     chatbotsCount: 0,
     chunksCount: 0,
     sessionsCount: 0,
     messagesCount: 0,
   };
-  let conversations: any[] = [];
 
-  const supabase = await createSupabaseServerClient(false);
-  let dbClient = supabase;
+  try {
+    // 2. Fetch User Profile & Tenant Mapping
+    const { data: profile } = await supabase
+      .from('profiles')
+      .select('tenant_id, is_super_admin')
+      .eq('id', user.id)
+      .single();
 
-  // If Supabase is not configured or auth session is missing, run in Development Seed Mode
-  if (!supabase) {
-    isDevMode = true;
-    console.warn('[Dashboard] Supabase env vars missing. Running in development seed mode.');
-  } else {
-    try {
-      const {
-        data: { user },
-        error: authError,
-      } = await supabase.auth.getUser();
-
-      if (authError || !user) {
-        isDevMode = true;
-        console.warn('[Dashboard] No active session found. Running in development seed mode.');
-        
-        // Fetch service key client to bypass RLS in development seed mode
-        dbClient = await createSupabaseServerClient(true);
-      } else {
-        userEmail = user.email || '';
-        userName = user.user_metadata?.name || 'User';
-
-        // Query user's profile
-        const { data: profile } = await supabase
-          .from('profiles')
-          .select('tenant_id')
-          .eq('id', user.id)
-          .single();
-
-        if (profile) {
-          tenantId = profile.tenant_id;
-          
-          // Fetch company name
-          const { data: tenant } = await supabase
-            .from('tenants')
-            .select('company_name')
-            .eq('id', tenantId)
-            .single();
-          
-          if (tenant) {
-            tenantName = tenant.company_name;
-          }
-        } else {
-          isDevMode = true;
-          dbClient = await createSupabaseServerClient(true);
-        }
-      }
-    } catch (err) {
-      isDevMode = true;
-      dbClient = await createSupabaseServerClient(true);
-      console.warn('[Dashboard] Failed to fetch session, falling back to seed mode:', err);
-    }
-  }
-
-  // If the user runs Supabase locally, they can query. Let's write the query to get data for tenantId.
-  if (dbClient) {
-    try {
-      // 1. Fetch Chatbots
-      const { data: bots } = await dbClient
-        .from('chatbots')
-        .select('*')
-        .eq('tenant_id', tenantId)
-        .order('created_at', { ascending: false });
+    if (!profile || !profile.tenant_id) {
+      console.warn(`[Dashboard] No tenant provisioned for user ${user.id}. Waiting for trigger to fire.`);
+      // In production, the trigger should have instantly created this.
+      // We will show empty data rather than failing.
+    } else {
+      tenantId = profile.tenant_id;
+      isSuperAdmin = !!profile.is_super_admin;
       
-      if (bots) chatbots = bots;
-
-      // 2. Fetch Metrics (Chunks count)
-      const { count: chunksCount } = await dbClient
-        .from('document_chunks')
-        .select('*', { count: 'exact', head: true })
-        .eq('tenant_id', tenantId);
-
-      // 3. Fetch conversations
-      const { data: convs } = await dbClient
-        .from('conversations')
-        .select('*')
-        .eq('tenant_id', tenantId)
-        .order('created_at', { ascending: false });
-
-      if (convs) conversations = convs;
-
-      // 4. Fetch metrics
-      const { count: msgsCount } = await dbClient
-        .from('messages')
-        .select('*', { count: 'exact', head: true })
-        .eq('tenant_id', tenantId);
-
-      metrics = {
-        chatbotsCount: chatbots.length,
-        chunksCount: chunksCount || 0,
-        sessionsCount: conversations.length,
-        messagesCount: msgsCount || 0,
-      };
-
-    } catch (dbErr) {
-      console.error('[Dashboard] Error querying database:', dbErr);
+      const { data: tenant } = await supabase
+        .from('tenants')
+        .select('company_name')
+        .eq('id', tenantId)
+        .single();
+      
+      if (tenant) {
+        tenantName = tenant.company_name;
+      }
     }
-  } else {
-    // If no Supabase connection at all, populate full mock data for visual preview
-    chatbots = [
-      {
-        id: 'ca111111-1111-4111-8111-111111111111',
-        name: 'Acme Support Bot',
-        primary_color: '#10B981',
-        configuration_json: { welcome_message: 'Hello! I am the Acme support bot.' },
-        created_at: new Date().toISOString(),
-      },
-      {
-        id: 'ca222222-2222-4222-8222-222222222222',
-        name: 'Globex Helpdesk',
-        primary_color: '#4F46E5',
-        configuration_json: { welcome_message: 'Welcome to Globex Support.' },
-        created_at: new Date().toISOString(),
-      }
-    ];
 
-    conversations = [
-      {
-        id: 'ea111111-1111-4111-8111-111111111111',
-        chatbot_id: 'ca111111-1111-4111-8111-111111111111',
-        user_session_id: 'session_test_acme',
-        created_at: new Date().toISOString(),
-      }
-    ];
+    // 3. Securely Fetch Dashboard Data using RLS
+    // If user is super admin, we could bypass here or rely on RLS logic.
+    // The DB Client is already running under the user's JWT. 
+    // RLS in Postgres will handle filtering by tenant_id (or letting superadmin see all).
+    
+    // For now, we still explicitly query by tenantId unless they are super admin.
+    let queryFilter = isSuperAdmin ? null : { key: 'tenant_id', value: tenantId };
+
+    // Chatbots
+    let botsQuery = supabase.from('chatbots').select('*').order('created_at', { ascending: false });
+    if (queryFilter && queryFilter.value) botsQuery = botsQuery.eq(queryFilter.key, queryFilter.value);
+    const { data: bots } = await botsQuery;
+    if (bots) chatbots = bots;
+
+    // Conversations
+    let convsQuery = supabase.from('conversations').select('*').order('created_at', { ascending: false });
+    if (queryFilter && queryFilter.value) convsQuery = convsQuery.eq(queryFilter.key, queryFilter.value);
+    const { data: convs } = await convsQuery;
+    if (convs) conversations = convs;
+
+    // Metrics (Chunks)
+    let chunksQuery = supabase.from('document_chunks').select('*', { count: 'exact', head: true });
+    if (queryFilter && queryFilter.value) chunksQuery = chunksQuery.eq(queryFilter.key, queryFilter.value);
+    const { count: chunksCount } = await chunksQuery;
+
+    // Metrics (Messages)
+    let msgsQuery = supabase.from('messages').select('*', { count: 'exact', head: true });
+    if (queryFilter && queryFilter.value) msgsQuery = msgsQuery.eq(queryFilter.key, queryFilter.value);
+    const { count: msgsCount } = await msgsQuery;
 
     metrics = {
-      chatbotsCount: 2,
-      chunksCount: 5,
-      sessionsCount: 1,
-      messagesCount: 2,
+      chatbotsCount: chatbots.length,
+      chunksCount: chunksCount || 0,
+      sessionsCount: conversations.length,
+      messagesCount: msgsCount || 0,
     };
+  } catch (err) {
+    console.error('[Dashboard] Error querying secure database:', err);
   }
 
   return (
     <main className="min-h-screen bg-gray-950 text-gray-100 p-6 md:p-8 font-sans">
       <DashboardClient
-        isDevMode={isDevMode}
+        isDevMode={false}
         tenantId={tenantId}
         tenantName={tenantName}
         userEmail={userEmail}

@@ -14,6 +14,8 @@
     "@ai-sdk/openai": "^3.0.71",
     "@google/genai": "^2.8.0",
     "@langchain/textsplitters": "^1.0.1",
+    "@supabase/auth-ui-react": "^0.4.7",
+    "@supabase/auth-ui-shared": "^0.1.8",
     "@supabase/ssr": "^0.12.0",
     "@supabase/supabase-js": "^2.108.2",
     "ai": "^6.0.206",

@@ -1,26 +1,45 @@
 import { NextResponse } from 'next/server';
-import { createClient } from '@supabase/supabase-js';
+import { createServerClient } from '@supabase/ssr';
+import { cookies } from 'next/headers';
 
 export const dynamic = 'force-dynamic';
 
-function getSupabaseAdmin() {
+async function getSupabaseAuthClient() {
+  const cookieStore = await cookies();
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 
-  if (!supabaseUrl || !serviceRoleKey) {
-    throw new Error('Supabase admin environment variables are missing');
+  if (!supabaseUrl || !anonKey) {
+    throw new Error('Supabase environment variables are missing');
   }
 
-  return createClient(supabaseUrl, serviceRoleKey, {
-    auth: {
-      persistSession: false,
-      autoRefreshToken: false,
+  return createServerClient(supabaseUrl, anonKey, {
+    cookies: {
+      getAll() {
+        return cookieStore.getAll();
+      },
+      setAll(cookiesToSet) {
+        try {
+          cookiesToSet.forEach(({ name, value, options }) =>
+            cookieStore.set(name, value, options)
+          );
+        } catch {
+          // Safe to ignore in Server Components
+        }
+      },
     },
   });
 }
 
 export async function POST(request: Request) {
   try {
+    const supabase = await getSupabaseAuthClient();
+    const { data: { user } } = await supabase.auth.getUser();
+
+    if (!user) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
     const body = await request.json();
     const { id, tenant_id, name, primary_color, configuration_json } = body;
 
@@ -28,8 +47,8 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'id, name, and tenant_id are required' }, { status: 400 });
     }
 
-    const supabaseAdmin = getSupabaseAdmin();
-    const { data: chatbot, error } = await supabaseAdmin
+    // Insert using standard RLS (requires matching tenant_id tied to user's profile)
+    const { data: chatbot, error } = await supabase
       .from('chatbots')
       .insert({
         id,

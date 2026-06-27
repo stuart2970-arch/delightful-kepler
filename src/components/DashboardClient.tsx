@@ -102,6 +102,13 @@ export default function DashboardClient({
 
   const isDev = serverDevMode || !supabase;
 
+  const handleSignOut = async () => {
+    if (supabase) {
+      await supabase.auth.signOut();
+      window.location.href = '/login';
+    }
+  };
+
   // Auto-select first real chatbot for crawler if available, and load global settings
   useEffect(() => {
     const realBots = chatbots.filter(b => b.id !== globalBotId);
@@ -454,6 +461,17 @@ export default function DashboardClient({
             <div className="text-xs font-semibold text-white leading-none">{userName}</div>
             <div className="text-[10px] text-gray-400 mt-0.5">{userEmail}</div>
           </div>
+          
+          <button
+            onClick={handleSignOut}
+            className="ml-4 px-3 py-1.5 bg-gray-900 hover:bg-red-600/20 text-gray-400 hover:text-red-400 border border-gray-800 hover:border-red-900 rounded-lg text-xs font-semibold transition-colors flex items-center gap-1.5"
+            title="Sign Out"
+          >
+            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
+            </svg>
+            Sign Out
+          </button>
         </div>
       </header>
 
