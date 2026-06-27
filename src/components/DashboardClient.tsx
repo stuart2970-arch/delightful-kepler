@@ -49,6 +49,7 @@ interface DashboardClientProps {
   initialChatbots: Chatbot[];
   initialConversations: Conversation[];
   initialMetrics: Metrics;
+  isSuperAdmin: boolean;
 }
 
 export default function DashboardClient({
@@ -60,6 +61,7 @@ export default function DashboardClient({
   initialChatbots,
   initialConversations,
   initialMetrics,
+  isSuperAdmin,
 }: DashboardClientProps) {
   const [chatbots, setChatbots] = useState<Chatbot[]>(initialChatbots);
   const [conversations, setConversations] = useState<Conversation[]>(initialConversations);
@@ -499,7 +501,7 @@ export default function DashboardClient({
           { id: 'chatbots', label: 'Chatbots Manager', count: chatbots.filter(b => b.id !== globalBotId).length },
           { id: 'crawler', label: 'Crawl Console' },
           { id: 'conversations', label: 'Conversation Logs', count: conversations.length },
-          { id: 'settings', label: 'Platform Settings' },
+          ...(isSuperAdmin ? [{ id: 'settings', label: 'Platform Settings' }] : []),
         ].map((tab) => (
           <button
             key={tab.id}

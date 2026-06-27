@@ -1,8 +1,10 @@
 import { NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
-import { streamText, embed } from 'ai';
+import { streamText, embed, tool } from 'ai';
 import { createGoogleGenerativeAI } from '@ai-sdk/google';
 import { z } from 'zod';
+import formData from 'form-data';
+import Mailgun from 'mailgun.js';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -195,6 +197,7 @@ Guidelines:
 - Use emojis occasionally to feel friendly.
 - Use short paragraphs and avoid overwhelming the user with long blocks of text.
 - If presenting multiple items, use clean bullet points.
+- CRITICAL: If the user provides a phone number or email address, you MUST immediately call the captureLead tool to save it.
 
 Context:
 [INJECTED CHUNKS]
@@ -223,6 +226,58 @@ ${contextText}`;
       model: google('gemini-3.5-flash'),
       system: systemPrompt,
       messages: formattedMessages,
+      tools: {
+        captureLead: tool({
+          description: 'Captures a users contact information (email or phone number) and alerts the store owner.',
+          parameters: z.object({
+            contactInfo: z.string().describe('The email address or phone number the user provided.'),
+            context: z.string().describe('A brief summary of what the user was asking about before providing their contact info.'),
+          }),
+          execute: async ({ contactInfo, context }) => {
+            console.log(`[Chat Stream][${requestId}] Tool Executed: captureLead (${contactInfo})`);
+            try {
+              // Fetch owner profile
+              const { data: profile } = await supabaseAdmin
+                .from('profiles')
+                .select('id')
+                .eq('tenant_id', tenantId)
+                .eq('role', 'owner')
+                .limit(1)
+                .single();
+                
+              if (!profile) throw new Error('No tenant owner found.');
+
+              // Fetch owner email
+              const { data: authUser, error: authErr } = await supabaseAdmin.auth.admin.getUserById(profile.id);
+              if (authErr || !authUser?.user?.email) throw new Error('Could not resolve owner email.');
+              
+              const ownerEmail = authUser.user.email;
+
+              // Fire Mailgun email
+              if (!process.env.MAILGUN_API_KEY || !process.env.MAILGUN_DOMAIN) {
+                 console.warn(`[Chat Stream][${requestId}] MAILGUN environment variables missing. Skipping email send.`);
+                 return { success: true, message: "Lead captured, but email delivery is disabled." };
+              }
+
+              const mailgun = new Mailgun(formData);
+              const mg = mailgun.client({ username: 'api', key: process.env.MAILGUN_API_KEY });
+              
+              await mg.messages.create(process.env.MAILGUN_DOMAIN, {
+                from: `StyleFlo Assistant <postmaster@${process.env.MAILGUN_DOMAIN}>`,
+                to: [ownerEmail],
+                subject: 'New Lead Captured by AI Chatbot',
+                text: `You have a new lead from your Chatbot!\n\nContact Info: ${contactInfo}\nContext: ${context}\n\nLog into your StyleFlo Dashboard to view the full conversation transcript.`,
+              });
+
+              console.log(`[Chat Stream][${requestId}] Successfully emailed lead to ${ownerEmail}`);
+              return { success: true, message: "Successfully saved the users contact information and notified the team." };
+            } catch (err: any) {
+              console.error(`[Chat Stream][${requestId}] Tool Error: captureLead failed:`, err);
+              return { success: false, message: "Failed to notify the team." };
+            }
+          },
+        }),
+      },
       onFinish: async (event) => {
         console.log(`[Chat Stream][${requestId}] AI stream finished. Logging conversation in background...`);
         try {

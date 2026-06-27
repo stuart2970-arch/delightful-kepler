@@ -140,6 +140,7 @@ export default async function DashboardPage() {
         initialChatbots={chatbots}
         initialConversations={conversations}
         initialMetrics={metrics}
+        isSuperAdmin={isSuperAdmin}
       />
     </main>
   );

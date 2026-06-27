@@ -36,6 +36,13 @@ export async function middleware(request: NextRequest) {
 
   const isProtectedRoute = request.nextUrl.pathname.startsWith('/dashboard');
 
+  // If someone hits the root of the app, send them to the dashboard immediately
+  if (request.nextUrl.pathname === '/') {
+    const dashboardUrl = request.nextUrl.clone();
+    dashboardUrl.pathname = '/dashboard';
+    return NextResponse.redirect(dashboardUrl);
+  }
+
   if (isProtectedRoute && !user) {
     // Redirect unauthenticated users to login
     const loginUrl = request.nextUrl.clone();

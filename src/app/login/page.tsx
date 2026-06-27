@@ -1,13 +1,20 @@
 "use client";
 
 import { useEffect, useState } from 'react';
-import { Auth } from '@supabase/auth-ui-react';
-import { ThemeSupa } from '@supabase/auth-ui-shared';
 import { createBrowserClient } from '@supabase/ssr';
 import { useRouter } from 'next/navigation';
 
 export default function LoginPage() {
   const router = useRouter();
+  const [isLogin, setIsLogin] = useState(true);
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [fullName, setFullName] = useState('');
+  const [companyName, setCompanyName] = useState('');
+  const [websiteUrl, setWebsiteUrl] = useState('');
+  const [error, setError] = useState<string | null>(null);
+  const [loading, setLoading] = useState(false);
+
   const [supabase] = useState(() =>
     createBrowserClient(
       process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -24,9 +31,48 @@ export default function LoginPage() {
         router.refresh();
       }
     });
-
     return () => subscription.unsubscribe();
   }, [supabase, router]);
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setLoading(true);
+    setError(null);
+
+    try {
+      if (isLogin) {
+        const { error } = await supabase.auth.signInWithPassword({
+          email,
+          password,
+        });
+        if (error) throw error;
+      } else {
+        const { error } = await supabase.auth.signUp({
+          email,
+          password,
+          options: {
+            data: {
+              full_name: fullName,
+              company_name: companyName,
+              website_url: websiteUrl,
+            },
+          },
+        });
+        if (error) throw error;
+      }
+    } catch (err: any) {
+      console.error("Signup error:", err);
+      let errorMsg = err.message || 'An error occurred during authentication.';
+      if (typeof errorMsg === 'object') {
+        errorMsg = JSON.stringify(errorMsg);
+      } else if (typeof err === 'object' && !err.message) {
+        errorMsg = JSON.stringify(err);
+      }
+      setError(errorMsg);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   return (
     <main className="min-h-screen flex items-center justify-center bg-gray-950 p-4 font-sans relative overflow-hidden">
@@ -42,72 +88,101 @@ export default function LoginPage() {
             </svg>
           </div>
           <h1 className="text-2xl font-bold text-white mb-2 tracking-tight">Welcome to StyleFlo</h1>
-          <p className="text-sm text-gray-400">Sign in to manage your AI chatbots</p>
+          <p className="text-sm text-gray-400">
+            {isLogin ? 'Sign in to manage your AI chatbots' : 'Create an account to get started'}
+          </p>
         </div>
 
-        <Auth
-          supabaseClient={supabase}
-          appearance={{
-            theme: ThemeSupa,
-            variables: {
-              default: {
-                colors: {
-                  brand: '#4F46E5',
-                  brandAccent: '#4338ca',
-                  inputBackground: 'rgba(17, 24, 39, 0.8)',
-                  inputText: 'white',
-                  inputBorder: '#374151',
-                  inputBorderHover: '#4F46E5',
-                  inputBorderFocus: '#4F46E5',
-                  messageText: '#9CA3AF',
-                  anchorTextColor: '#818CF8',
-                  dividerBackground: '#374151',
-                },
-                space: {
-                  inputPadding: '12px 16px',
-                  buttonPadding: '12px 16px',
-                },
-                radii: {
-                  borderRadiusButton: '12px',
-                  buttonBorderRadius: '12px',
-                  inputBorderRadius: '12px',
-                },
-              },
-            },
-            className: {
-              container: 'styleflo-auth-container',
-              button: 'styleflo-auth-btn font-semibold shadow-lg shadow-indigo-500/10 transition-all',
-              input: 'transition-all focus:ring-1 focus:ring-indigo-500',
-              label: 'text-xs font-semibold text-gray-400 mb-1.5',
-            },
-          }}
-          theme="dark"
-          providers={['google', 'github']}
-          redirectTo={`${typeof window !== 'undefined' ? window.location.origin : ''}/dashboard`}
-          additionalData={[
-            {
-              name: 'full_name',
-              label: 'Full Name',
-              type: 'text',
-              placeholder: 'Jane Doe',
-              required: true,
-            },
-            {
-              name: 'company_name',
-              label: 'Company / Salon Name',
-              type: 'text',
-              placeholder: 'Rosser Hairdressing',
-              required: true,
-            },
-            {
-              name: 'website_url',
-              label: 'Website URL',
-              type: 'url',
-              placeholder: 'https://rosserhairdressing.com',
-              required: true,
-            },
-          ]}
-        />
+        {error && (
+          <div className="mb-6 p-4 bg-red-500/10 border border-red-500/50 rounded-xl text-red-400 text-sm font-medium">
+            {error}
+          </div>
+        )}
+
+        <form onSubmit={handleSubmit} className="space-y-4">
+          <div>
+            <label className="block text-xs font-semibold text-gray-400 mb-1.5">Email Address</label>
+            <input
+              type="email"
+              required
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              className="w-full bg-gray-800 border border-gray-700 text-white rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all"
+              placeholder="you@example.com"
+            />
+          </div>
+
+          <div>
+            <label className="block text-xs font-semibold text-gray-400 mb-1.5">Password</label>
+            <input
+              type="password"
+              required
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              className="w-full bg-gray-800 border border-gray-700 text-white rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all"
+              placeholder="••••••••"
+            />
+          </div>
+
+          {!isLogin && (
+            <>
+              <div>
+                <label className="block text-xs font-semibold text-gray-400 mb-1.5">Full Name</label>
+                <input
+                  type="text"
+                  required
+                  value={fullName}
+                  onChange={(e) => setFullName(e.target.value)}
+                  className="w-full bg-gray-800 border border-gray-700 text-white rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all"
+                  placeholder="Jane Doe"
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-semibold text-gray-400 mb-1.5">Company / Salon Name</label>
+                <input
+                  type="text"
+                  required
+                  value={companyName}
+                  onChange={(e) => setCompanyName(e.target.value)}
+                  className="w-full bg-gray-800 border border-gray-700 text-white rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all"
+                  placeholder="Rosser Hairdressing"
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-semibold text-gray-400 mb-1.5">Website URL</label>
+                <input
+                  type="url"
+                  required
+                  value={websiteUrl}
+                  onChange={(e) => setWebsiteUrl(e.target.value)}
+                  className="w-full bg-gray-800 border border-gray-700 text-white rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all"
+                  placeholder="https://example.com"
+                />
+              </div>
+            </>
+          )}
+
+          <button
+            type="submit"
+            disabled={loading}
+            className="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-semibold rounded-xl px-4 py-3 shadow-lg shadow-indigo-500/20 transition-all focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 focus:ring-offset-gray-900 mt-2 disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            {loading ? 'Processing...' : isLogin ? 'Sign In' : 'Create Account'}
+          </button>
+        </form>
+
+        <div className="mt-6 text-center">
+          <button
+            type="button"
+            onClick={() => {
+              setIsLogin(!isLogin);
+              setError(null);
+            }}
+            className="text-sm font-medium text-indigo-400 hover:text-indigo-300 transition-colors"
+          >
+            {isLogin ? "Don't have an account? Sign up" : 'Already have an account? Sign in'}
+          </button>
+        </div>
       </div>
     </main>
   );
