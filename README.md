@@ -90,3 +90,11 @@ This runbook documents the key fixes and architecture enhancements implemented d
   * **Fix**: Implemented the "Platform Settings" tab in the dashboard. Forced the widget to pull this global config and display an HTML footer. Setup an `/api/track` route to log to `referral_clicks` table and redirect to the customizable landing page. Updated README.md.
 * **User**: "lets fix the bug that is stopping the transcript from loading in the transcript viewer / conversation explorer"
   * **Fix**: Re-architected `fetchMessages` in `DashboardClient.tsx` to be API-first. It now queries the secure backend `/api/messages` endpoint directly, bypassing RLS constraints and resolving blank screens when the client-side `supabase` browser client is null (uninitialized).
+
+### Session 4 (June 27, 2026)
+* **User**: "what do i need to do to move from a seeded database and development mode to a production ready one... before any development starts, can you confirm that there will be permission based access"
+  * **Fix**: Implemented strict production authentication and tenant isolation. 
+    1. Built a `/login` page with Supabase Auth UI customized to capture Full Name, Company Name, and Website URL.
+    2. Implemented Next.js SSR `middleware.ts` to block unauthorized access to the `/dashboard`.
+    3. Rewrote Dashboard APIs to enforce Row Level Security (RLS) instead of using the service role key.
+    4. Supplied the SQL triggers required to auto-provision a `tenant` and `profile` linked to `tenant_id` the moment a user registers.
