@@ -197,7 +197,7 @@ Guidelines:
 - Use emojis occasionally to feel friendly.
 - Use short paragraphs and avoid overwhelming the user with long blocks of text.
 - If presenting multiple items, use clean bullet points.
-- CRITICAL: ONLY call the captureLead tool AFTER the user has explicitly typed their email or phone number in the chat. DO NOT call the tool to ask them for their info. If you need their info, politely ask them in text.
+- CRITICAL: If the user explicitly types their email or phone number in the chat, you MUST end your response with exactly: [LEAD_CAPTURED: their_email_or_phone]. DO NOT use this tag to ask them for their info. Only use it when they actually provide it!
 
 Context:
 [INJECTED CHUNKS]
@@ -219,58 +219,6 @@ ${contextText}`;
       content: message,
     });
 
-    const captureLeadTool = tool({
-      description: 'Captures a users contact information (email or phone number) and alerts the store owner.',
-      parameters: z.object({
-        contactInfo: z.string().describe('The email address or phone number the user provided.'),
-        context: z.string().describe('A brief summary of what the user was asking about before providing their contact info.'),
-      }),
-      // @ts-expect-error - TS fails to infer execute args due to strict SDK overloads
-      execute: async ({ contactInfo, context }) => {
-        console.log(`[Chat Stream][${requestId}] Tool Executed: captureLead (${contactInfo})`);
-        try {
-          // Fetch owner profile
-          const { data: profile } = await supabaseAdmin
-            .from('profiles')
-            .select('id')
-            .eq('tenant_id', tenantId)
-            .eq('role', 'owner')
-            .limit(1)
-            .single();
-            
-          if (!profile) throw new Error('No tenant owner found.');
-
-          // Fetch owner email
-          const { data: authUser, error: authErr } = await supabaseAdmin.auth.admin.getUserById(profile.id);
-          if (authErr || !authUser?.user?.email) throw new Error('Could not resolve owner email.');
-          
-          const ownerEmail = authUser.user.email;
-
-          // Fire Mailgun email
-          if (!process.env.MAILGUN_API_KEY || !process.env.MAILGUN_DOMAIN) {
-             console.warn(`[Chat Stream][${requestId}] MAILGUN environment variables missing. Skipping email send.`);
-             return { success: true, message: "Lead captured, but email delivery is disabled." };
-          }
-
-          const mailgun = new Mailgun(formData);
-          const mg = mailgun.client({ username: 'api', key: process.env.MAILGUN_API_KEY });
-          
-          await mg.messages.create(process.env.MAILGUN_DOMAIN, {
-            from: `StyleFlo Assistant <no-reply@${process.env.MAILGUN_DOMAIN}>`,
-            to: [ownerEmail],
-            subject: 'New Lead Captured by AI Chatbot',
-            text: `You have a new lead from your Chatbot!\n\nContact Info: ${contactInfo}\nContext: ${context}\n\nLog into your StyleFlo Dashboard to view the full conversation transcript.`,
-          });
-
-          console.log(`[Chat Stream][${requestId}] Successfully emailed lead to ${ownerEmail}`);
-          return { success: true, message: "Successfully saved the users contact information and notified the team." };
-        } catch (err: any) {
-          console.error(`[Chat Stream][${requestId}] Tool Error: captureLead failed:`, err);
-          return { success: false, message: "Failed to notify the team." };
-        }
-      },
-    });
-
     console.log(`[Chat Stream][${requestId}] Initializing Vercel AI SDK text stream (gemini-1.5-flash)...`);
 
     // 9. Invoke streamText and setup async database transaction logging
@@ -278,9 +226,6 @@ ${contextText}`;
       model: google('gemini-1.5-flash'),
       system: systemPrompt,
       messages: formattedMessages,
-      tools: {
-        captureLead: captureLeadTool,
-      },
       onFinish: async (event) => {
         console.log(`[Chat Stream][${requestId}] AI stream finished. Logging conversation in background...`);
         try {
@@ -295,13 +240,41 @@ ${contextText}`;
             tenant_id: tenantId,
             conversation_id: conversationId,
             sender_type: 'bot',
-            text_content: event.text,
+            text_content: event.text.replace(/\[LEAD_CAPTURED:.*?\]/g, '').trim(),
           });
 
           const [userInsertRes, assistantInsertRes] = await Promise.all([
             userMessageInsert,
             assistantMessageInsert,
           ]);
+
+          // Handle manual lead capture
+          const leadMatch = event.text.match(/\[LEAD_CAPTURED:\s*(.+?)\]/);
+          if (leadMatch && leadMatch[1]) {
+            const contactInfo = leadMatch[1];
+            console.log(`[Chat Stream][${requestId}] Extracted Lead Info: ${contactInfo}`);
+            
+            // Fire Mailgun email silently in background
+            try {
+              const { data: profile } = await supabaseAdmin.from('profiles').select('id').eq('tenant_id', tenantId).eq('role', 'owner').limit(1).single();
+              if (profile) {
+                const { data: authUser } = await supabaseAdmin.auth.admin.getUserById(profile.id);
+                if (authUser?.user?.email && process.env.MAILGUN_API_KEY && process.env.MAILGUN_DOMAIN) {
+                  const mailgun = new Mailgun(formData);
+                  const mg = mailgun.client({ username: 'api', key: process.env.MAILGUN_API_KEY });
+                  await mg.messages.create(process.env.MAILGUN_DOMAIN, {
+                    from: `StyleFlo Assistant <no-reply@${process.env.MAILGUN_DOMAIN}>`,
+                    to: [authUser.user.email],
+                    subject: 'New Lead Captured by AI Chatbot',
+                    text: `You have a new lead from your Chatbot!\n\nContact Info: ${contactInfo}\n\nLog into your StyleFlo Dashboard to view the full conversation transcript.`,
+                  });
+                  console.log(`[Chat Stream][${requestId}] Successfully emailed lead to ${authUser.user.email}`);
+                }
+              }
+            } catch (err: any) {
+              console.error(`[Chat Stream][${requestId}] Background lead email failed:`, err);
+            }
+          }
 
           if (userInsertRes.error) console.error(`[Chat Stream][${requestId}] Failed to log user message:`, userInsertRes.error);
           if (assistantInsertRes.error) console.error(`[Chat Stream][${requestId}] Failed to log assistant response:`, assistantInsertRes.error);
