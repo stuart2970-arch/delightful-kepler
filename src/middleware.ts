@@ -6,9 +6,18 @@ export async function middleware(request: NextRequest) {
     request,
   });
 
+  // Read dynamically from runtime env first, fallback to statically compiled NEXT_PUBLIC
+  const supabaseUrl = process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const supabaseAnonKey = process.env.SUPABASE_ANON_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+
+  if (!supabaseUrl || !supabaseAnonKey) {
+    console.error("Middleware Error: Supabase environment variables are missing at runtime.");
+    return NextResponse.next({ request }); // Fail open or redirect to a safe error page
+  }
+
   const supabase = createServerClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    supabaseUrl,
+    supabaseAnonKey,
     {
       cookies: {
         getAll() {
