@@ -21,7 +21,7 @@ steps:
     args:
       - 'run'
       - 'deploy'
-      - 'styleflo-app' # Change this if your service has a different name
+      - 'styleflo-new' # Change this if your service has a different name
       - '--image'
       - 'europe-west2-docker.pkg.dev/$PROJECT_ID/styleflo-repo/styleflo-app:$COMMIT_SHA'
       - '--region'
