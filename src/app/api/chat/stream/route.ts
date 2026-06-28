@@ -256,7 +256,7 @@ ${contextText}`;
           const mg = mailgun.client({ username: 'api', key: process.env.MAILGUN_API_KEY });
           
           await mg.messages.create(process.env.MAILGUN_DOMAIN, {
-            from: `StyleFlo Assistant <postmaster@${process.env.MAILGUN_DOMAIN}>`,
+            from: `StyleFlo Assistant <no-reply@${process.env.MAILGUN_DOMAIN}>`,
             to: [ownerEmail],
             subject: 'New Lead Captured by AI Chatbot',
             text: `You have a new lead from your Chatbot!\n\nContact Info: ${contactInfo}\nContext: ${context}\n\nLog into your StyleFlo Dashboard to view the full conversation transcript.`,
