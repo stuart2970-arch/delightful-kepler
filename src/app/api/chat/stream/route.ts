@@ -219,6 +219,11 @@ ${contextText}`;
       content: message,
     });
 
+    const captureLeadSchema = z.object({
+      contactInfo: z.string().describe('The email address or phone number the user provided.'),
+      context: z.string().describe('A brief summary of what the user was asking about before providing their contact info.'),
+    });
+
     console.log(`[Chat Stream][${requestId}] Initializing Vercel AI SDK text stream (gemini-3.5-flash)...`);
 
     // 9. Invoke streamText and setup async database transaction logging
@@ -229,11 +234,8 @@ ${contextText}`;
       tools: {
         captureLead: tool({
           description: 'Captures a users contact information (email or phone number) and alerts the store owner.',
-          parameters: z.object({
-            contactInfo: z.string().describe('The email address or phone number the user provided.'),
-            context: z.string().describe('A brief summary of what the user was asking about before providing their contact info.'),
-          }),
-          execute: async ({ contactInfo, context }) => {
+          parameters: captureLeadSchema,
+          execute: async ({ contactInfo, context }: { contactInfo: string, context: string }) => {
             console.log(`[Chat Stream][${requestId}] Tool Executed: captureLead (${contactInfo})`);
             try {
               // Fetch owner profile
@@ -275,8 +277,8 @@ ${contextText}`;
               console.error(`[Chat Stream][${requestId}] Tool Error: captureLead failed:`, err);
               return { success: false, message: "Failed to notify the team." };
             }
-          },
-        }),
+          }
+        } as any),
       },
       onFinish: async (event) => {
         console.log(`[Chat Stream][${requestId}] AI stream finished. Logging conversation in background...`);
