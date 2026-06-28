@@ -219,9 +219,56 @@ ${contextText}`;
       content: message,
     });
 
-    const captureLeadSchema = z.object({
-      contactInfo: z.string().describe('The email address or phone number the user provided.'),
-      context: z.string().describe('A brief summary of what the user was asking about before providing their contact info.'),
+    const captureLeadTool = tool({
+      description: 'Captures a users contact information (email or phone number) and alerts the store owner.',
+      parameters: z.object({
+        contactInfo: z.string().describe('The email address or phone number the user provided.'),
+        context: z.string().describe('A brief summary of what the user was asking about before providing their contact info.'),
+      }),
+      // @ts-expect-error - TS fails to infer execute args due to strict SDK overloads
+      execute: async ({ contactInfo, context }) => {
+        console.log(`[Chat Stream][${requestId}] Tool Executed: captureLead (${contactInfo})`);
+        try {
+          // Fetch owner profile
+          const { data: profile } = await supabaseAdmin
+            .from('profiles')
+            .select('id')
+            .eq('tenant_id', tenantId)
+            .eq('role', 'owner')
+            .limit(1)
+            .single();
+            
+          if (!profile) throw new Error('No tenant owner found.');
+
+          // Fetch owner email
+          const { data: authUser, error: authErr } = await supabaseAdmin.auth.admin.getUserById(profile.id);
+          if (authErr || !authUser?.user?.email) throw new Error('Could not resolve owner email.');
+          
+          const ownerEmail = authUser.user.email;
+
+          // Fire Mailgun email
+          if (!process.env.MAILGUN_API_KEY || !process.env.MAILGUN_DOMAIN) {
+             console.warn(`[Chat Stream][${requestId}] MAILGUN environment variables missing. Skipping email send.`);
+             return { success: true, message: "Lead captured, but email delivery is disabled." };
+          }
+
+          const mailgun = new Mailgun(formData);
+          const mg = mailgun.client({ username: 'api', key: process.env.MAILGUN_API_KEY });
+          
+          await mg.messages.create(process.env.MAILGUN_DOMAIN, {
+            from: `StyleFlo Assistant <postmaster@${process.env.MAILGUN_DOMAIN}>`,
+            to: [ownerEmail],
+            subject: 'New Lead Captured by AI Chatbot',
+            text: `You have a new lead from your Chatbot!\n\nContact Info: ${contactInfo}\nContext: ${context}\n\nLog into your StyleFlo Dashboard to view the full conversation transcript.`,
+          });
+
+          console.log(`[Chat Stream][${requestId}] Successfully emailed lead to ${ownerEmail}`);
+          return { success: true, message: "Successfully saved the users contact information and notified the team." };
+        } catch (err: any) {
+          console.error(`[Chat Stream][${requestId}] Tool Error: captureLead failed:`, err);
+          return { success: false, message: "Failed to notify the team." };
+        }
+      },
     });
 
     console.log(`[Chat Stream][${requestId}] Initializing Vercel AI SDK text stream (gemini-3.5-flash)...`);
@@ -232,53 +279,7 @@ ${contextText}`;
       system: systemPrompt,
       messages: formattedMessages,
       tools: {
-        captureLead: tool({
-          description: 'Captures a users contact information (email or phone number) and alerts the store owner.',
-          parameters: captureLeadSchema,
-          execute: async ({ contactInfo, context }: { contactInfo: string, context: string }) => {
-            console.log(`[Chat Stream][${requestId}] Tool Executed: captureLead (${contactInfo})`);
-            try {
-              // Fetch owner profile
-              const { data: profile } = await supabaseAdmin
-                .from('profiles')
-                .select('id')
-                .eq('tenant_id', tenantId)
-                .eq('role', 'owner')
-                .limit(1)
-                .single();
-                
-              if (!profile) throw new Error('No tenant owner found.');
-
-              // Fetch owner email
-              const { data: authUser, error: authErr } = await supabaseAdmin.auth.admin.getUserById(profile.id);
-              if (authErr || !authUser?.user?.email) throw new Error('Could not resolve owner email.');
-              
-              const ownerEmail = authUser.user.email;
-
-              // Fire Mailgun email
-              if (!process.env.MAILGUN_API_KEY || !process.env.MAILGUN_DOMAIN) {
-                 console.warn(`[Chat Stream][${requestId}] MAILGUN environment variables missing. Skipping email send.`);
-                 return { success: true, message: "Lead captured, but email delivery is disabled." };
-              }
-
-              const mailgun = new Mailgun(formData);
-              const mg = mailgun.client({ username: 'api', key: process.env.MAILGUN_API_KEY });
-              
-              await mg.messages.create(process.env.MAILGUN_DOMAIN, {
-                from: `StyleFlo Assistant <postmaster@${process.env.MAILGUN_DOMAIN}>`,
-                to: [ownerEmail],
-                subject: 'New Lead Captured by AI Chatbot',
-                text: `You have a new lead from your Chatbot!\n\nContact Info: ${contactInfo}\nContext: ${context}\n\nLog into your StyleFlo Dashboard to view the full conversation transcript.`,
-              });
-
-              console.log(`[Chat Stream][${requestId}] Successfully emailed lead to ${ownerEmail}`);
-              return { success: true, message: "Successfully saved the users contact information and notified the team." };
-            } catch (err: any) {
-              console.error(`[Chat Stream][${requestId}] Tool Error: captureLead failed:`, err);
-              return { success: false, message: "Failed to notify the team." };
-            }
-          }
-        } as any),
+        captureLead: captureLeadTool,
       },
       onFinish: async (event) => {
         console.log(`[Chat Stream][${requestId}] AI stream finished. Logging conversation in background...`);
