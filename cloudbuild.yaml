@@ -37,3 +37,6 @@ availableSecrets:
 
 images:
   - 'europe-west2-docker.pkg.dev/$PROJECT_ID/styleflo-repo/styleflo-app:$COMMIT_SHA'
+
+options:
+  logging: CLOUD_LOGGING_ONLY
