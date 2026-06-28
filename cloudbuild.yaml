@@ -26,8 +26,6 @@ steps:
       - '--region'
       - 'europe-west2'
       - '--allow-unauthenticated'
-      - '--update-env-vars'
-      - 'SUPABASE_URL=$_SUPABASE_URL,SUPABASE_ANON_KEY=$_SUPABASE_ANON_KEY,SUPABASE_SERVICE_ROLE_KEY=$_SUPABASE_SERVICE_ROLE_KEY'
 
 images:
   - 'europe-west2-docker.pkg.dev/$PROJECT_ID/styleflo-repo/styleflo-app:$COMMIT_SHA'
