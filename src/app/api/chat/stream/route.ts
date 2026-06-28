@@ -221,11 +221,17 @@ ${contextText}`;
 
     console.log(`[Chat Stream][${requestId}] Initializing Vercel AI SDK text stream (gemini-1.5-flash)...`);
 
+    let lastApiError = "";
+    
     // 9. Invoke streamText and setup async database transaction logging
     const result = await streamText({
       model: google('gemini-1.5-flash'),
       system: systemPrompt,
       messages: formattedMessages,
+      onError: (err) => {
+        console.error(`[Chat Stream][${requestId}] API Stream Error:`, err);
+        lastApiError = err?.message || err?.toString() || "Unknown API Error";
+      },
       onFinish: async (event) => {
         console.log(`[Chat Stream][${requestId}] AI stream finished. Logging conversation in background...`);
         try {
@@ -294,7 +300,7 @@ ${contextText}`;
             controller.enqueue(encoder.encode(chunk));
           }
           if (!hasText) {
-            controller.enqueue(encoder.encode("I'm sorry, I am having trouble connecting to my database. Please try again."));
+            controller.enqueue(encoder.encode(`I'm sorry, I am having trouble connecting to my database. Please try again. [DEBUG: ${lastApiError || "Empty stream, no error caught."}]`));
           }
         } catch (err: any) {
           console.error(`[Chat Stream][${requestId}] In-stream generation error:`, err);
