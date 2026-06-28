@@ -197,7 +197,7 @@ Guidelines:
 - Use emojis occasionally to feel friendly.
 - Use short paragraphs and avoid overwhelming the user with long blocks of text.
 - If presenting multiple items, use clean bullet points.
-- CRITICAL: If the user provides a phone number or email address, you MUST immediately call the captureLead tool to save it.
+- CRITICAL: ONLY call the captureLead tool AFTER the user has explicitly typed their email or phone number in the chat. DO NOT call the tool to ask them for their info. If you need their info, politely ask them in text.
 
 Context:
 [INJECTED CHUNKS]
@@ -281,7 +281,6 @@ ${contextText}`;
       tools: {
         captureLead: captureLeadTool,
       },
-      maxSteps: 5,
       onFinish: async (event) => {
         console.log(`[Chat Stream][${requestId}] AI stream finished. Logging conversation in background...`);
         try {
