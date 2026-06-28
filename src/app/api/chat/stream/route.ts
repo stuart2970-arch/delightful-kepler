@@ -281,6 +281,7 @@ ${contextText}`;
       tools: {
         captureLead: captureLeadTool,
       },
+      maxSteps: 5,
       onFinish: async (event) => {
         console.log(`[Chat Stream][${requestId}] AI stream finished. Logging conversation in background...`);
         try {
@@ -315,8 +316,13 @@ ${contextText}`;
     const stream = new ReadableStream({
       async start(controller) {
         try {
+          let hasText = false;
           for await (const chunk of result.textStream) {
+            hasText = true;
             controller.enqueue(encoder.encode(chunk));
+          }
+          if (!hasText) {
+            controller.enqueue(encoder.encode("I'm sorry, I am having trouble connecting to my database. Please try again."));
           }
         } catch (err: any) {
           console.error(`[Chat Stream][${requestId}] In-stream generation error:`, err);

@@ -1,25 +1,16 @@
-
+const { createGoogleGenerativeAI } = require('@ai-sdk/google');
+const { streamText } = require('ai');
+const google = createGoogleGenerativeAI({ apiKey: process.env.GEMINI_API_KEY || 'dummy' });
 
 async function test() {
   try {
-    const res = await fetch('http://localhost:3000/api/chat/stream', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        message: 'hello',
-        chatbotId: 'test-id',
-        sessionId: 'test-session'
-      })
+    const result = await streamText({
+      model: google('gemini-1.5-flash'),
+      messages: [{ role: 'user', content: 'hello' }],
     });
-    
-    console.log('Status:', res.status);
-    console.log('Headers:', res.headers.raw());
-    
-    const text = await res.text();
-    console.log('Body length:', text.length);
-    console.log('Body:', text);
-  } catch (err) {
-    console.error(err);
+    console.log("SUCCESS");
+  } catch (e) {
+    console.log("ERROR:", e.message);
   }
 }
 test();
