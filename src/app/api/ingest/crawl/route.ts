@@ -244,7 +244,7 @@ export async function POST(request: Request) {
     const embeddingPromises = chunkData.map(async (chunk) => {
       try {
         const { embedding } = await embed({
-          model: google.textEmbeddingModel('gemini-embedding-001'),
+          model: google.textEmbeddingModel('text-embedding-004'),
           value: chunk.content,
           providerOptions: {
             google: {
@@ -263,7 +263,7 @@ export async function POST(request: Request) {
       }
     });
 
-    console.log(`[Ingest Route][${requestId}] Generating vector embeddings for ${chunks.length} chunks via gemini-embedding-001...`);
+    console.log(`[Ingest Route][${requestId}] Generating vector embeddings for ${chunks.length} chunks via text-embedding-004...`);
     const results = await Promise.all(embeddingPromises);
     const validResults = results.filter((r): r is { content: string; source_url: string; embedding: number[] } => r !== null);
 
