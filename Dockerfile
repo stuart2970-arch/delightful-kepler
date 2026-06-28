@@ -22,6 +22,13 @@ COPY . .
 ENV NEXT_TELEMETRY_DISABLED 1
 ENV NODE_ENV production
 
+# Accept Supabase public credentials from docker build --build-arg
+ARG NEXT_PUBLIC_SUPABASE_URL
+ENV NEXT_PUBLIC_SUPABASE_URL=$NEXT_PUBLIC_SUPABASE_URL
+
+ARG NEXT_PUBLIC_SUPABASE_ANON_KEY
+ENV NEXT_PUBLIC_SUPABASE_ANON_KEY=$NEXT_PUBLIC_SUPABASE_ANON_KEY
+
 # Run the build script (triggers Next.js build + widget.js bundling)
 RUN npm run build
 
