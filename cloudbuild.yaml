@@ -1,0 +1,39 @@
+steps:
+  # Step 1: Build the Docker image, passing the secrets as build args
+  - name: 'gcr.io/cloud-builders/docker'
+    entrypoint: 'bash'
+    args:
+      - '-c'
+      - |
+        docker build \
+          --build-arg NEXT_PUBLIC_SUPABASE_URL=$$SUPABASE_URL \
+          --build-arg NEXT_PUBLIC_SUPABASE_ANON_KEY=$$SUPABASE_ANON_KEY \
+          -t europe-west2-docker.pkg.dev/$PROJECT_ID/styleflo-repo/styleflo-app:$COMMIT_SHA .
+    secretEnv: ['SUPABASE_URL', 'SUPABASE_ANON_KEY']
+
+  # Step 2: Push the image to Artifact Registry
+  - name: 'gcr.io/cloud-builders/docker'
+    args: ['push', 'europe-west2-docker.pkg.dev/$PROJECT_ID/styleflo-repo/styleflo-app:$COMMIT_SHA']
+
+  # Step 3: Deploy to Cloud Run
+  - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
+    entrypoint: gcloud
+    args:
+      - 'run'
+      - 'deploy'
+      - 'styleflo-app' # Change this if your service has a different name
+      - '--image'
+      - 'europe-west2-docker.pkg.dev/$PROJECT_ID/styleflo-repo/styleflo-app:$COMMIT_SHA'
+      - '--region'
+      - 'europe-west2'
+      - '--allow-unauthenticated'
+
+availableSecrets:
+  secretManager:
+    - versionName: projects/$PROJECT_ID/secrets/supabase-url/versions/latest
+      env: 'SUPABASE_URL'
+    - versionName: projects/$PROJECT_ID/secrets/supabase-anon-key/versions/latest
+      env: 'SUPABASE_ANON_KEY'
+
+images:
+  - 'europe-west2-docker.pkg.dev/$PROJECT_ID/styleflo-repo/styleflo-app:$COMMIT_SHA'
