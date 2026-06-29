@@ -259,7 +259,7 @@
     // Helper to append a message node to UI
     function appendMessage(sender: 'user' | 'bot', text: string = ''): HTMLDivElement {
       const wrapper = document.createElement('div');
-      wrapper.className = sender === 'user' ? 'flex justify-end' : 'flex items-start gap-2.5';
+      wrapper.className = sender === 'user' ? 'flex justify-end' : 'flex items-start gap-2.5 w-full';
       
       if (sender === 'bot') {
         const avatarImg = document.createElement('img');
@@ -272,14 +272,20 @@
       const msgDiv = document.createElement('div');
       msgDiv.className = sender === 'user'
         ? 'p-3 text-white rounded-2xl rounded-tr-none styleflo-text-15 styleflo-mw-85 shadow-sm leading-relaxed'
-        : 'p-3 bg-white border border-gray-100 text-gray-800 rounded-2xl rounded-tl-none styleflo-text-15 styleflo-mw-75 shadow-sm leading-relaxed';
+        : 'p-3 bg-white border border-gray-100 text-gray-800 rounded-2xl rounded-tl-none styleflo-text-15 shadow-sm leading-relaxed w-full';
       
       if (sender === 'user') {
         msgDiv.style.backgroundColor = primaryColor;
+        msgDiv.textContent = text;
+        wrapper.appendChild(msgDiv);
+      } else {
+        const col = document.createElement('div');
+        col.className = 'flex flex-col min-w-0 styleflo-mw-75';
+        msgDiv.textContent = text;
+        col.appendChild(msgDiv);
+        wrapper.appendChild(col);
       }
       
-      msgDiv.textContent = text;
-      wrapper.appendChild(msgDiv);
       messagesContainer.appendChild(wrapper);
       scrollToBottom();
       return msgDiv;
