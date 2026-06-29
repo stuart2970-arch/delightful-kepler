@@ -5,6 +5,7 @@ import { createGoogleGenerativeAI } from '@ai-sdk/google';
 import { z } from 'zod';
 import formData from 'form-data';
 import Mailgun from 'mailgun.js';
+import { checkAvailability, bookMeeting } from './calendar';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -132,7 +133,19 @@ export async function POST(request: Request) {
       ? matchedDocuments.map((doc: any) => `- ${doc.content}`).join('\n\n')
       : 'No context available.';
     
-    console.log(`[Chat Stream][${requestId}] Retrieved ${matchedDocuments?.length || 0} context documents.`);
+    // Fetch Services and Staff for Calendar integration
+    const [servicesRes, staffRes] = await Promise.all([
+      supabaseAdmin.from('services').select('id, name, duration_minutes').eq('tenant_id', tenantId),
+      supabaseAdmin.from('staff').select('id, name').eq('tenant_id', tenantId)
+    ]);
+    const servicesContext = servicesRes.data && servicesRes.data.length > 0 
+      ? JSON.stringify(servicesRes.data) 
+      : '[]';
+    const staffContext = staffRes.data && staffRes.data.length > 0
+      ? JSON.stringify(staffRes.data)
+      : '[]';
+
+    console.log(`[Chat Stream][${requestId}] Retrieved ${matchedDocuments?.length || 0} context documents and calendar config.`);
 
     // 6. Get or create conversation record
     console.log(`[Chat Stream][${requestId}] Resolving conversation session...`);
@@ -198,10 +211,20 @@ Guidelines:
 - Use short paragraphs and avoid overwhelming the user with long blocks of text.
 - If presenting multiple items, use clean bullet points.
 - CRITICAL: If the user explicitly types their email or phone number in the chat, you MUST end your response with exactly: [LEAD_CAPTURED: their_email_or_phone]. DO NOT use this tag to ask them for their info. Only use it when they actually provide it!
+- CRITICAL SCHEDULING RULE 1: If the user wants to book an appointment, first identify the Service and the Staff member they want.
+- CRITICAL SCHEDULING RULE 2: Once you know the Staff ID and Service Duration, you MUST check their availability before proposing a time. Do this by responding with ONLY: [CHECK_AVAILABILITY: StaffID, ServiceDuration, StartDate, EndDate]. StartDate and EndDate should be ISO strings (e.g. 2026-06-29T00:00:00Z) covering the range the user wants. If the user doesn't specify a date, use the next 7 days.
+- CRITICAL SCHEDULING RULE 3: Once you have checked availability and the user agrees to a specific available slot, you MUST book it by responding with ONLY: [BOOK_MEETING: StaffID, CustomerName, CustomerEmail, StartTime, EndTime]. StartTime and EndTime must be precise ISO strings. The system will handle the actual booking.
+- When outputting a secret tag like [CHECK_AVAILABILITY...] or [BOOK_MEETING...], it MUST be the very last line of your response.
 
 Context:
 [INJECTED CHUNKS]
-${contextText}`;
+${contextText}
+
+[SERVICES CONFIGURATION (JSON)]
+${servicesContext}
+
+[STAFF CONFIGURATION (JSON)]
+${staffContext}`;
 
     const formattedMessages: any[] = [];
     if (chatHistory && chatHistory.length > 0) {
@@ -295,12 +318,59 @@ ${contextText}`;
       async start(controller) {
         try {
           let hasText = false;
+          let rawText = '';
           for await (const chunk of result.textStream) {
             hasText = true;
+            rawText += chunk;
             controller.enqueue(encoder.encode(chunk));
           }
           if (!hasText) {
             controller.enqueue(encoder.encode(`I'm sorry, I am having trouble connecting to my database. Please try again. [DEBUG: ${lastApiError || "Empty stream, no error caught."}]`));
+            return;
+          }
+
+          // --- AVAILABILITY TOOL PASS ---
+          const availMatch = rawText.match(/\[CHECK_AVAILABILITY:\s*(.+?),\s*(.+?),\s*(.+?),\s*(.+?)\]/);
+          if (availMatch) {
+            const staffId = availMatch[1].trim();
+            const duration = parseInt(availMatch[2].trim());
+            const startStr = availMatch[3].trim();
+            const endStr = availMatch[4].trim();
+            
+            const toolResult = await checkAvailability(tenantId, staffId, duration, startStr, endStr);
+            
+            const pass2Messages = [
+              ...formattedMessages,
+              { role: 'assistant', content: rawText },
+              { role: 'user', content: `[SYSTEM] Availability Result:\n${toolResult}\nNow present the times to the user naturally. Do not use tags.` }
+            ];
+            
+            const result2 = await streamText({
+              model: google('gemini-3.5-flash'),
+              system: systemPrompt,
+              messages: pass2Messages
+            });
+            
+            for await (const chunk of result2.textStream) {
+              controller.enqueue(encoder.encode(chunk));
+            }
+          }
+
+          // --- BOOKING TOOL PASS ---
+          const bookMatch = rawText.match(/\[BOOK_MEETING:\s*(.+?),\s*(.+?),\s*(.+?),\s*(.+?),\s*(.+?)\]/);
+          if (bookMatch) {
+             const staffId = bookMatch[1].trim();
+             const cName = bookMatch[2].trim();
+             const cEmail = bookMatch[3].trim();
+             const startStr = bookMatch[4].trim();
+             const endStr = bookMatch[5].trim();
+             
+             // Run asynchronously so we don't block closing the stream
+             bookMeeting(tenantId, staffId, cName, cEmail, startStr, endStr).then(res => {
+                console.log(`[Chat Stream][${requestId}] Booking Background Result:`, res);
+             }).catch(err => {
+                console.error(`[Chat Stream][${requestId}] Booking Background Error:`, err);
+             });
           }
         } catch (err: any) {
           console.error(`[Chat Stream][${requestId}] In-stream generation error:`, err);

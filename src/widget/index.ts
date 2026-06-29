@@ -364,8 +364,11 @@
           const chunk = decoder.decode(value, { stream: true });
           rawText += chunk;
           
-          // Lightweight markdown parsing for the widget
           let formattedText = rawText
+            // Hide secret tool tags
+            .replace(/\[CHECK_AVAILABILITY:.*?\]/g, '')
+            .replace(/\[BOOK_MEETING:.*?\]/g, '')
+            .replace(/\[LEAD_CAPTURED:.*?\]/g, '')
             // Replace bold **text**
             .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
             // Replace markdown links with formatted inline links
