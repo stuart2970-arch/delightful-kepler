@@ -228,9 +228,9 @@ ${contextText}`;
       model: google('gemini-1.5-flash'),
       system: systemPrompt,
       messages: formattedMessages,
-      onError: (err) => {
+      onError: (err: any) => {
         console.error(`[Chat Stream][${requestId}] API Stream Error:`, err);
-        lastApiError = err?.message || err?.toString() || "Unknown API Error";
+        lastApiError = err?.error?.message || err?.error?.toString() || err?.toString() || "Unknown API Error";
       },
       onFinish: async (event) => {
         console.log(`[Chat Stream][${requestId}] AI stream finished. Logging conversation in background...`);
