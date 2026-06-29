@@ -95,6 +95,14 @@
     .styleflo-text-11 { font-size: 11px; }
     .styleflo-mw-85 { max-width: 85%; }
     .styleflo-mw-75 { max-width: 75%; }
+
+    @keyframes styleflo-pulse {
+      0%, 100% { opacity: 1; }
+      50% { opacity: .4; }
+    }
+    .styleflo-animate-pulse {
+      animation: styleflo-pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+    }
   `;
   shadowRoot.appendChild(styleTag);
 
@@ -354,10 +362,76 @@
           let formattedText = rawText
             // Replace bold **text**
             .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
+            // Replace markdown links with formatted inline links
+            .replace(/\[(.*?)\]\((https?:\/\/[^\s)]+)\)/g, '<a href="$2" target="_blank" class="font-semibold text-indigo-600 hover:underline" style="color: ${primaryColor}; text-decoration: underline;">$1</a>')
             // Convert newlines to <br>
             .replace(/\n/g, '<br/>');
 
           botResponseContainer.innerHTML = formattedText;
+          scrollToBottom();
+        }
+
+        // 6. After streaming completes, look for product links and append rich product cards
+        const linkRegex = /\[(.*?)\]\((https?:\/\/[^\s)]+)\)/g;
+        let match;
+        const productUrls: string[] = [];
+        
+        while ((match = linkRegex.exec(rawText)) !== null) {
+          const url = match[2];
+          const isProductUrl = url.includes('/products/') || url.includes('/product/') || url.includes('/shop/');
+          if (isProductUrl && !productUrls.includes(url)) {
+            productUrls.push(url);
+          }
+        }
+
+        for (const url of productUrls) {
+          // Render a skeleton loading card first
+          const cardContainer = document.createElement('div');
+          cardContainer.className = 'mt-3 p-3 bg-gray-50 border border-gray-100 rounded-2xl flex items-center gap-3 styleflo-animate-pulse';
+          cardContainer.innerHTML = `
+            <div class="w-12 h-12 bg-gray-200 rounded-xl flex-shrink-0" style="width: 48px; height: 48px;"></div>
+            <div class="flex-1 space-y-2">
+              <div class="h-3 bg-gray-200 rounded w-3/4" style="height: 12px;"></div>
+              <div class="h-2.5 bg-gray-200 rounded w-1/2" style="height: 10px;"></div>
+            </div>
+          `;
+          botResponseContainer.parentNode?.insertBefore(cardContainer, botResponseContainer.nextSibling);
+          scrollToBottom();
+
+          try {
+            const res = await fetch(`${apiHost}/api/products/metadata?url=${encodeURIComponent(url)}`);
+            if (res.ok) {
+              const data = await res.json();
+              if (data.success && data.metadata) {
+                const meta = data.metadata;
+                cardContainer.className = 'mt-3 p-3 bg-gray-50 border border-gray-100 rounded-2xl flex items-center gap-3 transition-all duration-300 hover:shadow-md';
+                cardContainer.innerHTML = `
+                  ${meta.image_url ? `
+                    <img src="${meta.image_url}" alt="${meta.title || 'Product Image'}" class="w-12 h-12 object-cover rounded-xl border border-gray-100 bg-white flex-shrink-0" style="width: 48px; height: 48px;" />
+                  ` : `
+                    <div class="w-12 h-12 bg-gray-100 rounded-xl flex items-center justify-center flex-shrink-0 border border-gray-100 text-gray-400" style="width: 48px; height: 48px;">🛍️</div>
+                  `}
+                  <div class="flex-1 min-w-0">
+                    <h4 class="font-bold text-xs text-gray-800 truncate leading-tight" style="margin: 0; font-size: 12px;">${meta.title || 'Product Details'}</h4>
+                    <p class="text-[10px] text-gray-400 mt-1 leading-normal capitalize" style="margin: 4px 0 0 0; font-size: 10px;">${meta.platform || 'Store'} Product</p>
+                    ${meta.price ? `
+                      <p class="text-xs font-semibold text-gray-900 mt-1" style="margin: 4px 0 0 0; font-size: 11px; font-weight: 600;">${meta.currency === 'GBP' || meta.currency === '£' ? '£' : (meta.currency || '$')}${meta.price}</p>
+                    ` : ''}
+                  </div>
+                  <a href="${url}" target="_blank" class="px-3.5 py-1.5 rounded-xl text-[10px] font-bold text-white transition-opacity flex-shrink-0" style="background-color: ${primaryColor}; font-size: 10px; font-weight: 700; padding: 6px 12px; border-radius: 8px; text-decoration: none; display: inline-block;">
+                    Buy Now
+                  </a>
+                `;
+              } else {
+                cardContainer.remove();
+              }
+            } else {
+              cardContainer.remove();
+            }
+          } catch (err) {
+            console.warn('[Widget] Failed to fetch product card details:', err);
+            cardContainer.remove();
+          }
           scrollToBottom();
         }
 

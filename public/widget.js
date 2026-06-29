@@ -1,4 +1,4 @@
-"use strict";(()=>{(function(){let w=document.currentScript;if(!w){console.error("[StyleFlo Widget] Current script context not found.");return}let d=w.getAttribute("data-bot-id");if(!d){console.error('[StyleFlo Widget] Missing required "data-bot-id" attribute on script tag.');return}let n=new URL(w.src).origin,I=`styleflo_session_${d}`,m=localStorage.getItem(I);m||(m="session_"+crypto.randomUUID(),localStorage.setItem(I,m));let l=document.createElement("div");l.id="styleflo-chat-widget",l.style.position="fixed",l.style.bottom="0",l.style.right="0",l.style.zIndex="999999",document.body.appendChild(l);let r=l.attachShadow({mode:"open"}),v=document.createElement("link");v.rel="stylesheet",v.href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css",r.appendChild(v);let E=document.createElement("style");E.textContent=`
+"use strict";(()=>{(function(){let L=document.currentScript;if(!L){console.error("[StyleFlo Widget] Current script context not found.");return}let h=L.getAttribute("data-bot-id");if(!h){console.error('[StyleFlo Widget] Missing required "data-bot-id" attribute on script tag.');return}let i=new URL(L.src).origin,z=`styleflo_session_${h}`,x=localStorage.getItem(z);x||(x="session_"+crypto.randomUUID(),localStorage.setItem(z,x));let c=document.createElement("div");c.id="styleflo-chat-widget",c.style.position="fixed",c.style.bottom="0",c.style.right="0",c.style.zIndex="999999",document.body.appendChild(c);let a=c.attachShadow({mode:"open"}),I=document.createElement("link");I.rel="stylesheet",I.href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css",a.appendChild(I);let B=document.createElement("style");B.textContent=`
     @keyframes styleflo-bounce {
       0%, 100% { transform: translateY(0); }
       50% { transform: translateY(-4px); }
@@ -51,7 +51,15 @@
     .styleflo-text-11 { font-size: 11px; }
     .styleflo-mw-85 { max-width: 85%; }
     .styleflo-mw-75 { max-width: 75%; }
-  `,r.appendChild(E);let u=document.createElement("div");u.className="font-sans",r.appendChild(u);let c="#4F46E5",M="AI Assistant",T="AI Assistant",A="AI Support Agent",p="/avatars/avatar1.png",$="Hello! How can I help you today?",x='<span style="opacity: 0.6; font-size: 11px;">\u26A1 Powered by <strong>StyleFlo</strong></span>';async function B(){try{let s=await fetch(`${n}/api/chatbots/${d}`);if(s.ok){let e=await s.json();e.name&&(M=e.name),e.primaryColor&&(c=e.primaryColor),T=e.agentName||M,A=e.agentRole||"AI Support Agent",p=e.agentAvatarUrl||"/avatars/avatar1.png",$=e.welcomeMessage||"Hello! How can I help you today?",x=e.brandingHtml||x}}catch(s){console.warn("[StyleFlo Widget] Failed to fetch chatbot config, using defaults:",s)}j()}function j(){let s=document.createElement("button");s.className="fixed bottom-5 right-5 w-14 h-14 rounded-full shadow-2xl flex items-center justify-center cursor-pointer transition-all duration-300 hover:scale-110 focus:outline-none z-50",s.style.backgroundColor=c,s.innerHTML=`
+
+    @keyframes styleflo-pulse {
+      0%, 100% { opacity: 1; }
+      50% { opacity: .4; }
+    }
+    .styleflo-animate-pulse {
+      animation: styleflo-pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+    }
+  `,a.appendChild(B);let w=document.createElement("div");w.className="font-sans",a.appendChild(w);let d="#4F46E5",j="AI Assistant",N="AI Assistant",D="AI Support Agent",m="/avatars/avatar1.png",F="Hello! How can I help you today?",E='<span style="opacity: 0.6; font-size: 11px;">\u26A1 Powered by <strong>StyleFlo</strong></span>';async function R(){try{let r=await fetch(`${i}/api/chatbots/${h}`);if(r.ok){let e=await r.json();e.name&&(j=e.name),e.primaryColor&&(d=e.primaryColor),N=e.agentName||j,D=e.agentRole||"AI Support Agent",m=e.agentAvatarUrl||"/avatars/avatar1.png",F=e.welcomeMessage||"Hello! How can I help you today?",E=e.brandingHtml||E}}catch(r){console.warn("[StyleFlo Widget] Failed to fetch chatbot config, using defaults:",r)}W()}function W(){let r=document.createElement("button");r.className="fixed bottom-5 right-5 w-14 h-14 rounded-full shadow-2xl flex items-center justify-center cursor-pointer transition-all duration-300 hover:scale-110 focus:outline-none z-50",r.style.backgroundColor=d,r.innerHTML=`
       <!-- Chat Icon -->
       <svg id="styleflo-icon-chat" class="w-6 h-6 text-white transition-all duration-300 transform scale-100" fill="none" stroke="currentColor" viewBox="0 0 24 24">
         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"></path>
@@ -60,14 +68,14 @@
       <svg id="styleflo-icon-close" class="w-6 h-6 text-white absolute transition-all duration-300 transform scale-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M6 18L18 6M6 6l12 12"></path>
       </svg>
-    `,u.appendChild(s);let e=document.createElement("div");e.className="fixed z-50 flex flex-col bg-white overflow-hidden transition-all duration-300 transform scale-90 opacity-0 pointer-events-none origin-bottom-right bottom-20 right-5 rounded-2xl border border-gray-100 shadow-2xl styleflo-chat-window",e.innerHTML=`
+    `,w.appendChild(r);let e=document.createElement("div");e.className="fixed z-50 flex flex-col bg-white overflow-hidden transition-all duration-300 transform scale-90 opacity-0 pointer-events-none origin-bottom-right bottom-20 right-5 rounded-2xl border border-gray-100 shadow-2xl styleflo-chat-window",e.innerHTML=`
       <!-- Header -->
-      <div class="p-4 text-white flex items-center justify-between shadow-md shrink-0 z-10" style="background-color: ${c};">
+      <div class="p-4 text-white flex items-center justify-between shadow-md shrink-0 z-10" style="background-color: ${d};">
         <div class="flex items-center gap-3">
-          <img src="${n}${p}" alt="Agent Avatar" class="w-10 h-10 rounded-full border border-white/20 bg-white/10 object-cover" />
+          <img src="${i}${m}" alt="Agent Avatar" class="w-10 h-10 rounded-full border border-white/20 bg-white/10 object-cover" />
           <div>
-            <h3 class="font-bold styleflo-text-17 leading-tight">${T}</h3>
-            <p class="styleflo-text-11 opacity-75 mt-0.5">${A}</p>
+            <h3 class="font-bold styleflo-text-17 leading-tight">${N}</h3>
+            <p class="styleflo-text-11 opacity-75 mt-0.5">${D}</p>
           </div>
         </div>
         <button id="styleflo-close-btn" class="text-white opacity-80 hover:opacity-100 focus:outline-none transition-opacity">
@@ -81,9 +89,9 @@
       <div id="styleflo-messages" class="flex-1 min-h-0 overflow-y-auto overscroll-y-contain p-4 space-y-4 bg-gray-50 styleflo-scrollbar">
         <!-- Welcome Message -->
         <div class="flex items-start gap-2.5">
-          <img src="${n}${p}" alt="Agent Avatar" class="w-7 h-7 rounded-full object-cover bg-white border border-gray-100" />
+          <img src="${i}${m}" alt="Agent Avatar" class="w-7 h-7 rounded-full object-cover bg-white border border-gray-100" />
           <div class="p-3 bg-white border border-gray-100 text-gray-800 rounded-2xl rounded-tl-none styleflo-text-15 styleflo-mw-75 shadow-sm leading-relaxed">
-            ${$}
+            ${F}
           </div>
         </div>
       </div>
@@ -95,13 +103,13 @@
           type="text" 
           placeholder="Type your message..." 
           class="flex-1 px-3 py-2 styleflo-text-15 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:border-transparent transition-all"
-          style="--tw-ring-color: ${c};"
+          style="--tw-ring-color: ${d};"
           autocomplete="off"
         />
         <button 
           type="submit" 
           class="p-2 rounded-xl text-white hover:opacity-95 focus:outline-none transition-opacity" 
-          style="background-color: ${c};"
+          style="background-color: ${d};"
         >
           <svg class="w-4 h-4 transform rotate-90" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8"></path>
@@ -110,14 +118,36 @@
       </form>
 
       <!-- Branding Footer -->
-      <a href="${n}/api/track?ref=${d}&source=${encodeURIComponent(window.location.hostname)}" target="_blank" rel="noopener noreferrer" class="w-full bg-gray-50 text-center py-1.5 border-t border-gray-100 block hover:bg-gray-100 transition-colors cursor-pointer text-gray-500 flex items-center justify-center">
-        ${x}
+      <a href="${i}/api/track?ref=${h}&source=${encodeURIComponent(window.location.hostname)}" target="_blank" rel="noopener noreferrer" class="w-full bg-gray-50 text-center py-1.5 border-t border-gray-100 block hover:bg-gray-100 transition-colors cursor-pointer text-gray-500 flex items-center justify-center">
+        ${E}
       </a>
-    `,u.appendChild(e);let f=r.getElementById("styleflo-messages"),D=r.getElementById("styleflo-chat-form"),k=r.getElementById("styleflo-input"),z=r.getElementById("styleflo-close-btn"),g=r.getElementById("styleflo-icon-chat"),y=r.getElementById("styleflo-icon-close"),C=!1;function H(){C=!C,C?(e.classList.remove("scale-90","opacity-0","pointer-events-none"),e.classList.add("scale-100","opacity-100","pointer-events-auto"),g.classList.remove("scale-100"),g.classList.add("scale-0"),y.classList.remove("scale-0"),y.classList.add("scale-100"),k.focus()):(e.classList.remove("scale-100","opacity-100","pointer-events-auto"),e.classList.add("scale-90","opacity-0","pointer-events-none"),g.classList.remove("scale-0"),g.classList.add("scale-100"),y.classList.remove("scale-100"),y.classList.add("scale-0"))}s.addEventListener("click",H),z.addEventListener("click",H);function L(){f.scrollTop=f.scrollHeight}function b(t,h=""){let a=document.createElement("div");if(a.className=t==="user"?"flex justify-end":"flex items-start gap-2.5",t==="bot"){let i=document.createElement("img");i.src=`${n}${p}`,i.alt="Agent Avatar",i.className="w-7 h-7 rounded-full object-cover bg-white border border-gray-100 flex-shrink-0",a.appendChild(i)}let o=document.createElement("div");return o.className=t==="user"?"p-3 text-white rounded-2xl rounded-tr-none styleflo-text-15 styleflo-mw-85 shadow-sm leading-relaxed":"p-3 bg-white border border-gray-100 text-gray-800 rounded-2xl rounded-tl-none styleflo-text-15 styleflo-mw-75 shadow-sm leading-relaxed",t==="user"&&(o.style.backgroundColor=c),o.textContent=h,a.appendChild(o),f.appendChild(a),L(),o}function F(){let t=document.createElement("div");return t.id="styleflo-typing-indicator",t.className="flex items-start gap-2.5",t.innerHTML=`
-        <img src="${n}${p}" alt="Agent Avatar" class="w-7 h-7 rounded-full object-cover bg-white border border-gray-100 flex-shrink-0" />
+    `,w.appendChild(e);let v=a.getElementById("styleflo-messages"),_=a.getElementById("styleflo-chat-form"),M=a.getElementById("styleflo-input"),O=a.getElementById("styleflo-close-btn"),k=a.getElementById("styleflo-icon-chat"),C=a.getElementById("styleflo-icon-close"),T=!1;function U(){T=!T,T?(e.classList.remove("scale-90","opacity-0","pointer-events-none"),e.classList.add("scale-100","opacity-100","pointer-events-auto"),k.classList.remove("scale-100"),k.classList.add("scale-0"),C.classList.remove("scale-0"),C.classList.add("scale-100"),M.focus()):(e.classList.remove("scale-100","opacity-100","pointer-events-auto"),e.classList.add("scale-90","opacity-0","pointer-events-none"),k.classList.remove("scale-0"),k.classList.add("scale-100"),C.classList.remove("scale-100"),C.classList.add("scale-0"))}r.addEventListener("click",U),O.addEventListener("click",U);function y(){v.scrollTop=v.scrollHeight}function $(t,f=""){let p=document.createElement("div");if(p.className=t==="user"?"flex justify-end":"flex items-start gap-2.5",t==="bot"){let g=document.createElement("img");g.src=`${i}${m}`,g.alt="Agent Avatar",g.className="w-7 h-7 rounded-full object-cover bg-white border border-gray-100 flex-shrink-0",p.appendChild(g)}let o=document.createElement("div");return o.className=t==="user"?"p-3 text-white rounded-2xl rounded-tr-none styleflo-text-15 styleflo-mw-85 shadow-sm leading-relaxed":"p-3 bg-white border border-gray-100 text-gray-800 rounded-2xl rounded-tl-none styleflo-text-15 styleflo-mw-75 shadow-sm leading-relaxed",t==="user"&&(o.style.backgroundColor=d),o.textContent=f,p.appendChild(o),v.appendChild(p),y(),o}function Y(){let t=document.createElement("div");return t.id="styleflo-typing-indicator",t.className="flex items-start gap-2.5",t.innerHTML=`
+        <img src="${i}${m}" alt="Agent Avatar" class="w-7 h-7 rounded-full object-cover bg-white border border-gray-100 flex-shrink-0" />
         <div class="flex items-center gap-1.5 p-3.5 bg-white border border-gray-100 rounded-2xl rounded-tl-none shadow-sm">
           <div class="styleflo-dot"></div>
           <div class="styleflo-dot"></div>
           <div class="styleflo-dot"></div>
         </div>
-      `,f.appendChild(t),L(),t}D.addEventListener("submit",async t=>{t.preventDefault();let h=k.value.trim();if(!h)return;b("user",h),k.value="";let a=F();try{let o=await fetch(`${n}/api/chat/stream`,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({message:h,chatbotId:d,sessionId:m})});if(a.remove(),!o.ok)throw new Error(`Server returned HTTP ${o.status}`);let i=o.body?.getReader(),N=new TextDecoder;if(!i){b("bot","Sorry, I am unable to process that message right now.");return}let U=b("bot",""),S="";for(;;){let{done:R,value:W}=await i.read();if(R)break;let P=N.decode(W,{stream:!0});S+=P;let _=S.replace(/\*\*(.*?)\*\*/g,"<strong>$1</strong>").replace(/\n/g,"<br/>");U.innerHTML=_,L()}}catch(o){console.error("[StyleFlo Widget] Chat Stream fetch error:",o),a.remove(),b("bot","An error occurred. Please try again or refresh the page.")}})}B()})();})();
+      `,v.appendChild(t),y(),t}_.addEventListener("submit",async t=>{t.preventDefault();let f=M.value.trim();if(!f)return;$("user",f),M.value="";let p=Y();try{let o=await fetch(`${i}/api/chat/stream`,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({message:f,chatbotId:h,sessionId:x})});if(p.remove(),!o.ok)throw new Error(`Server returned HTTP ${o.status}`);let g=o.body?.getReader(),q=new TextDecoder;if(!g){$("bot","Sorry, I am unable to process that message right now.");return}let H=$("bot",""),A="";for(;;){let{done:n,value:s}=await g.read();if(n)break;let u=q.decode(s,{stream:!0});A+=u;let b=A.replace(/\*\*(.*?)\*\*/g,"<strong>$1</strong>").replace(/\[(.*?)\]\((https?:\/\/[^\s)]+)\)/g,'<a href="$2" target="_blank" class="font-semibold text-indigo-600 hover:underline" style="color: ${primaryColor}; text-decoration: underline;">$1</a>').replace(/\n/g,"<br/>");H.innerHTML=b,y()}let G=/\[(.*?)\]\((https?:\/\/[^\s)]+)\)/g,P,S=[];for(;(P=G.exec(A))!==null;){let n=P[2];(n.includes("/products/")||n.includes("/product/")||n.includes("/shop/"))&&!S.includes(n)&&S.push(n)}for(let n of S){let s=document.createElement("div");s.className="mt-3 p-3 bg-gray-50 border border-gray-100 rounded-2xl flex items-center gap-3 styleflo-animate-pulse",s.innerHTML=`
+            <div class="w-12 h-12 bg-gray-200 rounded-xl flex-shrink-0" style="width: 48px; height: 48px;"></div>
+            <div class="flex-1 space-y-2">
+              <div class="h-3 bg-gray-200 rounded w-3/4" style="height: 12px;"></div>
+              <div class="h-2.5 bg-gray-200 rounded w-1/2" style="height: 10px;"></div>
+            </div>
+          `,H.parentNode?.insertBefore(s,H.nextSibling),y();try{let u=await fetch(`${i}/api/products/metadata?url=${encodeURIComponent(n)}`);if(u.ok){let b=await u.json();if(b.success&&b.metadata){let l=b.metadata;s.className="mt-3 p-3 bg-gray-50 border border-gray-100 rounded-2xl flex items-center gap-3 transition-all duration-300 hover:shadow-md",s.innerHTML=`
+                  ${l.image_url?`
+                    <img src="${l.image_url}" alt="${l.title||"Product Image"}" class="w-12 h-12 object-cover rounded-xl border border-gray-100 bg-white flex-shrink-0" style="width: 48px; height: 48px;" />
+                  `:`
+                    <div class="w-12 h-12 bg-gray-100 rounded-xl flex items-center justify-center flex-shrink-0 border border-gray-100 text-gray-400" style="width: 48px; height: 48px;">\u{1F6CD}\uFE0F</div>
+                  `}
+                  <div class="flex-1 min-w-0">
+                    <h4 class="font-bold text-xs text-gray-800 truncate leading-tight" style="margin: 0; font-size: 12px;">${l.title||"Product Details"}</h4>
+                    <p class="text-[10px] text-gray-400 mt-1 leading-normal capitalize" style="margin: 4px 0 0 0; font-size: 10px;">${l.platform||"Store"} Product</p>
+                    ${l.price?`
+                      <p class="text-xs font-semibold text-gray-900 mt-1" style="margin: 4px 0 0 0; font-size: 11px; font-weight: 600;">${l.currency==="GBP"||l.currency==="\xA3"?"\xA3":l.currency||"$"}${l.price}</p>
+                    `:""}
+                  </div>
+                  <a href="${n}" target="_blank" class="px-3.5 py-1.5 rounded-xl text-[10px] font-bold text-white transition-opacity flex-shrink-0" style="background-color: ${d}; font-size: 10px; font-weight: 700; padding: 6px 12px; border-radius: 8px; text-decoration: none; display: inline-block;">
+                    Buy Now
+                  </a>
+                `}else s.remove()}else s.remove()}catch(u){console.warn("[Widget] Failed to fetch product card details:",u),s.remove()}y()}}catch(o){console.error("[StyleFlo Widget] Chat Stream fetch error:",o),p.remove(),$("bot","An error occurred. Please try again or refresh the page.")}})}R()})();})();

@@ -199,6 +199,74 @@ export async function POST(request: Request) {
     // 6. Clean HTML using Cheerio (ignore nav, footer, script, styles, header, svg, iframe)
     console.log(`[Ingest Route][${requestId}] Parsing HTML and extracting prose...`);
     const $ = cheerio.load(htmlContent);
+
+    // Extract product metadata (images, prices, etc.) before head/scripts are stripped
+    const image_url = $('meta[property="og:image"]').attr('content') || 
+                      $('meta[name="twitter:image"]').attr('content') || 
+                      $('link[rel="image_src"]').attr('href') || null;
+                      
+    const title = $('meta[property="og:title"]').attr('content') || 
+                  $('title').text() || null;
+
+    let price = null;
+    let currency = null;
+
+    const isProduct = url.includes('/products/') || url.includes('/product/') || url.includes('/shop/');
+    
+    if (isProduct) {
+      price = $('meta[property="product:price:amount"]').attr('content') || 
+              $('meta[property="og:price:amount"]').attr('content') || 
+              $('meta[name="twitter:price:amount"]').attr('content') || null;
+      currency = $('meta[property="product:price:currency"]').attr('content') || 
+                 $('meta[property="og:price:currency"]').attr('content') || null;
+
+      if (!price) {
+        $('script[type="application/ld+json"]').each((_, el) => {
+          try {
+            const jsonText = $(el).html();
+            if (jsonText) {
+              const json = JSON.parse(jsonText);
+              const checkProduct = (obj: any) => {
+                if (obj && (obj['@type'] === 'Product' || obj['@type'] === 'http://schema.org/Product')) {
+                  const offers = obj.offers;
+                  if (offers) {
+                    price = offers.price || (Array.isArray(offers) ? offers[0]?.price : null);
+                    currency = offers.priceCurrency || (Array.isArray(offers) ? offers[0]?.priceCurrency : null);
+                  }
+                }
+              };
+
+              if (Array.isArray(json)) {
+                json.forEach(checkProduct);
+              } else if (json['@graph'] && Array.isArray(json['@graph'])) {
+                json['@graph'].forEach(checkProduct);
+              } else {
+                checkProduct(json);
+              }
+            }
+          } catch (e) {
+            // ignore JSON error
+          }
+        });
+      }
+    }
+
+    let platform = 'generic';
+    if (htmlContent.includes('cdn.shopify.com') || url.includes('/products/')) {
+      platform = 'shopify';
+    } else if (htmlContent.includes('wp-content') || htmlContent.includes('woocommerce')) {
+      platform = 'woocommerce';
+    }
+
+    const metadata = {
+      image_url,
+      title,
+      price,
+      currency,
+      platform,
+      is_product: isProduct
+    };
+
     $('nav, footer, script, style, noscript, header, iframe, svg, form, head').remove();
 
     // Extract clean prose text
@@ -282,6 +350,7 @@ export async function POST(request: Request) {
       content: result.content,
       embedding: result.embedding,
       source_url: result.source_url,
+      metadata: metadata,
     }));
 
     const { error: dbInsertError } = await dbClient

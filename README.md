@@ -98,3 +98,11 @@ This runbook documents the key fixes and architecture enhancements implemented d
     2. Implemented Next.js SSR `middleware.ts` to block unauthorized access to the `/dashboard`.
     3. Rewrote Dashboard APIs to enforce Row Level Security (RLS) instead of using the service role key.
     4. Supplied the SQL triggers required to auto-provision a `tenant` and `profile` linked to `tenant_id` the moment a user registers.
+
+### Session 5 (June 29, 2026)
+* **User**: "when the bot in question is obviously a store (shop) and the bot is returning goods in this format \"* For a classic, breezy look: The [Kashe Blouse in Light Blue Denim](https://www.wardrobeatthecross.co.uk/products/kashe-blouse-light-blue-denim)... can we understand what the store is (woocommerce, shopify, etc) and return an image and the link to the product"
+  * **Fix**: Implemented rich product previews in the chatbot widget:
+    1. Created a backend `/api/products/metadata` API route that queries the database or live-scrapes URLs to extract product titles, image URLs, prices, currencies, and store type (Shopify/WooCommerce).
+    2. Updated the crawler pipeline (`/api/ingest/crawl`) to extract these e-commerce details and cache them in the `metadata` JSONB column of `document_chunks`.
+    3. Added custom CSS pulse skeleton loaders and updated the client widget (`src/widget/index.ts`) to parse markdown product links, retrieve metadata, and render beautiful product preview cards with "Buy Now" checkout links inside the chat conversation.
+
