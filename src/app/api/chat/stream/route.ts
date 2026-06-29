@@ -219,13 +219,13 @@ ${contextText}`;
       content: message,
     });
 
-    console.log(`[Chat Stream][${requestId}] Initializing Vercel AI SDK text stream (gemini-1.5-flash)...`);
+    console.log(`[Chat Stream][${requestId}] Initializing Vercel AI SDK text stream (gemini-3.5-flash)...`);
 
     let lastApiError = "";
     
     // 9. Invoke streamText and setup async database transaction logging
     const result = await streamText({
-      model: google('gemini-1.5-flash'),
+      model: google('gemini-3.5-flash'),
       system: systemPrompt,
       messages: formattedMessages,
       onError: (err: any) => {
