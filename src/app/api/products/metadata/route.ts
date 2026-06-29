@@ -4,6 +4,12 @@ import * as cheerio from 'cheerio';
 
 export const dynamic = 'force-dynamic';
 
+const corsHeaders = {
+  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Methods': 'GET, POST, OPTIONS, HEAD',
+  'Access-Control-Allow-Headers': 'Content-Type, Authorization, x-client-info',
+};
+
 function getSupabaseAdmin() {
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -20,13 +26,20 @@ function getSupabaseAdmin() {
   });
 }
 
+export async function OPTIONS() {
+  return NextResponse.json({}, { headers: corsHeaders });
+}
+
 export async function GET(request: Request) {
   try {
     const { searchParams } = new URL(request.url);
     const url = searchParams.get('url');
 
     if (!url) {
-      return NextResponse.json({ error: 'url parameter is required' }, { status: 400 });
+      return NextResponse.json(
+        { error: 'url parameter is required' },
+        { status: 400, headers: corsHeaders }
+      );
     }
 
     const supabaseAdmin = getSupabaseAdmin();
@@ -41,11 +54,15 @@ export async function GET(request: Request) {
         .limit(1);
 
       if (!error && data && data.length > 0 && data[0].metadata && Object.keys(data[0].metadata).length > 0) {
-        return NextResponse.json({ success: true, metadata: data[0].metadata }, {
-          headers: {
-            'Cache-Control': 'no-store, no-cache, must-revalidate, proxy-revalidate',
+        return NextResponse.json(
+          { success: true, metadata: data[0].metadata },
+          {
+            headers: {
+              ...corsHeaders,
+              'Cache-Control': 'no-store, no-cache, must-revalidate, proxy-revalidate',
+            },
           }
-        });
+        );
       }
     } catch (dbErr) {
       console.warn('[Products API] Database query failed or metadata column absent. Falling back to live scrape:', dbErr);
@@ -144,13 +161,20 @@ export async function GET(request: Request) {
       // ignore table column error
     }
 
-    return NextResponse.json({ success: true, metadata }, {
-      headers: {
-        'Cache-Control': 'no-store, no-cache, must-revalidate, proxy-revalidate',
+    return NextResponse.json(
+      { success: true, metadata },
+      {
+        headers: {
+          ...corsHeaders,
+          'Cache-Control': 'no-store, no-cache, must-revalidate, proxy-revalidate',
+        },
       }
-    });
+    );
   } catch (err: any) {
     console.error('[Products API] Unexpected route failure:', err);
-    return NextResponse.json({ error: err.message || 'Internal Server Error' }, { status: 500 });
+    return NextResponse.json(
+      { error: err.message || 'Internal Server Error' },
+      { status: 500, headers: corsHeaders }
+    );
   }
 }
