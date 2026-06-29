@@ -269,6 +269,20 @@ export async function POST(request: Request) {
 
     $('nav, footer, script, style, noscript, header, iframe, svg, form, head').remove();
 
+    // Preserve anchor links as Markdown format within the scraped text content
+    $('a').each((_, el) => {
+      const href = $(el).attr('href');
+      const text = $(el).text().trim();
+      if (href && text) {
+        try {
+          const absoluteUrl = new URL(href, url).toString();
+          $(el).text(` [${text}](${absoluteUrl}) `);
+        } catch (e) {
+          $(el).text(` [${text}](${href}) `);
+        }
+      }
+    });
+
     // Extract clean prose text
     const textContent = $('body')
       .text()

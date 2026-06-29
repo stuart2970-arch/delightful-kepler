@@ -363,7 +363,7 @@
             // Replace bold **text**
             .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
             // Replace markdown links with formatted inline links
-            .replace(/\[(.*?)\]\((https?:\/\/[^\s)]+)\)/g, '<a href="$2" target="_blank" class="font-semibold text-indigo-600 hover:underline" style="color: ${primaryColor}; text-decoration: underline;">$1</a>')
+            .replace(/\[([^\]]+)\]\((https?:\/\/[^)]+)\)/g, '<a href="$2" target="_blank" class="font-semibold text-indigo-600 hover:underline" style="color: ${primaryColor}; text-decoration: underline;">$1</a>')
             // Convert newlines to <br>
             .replace(/\n/g, '<br/>');
 
@@ -372,7 +372,7 @@
         }
 
         // 6. After streaming completes, look for product links and append rich product cards
-        const linkRegex = /\[(.*?)\]\((https?:\/\/[^\s)]+)\)/g;
+        const linkRegex = /\[([^\]]+)\]\((https?:\/\/[^)]+)\)/g;
         let match;
         const productUrls: string[] = [];
         
