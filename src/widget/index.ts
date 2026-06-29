@@ -393,7 +393,7 @@
         for (const url of productUrls) {
           // Render a skeleton loading card first
           const cardContainer = document.createElement('div');
-          cardContainer.className = 'mt-3 p-3 bg-gray-50 border border-gray-100 rounded-2xl flex items-center gap-3 styleflo-animate-pulse';
+          cardContainer.className = 'my-2 p-3 bg-gray-50 border border-gray-100 rounded-2xl flex items-center gap-3 styleflo-animate-pulse';
           cardContainer.innerHTML = `
             <div class="w-12 h-12 bg-gray-200 rounded-xl flex-shrink-0" style="width: 48px; height: 48px;"></div>
             <div class="flex-1 space-y-2">
@@ -401,7 +401,14 @@
               <div class="h-2.5 bg-gray-200 rounded w-1/2" style="height: 10px;"></div>
             </div>
           `;
-          botResponseContainer.parentNode?.insertBefore(cardContainer, botResponseContainer.nextSibling);
+          
+          // Insert the card container inline, directly following the anchor link mention
+          const anchor = botResponseContainer.querySelector(`a[href="${url}"]`);
+          if (anchor) {
+            anchor.parentNode?.insertBefore(cardContainer, anchor.nextSibling);
+          } else {
+            botResponseContainer.appendChild(cardContainer);
+          }
           scrollToBottom();
 
           try {
@@ -410,7 +417,7 @@
               const data = await res.json();
               if (data.success && data.metadata) {
                 const meta = data.metadata;
-                cardContainer.className = 'mt-3 p-3 bg-gray-50 border border-gray-100 rounded-2xl flex items-center gap-3 transition-all duration-300 hover:shadow-md';
+                cardContainer.className = 'my-2 p-3 bg-gray-50 border border-gray-100 rounded-2xl flex items-center gap-3 transition-all duration-300 hover:shadow-md';
                 cardContainer.innerHTML = `
                   ${meta.image_url ? `
                     <img src="${meta.image_url}" alt="${meta.title || 'Product Image'}" class="w-12 h-12 object-cover rounded-xl border border-gray-100 bg-white flex-shrink-0" style="width: 48px; height: 48px;" />
