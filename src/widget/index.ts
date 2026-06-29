@@ -426,7 +426,7 @@
                   `}
                   <div class="flex-1 min-w-0">
                     <h4 class="font-bold text-xs text-gray-800 truncate leading-tight" style="margin: 0; font-size: 12px;">${meta.title || 'Product Details'}</h4>
-                    <p class="text-[10px] text-gray-400 mt-1 leading-normal capitalize" style="margin: 4px 0 0 0; font-size: 10px;">${meta.platform || 'Store'} Product</p>
+                    <p class="text-[10px] text-gray-400 mt-1 leading-normal capitalize" style="margin: 4px 0 0 0; font-size: 10px;">${meta.site_name || 'Store'}</p>
                     ${meta.price ? `
                       <p class="text-xs font-semibold text-gray-900 mt-1" style="margin: 4px 0 0 0; font-size: 11px; font-weight: 600;">${meta.currency === 'GBP' || meta.currency === '£' ? '£' : (meta.currency || '$')}${meta.price}</p>
                     ` : ''}

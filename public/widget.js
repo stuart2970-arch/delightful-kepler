@@ -59,7 +59,7 @@
     .styleflo-animate-pulse {
       animation: styleflo-pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
     }
-  `,i.appendChild(j);let w=document.createElement("div");w.className="font-sans",i.appendChild(w);let h="#4F46E5",N="AI Assistant",D="AI Assistant",F="AI Support Agent",f="/avatars/avatar1.png",U="Hello! How can I help you today?",E='<span style="opacity: 0.6; font-size: 11px;">\u26A1 Powered by <strong>StyleFlo</strong></span>';async function W(){try{let n=await fetch(`${c}/api/chatbots/${m}`);if(n.ok){let e=await n.json();e.name&&(N=e.name),e.primaryColor&&(h=e.primaryColor),D=e.agentName||N,F=e.agentRole||"AI Support Agent",f=e.agentAvatarUrl||"/avatars/avatar1.png",U=e.welcomeMessage||"Hello! How can I help you today?",E=e.brandingHtml||E}}catch(n){console.warn("[StyleFlo Widget] Failed to fetch chatbot config, using defaults:",n)}_()}function _(){let n=document.createElement("button");n.className="fixed bottom-5 right-5 w-14 h-14 rounded-full shadow-2xl flex items-center justify-center cursor-pointer transition-all duration-300 hover:scale-110 focus:outline-none z-50",n.style.backgroundColor=h,n.innerHTML=`
+  `,i.appendChild(j);let w=document.createElement("div");w.className="font-sans",i.appendChild(w);let h="#4F46E5",N="AI Assistant",D="AI Assistant",F="AI Support Agent",f="/avatars/avatar1.png",U="Hello! How can I help you today?",E='<span style="opacity: 0.6; font-size: 11px;">\u26A1 Powered by <strong>StyleFlo</strong></span>';async function _(){try{let n=await fetch(`${c}/api/chatbots/${m}`);if(n.ok){let e=await n.json();e.name&&(N=e.name),e.primaryColor&&(h=e.primaryColor),D=e.agentName||N,F=e.agentRole||"AI Support Agent",f=e.agentAvatarUrl||"/avatars/avatar1.png",U=e.welcomeMessage||"Hello! How can I help you today?",E=e.brandingHtml||E}}catch(n){console.warn("[StyleFlo Widget] Failed to fetch chatbot config, using defaults:",n)}W()}function W(){let n=document.createElement("button");n.className="fixed bottom-5 right-5 w-14 h-14 rounded-full shadow-2xl flex items-center justify-center cursor-pointer transition-all duration-300 hover:scale-110 focus:outline-none z-50",n.style.backgroundColor=h,n.innerHTML=`
       <!-- Chat Icon -->
       <svg id="styleflo-icon-chat" class="w-6 h-6 text-white transition-all duration-300 transform scale-100" fill="none" stroke="currentColor" viewBox="0 0 24 24">
         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"></path>
@@ -142,7 +142,7 @@
                   `}
                   <div class="flex-1 min-w-0">
                     <h4 class="font-bold text-xs text-gray-800 truncate leading-tight" style="margin: 0; font-size: 12px;">${a.title||"Product Details"}</h4>
-                    <p class="text-[10px] text-gray-400 mt-1 leading-normal capitalize" style="margin: 4px 0 0 0; font-size: 10px;">${a.platform||"Store"} Product</p>
+                    <p class="text-[10px] text-gray-400 mt-1 leading-normal capitalize" style="margin: 4px 0 0 0; font-size: 10px;">${a.site_name||"Store"}</p>
                     ${a.price?`
                       <p class="text-xs font-semibold text-gray-900 mt-1" style="margin: 4px 0 0 0; font-size: 11px; font-weight: 600;">${a.currency==="GBP"||a.currency==="\xA3"?"\xA3":a.currency||"$"}${a.price}</p>
                     `:""}
@@ -150,4 +150,4 @@
                   <a href="${l}" target="_blank" class="px-3.5 py-1.5 rounded-xl text-[10px] font-bold text-white transition-opacity flex-shrink-0" style="background-color: ${h}; font-size: 10px; font-weight: 700; padding: 6px 12px; border-radius: 8px; text-decoration: none; display: inline-block;">
                     Buy Now
                   </a>
-                `}else s.remove()}else s.remove()}catch(g){console.warn("[Widget] Failed to fetch product card details:",g),s.remove()}y()}}catch(t){console.error("[StyleFlo Widget] Chat Stream fetch error:",t),d.remove(),$("bot","An error occurred. Please try again or refresh the page.")}})}W()})();})();
+                `}else s.remove()}else s.remove()}catch(g){console.warn("[Widget] Failed to fetch product card details:",g),s.remove()}y()}}catch(t){console.error("[StyleFlo Widget] Chat Stream fetch error:",t),d.remove(),$("bot","An error occurred. Please try again or refresh the page.")}})}_()})();})();

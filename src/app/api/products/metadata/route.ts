@@ -139,12 +139,20 @@ export async function GET(request: Request) {
       platform = 'woocommerce';
     }
 
+    // Extract site name from Open Graph or domain hostname fallback
+    const siteName = $('meta[property="og:site_name"]').attr('content') || null;
+    let fallbackSiteName = 'Store';
+    try {
+      fallbackSiteName = new URL(url).hostname.replace('www.', '');
+    } catch (_) {}
+
     const metadata = {
       image_url,
       title,
       price,
       currency,
       platform,
+      site_name: siteName || fallbackSiteName,
       is_product: isProduct
     };
 
