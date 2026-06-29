@@ -102,7 +102,9 @@ This runbook documents the key fixes and architecture enhancements implemented d
 ### Session 5 (June 29, 2026)
 * **User**: "when the bot in question is obviously a store (shop) and the bot is returning goods in this format \"* For a classic, breezy look: The [Kashe Blouse in Light Blue Denim](https://www.wardrobeatthecross.co.uk/products/kashe-blouse-light-blue-denim)... can we understand what the store is (woocommerce, shopify, etc) and return an image and the link to the product"
   * **Fix**: Implemented rich product previews in the chatbot widget:
-    1. Created a backend `/api/products/metadata` API route that queries the database or live-scrapes URLs to extract product titles, image URLs, prices, currencies, and store type (Shopify/WooCommerce).
-    2. Updated the crawler pipeline (`/api/ingest/crawl`) to extract these e-commerce details and cache them in the `metadata` JSONB column of `document_chunks`.
+    1. Created a backend `/api/products/metadata` API route that queries the database or live-scrapes URLs to extract product titles, image URLs, prices, currencies, and store type (Shopify/WooCommerce). Added CORS support and `OPTIONS` preflight headers for external domains.
+    2. Updated the crawler pipeline (`/api/ingest/crawl`) to preserve anchor links as Markdown links during ingestion, and store e-commerce details in the new `metadata` JSONB column of `document_chunks`.
     3. Added custom CSS pulse skeleton loaders and updated the client widget (`src/widget/index.ts`) to parse markdown product links, retrieve metadata, and render beautiful product preview cards with "Buy Now" checkout links inside the chat conversation.
+    4. Restructured the widget layout to wrap bot messages and loaded product cards in a vertical `flex flex-col` container, resolving horizontal overflow scrollbars and styling squeeze issues.
+
 
