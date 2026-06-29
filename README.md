@@ -106,5 +106,7 @@ This runbook documents the key fixes and architecture enhancements implemented d
     2. Updated the crawler pipeline (`/api/ingest/crawl`) to preserve anchor links as Markdown links during ingestion, and store e-commerce details in the new `metadata` JSONB column of `document_chunks`.
     3. Added custom CSS pulse skeleton loaders and updated the client widget (`src/widget/index.ts`) to parse markdown product links, retrieve metadata, and render beautiful product preview cards with "Buy Now" checkout links inside the chat conversation.
     4. Restructured the widget layout to wrap bot messages and loaded product cards in a vertical `flex flex-col` container, resolving horizontal overflow scrollbars and styling squeeze issues.
+    5. Adjusted the widget's render pipeline to insert each product preview card inline, directly following its specific link tag mention within the text block, rather than dumping them all at the very bottom.
+
 
 
