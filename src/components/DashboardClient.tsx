@@ -71,7 +71,7 @@ export default function DashboardClient({
   const [selectedConversation, setSelectedConversation] = useState<string | null>(null);
   const [conversationMessages, setConversationMessages] = useState<Message[]>([]);
   const [isFetchingMessages, setIsFetchingMessages] = useState(false);
-  const [activeTab, setActiveTab] = useState<'chatbots' | 'crawler' | 'conversations' | 'settings'>('chatbots');
+  const [activeTab, setActiveTab] = useState<'chatbots' | 'crawler' | 'conversations' | 'settings' | 'scheduling'>('chatbots');
 
   // Global settings state
   const globalBotId = '00000000-0000-0000-0000-000000000000';
@@ -94,6 +94,12 @@ export default function DashboardClient({
   const [crawlResult, setCrawlResult] = useState<{ success: boolean; message: string } | null>(null);
 
   const [testWidgetBotId, setTestWidgetBotId] = useState<string | null>(null);
+
+  // Scheduling State
+  const [isGoogleConnected, setIsGoogleConnected] = useState(false);
+  const [services, setServices] = useState<any[]>([]);
+  const [staff, setStaff] = useState<any[]>([]);
+  const [isFetchingScheduling, setIsFetchingScheduling] = useState(false);
 
   // Initialize Supabase browser client
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
@@ -123,6 +129,37 @@ export default function DashboardClient({
       if (globalBot.configuration_json.branding_url) setGlobalTrackingUrl(globalBot.configuration_json.branding_url);
     }
   }, [chatbots, crawlBotId]);
+
+  // Fetch scheduling config on mount
+  useEffect(() => {
+    async function fetchScheduling() {
+      setIsFetchingScheduling(true);
+      try {
+        const [statusRes, servicesRes, staffRes] = await Promise.all([
+          fetch(`/api/integrations/google/status?tenantId=${tenantId}`),
+          fetch(`/api/services?tenantId=${tenantId}`),
+          fetch(`/api/staff?tenantId=${tenantId}`)
+        ]);
+        
+        if (statusRes.ok) {
+          const statusData = await statusRes.json();
+          setIsGoogleConnected(statusData.connected);
+        }
+        if (servicesRes.ok) {
+          const servicesData = await servicesRes.json();
+          setServices(servicesData.services || []);
+        }
+        if (staffRes.ok) {
+          const staffData = await staffRes.json();
+          setStaff(staffData.staff || []);
+        }
+      } catch (err) {
+        console.error('Failed to fetch scheduling data:', err);
+      }
+      setIsFetchingScheduling(false);
+    }
+    fetchScheduling();
+  }, [tenantId]);
 
   // Fetch messages when conversation selection changes
   useEffect(() => {
@@ -501,6 +538,7 @@ export default function DashboardClient({
           { id: 'chatbots', label: 'Chatbots Manager', count: chatbots.filter(b => b.id !== globalBotId).length },
           { id: 'crawler', label: 'Crawl Console' },
           { id: 'conversations', label: 'Conversation Logs', count: conversations.length },
+          { id: 'scheduling', label: 'Scheduling & Staff' },
           ...(isSuperAdmin ? [{ id: 'settings', label: 'Platform Settings' }] : []),
         ].map((tab) => (
           <button
@@ -866,6 +904,97 @@ export default function DashboardClient({
                   </button>
                 </div>
               </form>
+            </div>
+          )}
+
+          {/* Scheduling Tab */}
+          {activeTab === 'scheduling' && (
+            <div className="space-y-6">
+              
+              {/* Google Connection Status */}
+              <div className="bg-gray-900/30 border border-gray-900 p-6 rounded-2xl shadow-xl flex items-center justify-between">
+                <div>
+                  <h3 className="text-lg font-bold text-white">Google Calendar Integration</h3>
+                  <p className="text-sm text-gray-400 mt-1">Connect your Google account to allow AI to read availability and book appointments.</p>
+                </div>
+                <div>
+                  {isFetchingScheduling ? (
+                    <span className="text-gray-500 font-semibold text-sm">Checking...</span>
+                  ) : isGoogleConnected ? (
+                    <div className="flex items-center gap-2 text-emerald-400 font-bold bg-emerald-400/10 px-4 py-2 rounded-xl">
+                      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7"></path></svg>
+                      Connected
+                    </div>
+                  ) : (
+                    <button
+                      onClick={() => window.location.href = `/api/integrations/google/authorize?tenantId=${tenantId}`}
+                      className="bg-indigo-600 hover:bg-indigo-500 text-white px-5 py-2.5 rounded-xl font-bold shadow-lg transition-colors flex items-center gap-2"
+                    >
+                      <svg className="w-5 h-5" viewBox="0 0 24 24" fill="currentColor">
+                        <path d="M12.24 10.285V14.4h6.806c-.275 1.765-2.056 5.174-6.806 5.174-4.095 0-7.439-3.389-7.439-7.574s3.345-7.574 7.439-7.574c2.33 0 3.891.989 4.785 1.849l3.254-3.138C18.189 1.186 15.479 0 12.24 0c-6.635 0-12 5.365-12 12s5.365 12 12 12c6.926 0 11.52-4.869 11.52-11.726 0-.788-.085-1.39-.189-1.989H12.24z"/>
+                      </svg>
+                      Connect Calendar
+                    </button>
+                  )}
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                {/* Services List */}
+                <div className="bg-gray-900/30 border border-gray-900 p-6 rounded-2xl shadow-xl flex flex-col h-[500px]">
+                  <div className="flex items-center justify-between mb-4">
+                    <h3 className="text-lg font-bold text-white">Services</h3>
+                    <button className="bg-gray-800 hover:bg-gray-700 text-white text-xs px-3 py-1.5 rounded-lg font-semibold transition-colors">
+                      + Add Service
+                    </button>
+                  </div>
+                  <div className="flex-1 overflow-y-auto space-y-3 styleflo-scrollbar pr-2">
+                    {services.length === 0 ? (
+                      <div className="text-sm text-gray-500 italic text-center mt-10">No services configured yet.</div>
+                    ) : services.map(srv => (
+                      <div key={srv.id} className="bg-gray-950 border border-gray-800 p-4 rounded-xl flex items-center justify-between group hover:border-gray-700 transition-colors">
+                        <div>
+                          <div className="font-bold text-gray-200 text-sm">{srv.name}</div>
+                          <div className="text-xs text-gray-500 mt-0.5">{srv.duration_minutes}m duration {srv.buffer_minutes ? `+ ${srv.buffer_minutes}m buffer` : ''}</div>
+                        </div>
+                        <button className="text-gray-600 hover:text-red-400 opacity-0 group-hover:opacity-100 transition-opacity">
+                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg>
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Staff List */}
+                <div className="bg-gray-900/30 border border-gray-900 p-6 rounded-2xl shadow-xl flex flex-col h-[500px]">
+                  <div className="flex items-center justify-between mb-4">
+                    <h3 className="text-lg font-bold text-white">Staff Schedule</h3>
+                    <button className="bg-gray-800 hover:bg-gray-700 text-white text-xs px-3 py-1.5 rounded-lg font-semibold transition-colors">
+                      + Add Staff
+                    </button>
+                  </div>
+                  <div className="flex-1 overflow-y-auto space-y-3 styleflo-scrollbar pr-2">
+                    {staff.length === 0 ? (
+                      <div className="text-sm text-gray-500 italic text-center mt-10">No staff configured yet.</div>
+                    ) : staff.map(stf => (
+                      <div key={stf.id} className="bg-gray-950 border border-gray-800 p-4 rounded-xl flex flex-col gap-2 group hover:border-gray-700 transition-colors">
+                        <div className="flex items-center justify-between">
+                          <div>
+                            <div className="font-bold text-gray-200 text-sm">{stf.name}</div>
+                            <div className="text-[10px] text-gray-500 font-mono mt-0.5">{stf.email}</div>
+                          </div>
+                          <button className="text-gray-600 hover:text-red-400 opacity-0 group-hover:opacity-100 transition-opacity">
+                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg>
+                          </button>
+                        </div>
+                        <div className="text-[11px] text-gray-400 bg-gray-900 p-2 rounded-lg">
+                          Cal ID: <span className="text-indigo-400 break-all">{stf.google_calendar_id}</span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
             </div>
           )}
 
