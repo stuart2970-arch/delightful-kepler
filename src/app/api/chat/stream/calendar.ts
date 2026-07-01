@@ -95,44 +95,63 @@ export async function checkAvailability(tenantId: string, staffId: string, servi
     let currentDay = new Date(start);
     const dayNames = ["sunday", "monday", "tuesday", "wednesday", "thursday", "friday", "saturday"];
 
+    // parse weeks config
+    const weeksConfig = (staff.working_days as any)?.weeks || [];
+
     while (currentDay <= end) {
-      const dayName = dayNames[currentDay.getDay()];
-      const dayConfig = (staff.working_days as any)?.[dayName];
+      const currentDayStr = currentDay.toISOString().split('T')[0];
       
-      if (dayConfig) {
-        const shifts = [];
-        if (dayConfig.am && dayConfig.am.start && dayConfig.am.end) shifts.push(dayConfig.am);
-        if (dayConfig.pm && dayConfig.pm.start && dayConfig.pm.end) shifts.push(dayConfig.pm);
+      // Find the appropriate week configuration for currentDay
+      let activeWeekConfig = null;
+      for (const week of weeksConfig) {
+        const weekStart = new Date(week.weekCommencingDate);
+        const weekEnd = new Date(week.weekCommencingDate);
+        weekEnd.setDate(weekEnd.getDate() + 7); // Exclusive end
+        if (currentDay >= weekStart && currentDay < weekEnd) {
+          activeWeekConfig = week;
+          break;
+        }
+      }
 
-        for (const shift of shifts) {
-          // Build start and end Date objects for the shift
-          const shiftStart = new Date(currentDay);
-          const [startH, startM] = shift.start.split(':');
-          shiftStart.setHours(parseInt(startH, 10), parseInt(startM, 10), 0, 0);
+      if (activeWeekConfig) {
+        const dayName = dayNames[currentDay.getDay()];
+        const dayConfig = activeWeekConfig[dayName];
+        
+        if (dayConfig && !dayConfig.unavailable) {
+          const shifts = [];
+          if (dayConfig.am && dayConfig.am.start && dayConfig.am.end) shifts.push(dayConfig.am);
+          if (dayConfig.pm && dayConfig.pm.start && dayConfig.pm.end) shifts.push(dayConfig.pm);
 
-          const shiftEnd = new Date(currentDay);
-          const [endH, endM] = shift.end.split(':');
-          shiftEnd.setHours(parseInt(endH, 10), parseInt(endM, 10), 0, 0);
+          for (const shift of shifts) {
+            // Build start and end Date objects for the shift
+            const shiftStart = new Date(currentDay);
+            const [startH, startM] = shift.start.split(':');
+            shiftStart.setHours(parseInt(startH, 10), parseInt(startM, 10), 0, 0);
 
-          // Step through shift in 30 min increments
-          let slotTime = new Date(shiftStart);
-          while (slotTime < shiftEnd) {
-            const slotEndTime = new Date(slotTime.getTime() + serviceDuration * 60000);
-            
-            if (slotEndTime <= shiftEnd && slotTime >= now) {
-              // Check against busy slots from Google Calendar
-              const isBusy = busySlots.some((busy: any) => {
-                const busyStart = new Date(busy.start);
-                const busyEnd = new Date(busy.end);
-                return (slotTime < busyEnd && slotEndTime > busyStart); // Overlap condition
-              });
+            const shiftEnd = new Date(currentDay);
+            const [endH, endM] = shift.end.split(':');
+            shiftEnd.setHours(parseInt(endH, 10), parseInt(endM, 10), 0, 0);
 
-              if (!isBusy) {
-                availableSlots.push(slotTime.toISOString());
+            // Step through shift in 30 min increments
+            let slotTime = new Date(shiftStart);
+            while (slotTime < shiftEnd) {
+              const slotEndTime = new Date(slotTime.getTime() + serviceDuration * 60000);
+              
+              if (slotEndTime <= shiftEnd && slotTime >= now) {
+                // Check against busy slots from Google Calendar
+                const isBusy = busySlots.some((busy: any) => {
+                  const busyStart = new Date(busy.start);
+                  const busyEnd = new Date(busy.end);
+                  return (slotTime < busyEnd && slotEndTime > busyStart); // Overlap condition
+                });
+
+                if (!isBusy) {
+                  availableSlots.push(slotTime.toISOString());
+                }
               }
+              // Increment by 30 mins
+              slotTime = new Date(slotTime.getTime() + 30 * 60000);
             }
-            // Increment by 30 mins
-            slotTime = new Date(slotTime.getTime() + 30 * 60000);
           }
         }
       }

@@ -27,12 +27,20 @@ interface Conversation {
 }
 
 export interface DailySchedule {
+  unavailable: boolean;
   am: { start: string, end: string } | null;
   pm: { start: string, end: string } | null;
 }
 
 export type WeeklySchedule = {
-  [key in 'monday' | 'tuesday' | 'wednesday' | 'thursday' | 'friday' | 'saturday' | 'sunday']: DailySchedule;
+  weekCommencingDate: string; // YYYY-MM-DD format (Monday's date)
+  monday: DailySchedule;
+  tuesday: DailySchedule;
+  wednesday: DailySchedule;
+  thursday: DailySchedule;
+  friday: DailySchedule;
+  saturday: DailySchedule;
+  sunday: DailySchedule;
 };
 
 interface Message {
@@ -120,16 +128,26 @@ export default function DashboardClient({
   const [newStaffEmail, setNewStaffEmail] = useState('');
   const [newStaffCalId, setNewStaffCalId] = useState('');
 
-  const createEmptySchedule = (): WeeklySchedule => ({
-    monday: { am: null, pm: null },
-    tuesday: { am: null, pm: null },
-    wednesday: { am: null, pm: null },
-    thursday: { am: null, pm: null },
-    friday: { am: null, pm: null },
-    saturday: { am: null, pm: null },
-    sunday: { am: null, pm: null },
+  const createEmptySchedule = (weekDate?: string): WeeklySchedule => ({
+    weekCommencingDate: weekDate || new Date().toISOString().split('T')[0],
+    monday: { unavailable: false, am: null, pm: null },
+    tuesday: { unavailable: false, am: null, pm: null },
+    wednesday: { unavailable: false, am: null, pm: null },
+    thursday: { unavailable: false, am: null, pm: null },
+    friday: { unavailable: false, am: null, pm: null },
+    saturday: { unavailable: false, am: null, pm: null },
+    sunday: { unavailable: false, am: null, pm: null },
   });
-  const [newStaffSchedule, setNewStaffSchedule] = useState<WeeklySchedule>(createEmptySchedule());
+
+  const [newStaffSchedule, setNewStaffSchedule] = useState<{weeks: WeeklySchedule[]}>({
+    weeks: [
+      createEmptySchedule(),
+      createEmptySchedule(),
+      createEmptySchedule(),
+      createEmptySchedule()
+    ]
+  });
+  const [activeWeekIndex, setActiveWeekIndex] = useState(0);
 
   // Initialize Supabase browser client
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
@@ -534,11 +552,14 @@ export default function DashboardClient({
     }
   };
 
-  const handleScheduleChange = (day: keyof WeeklySchedule, shift: 'am' | 'pm', field: 'start' | 'end', value: string) => {
+  const handleScheduleChange = (day: keyof Omit<WeeklySchedule, 'weekCommencingDate'>, shift: 'am' | 'pm', field: 'start' | 'end', value: string) => {
     setNewStaffSchedule(prev => {
-      const newSched = { ...prev };
+      const newWeeks = [...prev.weeks];
+      const activeWeek = { ...newWeeks[activeWeekIndex] };
+      
+      const newSched = { ...activeWeek };
       if (!newSched[day][shift]) {
-        if (!value) return newSched; // if empty string and null, do nothing
+        if (!value) return prev; // if empty string and null, do nothing
         newSched[day][shift] = { start: '', end: '' };
       }
       if (value) {
@@ -550,23 +571,61 @@ export default function DashboardClient({
           newSched[day][shift] = null;
         }
       }
-      return newSched;
+      newWeeks[activeWeekIndex] = newSched;
+      return { weeks: newWeeks };
     });
   };
 
-  const copyScheduleFromMonday = () => {
+  const handleUnavailableChange = (day: keyof Omit<WeeklySchedule, 'weekCommencingDate'>, checked: boolean) => {
     setNewStaffSchedule(prev => {
-      const mon = prev.monday;
-      return {
-        monday: JSON.parse(JSON.stringify(mon)),
-        tuesday: JSON.parse(JSON.stringify(mon)),
-        wednesday: JSON.parse(JSON.stringify(mon)),
-        thursday: JSON.parse(JSON.stringify(mon)),
-        friday: JSON.parse(JSON.stringify(mon)),
-        saturday: JSON.parse(JSON.stringify(mon)),
-        sunday: JSON.parse(JSON.stringify(mon)),
-      };
+      const newWeeks = [...prev.weeks];
+      const activeWeek = { ...newWeeks[activeWeekIndex] };
+      const newSched = { ...activeWeek };
+      
+      newSched[day] = { ...newSched[day], unavailable: checked };
+      if (checked) {
+        // Clear times if marking unavailable
+        newSched[day].am = null;
+        newSched[day].pm = null;
+      }
+      
+      newWeeks[activeWeekIndex] = newSched;
+      return { weeks: newWeeks };
     });
+  }
+
+  const handleDateChange = (dateStr: string) => {
+    setNewStaffSchedule(prev => {
+      const newWeeks = [...prev.weeks];
+      newWeeks[activeWeekIndex] = { ...newWeeks[activeWeekIndex], weekCommencingDate: dateStr };
+      return { weeks: newWeeks };
+    });
+  }
+
+  const copyToNextWeek = () => {
+    if (activeWeekIndex >= 3) {
+      alert('You can only copy to the next week within the 4-week window.');
+      return;
+    }
+    setNewStaffSchedule(prev => {
+      const newWeeks = [...prev.weeks];
+      const currentWeek = newWeeks[activeWeekIndex];
+      
+      // Calculate next week's date (+7 days)
+      const currentDate = new Date(currentWeek.weekCommencingDate);
+      currentDate.setDate(currentDate.getDate() + 7);
+      const nextWeekDateStr = currentDate.toISOString().split('T')[0];
+      
+      // Copy structure but not the weekCommencingDate
+      newWeeks[activeWeekIndex + 1] = {
+        ...JSON.parse(JSON.stringify(currentWeek)),
+        weekCommencingDate: nextWeekDateStr
+      };
+      
+      return { weeks: newWeeks };
+    });
+    // Auto switch to the next week tab
+    setActiveWeekIndex(activeWeekIndex + 1);
   };
 
   const handleAddStaff = async (e: React.FormEvent) => {
@@ -590,7 +649,10 @@ export default function DashboardClient({
         setNewStaffName('');
         setNewStaffEmail('');
         setNewStaffCalId('');
-        setNewStaffSchedule(createEmptySchedule());
+        setNewStaffSchedule({
+          weeks: [createEmptySchedule(), createEmptySchedule(), createEmptySchedule(), createEmptySchedule()]
+        });
+        setActiveWeekIndex(0);
       } else {
         alert('Failed to add staff');
       }
@@ -1163,52 +1225,90 @@ export default function DashboardClient({
                         </div>
 
                         {/* Schedule Spreadsheet Grid */}
-                        <div className="bg-gray-900 rounded-xl border border-gray-800 overflow-hidden">
-                          <div className="flex items-center justify-between bg-gray-800/50 px-4 py-2 border-b border-gray-800">
-                            <span className="text-sm font-bold text-gray-200">Working Hours</span>
-                            <button type="button" onClick={copyScheduleFromMonday} className="text-xs text-indigo-400 hover:text-indigo-300 font-semibold bg-indigo-500/10 px-2 py-1 rounded">
-                              Copy Monday to All Days
-                            </button>
+                        <div className="bg-gray-900 rounded-xl border border-gray-800 overflow-hidden flex flex-col">
+                          {/* Week Tabs */}
+                          <div className="flex border-b border-gray-800">
+                            {[0, 1, 2, 3].map(weekIdx => (
+                              <button
+                                key={weekIdx}
+                                type="button"
+                                onClick={() => setActiveWeekIndex(weekIdx)}
+                                className={`flex-1 py-2 text-xs font-bold transition-colors ${activeWeekIndex === weekIdx ? 'bg-indigo-600 text-white' : 'bg-gray-800/50 text-gray-400 hover:bg-gray-800 hover:text-gray-200'}`}
+                              >
+                                Week {weekIdx + 1}
+                              </button>
+                            ))}
                           </div>
+                          
+                          <div className="flex items-center justify-between bg-gray-800/30 px-4 py-3 border-b border-gray-800">
+                            <div className="flex items-center gap-3">
+                              <span className="text-sm font-bold text-gray-200">Week Commencing (Monday)</span>
+                              <input 
+                                type="date" 
+                                required
+                                value={newStaffSchedule.weeks[activeWeekIndex].weekCommencingDate}
+                                onChange={e => handleDateChange(e.target.value)}
+                                className="bg-gray-950 border border-gray-700 rounded px-3 py-1.5 text-xs text-white focus:border-indigo-500 outline-none"
+                              />
+                            </div>
+                          </div>
+                          
                           <table className="w-full text-left border-collapse">
                             <thead>
-                              <tr className="bg-gray-900 text-xs text-gray-400 uppercase tracking-wider border-b border-gray-800">
+                              <tr className="bg-gray-900 text-[10px] text-gray-400 uppercase tracking-wider border-b border-gray-800">
                                 <th className="p-3 font-semibold w-24">Day</th>
-                                <th className="p-3 font-semibold border-l border-gray-800" colSpan={2}>AM Shift</th>
-                                <th className="p-3 font-semibold border-l border-gray-800" colSpan={2}>PM Shift</th>
-                              </tr>
-                              <tr className="bg-gray-900 text-[10px] text-gray-500 border-b border-gray-800">
-                                <th className="p-2"></th>
-                                <th className="p-2 border-l border-gray-800">Start</th>
-                                <th className="p-2">Finish</th>
-                                <th className="p-2 border-l border-gray-800">Start</th>
-                                <th className="p-2">Finish</th>
+                                <th className="p-3 font-semibold text-center border-l border-gray-800 w-16">N/A</th>
+                                <th className="p-3 font-semibold border-l border-gray-800 text-center" colSpan={2}>AM Shift</th>
+                                <th className="p-3 font-semibold border-l border-gray-800 text-center" colSpan={2}>PM Shift</th>
                               </tr>
                             </thead>
                             <tbody className="divide-y divide-gray-800">
-                              {(['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'] as Array<keyof WeeklySchedule>).map(day => (
-                                <tr key={day} className="hover:bg-gray-800/30 transition-colors">
-                                  <td className="p-3 text-sm font-medium text-gray-300 capitalize">{day.substring(0, 3)}</td>
-                                  
-                                  {/* AM Shift */}
-                                  <td className="p-2 border-l border-gray-800">
-                                    <input type="time" value={newStaffSchedule[day].am?.start || ''} onChange={e => handleScheduleChange(day, 'am', 'start', e.target.value)} className="bg-gray-950 border border-gray-700 rounded px-2 py-1 text-xs text-white w-24 focus:border-indigo-500 outline-none" />
-                                  </td>
-                                  <td className="p-2">
-                                    <input type="time" value={newStaffSchedule[day].am?.end || ''} onChange={e => handleScheduleChange(day, 'am', 'end', e.target.value)} className="bg-gray-950 border border-gray-700 rounded px-2 py-1 text-xs text-white w-24 focus:border-indigo-500 outline-none" />
-                                  </td>
-                                  
-                                  {/* PM Shift */}
-                                  <td className="p-2 border-l border-gray-800">
-                                    <input type="time" value={newStaffSchedule[day].pm?.start || ''} onChange={e => handleScheduleChange(day, 'pm', 'start', e.target.value)} className="bg-gray-950 border border-gray-700 rounded px-2 py-1 text-xs text-white w-24 focus:border-indigo-500 outline-none" />
-                                  </td>
-                                  <td className="p-2">
-                                    <input type="time" value={newStaffSchedule[day].pm?.end || ''} onChange={e => handleScheduleChange(day, 'pm', 'end', e.target.value)} className="bg-gray-950 border border-gray-700 rounded px-2 py-1 text-xs text-white w-24 focus:border-indigo-500 outline-none" />
-                                  </td>
-                                </tr>
-                              ))}
+                              {(['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'] as Array<keyof Omit<WeeklySchedule, 'weekCommencingDate'>>).map(day => {
+                                const currentDayData = newStaffSchedule.weeks[activeWeekIndex][day];
+                                const isUnavail = currentDayData.unavailable;
+                                return (
+                                  <tr key={day} className={`transition-colors ${isUnavail ? 'bg-gray-900/50' : 'hover:bg-gray-800/30'}`}>
+                                    <td className="p-3 text-sm font-medium text-gray-300 capitalize">{day.substring(0, 3)}</td>
+                                    
+                                    <td className="p-3 text-center border-l border-gray-800">
+                                      <input 
+                                        type="checkbox" 
+                                        checked={isUnavail}
+                                        onChange={e => handleUnavailableChange(day, e.target.checked)}
+                                        className="w-4 h-4 rounded bg-gray-900 border-gray-700 text-indigo-600 focus:ring-indigo-600 focus:ring-offset-gray-900"
+                                      />
+                                    </td>
+                                    
+                                    {/* AM Shift */}
+                                    <td className="p-2 border-l border-gray-800 text-center">
+                                      <input type="time" disabled={isUnavail} value={currentDayData.am?.start || ''} onChange={e => handleScheduleChange(day, 'am', 'start', e.target.value)} className="bg-gray-950 disabled:opacity-30 border border-gray-700 rounded px-2 py-1 text-xs text-white w-24 focus:border-indigo-500 outline-none" />
+                                    </td>
+                                    <td className="p-2 text-center">
+                                      <input type="time" disabled={isUnavail} value={currentDayData.am?.end || ''} onChange={e => handleScheduleChange(day, 'am', 'end', e.target.value)} className="bg-gray-950 disabled:opacity-30 border border-gray-700 rounded px-2 py-1 text-xs text-white w-24 focus:border-indigo-500 outline-none" />
+                                    </td>
+                                    
+                                    {/* PM Shift */}
+                                    <td className="p-2 border-l border-gray-800 text-center">
+                                      <input type="time" disabled={isUnavail} value={currentDayData.pm?.start || ''} onChange={e => handleScheduleChange(day, 'pm', 'start', e.target.value)} className="bg-gray-950 disabled:opacity-30 border border-gray-700 rounded px-2 py-1 text-xs text-white w-24 focus:border-indigo-500 outline-none" />
+                                    </td>
+                                    <td className="p-2 text-center">
+                                      <input type="time" disabled={isUnavail} value={currentDayData.pm?.end || ''} onChange={e => handleScheduleChange(day, 'pm', 'end', e.target.value)} className="bg-gray-950 disabled:opacity-30 border border-gray-700 rounded px-2 py-1 text-xs text-white w-24 focus:border-indigo-500 outline-none" />
+                                    </td>
+                                  </tr>
+                                );
+                              })}
                             </tbody>
                           </table>
+                          <div className="bg-gray-900 p-3 border-t border-gray-800 flex justify-center">
+                            <button 
+                              type="button" 
+                              onClick={copyToNextWeek}
+                              disabled={activeWeekIndex >= 3}
+                              className="text-xs text-indigo-400 hover:text-indigo-300 font-semibold bg-indigo-500/10 px-4 py-2 rounded disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                            >
+                              Copy this rota to next week →
+                            </button>
+                          </div>
                         </div>
 
                         <div className="mt-auto flex justify-end gap-3 pt-4 border-t border-gray-800">
