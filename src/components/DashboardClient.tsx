@@ -101,6 +101,16 @@ export default function DashboardClient({
   const [staff, setStaff] = useState<any[]>([]);
   const [isFetchingScheduling, setIsFetchingScheduling] = useState(false);
 
+  const [showAddService, setShowAddService] = useState(false);
+  const [newServiceName, setNewServiceName] = useState('');
+  const [newServiceDuration, setNewServiceDuration] = useState(30);
+  const [newServiceBuffer, setNewServiceBuffer] = useState(0);
+
+  const [showAddStaff, setShowAddStaff] = useState(false);
+  const [newStaffName, setNewStaffName] = useState('');
+  const [newStaffEmail, setNewStaffEmail] = useState('');
+  const [newStaffCalId, setNewStaffCalId] = useState('');
+
   // Initialize Supabase browser client
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
@@ -460,6 +470,89 @@ export default function DashboardClient({
     }
 
     setIsCrawling(false);
+  };
+
+  // Scheduling Handlers
+  const handleAddService = async (e: React.FormEvent) => {
+    e.preventDefault();
+    try {
+      const res = await fetch('/api/services', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          tenant_id: tenantId,
+          name: newServiceName,
+          duration_minutes: newServiceDuration,
+          buffer_minutes: newServiceBuffer
+        })
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setServices([...services, data.service]);
+        setShowAddService(false);
+        setNewServiceName('');
+        setNewServiceDuration(30);
+        setNewServiceBuffer(0);
+      } else {
+        alert('Failed to add service');
+      }
+    } catch (err) {
+      console.error(err);
+      alert('Error adding service');
+    }
+  };
+
+  const handleDeleteService = async (id: string) => {
+    if (!confirm('Are you sure you want to delete this service?')) return;
+    try {
+      const res = await fetch(`/api/services?id=${id}&tenantId=${tenantId}`, { method: 'DELETE' });
+      if (res.ok) {
+        setServices(services.filter(s => s.id !== id));
+      }
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
+  const handleAddStaff = async (e: React.FormEvent) => {
+    e.preventDefault();
+    try {
+      const res = await fetch('/api/staff', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          tenant_id: tenantId,
+          name: newStaffName,
+          email: newStaffEmail,
+          google_calendar_id: newStaffCalId || 'primary'
+        })
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setStaff([...staff, data.staff]);
+        setShowAddStaff(false);
+        setNewStaffName('');
+        setNewStaffEmail('');
+        setNewStaffCalId('');
+      } else {
+        alert('Failed to add staff');
+      }
+    } catch (err) {
+      console.error(err);
+      alert('Error adding staff');
+    }
+  };
+
+  const handleDeleteStaff = async (id: string) => {
+    if (!confirm('Are you sure you want to delete this staff member?')) return;
+    try {
+      const res = await fetch(`/api/staff?id=${id}&tenantId=${tenantId}`, { method: 'DELETE' });
+      if (res.ok) {
+        setStaff(staff.filter(s => s.id !== id));
+      }
+    } catch (err) {
+      console.error(err);
+    }
   };
 
   return (
@@ -941,10 +1034,36 @@ export default function DashboardClient({
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 {/* Services List */}
-                <div className="bg-gray-900/30 border border-gray-900 p-6 rounded-2xl shadow-xl flex flex-col h-[500px]">
+                <div className="bg-gray-900/30 border border-gray-900 p-6 rounded-2xl shadow-xl flex flex-col h-[500px] relative">
+                  {showAddService ? (
+                    <div className="absolute inset-0 bg-gray-950 p-6 rounded-2xl z-10 flex flex-col">
+                      <h3 className="text-lg font-bold text-white mb-4">Add New Service</h3>
+                      <form onSubmit={handleAddService} className="flex-1 flex flex-col gap-4">
+                        <div>
+                          <label className="block text-xs font-semibold text-gray-400 mb-1">Service Name</label>
+                          <input required type="text" value={newServiceName} onChange={e => setNewServiceName(e.target.value)} className="w-full bg-gray-900 border border-gray-800 rounded-lg px-3 py-2 text-sm text-white" placeholder="e.g. Consultation" />
+                        </div>
+                        <div className="grid grid-cols-2 gap-4">
+                          <div>
+                            <label className="block text-xs font-semibold text-gray-400 mb-1">Duration (mins)</label>
+                            <input required type="number" min="5" step="5" value={newServiceDuration} onChange={e => setNewServiceDuration(parseInt(e.target.value))} className="w-full bg-gray-900 border border-gray-800 rounded-lg px-3 py-2 text-sm text-white" />
+                          </div>
+                          <div>
+                            <label className="block text-xs font-semibold text-gray-400 mb-1">Buffer (mins)</label>
+                            <input required type="number" min="0" step="5" value={newServiceBuffer} onChange={e => setNewServiceBuffer(parseInt(e.target.value))} className="w-full bg-gray-900 border border-gray-800 rounded-lg px-3 py-2 text-sm text-white" />
+                          </div>
+                        </div>
+                        <div className="mt-auto flex justify-end gap-3">
+                          <button type="button" onClick={() => setShowAddService(false)} className="px-4 py-2 text-sm text-gray-400 hover:text-white">Cancel</button>
+                          <button type="submit" className="px-4 py-2 text-sm bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg font-bold">Save Service</button>
+                        </div>
+                      </form>
+                    </div>
+                  ) : null}
+
                   <div className="flex items-center justify-between mb-4">
                     <h3 className="text-lg font-bold text-white">Services</h3>
-                    <button className="bg-gray-800 hover:bg-gray-700 text-white text-xs px-3 py-1.5 rounded-lg font-semibold transition-colors">
+                    <button onClick={() => setShowAddService(true)} className="bg-gray-800 hover:bg-gray-700 text-white text-xs px-3 py-1.5 rounded-lg font-semibold transition-colors">
                       + Add Service
                     </button>
                   </div>
@@ -957,7 +1076,7 @@ export default function DashboardClient({
                           <div className="font-bold text-gray-200 text-sm">{srv.name}</div>
                           <div className="text-xs text-gray-500 mt-0.5">{srv.duration_minutes}m duration {srv.buffer_minutes ? `+ ${srv.buffer_minutes}m buffer` : ''}</div>
                         </div>
-                        <button className="text-gray-600 hover:text-red-400 opacity-0 group-hover:opacity-100 transition-opacity">
+                        <button onClick={() => handleDeleteService(srv.id)} className="text-gray-600 hover:text-red-400 opacity-0 group-hover:opacity-100 transition-opacity">
                           <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg>
                         </button>
                       </div>
@@ -966,10 +1085,34 @@ export default function DashboardClient({
                 </div>
 
                 {/* Staff List */}
-                <div className="bg-gray-900/30 border border-gray-900 p-6 rounded-2xl shadow-xl flex flex-col h-[500px]">
+                <div className="bg-gray-900/30 border border-gray-900 p-6 rounded-2xl shadow-xl flex flex-col h-[500px] relative">
+                  {showAddStaff ? (
+                    <div className="absolute inset-0 bg-gray-950 p-6 rounded-2xl z-10 flex flex-col">
+                      <h3 className="text-lg font-bold text-white mb-4">Add Staff Member</h3>
+                      <form onSubmit={handleAddStaff} className="flex-1 flex flex-col gap-4">
+                        <div>
+                          <label className="block text-xs font-semibold text-gray-400 mb-1">Name</label>
+                          <input required type="text" value={newStaffName} onChange={e => setNewStaffName(e.target.value)} className="w-full bg-gray-900 border border-gray-800 rounded-lg px-3 py-2 text-sm text-white" placeholder="e.g. John Doe" />
+                        </div>
+                        <div>
+                          <label className="block text-xs font-semibold text-gray-400 mb-1">Email</label>
+                          <input required type="email" value={newStaffEmail} onChange={e => setNewStaffEmail(e.target.value)} className="w-full bg-gray-900 border border-gray-800 rounded-lg px-3 py-2 text-sm text-white" placeholder="john@example.com" />
+                        </div>
+                        <div>
+                          <label className="block text-xs font-semibold text-gray-400 mb-1">Google Calendar ID (Optional)</label>
+                          <input type="text" value={newStaffCalId} onChange={e => setNewStaffCalId(e.target.value)} className="w-full bg-gray-900 border border-gray-800 rounded-lg px-3 py-2 text-sm text-white" placeholder="Defaults to 'primary'" />
+                        </div>
+                        <div className="mt-auto flex justify-end gap-3">
+                          <button type="button" onClick={() => setShowAddStaff(false)} className="px-4 py-2 text-sm text-gray-400 hover:text-white">Cancel</button>
+                          <button type="submit" className="px-4 py-2 text-sm bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg font-bold">Save Staff</button>
+                        </div>
+                      </form>
+                    </div>
+                  ) : null}
+
                   <div className="flex items-center justify-between mb-4">
                     <h3 className="text-lg font-bold text-white">Staff Schedule</h3>
-                    <button className="bg-gray-800 hover:bg-gray-700 text-white text-xs px-3 py-1.5 rounded-lg font-semibold transition-colors">
+                    <button onClick={() => setShowAddStaff(true)} className="bg-gray-800 hover:bg-gray-700 text-white text-xs px-3 py-1.5 rounded-lg font-semibold transition-colors">
                       + Add Staff
                     </button>
                   </div>
@@ -983,7 +1126,7 @@ export default function DashboardClient({
                             <div className="font-bold text-gray-200 text-sm">{stf.name}</div>
                             <div className="text-[10px] text-gray-500 font-mono mt-0.5">{stf.email}</div>
                           </div>
-                          <button className="text-gray-600 hover:text-red-400 opacity-0 group-hover:opacity-100 transition-opacity">
+                          <button onClick={() => handleDeleteStaff(stf.id)} className="text-gray-600 hover:text-red-400 opacity-0 group-hover:opacity-100 transition-opacity">
                             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg>
                           </button>
                         </div>
