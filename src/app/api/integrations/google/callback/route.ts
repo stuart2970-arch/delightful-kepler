@@ -47,7 +47,7 @@ export async function GET(request: Request) {
     }
 
     // Redirect the user back to the dashboard integrations page
-    return NextResponse.redirect(`${process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000'}/dashboard/integrations?success=google_calendar`);
+    return NextResponse.redirect(`${process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000'}/dashboard?success=google_calendar`);
 
   } catch (err: any) {
     console.error('Error handling Google OAuth callback:', err);
