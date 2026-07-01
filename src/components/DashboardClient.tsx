@@ -26,6 +26,15 @@ interface Conversation {
   created_at: string;
 }
 
+export interface DailySchedule {
+  am: { start: string, end: string } | null;
+  pm: { start: string, end: string } | null;
+}
+
+export type WeeklySchedule = {
+  [key in 'monday' | 'tuesday' | 'wednesday' | 'thursday' | 'friday' | 'saturday' | 'sunday']: DailySchedule;
+};
+
 interface Message {
   id: string;
   sender_type: 'user' | 'bot';
@@ -110,6 +119,17 @@ export default function DashboardClient({
   const [newStaffName, setNewStaffName] = useState('');
   const [newStaffEmail, setNewStaffEmail] = useState('');
   const [newStaffCalId, setNewStaffCalId] = useState('');
+
+  const createEmptySchedule = (): WeeklySchedule => ({
+    monday: { am: null, pm: null },
+    tuesday: { am: null, pm: null },
+    wednesday: { am: null, pm: null },
+    thursday: { am: null, pm: null },
+    friday: { am: null, pm: null },
+    saturday: { am: null, pm: null },
+    sunday: { am: null, pm: null },
+  });
+  const [newStaffSchedule, setNewStaffSchedule] = useState<WeeklySchedule>(createEmptySchedule());
 
   // Initialize Supabase browser client
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
@@ -514,6 +534,41 @@ export default function DashboardClient({
     }
   };
 
+  const handleScheduleChange = (day: keyof WeeklySchedule, shift: 'am' | 'pm', field: 'start' | 'end', value: string) => {
+    setNewStaffSchedule(prev => {
+      const newSched = { ...prev };
+      if (!newSched[day][shift]) {
+        if (!value) return newSched; // if empty string and null, do nothing
+        newSched[day][shift] = { start: '', end: '' };
+      }
+      if (value) {
+        newSched[day][shift]![field] = value;
+      } else {
+        // If clearing, and the other field is also empty, set back to null
+        newSched[day][shift]![field] = '';
+        if (!newSched[day][shift]!.start && !newSched[day][shift]!.end) {
+          newSched[day][shift] = null;
+        }
+      }
+      return newSched;
+    });
+  };
+
+  const copyScheduleFromMonday = () => {
+    setNewStaffSchedule(prev => {
+      const mon = prev.monday;
+      return {
+        monday: JSON.parse(JSON.stringify(mon)),
+        tuesday: JSON.parse(JSON.stringify(mon)),
+        wednesday: JSON.parse(JSON.stringify(mon)),
+        thursday: JSON.parse(JSON.stringify(mon)),
+        friday: JSON.parse(JSON.stringify(mon)),
+        saturday: JSON.parse(JSON.stringify(mon)),
+        sunday: JSON.parse(JSON.stringify(mon)),
+      };
+    });
+  };
+
   const handleAddStaff = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
@@ -524,7 +579,8 @@ export default function DashboardClient({
           tenant_id: tenantId,
           name: newStaffName,
           email: newStaffEmail,
-          google_calendar_id: newStaffCalId || 'primary'
+          google_calendar_id: newStaffCalId || 'primary',
+          working_days: newStaffSchedule
         })
       });
       if (res.ok) {
@@ -534,6 +590,7 @@ export default function DashboardClient({
         setNewStaffName('');
         setNewStaffEmail('');
         setNewStaffCalId('');
+        setNewStaffSchedule(createEmptySchedule());
       } else {
         alert('Failed to add staff');
       }
@@ -1085,26 +1142,78 @@ export default function DashboardClient({
                 </div>
 
                 {/* Staff List */}
-                <div className="bg-gray-900/30 border border-gray-900 p-6 rounded-2xl shadow-xl flex flex-col h-[500px] relative">
+                <div className="bg-gray-900/30 border border-gray-900 p-6 rounded-2xl shadow-xl flex flex-col h-[500px] relative lg:col-span-2">
                   {showAddStaff ? (
-                    <div className="absolute inset-0 bg-gray-950 p-6 rounded-2xl z-10 flex flex-col">
+                    <div className="absolute inset-0 bg-gray-950 p-6 rounded-2xl z-10 flex flex-col overflow-y-auto styleflo-scrollbar">
                       <h3 className="text-lg font-bold text-white mb-4">Add Staff Member</h3>
-                      <form onSubmit={handleAddStaff} className="flex-1 flex flex-col gap-4">
-                        <div>
-                          <label className="block text-xs font-semibold text-gray-400 mb-1">Name</label>
-                          <input required type="text" value={newStaffName} onChange={e => setNewStaffName(e.target.value)} className="w-full bg-gray-900 border border-gray-800 rounded-lg px-3 py-2 text-sm text-white" placeholder="e.g. John Doe" />
+                      <form onSubmit={handleAddStaff} className="flex-1 flex flex-col gap-6">
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                          <div>
+                            <label className="block text-xs font-semibold text-gray-400 mb-1">Name</label>
+                            <input required type="text" value={newStaffName} onChange={e => setNewStaffName(e.target.value)} className="w-full bg-gray-900 border border-gray-800 rounded-lg px-3 py-2 text-sm text-white" placeholder="e.g. John Doe" />
+                          </div>
+                          <div>
+                            <label className="block text-xs font-semibold text-gray-400 mb-1">Email</label>
+                            <input required type="email" value={newStaffEmail} onChange={e => setNewStaffEmail(e.target.value)} className="w-full bg-gray-900 border border-gray-800 rounded-lg px-3 py-2 text-sm text-white" placeholder="john@example.com" />
+                          </div>
+                          <div>
+                            <label className="block text-xs font-semibold text-gray-400 mb-1">Google Calendar ID</label>
+                            <input type="text" value={newStaffCalId} onChange={e => setNewStaffCalId(e.target.value)} className="w-full bg-gray-900 border border-gray-800 rounded-lg px-3 py-2 text-sm text-white" placeholder="Defaults to 'primary'" />
+                          </div>
                         </div>
-                        <div>
-                          <label className="block text-xs font-semibold text-gray-400 mb-1">Email</label>
-                          <input required type="email" value={newStaffEmail} onChange={e => setNewStaffEmail(e.target.value)} className="w-full bg-gray-900 border border-gray-800 rounded-lg px-3 py-2 text-sm text-white" placeholder="john@example.com" />
+
+                        {/* Schedule Spreadsheet Grid */}
+                        <div className="bg-gray-900 rounded-xl border border-gray-800 overflow-hidden">
+                          <div className="flex items-center justify-between bg-gray-800/50 px-4 py-2 border-b border-gray-800">
+                            <span className="text-sm font-bold text-gray-200">Working Hours</span>
+                            <button type="button" onClick={copyScheduleFromMonday} className="text-xs text-indigo-400 hover:text-indigo-300 font-semibold bg-indigo-500/10 px-2 py-1 rounded">
+                              Copy Monday to All Days
+                            </button>
+                          </div>
+                          <table className="w-full text-left border-collapse">
+                            <thead>
+                              <tr className="bg-gray-900 text-xs text-gray-400 uppercase tracking-wider border-b border-gray-800">
+                                <th className="p-3 font-semibold w-24">Day</th>
+                                <th className="p-3 font-semibold border-l border-gray-800" colSpan={2}>AM Shift</th>
+                                <th className="p-3 font-semibold border-l border-gray-800" colSpan={2}>PM Shift</th>
+                              </tr>
+                              <tr className="bg-gray-900 text-[10px] text-gray-500 border-b border-gray-800">
+                                <th className="p-2"></th>
+                                <th className="p-2 border-l border-gray-800">Start</th>
+                                <th className="p-2">Finish</th>
+                                <th className="p-2 border-l border-gray-800">Start</th>
+                                <th className="p-2">Finish</th>
+                              </tr>
+                            </thead>
+                            <tbody className="divide-y divide-gray-800">
+                              {(['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'] as Array<keyof WeeklySchedule>).map(day => (
+                                <tr key={day} className="hover:bg-gray-800/30 transition-colors">
+                                  <td className="p-3 text-sm font-medium text-gray-300 capitalize">{day.substring(0, 3)}</td>
+                                  
+                                  {/* AM Shift */}
+                                  <td className="p-2 border-l border-gray-800">
+                                    <input type="time" value={newStaffSchedule[day].am?.start || ''} onChange={e => handleScheduleChange(day, 'am', 'start', e.target.value)} className="bg-gray-950 border border-gray-700 rounded px-2 py-1 text-xs text-white w-24 focus:border-indigo-500 outline-none" />
+                                  </td>
+                                  <td className="p-2">
+                                    <input type="time" value={newStaffSchedule[day].am?.end || ''} onChange={e => handleScheduleChange(day, 'am', 'end', e.target.value)} className="bg-gray-950 border border-gray-700 rounded px-2 py-1 text-xs text-white w-24 focus:border-indigo-500 outline-none" />
+                                  </td>
+                                  
+                                  {/* PM Shift */}
+                                  <td className="p-2 border-l border-gray-800">
+                                    <input type="time" value={newStaffSchedule[day].pm?.start || ''} onChange={e => handleScheduleChange(day, 'pm', 'start', e.target.value)} className="bg-gray-950 border border-gray-700 rounded px-2 py-1 text-xs text-white w-24 focus:border-indigo-500 outline-none" />
+                                  </td>
+                                  <td className="p-2">
+                                    <input type="time" value={newStaffSchedule[day].pm?.end || ''} onChange={e => handleScheduleChange(day, 'pm', 'end', e.target.value)} className="bg-gray-950 border border-gray-700 rounded px-2 py-1 text-xs text-white w-24 focus:border-indigo-500 outline-none" />
+                                  </td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
                         </div>
-                        <div>
-                          <label className="block text-xs font-semibold text-gray-400 mb-1">Google Calendar ID (Optional)</label>
-                          <input type="text" value={newStaffCalId} onChange={e => setNewStaffCalId(e.target.value)} className="w-full bg-gray-900 border border-gray-800 rounded-lg px-3 py-2 text-sm text-white" placeholder="Defaults to 'primary'" />
-                        </div>
-                        <div className="mt-auto flex justify-end gap-3">
-                          <button type="button" onClick={() => setShowAddStaff(false)} className="px-4 py-2 text-sm text-gray-400 hover:text-white">Cancel</button>
-                          <button type="submit" className="px-4 py-2 text-sm bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg font-bold">Save Staff</button>
+
+                        <div className="mt-auto flex justify-end gap-3 pt-4 border-t border-gray-800">
+                          <button type="button" onClick={() => setShowAddStaff(false)} className="px-4 py-2 text-sm text-gray-400 hover:text-white transition-colors">Cancel</button>
+                          <button type="submit" className="px-5 py-2 text-sm bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg font-bold shadow-lg transition-transform active:scale-95">Save Staff Member</button>
                         </div>
                       </form>
                     </div>
