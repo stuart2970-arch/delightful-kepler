@@ -513,6 +513,21 @@ export default function DashboardClient({
     setIsCrawling(false);
   };
 
+  const handleDisconnectCalendar = async () => {
+    if (!confirm('Are you sure you want to disconnect Google Calendar? This will remove the chatbot\\'s ability to check availability and book appointments, but no Google Calendar data will be lost.')) return;
+    try {
+      const res = await fetch(`/api/integrations/google/status?tenantId=${tenantId}`, { method: 'DELETE' });
+      if (res.ok) {
+        setIsGoogleConnected(false);
+      } else {
+        alert('Failed to disconnect Google Calendar.');
+      }
+    } catch (err) {
+      console.error(err);
+      alert('Error disconnecting Google Calendar.');
+    }
+  };
+
   // Scheduling Handlers
   const handleAddService = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -1170,9 +1185,14 @@ export default function DashboardClient({
                   {isFetchingScheduling ? (
                     <span className="text-gray-500 font-semibold text-sm">Checking...</span>
                   ) : isGoogleConnected ? (
-                    <div className="flex items-center gap-2 text-emerald-400 font-bold bg-emerald-400/10 px-4 py-2 rounded-xl">
-                      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7"></path></svg>
-                      Connected
+                    <div className="flex flex-col items-end gap-2">
+                      <div className="flex items-center gap-2 text-emerald-400 font-bold bg-emerald-400/10 px-4 py-2 rounded-xl">
+                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7"></path></svg>
+                        Connected
+                      </div>
+                      <button onClick={handleDisconnectCalendar} className="text-xs text-red-400 hover:text-red-300 font-semibold transition-colors">
+                        Disconnect
+                      </button>
                     </div>
                   ) : (
                     <button

@@ -38,3 +38,31 @@ export async function GET(request: Request) {
     return NextResponse.json({ error: err.message }, { status: 500 });
   }
 }
+
+export async function DELETE(request: Request) {
+  try {
+    const { searchParams } = new URL(request.url);
+    const tenantId = searchParams.get('tenantId');
+
+    if (!tenantId) {
+      return NextResponse.json({ error: 'Missing tenantId' }, { status: 400 });
+    }
+
+    const supabaseAdmin = getSupabaseAdmin();
+    const { error } = await supabaseAdmin
+      .from('tenant_integrations')
+      .delete()
+      .eq('tenant_id', tenantId)
+      .eq('provider', 'google_calendar');
+
+    if (error) {
+      throw error;
+    }
+
+    return NextResponse.json({ success: true });
+  } catch (err: any) {
+    console.error('Error deleting integration:', err);
+    return NextResponse.json({ error: err.message }, { status: 500 });
+  }
+}
+
