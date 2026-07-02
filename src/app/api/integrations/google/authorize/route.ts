@@ -17,7 +17,8 @@ export async function GET(request: Request) {
     );
 
     const scopes = [
-      'https://www.googleapis.com/auth/calendar.events'
+      'https://www.googleapis.com/auth/calendar.events',
+      'https://www.googleapis.com/auth/calendar.readonly'
     ];
 
     const url = oauth2Client.generateAuthUrl({
