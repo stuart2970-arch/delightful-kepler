@@ -182,14 +182,16 @@ export async function POST(request: Request) {
       console.log(`[Chat Stream][${requestId}] Found existing conversation: ${conversationId}`);
     }
 
-    // 7. Retrieve chat history (last 10 messages)
-    const { data: chatHistory, error: historyError } = await supabaseAdmin
+    // 7. Retrieve chat history (last 20 messages)
+    const { data: recentHistory, error: historyError } = await supabaseAdmin
       .from('messages')
       .select('sender_type, text_content')
       .eq('conversation_id', conversationId)
       .eq('tenant_id', tenantId)
-      .order('created_at', { ascending: true })
-      .limit(10);
+      .order('created_at', { ascending: false })
+      .limit(20);
+
+    const chatHistory = recentHistory ? recentHistory.reverse() : [];
 
     if (historyError) {
       console.error(`[Chat Stream][${requestId}] Failed to fetch history:`, historyError);
