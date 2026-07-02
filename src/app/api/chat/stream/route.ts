@@ -331,10 +331,10 @@ ${staffContext}`;
           // --- AVAILABILITY TOOL PASS ---
           const availMatch = rawText.match(/\[CHECK_AVAILABILITY:\s*(.+?),\s*(.+?),\s*(.+?),\s*(.+?)\]/);
           if (availMatch) {
-            const staffId = availMatch[1].trim();
-            const serviceId = availMatch[2].trim();
-            const startStr = availMatch[3].trim();
-            const endStr = availMatch[4].trim();
+            const staffId = availMatch[1].trim().replace(/['"]/g, '');
+            const serviceId = availMatch[2].trim().replace(/['"]/g, '');
+            const startStr = availMatch[3].trim().replace(/['"]/g, '');
+            const endStr = availMatch[4].trim().replace(/['"]/g, '');
             
             const toolResult = await checkAvailability(tenantId, staffId, serviceId, startStr, endStr);
             
@@ -366,12 +366,12 @@ ${staffContext}`;
           // --- BOOKING TOOL PASS ---
           const bookMatch = rawText.match(/\[BOOK_MEETING:\s*(.+?),\s*(.+?),\s*(.+?),\s*(.+?),\s*(.+?),\s*(.+?)\]/);
           if (bookMatch) {
-            const staffId = bookMatch[1].trim();
-            const serviceId = bookMatch[2].trim();
-            const custName = bookMatch[3].trim();
-            const custEmail = bookMatch[4].trim();
-            const startStr = bookMatch[5].trim();
-            const endStr = bookMatch[6].trim();
+            const staffId = bookMatch[1].trim().replace(/['"]/g, '');
+            const serviceId = bookMatch[2].trim().replace(/['"]/g, '');
+            const custName = bookMatch[3].trim().replace(/['"]/g, '');
+            const custEmail = bookMatch[4].trim().replace(/['"]/g, '');
+            const startStr = bookMatch[5].trim().replace(/['"]/g, '');
+            const endStr = bookMatch[6].trim().replace(/['"]/g, '');
             
             // Run asynchronously so we don't block closing the stream
             bookMeeting(tenantId, staffId, serviceId, custName, custEmail, startStr, endStr).then(res => {
