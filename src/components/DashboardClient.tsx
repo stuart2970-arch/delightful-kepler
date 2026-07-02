@@ -1,7 +1,9 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
+import { useRouter } from 'next/navigation';
 import { createBrowserClient } from '@supabase/ssr';
+import ServiceEditor from './ServiceEditor';
 
 interface Chatbot {
   id: string;
@@ -1187,56 +1189,13 @@ export default function DashboardClient({
               </div>
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                {/* Services List */}
-                <div className="bg-gray-900/30 border border-gray-900 p-6 rounded-2xl shadow-xl flex flex-col h-[500px] relative">
-                  {showAddService ? (
-                    <div className="absolute inset-0 bg-gray-950 p-6 rounded-2xl z-10 flex flex-col">
-                      <h3 className="text-lg font-bold text-white mb-4">Add New Service</h3>
-                      <form onSubmit={handleAddService} className="flex-1 flex flex-col gap-4">
-                        <div>
-                          <label className="block text-xs font-semibold text-gray-400 mb-1">Service Name</label>
-                          <input required type="text" value={newServiceName} onChange={e => setNewServiceName(e.target.value)} className="w-full bg-gray-900 border border-gray-800 rounded-lg px-3 py-2 text-sm text-white" placeholder="e.g. Consultation" />
-                        </div>
-                        <div className="grid grid-cols-2 gap-4">
-                          <div>
-                            <label className="block text-xs font-semibold text-gray-400 mb-1">Duration (mins)</label>
-                            <input required type="number" min="5" step="5" value={newServiceDuration} onChange={e => setNewServiceDuration(parseInt(e.target.value))} className="w-full bg-gray-900 border border-gray-800 rounded-lg px-3 py-2 text-sm text-white" />
-                          </div>
-                          <div>
-                            <label className="block text-xs font-semibold text-gray-400 mb-1">Buffer (mins)</label>
-                            <input required type="number" min="0" step="5" value={newServiceBuffer} onChange={e => setNewServiceBuffer(parseInt(e.target.value))} className="w-full bg-gray-900 border border-gray-800 rounded-lg px-3 py-2 text-sm text-white" />
-                          </div>
-                        </div>
-                        <div className="mt-auto flex justify-end gap-3">
-                          <button type="button" onClick={() => setShowAddService(false)} className="px-4 py-2 text-sm text-gray-400 hover:text-white">Cancel</button>
-                          <button type="submit" className="px-4 py-2 text-sm bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg font-bold">Save Service</button>
-                        </div>
-                      </form>
-                    </div>
-                  ) : null}
-
-                  <div className="flex items-center justify-between mb-4">
-                    <h3 className="text-lg font-bold text-white">Services</h3>
-                    <button onClick={() => setShowAddService(true)} className="bg-gray-800 hover:bg-gray-700 text-white text-xs px-3 py-1.5 rounded-lg font-semibold transition-colors">
-                      + Add Service
-                    </button>
-                  </div>
-                  <div className="flex-1 overflow-y-auto space-y-3 styleflo-scrollbar pr-2">
-                    {services.length === 0 ? (
-                      <div className="text-sm text-gray-500 italic text-center mt-10">No services configured yet.</div>
-                    ) : services.map(srv => (
-                      <div key={srv.id} className="bg-gray-950 border border-gray-800 p-4 rounded-xl flex items-center justify-between group hover:border-gray-700 transition-colors">
-                        <div>
-                          <div className="font-bold text-gray-200 text-sm">{srv.name}</div>
-                          <div className="text-xs text-gray-500 mt-0.5">{srv.duration_minutes}m duration {srv.buffer_minutes ? `+ ${srv.buffer_minutes}m buffer` : ''}</div>
-                        </div>
-                        <button onClick={() => handleDeleteService(srv.id)} className="text-gray-600 hover:text-red-400 opacity-0 group-hover:opacity-100 transition-opacity">
-                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg>
-                        </button>
-                      </div>
-                    ))}
-                  </div>
-                </div>
+                {/* Services List using ServiceEditor */}
+                <ServiceEditor 
+                  tenantId={tenantId} 
+                  services={services} 
+                  setServices={setServices} 
+                  staff={staff} 
+                />
 
                 {/* Staff List */}
                 <div className="bg-gray-900/30 border border-gray-900 p-6 rounded-2xl shadow-xl flex flex-col h-[500px] relative lg:col-span-2">
