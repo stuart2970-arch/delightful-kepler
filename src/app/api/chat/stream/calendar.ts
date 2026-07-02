@@ -271,7 +271,11 @@ export async function bookMeeting(tenantId: string, staffId: string, serviceId: 
         console.error('[Calendar] Mailgun credentials missing, cannot send email.');
       } else {
         const mailgun = new Mailgun(formData);
-        const mg = mailgun.client({ username: 'api', key: process.env.MAILGUN_API_KEY });
+        const mg = mailgun.client({ 
+          username: 'api', 
+          key: process.env.MAILGUN_API_KEY,
+          url: 'https://api.eu.mailgun.net' 
+        });
         
         await mg.messages.create(process.env.MAILGUN_DOMAIN, {
           from: `StyleFlo Bookings <mailgun@${process.env.MAILGUN_DOMAIN}>`,
