@@ -47,17 +47,37 @@ async function getCalendarClient(tenantId: string) {
 }
 
 /**
- * Intercepts [CHECK_AVAILABILITY: StaffID, ServiceDuration, DateRange]
+ * Intercepts [CHECK_AVAILABILITY: StaffID, ServiceID, DateRange]
  * Returns available slots for a given staff member within a date range, taking into account:
  * - Google Calendar Free/Busy times
  * - Staff working hours (Shift boundaries)
  * - Service duration & buffer padding
  * - Max 14 days in advance limit
  */
-export async function checkAvailability(tenantId: string, staffId: string, serviceDuration: number, startDateStr: string, endDateStr: string) {
+export async function checkAvailability(tenantId: string, staffId: string, serviceId: string, startDateStr: string, endDateStr: string) {
   try {
-    console.log(`[Calendar] Checking availability for staff ${staffId}, duration ${serviceDuration}m from ${startDateStr} to ${endDateStr}`);
+    console.log(`[Calendar] Checking availability for staff ${staffId}, service ${serviceId} from ${startDateStr} to ${endDateStr}`);
     
+    // 0. Fetch Service and Staff Mapping Duration
+    const { data: service, error: srvError } = await getSupabaseAdmin()
+      .from('services')
+      .select('duration_minutes, buffer_minutes')
+      .eq('id', serviceId)
+      .single();
+    if (srvError || !service) return "Error: Service not found.";
+    
+    let serviceDuration = service.duration_minutes + (service.buffer_minutes || 0);
+
+    // Check for staff override
+    const { data: mapping } = await getSupabaseAdmin()
+      .from('staff_services')
+      .select('custom_duration')
+      .eq('staff_id', staffId)
+      .eq('service_id', serviceId)
+      .single();
+    if (mapping && mapping.custom_duration) {
+      serviceDuration = mapping.custom_duration + (service.buffer_minutes || 0);
+    }
     // 1. Enforce 2-week limit
     const now = new Date();
     const twoWeeksFromNow = new Date();
@@ -184,12 +204,12 @@ export async function checkAvailability(tenantId: string, staffId: string, servi
 }
 
 /**
- * Intercepts [BOOK_MEETING: StaffID, CustomerName, CustomerEmail, StartTime, EndTime]
- * Books the meeting on Google Calendar.
+ * Intercepts [BOOK_MEETING: StaffID, ServiceID, CustomerName, CustomerEmail, StartTime, EndTime]
+ * Books a Google Calendar event for the staff member and logs it in the tenant's appointments table.
  */
-export async function bookMeeting(tenantId: string, staffId: string, customerName: string, customerEmail: string, startTimeStr: string, endTimeStr: string) {
+export async function bookMeeting(tenantId: string, staffId: string, serviceId: string, customerName: string, customerEmail: string, startTimeStr: string, endTimeStr: string) {
   try {
-    console.log(`[Calendar] Booking meeting for ${customerName} with staff ${staffId} at ${startTimeStr}`);
+    console.log(`[Calendar] Booking meeting for ${customerName} with staff ${staffId} for service ${serviceId} at ${startTimeStr}`);
 
     // Fetch Staff Details
     const { data: staff, error: staffError } = await getSupabaseAdmin()
@@ -224,6 +244,18 @@ export async function bookMeeting(tenantId: string, staffId: string, customerNam
       calendarId: calendarId,
       requestBody: event,
       sendUpdates: 'all', // Send email to attendees
+    });
+
+    // Record the appointment in our local DB
+    await getSupabaseAdmin().from('appointments').insert({
+      tenant_id: tenantId,
+      staff_id: staffId,
+      service_id: serviceId,
+      customer_name: customerName,
+      customer_email: customerEmail,
+      start_time: new Date(startTimeStr).toISOString(),
+      end_time: new Date(endTimeStr).toISOString(),
+      google_event_id: res.data.id
     });
 
     return `Successfully booked appointment. Confirmation sent to ${customerEmail}.`;
