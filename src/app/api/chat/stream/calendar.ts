@@ -1,17 +1,28 @@
 import { google } from 'googleapis';
 import { createClient } from '@supabase/supabase-js';
 
-// Initialize Supabase Admin
-const supabaseAdmin = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!
-);
+// Helper to lazily initialize Supabase Admin to prevent build errors when env vars are missing in CI/CD
+function getSupabaseAdmin() {
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+
+  if (!supabaseUrl || !serviceRoleKey) {
+    throw new Error('Supabase admin environment variables are missing');
+  }
+
+  return createClient(supabaseUrl, serviceRoleKey, {
+    auth: {
+      persistSession: false,
+      autoRefreshToken: false,
+    },
+  });
+}
 
 /**
  * Gets an authenticated Google Calendar API client using the tenant's stored refresh token.
  */
 async function getCalendarClient(tenantId: string) {
-  const { data: integration, error } = await supabaseAdmin
+  const { data: integration, error } = await getSupabaseAdmin()
     .from('tenant_integrations')
     .select('refresh_token, access_token')
     .eq('tenant_id', tenantId)
@@ -63,7 +74,7 @@ export async function checkAvailability(tenantId: string, staffId: string, servi
     }
 
     // 2. Fetch Staff Details (Working days, Google Calendar ID)
-    const { data: staff, error: staffError } = await supabaseAdmin
+    const { data: staff, error: staffError } = await getSupabaseAdmin()
       .from('staff')
       .select('name, working_days, google_calendar_id')
       .eq('id', staffId)
@@ -181,7 +192,7 @@ export async function bookMeeting(tenantId: string, staffId: string, customerNam
     console.log(`[Calendar] Booking meeting for ${customerName} with staff ${staffId} at ${startTimeStr}`);
 
     // Fetch Staff Details
-    const { data: staff, error: staffError } = await supabaseAdmin
+    const { data: staff, error: staffError } = await getSupabaseAdmin()
       .from('staff')
       .select('name, google_calendar_id')
       .eq('id', staffId)
