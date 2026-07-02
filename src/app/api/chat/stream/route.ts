@@ -83,7 +83,7 @@ export async function POST(request: Request) {
     // 3. Resolve tenant_id from chatbotId (CRITICAL to prevent cross-tenant queries)
     const { data: chatbot, error: chatbotError } = await supabaseAdmin
       .from('chatbots')
-      .select('tenant_id')
+      .select('tenant_id, configuration_json')
       .eq('id', chatbotId)
       .single();
 
@@ -93,7 +93,10 @@ export async function POST(request: Request) {
     }
 
     const tenantId = chatbot.tenant_id;
-    console.log(`[Chat Stream][${requestId}] Resolved Tenant ID: ${tenantId}`);
+    const configData = chatbot.configuration_json as any || {};
+    const timezone = configData.timezone || 'Europe/London';
+    const currency = configData.currency || 'GBP';
+    console.log(`[Chat Stream][${requestId}] Resolved Tenant ID: ${tenantId}, TZ: ${timezone}`);
 
     // 4. Generate user message embedding (Gemini text-embedding-004)
     console.log(`[Chat Stream][${requestId}] Creating user message embedding...`);
@@ -210,10 +213,12 @@ Guidelines:
 - Use emojis occasionally to feel friendly.
 - Use short paragraphs and avoid overwhelming the user with long blocks of text.
 - If presenting multiple items, use clean bullet points.
+- CRITICAL: Use the ${currency} symbol when quoting prices.
 - CRITICAL: If the user explicitly types their email or phone number in the chat, you MUST end your response with exactly: [LEAD_CAPTURED: their_email_or_phone]. DO NOT use this tag to ask them for their info. Only use it when they actually provide it!
 - CRITICAL SCHEDULING RULE 1: If the user wants to book an appointment, first identify the Service and the Staff member they want. Consult the SERVICES CONFIGURATION JSON to accurately quote prices and durations based on any custom overrides the staff member might have for that service.
-- CRITICAL SCHEDULING RULE 2: Once you know the Staff ID and Service ID, you MUST check their availability. Reply with a polite conversational message to the user (e.g., "Let me check that for you!"), and then append EXACTLY: [CHECK_AVAILABILITY: StaffID, ServiceID, StartDate, EndDate]. StartDate and EndDate should be ISO strings. 
-- CRITICAL SCHEDULING RULE 3: Once you have checked availability and the user agrees to a specific available slot, you MUST book it by responding with a polite message, and then append EXACTLY: [BOOK_MEETING: StaffID, ServiceID, CustomerName, CustomerEmail, StartTime, EndTime]. StartTime and EndTime must be precise ISO strings.
+- CRITICAL SCHEDULING RULE 2: Once you know the Staff ID and Service ID, you MUST check their availability. Reply with a polite conversational message to the user (e.g., "Let me check that for you!"), and then append EXACTLY: [CHECK_AVAILABILITY: StaffID, ServiceID, StartDate, EndDate]. StartDate and EndDate should be ISO strings WITH the ${timezone} timezone offset (e.g., +01:00 for BST). 
+- CRITICAL SCHEDULING RULE 3: Once you have checked availability and the user agrees to a specific available slot, you MUST ask for BOTH their email address AND their mobile phone number before booking.
+- CRITICAL SCHEDULING RULE 4: Once you have both their email and mobile number, you MUST book it by responding with a polite message, and then append EXACTLY: [BOOK_MEETING: StaffID, ServiceID, CustomerName, CustomerEmail, CustomerPhone, StartTime, EndTime]. StartTime and EndTime must be precise ISO strings WITH the timezone offset.
 - CRITICAL: You MUST use the exact UUID strings for StaffID and ServiceID from the JSON configurations. Do NOT use their names!
 - When outputting a secret tag like [CHECK_AVAILABILITY...] or [BOOK_MEETING...], it MUST be the very last line of your response.
 
@@ -338,7 +343,7 @@ ${staffContext}`;
             const startStr = availMatch[3].trim().replace(/['"]/g, '');
             const endStr = availMatch[4].trim().replace(/['"]/g, '');
             
-            const toolResult = await checkAvailability(tenantId, staffId, serviceId, startStr, endStr);
+            const toolResult = await checkAvailability(tenantId, staffId, serviceId, startStr, endStr, timezone);
             
             const pass2Messages = [
               ...formattedMessages,
@@ -366,17 +371,18 @@ ${staffContext}`;
           }
 
           // --- BOOKING TOOL PASS ---
-          const bookMatch = rawText.match(/\[BOOK_MEETING:\s*(.+?),\s*(.+?),\s*(.+?),\s*(.+?),\s*(.+?),\s*(.+?)\]/);
+          const bookMatch = rawText.match(/\[BOOK_MEETING:\s*(.+?),\s*(.+?),\s*(.+?),\s*(.+?),\s*(.+?),\s*(.+?),\s*(.+?)\]/);
           if (bookMatch) {
             const staffId = bookMatch[1].trim().replace(/['"]/g, '');
             const serviceId = bookMatch[2].trim().replace(/['"]/g, '');
             const custName = bookMatch[3].trim().replace(/['"]/g, '');
             const custEmail = bookMatch[4].trim().replace(/['"]/g, '');
-            const startStr = bookMatch[5].trim().replace(/['"]/g, '');
-            const endStr = bookMatch[6].trim().replace(/['"]/g, '');
+            const custPhone = bookMatch[5].trim().replace(/['"]/g, '');
+            const startStr = bookMatch[6].trim().replace(/['"]/g, '');
+            const endStr = bookMatch[7].trim().replace(/['"]/g, '');
             
             // Run asynchronously so we don't block closing the stream
-            bookMeeting(tenantId, staffId, serviceId, custName, custEmail, startStr, endStr).then(res => {
+            bookMeeting(tenantId, staffId, serviceId, custName, custEmail, custPhone, startStr, endStr, timezone).then(res => {
                 console.log(`[Chat Stream][${requestId}] Booking Background Result:`, res);
              }).catch(err => {
                 console.error(`[Chat Stream][${requestId}] Booking Background Error:`, err);

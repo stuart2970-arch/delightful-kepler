@@ -54,9 +54,9 @@ async function getCalendarClient(tenantId: string) {
  * - Service duration & buffer padding
  * - Max 14 days in advance limit
  */
-export async function checkAvailability(tenantId: string, staffId: string, serviceId: string, startDateStr: string, endDateStr: string) {
+export async function checkAvailability(tenantId: string, staffId: string, serviceId: string, startDateStr: string, endDateStr: string, timezone: string = 'Europe/London') {
   try {
-    console.log(`[Calendar] Checking availability for staff ${staffId}, service ${serviceId} from ${startDateStr} to ${endDateStr}`);
+    console.log(`[Calendar] Checking availability for staff ${staffId}, service ${serviceId} from ${startDateStr} to ${endDateStr} (TZ: ${timezone})`);
     
     // 0. Fetch Service and Staff Mapping Duration
     const { data: service, error: srvError } = await getSupabaseAdmin()
@@ -195,7 +195,7 @@ export async function checkAvailability(tenantId: string, staffId: string, servi
     }
 
     // Return a summary of slots (limit to 10 to not overwhelm the AI)
-    return `Available slots for ${staff.name}:\n` + availableSlots.slice(0, 10).map(s => `- ${new Date(s).toLocaleString()}`).join('\n');
+    return `Available slots for ${staff.name}:\n` + availableSlots.slice(0, 10).map(s => `- ${new Date(s).toLocaleString('en-GB', { timeZone: timezone })}`).join('\n');
 
   } catch (error: any) {
     console.error('[Calendar] Error checking availability:', error);
@@ -204,12 +204,12 @@ export async function checkAvailability(tenantId: string, staffId: string, servi
 }
 
 /**
- * Intercepts [BOOK_MEETING: StaffID, ServiceID, CustomerName, CustomerEmail, StartTime, EndTime]
+ * Intercepts [BOOK_MEETING: StaffID, ServiceID, CustomerName, CustomerEmail, CustomerPhone, StartTime, EndTime]
  * Books a Google Calendar event for the staff member and logs it in the tenant's appointments table.
  */
-export async function bookMeeting(tenantId: string, staffId: string, serviceId: string, customerName: string, customerEmail: string, startTimeStr: string, endTimeStr: string) {
+export async function bookMeeting(tenantId: string, staffId: string, serviceId: string, customerName: string, customerEmail: string, customerPhone: string, startTimeStr: string, endTimeStr: string, timezone: string = 'Europe/London') {
   try {
-    console.log(`[Calendar] Booking meeting for ${customerName} with staff ${staffId} for service ${serviceId} at ${startTimeStr}`);
+    console.log(`[Calendar] Booking meeting for ${customerName} with staff ${staffId} for service ${serviceId} at ${startTimeStr} (TZ: ${timezone})`);
 
     // Fetch Staff Details
     const { data: staff, error: staffError } = await getSupabaseAdmin()
@@ -226,9 +226,13 @@ export async function bookMeeting(tenantId: string, staffId: string, serviceId: 
     const calendarId = staff.google_calendar_id || 'primary';
     const calendar = await getCalendarClient(tenantId);
 
+    // Fetch Service details for name
+    const { data: service } = await getSupabaseAdmin().from('services').select('name').eq('id', serviceId).single();
+    const serviceName = service ? service.name : 'Service';
+
     const event = {
-      summary: `Appointment with ${customerName}`,
-      description: `Customer Email: ${customerEmail}\nBooked via StyleFlo AI.`,
+      summary: `[StyleFlo] ${serviceName} with ${customerName}`,
+      description: `Customer Email: ${customerEmail}\nCustomer Phone: ${customerPhone}\nBooked via StyleFlo AI.`,
       start: {
         dateTime: new Date(startTimeStr).toISOString(),
       },
@@ -253,10 +257,35 @@ export async function bookMeeting(tenantId: string, staffId: string, serviceId: 
       service_id: serviceId,
       customer_name: customerName,
       customer_email: customerEmail,
+      customer_phone: customerPhone,
       start_time: new Date(startTimeStr).toISOString(),
       end_time: new Date(endTimeStr).toISOString(),
       google_event_id: res.data.id
     });
+
+    // --- SEND CUSTOM MAILGUN EMAIL ---
+    try {
+      const formData = new FormData();
+      formData.append('from', `StyleFlo Bookings <mailgun@${process.env.MAILGUN_DOMAIN}>`);
+      formData.append('to', customerEmail);
+      formData.append('subject', `Booking Confirmed: ${serviceName} with ${staff.name}`);
+      formData.append('text', `Hi ${customerName},\n\nYour appointment for ${serviceName} with ${staff.name} is confirmed for ${new Date(startTimeStr).toLocaleString('en-GB', { timeZone: timezone })}.\n\nThank you for booking with us!`);
+      
+      const mgRes = await fetch(`https://api.mailgun.net/v3/${process.env.MAILGUN_DOMAIN}/messages`, {
+        method: 'POST',
+        headers: {
+          'Authorization': 'Basic ' + Buffer.from(`api:${process.env.MAILGUN_API_KEY}`).toString('base64')
+        },
+        body: formData
+      });
+      if (!mgRes.ok) {
+        console.error('[Calendar] Failed to send Mailgun email:', await mgRes.text());
+      } else {
+        console.log(`[Calendar] Sent Mailgun confirmation to ${customerEmail}`);
+      }
+    } catch (mgErr) {
+      console.error('[Calendar] Exception sending Mailgun email:', mgErr);
+    }
 
     return `Successfully booked appointment. Confirmation sent to ${customerEmail}.`;
 
