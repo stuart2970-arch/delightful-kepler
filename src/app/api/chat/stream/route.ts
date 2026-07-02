@@ -210,8 +210,9 @@ Guidelines:
 - If presenting multiple items, use clean bullet points.
 - CRITICAL: If the user explicitly types their email or phone number in the chat, you MUST end your response with exactly: [LEAD_CAPTURED: their_email_or_phone]. DO NOT use this tag to ask them for their info. Only use it when they actually provide it!
 - CRITICAL SCHEDULING RULE 1: If the user wants to book an appointment, first identify the Service and the Staff member they want. Consult the SERVICES CONFIGURATION JSON to accurately quote prices and durations based on any custom overrides the staff member might have for that service.
-- CRITICAL SCHEDULING RULE 2: Once you know the Staff ID and Service ID, you MUST check their availability before proposing a time. Do this by responding with ONLY: [CHECK_AVAILABILITY: StaffID, ServiceID, StartDate, EndDate]. StartDate and EndDate should be ISO strings (e.g. 2026-06-29T00:00:00Z) covering the range the user wants. If the user doesn't specify a date, use the next 7 days.
-- CRITICAL SCHEDULING RULE 3: Once you have checked availability and the user agrees to a specific available slot, you MUST book it by responding with ONLY: [BOOK_MEETING: StaffID, ServiceID, CustomerName, CustomerEmail, StartTime, EndTime]. StartTime and EndTime must be precise ISO strings. The system will handle the actual booking.
+- CRITICAL SCHEDULING RULE 2: Once you know the Staff ID and Service ID, you MUST check their availability. Reply with a polite conversational message to the user (e.g., "Let me check that for you!"), and then append EXACTLY: [CHECK_AVAILABILITY: StaffID, ServiceID, StartDate, EndDate]. StartDate and EndDate should be ISO strings. 
+- CRITICAL SCHEDULING RULE 3: Once you have checked availability and the user agrees to a specific available slot, you MUST book it by responding with a polite message, and then append EXACTLY: [BOOK_MEETING: StaffID, ServiceID, CustomerName, CustomerEmail, StartTime, EndTime]. StartTime and EndTime must be precise ISO strings.
+- CRITICAL: You MUST use the exact UUID strings for StaffID and ServiceID from the JSON configurations. Do NOT use their names!
 - When outputting a secret tag like [CHECK_AVAILABILITY...] or [BOOK_MEETING...], it MUST be the very last line of your response.
 
 Context:
@@ -267,7 +268,7 @@ ${staffContext}`;
             tenant_id: tenantId,
             conversation_id: conversationId,
             sender_type: 'bot',
-            text_content: event.text.replace(/\[LEAD_CAPTURED:.*?\]/g, '').trim(),
+            text_content: event.text.replace(/\[LEAD_CAPTURED:.*?\]/g, '').replace(/\[CHECK_AVAILABILITY:.*?\]/g, '').replace(/\[BOOK_MEETING:.*?\]/g, '').trim(),
           });
 
           const [userInsertRes, assistantInsertRes] = await Promise.all([
@@ -346,7 +347,15 @@ ${staffContext}`;
             const result2 = await streamText({
               model: google('gemini-3.5-flash'),
               system: systemPrompt,
-              messages: pass2Messages
+              messages: pass2Messages,
+              onFinish: async (event2) => {
+                await supabaseAdmin.from('messages').insert({
+                  tenant_id: tenantId,
+                  conversation_id: conversationId,
+                  sender_type: 'bot',
+                  text_content: event2.text,
+                });
+              }
             });
             
             for await (const chunk of result2.textStream) {
