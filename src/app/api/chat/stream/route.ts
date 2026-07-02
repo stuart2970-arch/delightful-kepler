@@ -203,6 +203,8 @@ export async function POST(request: Request) {
 Use ONLY the following context to answer the user's query. 
 If you do not know the answer, politely ask them to drop their email or phone number so a human agent can follow up.
 
+The current date and time is: ${new Date().toISOString()}. Use this to resolve relative dates like "tomorrow" or "next Sunday".
+
 Guidelines:
 - Write in a natural, warm, and human-like conversational tone.
 - Use emojis occasionally to feel friendly.
