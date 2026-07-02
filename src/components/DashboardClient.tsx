@@ -123,7 +123,8 @@ export default function DashboardClient({
   const [newServiceDuration, setNewServiceDuration] = useState(30);
   const [newServiceBuffer, setNewServiceBuffer] = useState(0);
 
-  const [showAddStaff, setShowAddStaff] = useState(false);
+  const [showStaffModal, setShowStaffModal] = useState(false);
+  const [editingStaffId, setEditingStaffId] = useState<string | null>(null);
   const [newStaffName, setNewStaffName] = useState('');
   const [newStaffEmail, setNewStaffEmail] = useState('');
   const [newStaffCalId, setNewStaffCalId] = useState('');
@@ -628,24 +629,58 @@ export default function DashboardClient({
     setActiveWeekIndex(activeWeekIndex + 1);
   };
 
-  const handleAddStaff = async (e: React.FormEvent) => {
+  const openEditStaff = (staffMember: any) => {
+    setEditingStaffId(staffMember.id);
+    setNewStaffName(staffMember.name);
+    setNewStaffEmail(staffMember.email);
+    setNewStaffCalId(staffMember.google_calendar_id === 'primary' ? '' : staffMember.google_calendar_id);
+    
+    // Load existing weeks or create empty ones
+    const existingWeeks = staffMember.working_days?.weeks || [];
+    const weeksToLoad = [];
+    for (let i = 0; i < 4; i++) {
+      if (existingWeeks[i]) {
+        weeksToLoad.push(existingWeeks[i]);
+      } else {
+        weeksToLoad.push(createEmptySchedule());
+      }
+    }
+    
+    setNewStaffSchedule({ weeks: weeksToLoad });
+    setActiveWeekIndex(0);
+    setShowStaffModal(true);
+  };
+
+  const handleSaveStaff = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
+      const isUpdate = !!editingStaffId;
+      const method = isUpdate ? 'PUT' : 'POST';
+      const bodyPayload: any = {
+        tenant_id: tenantId,
+        name: newStaffName,
+        email: newStaffEmail,
+        google_calendar_id: newStaffCalId || 'primary',
+        working_days: newStaffSchedule
+      };
+      if (isUpdate) {
+        bodyPayload.id = editingStaffId;
+      }
+
       const res = await fetch('/api/staff', {
-        method: 'POST',
+        method,
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          tenant_id: tenantId,
-          name: newStaffName,
-          email: newStaffEmail,
-          google_calendar_id: newStaffCalId || 'primary',
-          working_days: newStaffSchedule
-        })
+        body: JSON.stringify(bodyPayload)
       });
       if (res.ok) {
         const data = await res.json();
-        setStaff([...staff, data.staff]);
-        setShowAddStaff(false);
+        if (isUpdate) {
+          setStaff(staff.map(s => s.id === editingStaffId ? data.staff : s));
+        } else {
+          setStaff([...staff, data.staff]);
+        }
+        setShowStaffModal(false);
+        setEditingStaffId(null);
         setNewStaffName('');
         setNewStaffEmail('');
         setNewStaffCalId('');
@@ -654,11 +689,11 @@ export default function DashboardClient({
         });
         setActiveWeekIndex(0);
       } else {
-        alert('Failed to add staff');
+        alert(isUpdate ? 'Failed to update staff' : 'Failed to add staff');
       }
     } catch (err) {
       console.error(err);
-      alert('Error adding staff');
+      alert('Error saving staff');
     }
   };
 
@@ -1205,10 +1240,12 @@ export default function DashboardClient({
 
                 {/* Staff List */}
                 <div className="bg-gray-900/30 border border-gray-900 p-6 rounded-2xl shadow-xl flex flex-col h-[500px] relative lg:col-span-2">
-                  {showAddStaff ? (
+                  {showStaffModal ? (
                     <div className="absolute inset-0 bg-gray-950 p-6 rounded-2xl z-10 flex flex-col overflow-y-auto styleflo-scrollbar">
-                      <h3 className="text-lg font-bold text-white mb-4">Add Staff Member</h3>
-                      <form onSubmit={handleAddStaff} className="flex-1 flex flex-col gap-6">
+                      <h3 className="text-lg font-bold text-white mb-4">
+                        {editingStaffId ? 'Edit Staff Member' : 'Add Staff Member'}
+                      </h3>
+                      <form onSubmit={handleSaveStaff} className="flex-1 flex flex-col gap-6">
                         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                           <div>
                             <label className="block text-xs font-semibold text-gray-400 mb-1">Name</label>
@@ -1312,8 +1349,13 @@ export default function DashboardClient({
                         </div>
 
                         <div className="mt-auto flex justify-end gap-3 pt-4 border-t border-gray-800">
-                          <button type="button" onClick={() => setShowAddStaff(false)} className="px-4 py-2 text-sm text-gray-400 hover:text-white transition-colors">Cancel</button>
-                          <button type="submit" className="px-5 py-2 text-sm bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg font-bold shadow-lg transition-transform active:scale-95">Save Staff Member</button>
+                          <button type="button" onClick={() => {
+                            setShowStaffModal(false);
+                            setEditingStaffId(null);
+                          }} className="px-4 py-2 text-sm text-gray-400 hover:text-white transition-colors">Cancel</button>
+                          <button type="submit" className="px-5 py-2 text-sm bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg font-bold shadow-lg transition-transform active:scale-95">
+                            {editingStaffId ? 'Update Staff Member' : 'Save Staff Member'}
+                          </button>
                         </div>
                       </form>
                     </div>
@@ -1321,7 +1363,17 @@ export default function DashboardClient({
 
                   <div className="flex items-center justify-between mb-4">
                     <h3 className="text-lg font-bold text-white">Staff Schedule</h3>
-                    <button onClick={() => setShowAddStaff(true)} className="bg-gray-800 hover:bg-gray-700 text-white text-xs px-3 py-1.5 rounded-lg font-semibold transition-colors">
+                    <button onClick={() => {
+                      setEditingStaffId(null);
+                      setNewStaffName('');
+                      setNewStaffEmail('');
+                      setNewStaffCalId('');
+                      setNewStaffSchedule({
+                        weeks: [createEmptySchedule(), createEmptySchedule(), createEmptySchedule(), createEmptySchedule()]
+                      });
+                      setActiveWeekIndex(0);
+                      setShowStaffModal(true);
+                    }} className="bg-gray-800 hover:bg-gray-700 text-white text-xs px-3 py-1.5 rounded-lg font-semibold transition-colors">
                       + Add Staff
                     </button>
                   </div>
@@ -1335,9 +1387,14 @@ export default function DashboardClient({
                             <div className="font-bold text-gray-200 text-sm">{stf.name}</div>
                             <div className="text-[10px] text-gray-500 font-mono mt-0.5">{stf.email}</div>
                           </div>
-                          <button onClick={() => handleDeleteStaff(stf.id)} className="text-gray-600 hover:text-red-400 opacity-0 group-hover:opacity-100 transition-opacity">
-                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg>
-                          </button>
+                          <div className="flex items-center gap-2">
+                            <button onClick={() => openEditStaff(stf)} className="text-gray-600 hover:text-indigo-400 opacity-0 group-hover:opacity-100 transition-opacity">
+                              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"></path></svg>
+                            </button>
+                            <button onClick={() => handleDeleteStaff(stf.id)} className="text-gray-600 hover:text-red-400 opacity-0 group-hover:opacity-100 transition-opacity">
+                              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg>
+                            </button>
+                          </div>
                         </div>
                         <div className="text-[11px] text-gray-400 bg-gray-900 p-2 rounded-lg">
                           Cal ID: <span className="text-indigo-400 break-all">{stf.google_calendar_id}</span>

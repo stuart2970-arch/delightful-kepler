@@ -24,9 +24,9 @@ export async function GET(request: Request) {
     if (error) throw error;
 
     return NextResponse.json({ staff: data || [] });
-  } catch (err: any) {
+  } catch (err: unknown) {
     console.error('Error fetching staff:', err);
-    return NextResponse.json({ error: err.message }, { status: 500 });
+    return NextResponse.json({ error: err instanceof Error ? err.message : String(err) }, { status: 500 });
   }
 }
 
@@ -54,9 +54,40 @@ export async function POST(request: Request) {
     if (error) throw error;
 
     return NextResponse.json({ staff: data });
-  } catch (err: any) {
+  } catch (err: unknown) {
     console.error('Error creating staff:', err);
-    return NextResponse.json({ error: err.message }, { status: 500 });
+    return NextResponse.json({ error: err instanceof Error ? err.message : String(err) }, { status: 500 });
+  }
+}
+
+export async function PUT(request: Request) {
+  try {
+    const body = await request.json();
+    const { id, tenant_id, name, email, google_calendar_id, working_days } = body;
+
+    if (!id || !tenant_id || !name || !email) {
+      return NextResponse.json({ error: 'Missing required fields' }, { status: 400 });
+    }
+
+    const { data, error } = await supabaseAdmin
+      .from('staff')
+      .update({
+        name,
+        email,
+        google_calendar_id: google_calendar_id || 'primary',
+        working_days: working_days || {},
+      })
+      .eq('id', id)
+      .eq('tenant_id', tenant_id)
+      .select()
+      .single();
+
+    if (error) throw error;
+
+    return NextResponse.json({ staff: data });
+  } catch (err: unknown) {
+    console.error('Error updating staff:', err);
+    return NextResponse.json({ error: err instanceof Error ? err.message : String(err) }, { status: 500 });
   }
 }
 
@@ -79,8 +110,8 @@ export async function DELETE(request: Request) {
     if (error) throw error;
 
     return NextResponse.json({ success: true });
-  } catch (err: any) {
+  } catch (err: unknown) {
     console.error('Error deleting staff:', err);
-    return NextResponse.json({ error: err.message }, { status: 500 });
+    return NextResponse.json({ error: err instanceof Error ? err.message : String(err) }, { status: 500 });
   }
 }
