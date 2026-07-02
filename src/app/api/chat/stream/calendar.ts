@@ -278,7 +278,7 @@ export async function bookMeeting(tenantId: string, staffId: string, serviceId: 
         });
         
         await mg.messages.create(process.env.MAILGUN_DOMAIN, {
-          from: `StyleFlo Bookings <mailgun@${process.env.MAILGUN_DOMAIN}>`,
+          from: `StyleFlo Bookings <no-reply@${process.env.MAILGUN_DOMAIN}>`,
           to: [customerEmail],
           subject: `Booking Confirmed: ${serviceName} with ${staff.name}`,
           text: `Hi ${customerName},\n\nYour appointment for ${serviceName} with ${staff.name} is confirmed for ${new Date(startTimeStr).toLocaleString('en-GB', { timeZone: timezone })}.\n\nThank you for booking with us!`
