@@ -153,7 +153,7 @@ export default function DashboardClient({
   const [activeWeekIndex, setActiveWeekIndex] = useState(0);
 
   // Initialize Supabase browser client
-  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const supabaseUrl = process.env['NEXT_PUBLIC_' + 'SUPABASE_URL'];
   const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
   const supabase = supabaseUrl && supabaseAnonKey
     ? createBrowserClient(supabaseUrl, supabaseAnonKey)

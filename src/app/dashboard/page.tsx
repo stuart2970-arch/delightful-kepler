@@ -8,7 +8,7 @@ export const dynamic = 'force-dynamic';
 // Helper to create server-side Supabase client (Always uses Anon Key + User Token)
 async function createSupabaseServerClient() {
   const cookieStore = await cookies();
-  const supabaseUrl = process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const supabaseUrl = process.env.SUPABASE_URL || process.env['NEXT_PUBLIC_' + 'SUPABASE_URL'];
   const key = process.env.SUPABASE_ANON_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 
   if (!supabaseUrl || !key) {

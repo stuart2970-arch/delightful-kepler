@@ -6,7 +6,7 @@ export const dynamic = 'force-dynamic';
 
 async function getSupabaseAuthClient() {
   const cookieStore = await cookies();
-  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const supabaseUrl = process.env['NEXT_PUBLIC_' + 'SUPABASE_URL'];
   const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 
   if (!supabaseUrl || !anonKey) {

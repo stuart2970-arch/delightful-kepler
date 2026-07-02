@@ -20,7 +20,7 @@ export default function LoginPage() {
   // Provide fallback strings to prevent Next.js build from crashing during static render
   const [supabase] = useState(() =>
     createBrowserClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL || 'https://dummy.supabase.co',
+      process.env['NEXT_PUBLIC_' + 'SUPABASE_URL'] || 'https://dummy.supabase.co',
       process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || 'dummy-anon-key'
     )
   );

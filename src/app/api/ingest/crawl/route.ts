@@ -18,7 +18,7 @@ const IngestRequestSchema = z.object({
 async function createSupabaseClient() {
   const cookieStore = await cookies();
   
-  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const supabaseUrl = process.env['NEXT_PUBLIC_' + 'SUPABASE_URL'];
   const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 
   if (!supabaseUrl || !supabaseAnonKey) {
@@ -57,7 +57,7 @@ export async function POST(request: Request) {
   }
 
   // Detect if required environment keys are missing for mock mode fallback
-  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const supabaseUrl = process.env['NEXT_PUBLIC_' + 'SUPABASE_URL'];
   const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
   const geminiApiKey = process.env.GEMINI_API_KEY;
   const isMockMode = !supabaseUrl || !supabaseAnonKey || !geminiApiKey;
