@@ -9,7 +9,7 @@ env:
   GCP_PROJECT_ID: ${{ secrets.GCP_PROJECT_ID }} # GCP Project ID
   GCP_REGION: europe-west2 # UK GDPR Compliance: London
   AR_REPO_NAME: styleflo-repo # Matches Terraform registry repository ID
-  SERVICE_NAME: styleflo-app # Matches Cloud Run Service name
+  SERVICE_NAME: styleflo-new # Matches Cloud Run Service name
 
 jobs:
   deploy:
