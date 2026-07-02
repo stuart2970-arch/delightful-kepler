@@ -265,18 +265,19 @@ export async function bookMeeting(tenantId: string, staffId: string, serviceId: 
 
     // --- SEND CUSTOM MAILGUN EMAIL ---
     try {
-      const formData = new FormData();
-      formData.append('from', `StyleFlo Bookings <mailgun@${process.env.MAILGUN_DOMAIN}>`);
-      formData.append('to', customerEmail);
-      formData.append('subject', `Booking Confirmed: ${serviceName} with ${staff.name}`);
-      formData.append('text', `Hi ${customerName},\n\nYour appointment for ${serviceName} with ${staff.name} is confirmed for ${new Date(startTimeStr).toLocaleString('en-GB', { timeZone: timezone })}.\n\nThank you for booking with us!`);
+      const params = new URLSearchParams();
+      params.append('from', `StyleFlo Bookings <mailgun@${process.env.MAILGUN_DOMAIN}>`);
+      params.append('to', customerEmail);
+      params.append('subject', `Booking Confirmed: ${serviceName} with ${staff.name}`);
+      params.append('text', `Hi ${customerName},\n\nYour appointment for ${serviceName} with ${staff.name} is confirmed for ${new Date(startTimeStr).toLocaleString('en-GB', { timeZone: timezone })}.\n\nThank you for booking with us!`);
       
       const mgRes = await fetch(`https://api.mailgun.net/v3/${process.env.MAILGUN_DOMAIN}/messages`, {
         method: 'POST',
         headers: {
-          'Authorization': 'Basic ' + Buffer.from(`api:${process.env.MAILGUN_API_KEY}`).toString('base64')
+          'Authorization': 'Basic ' + Buffer.from(`api:${process.env.MAILGUN_API_KEY}`).toString('base64'),
+          'Content-Type': 'application/x-www-form-urlencoded'
         },
-        body: formData
+        body: params
       });
       if (!mgRes.ok) {
         console.error('[Calendar] Failed to send Mailgun email:', await mgRes.text());
