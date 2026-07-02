@@ -1,5 +1,7 @@
 import { google } from 'googleapis';
 import { createClient } from '@supabase/supabase-js';
+import formData from 'form-data';
+import Mailgun from 'mailgun.js';
 
 // Helper to lazily initialize Supabase Admin to prevent build errors when env vars are missing in CI/CD
 function getSupabaseAdmin() {
@@ -265,23 +267,19 @@ export async function bookMeeting(tenantId: string, staffId: string, serviceId: 
 
     // --- SEND CUSTOM MAILGUN EMAIL ---
     try {
-      const params = new URLSearchParams();
-      params.append('from', `StyleFlo Bookings <mailgun@${process.env.MAILGUN_DOMAIN}>`);
-      params.append('to', customerEmail);
-      params.append('subject', `Booking Confirmed: ${serviceName} with ${staff.name}`);
-      params.append('text', `Hi ${customerName},\n\nYour appointment for ${serviceName} with ${staff.name} is confirmed for ${new Date(startTimeStr).toLocaleString('en-GB', { timeZone: timezone })}.\n\nThank you for booking with us!`);
-      
-      const mgRes = await fetch(`https://api.mailgun.net/v3/${process.env.MAILGUN_DOMAIN}/messages`, {
-        method: 'POST',
-        headers: {
-          'Authorization': 'Basic ' + Buffer.from(`api:${process.env.MAILGUN_API_KEY}`).toString('base64'),
-          'Content-Type': 'application/x-www-form-urlencoded'
-        },
-        body: params
-      });
-      if (!mgRes.ok) {
-        console.error('[Calendar] Failed to send Mailgun email:', await mgRes.text());
+      if (!process.env.MAILGUN_API_KEY || !process.env.MAILGUN_DOMAIN) {
+        console.error('[Calendar] Mailgun credentials missing, cannot send email.');
       } else {
+        const mailgun = new Mailgun(formData);
+        const mg = mailgun.client({ username: 'api', key: process.env.MAILGUN_API_KEY });
+        
+        await mg.messages.create(process.env.MAILGUN_DOMAIN, {
+          from: `StyleFlo Bookings <mailgun@${process.env.MAILGUN_DOMAIN}>`,
+          to: [customerEmail],
+          subject: `Booking Confirmed: ${serviceName} with ${staff.name}`,
+          text: `Hi ${customerName},\n\nYour appointment for ${serviceName} with ${staff.name} is confirmed for ${new Date(startTimeStr).toLocaleString('en-GB', { timeZone: timezone })}.\n\nThank you for booking with us!`
+        });
+        
         console.log(`[Calendar] Sent Mailgun confirmation to ${customerEmail}`);
       }
     } catch (mgErr) {
