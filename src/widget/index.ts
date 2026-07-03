@@ -188,7 +188,7 @@
         <h4 class="font-bold text-gray-800 text-lg mb-2">Welcome!</h4>
         <p class="text-gray-500 text-sm mb-6">Please enter your name so we know who we are chatting with.</p>
         <form id="styleflo-onboarding-form" class="w-full">
-          <input type="text" id="styleflo-onboarding-name" required placeholder="Your full name" class="w-full px-4 py-3 mb-3 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:border-transparent transition-all" style="--tw-ring-color: ${primaryColor};" />
+          <input type="text" id="styleflo-onboarding-name" required placeholder="Name" class="w-full px-4 py-3 mb-3 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:border-transparent transition-all" style="--tw-ring-color: ${primaryColor};" />
           <button type="submit" class="w-full py-3 rounded-xl text-white font-semibold shadow-md transition-opacity hover:opacity-95" style="background-color: ${primaryColor};">Start Chatting</button>
         </form>
       </div>
@@ -258,7 +258,7 @@
         localStorage.setItem('styleflo-client-name', name);
         storedName = name;
         onboardingContainer.style.display = 'none';
-        messagesContainer.style.display = 'flex';
+        messagesContainer.style.display = 'block';
         chatForm.style.display = 'flex';
         inputField.focus();
       }
