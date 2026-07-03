@@ -406,10 +406,10 @@
           
           let formattedText = rawText
             // Hide secret tool tags
-            .replace(/\[CHECK_AVAILABILITY:.*?\]/g, '')
-            .replace(/\[BOOK_MEETING:.*?\]/g, '')
-            .replace(/\[LEAD_CAPTURED:.*?\]/g, '')
-            .replace(/\[TIME_SLOTS:.*?\]/g, '')
+            .replace(/\[CHECK_AVAILABILITY:[\s\S]*?(?:\]|$)/g, '')
+            .replace(/\[BOOK_MEETING:[\s\S]*?(?:\]|$)/g, '')
+            .replace(/\[LEAD_CAPTURED:[\s\S]*?(?:\]|$)/g, '')
+            .replace(/\[TIME_SLOTS:[\s\S]*?(?:\}\]|$)/g, '')
             // Replace bold **text**
             .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
             // Replace markdown links with formatted inline links
