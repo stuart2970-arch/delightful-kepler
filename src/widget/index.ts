@@ -93,8 +93,8 @@
     .styleflo-text-17 { font-size: 17px; }
     .styleflo-text-15 { font-size: 15px; }
     .styleflo-text-11 { font-size: 11px; }
-    .styleflo-mw-85 { max-width: 85%; }
-    .styleflo-mw-75 { max-width: 75%; }
+    .styleflo-mw-85 { max-width: 85%; width: fit-content; }
+    .styleflo-mw-75 { max-width: 75%; width: fit-content; }
 
     @keyframes styleflo-pulse {
       0%, 100% { opacity: 1; }
@@ -196,9 +196,9 @@
       <!-- Messages Area -->
       <div id="styleflo-messages" class="flex-1 min-h-0 overflow-y-auto overscroll-y-contain p-4 space-y-4 bg-gray-50 styleflo-scrollbar">
         <!-- Welcome Message -->
-        <div class="flex items-start gap-2.5">
-          <img src="${apiHost}${agentAvatarUrl}" alt="Agent Avatar" class="w-7 h-7 rounded-full object-cover bg-white border border-gray-100" />
-          <div class="p-3 bg-white border border-gray-100 text-gray-800 rounded-2xl rounded-tl-none styleflo-text-15 styleflo-mw-75 shadow-sm leading-relaxed">
+        <div class="flex items-start gap-2.5 w-full">
+          <img src="${apiHost}${agentAvatarUrl}" alt="Agent Avatar" class="w-7 h-7 rounded-full object-cover bg-white border border-gray-100 flex-shrink-0" />
+          <div class="p-3 bg-white border border-gray-100 text-gray-800 rounded-2xl rounded-tl-none styleflo-text-15 styleflo-mw-75 shadow-sm leading-relaxed w-full">
             ${welcomeMessage}
           </div>
         </div>
@@ -298,7 +298,7 @@
     // Helper to append a message node to UI
     function appendMessage(sender: 'user' | 'bot', text: string = ''): HTMLDivElement {
       const wrapper = document.createElement('div');
-      wrapper.className = sender === 'user' ? 'flex justify-end' : 'flex items-start gap-2.5 w-full';
+      wrapper.className = sender === 'user' ? 'flex justify-end w-full' : 'flex items-start gap-2.5 w-full';
       
       if (sender === 'bot') {
         const avatarImg = document.createElement('img');
@@ -310,7 +310,7 @@
       
       const msgDiv = document.createElement('div');
       msgDiv.className = sender === 'user'
-        ? 'p-3 text-white rounded-2xl rounded-tr-none styleflo-text-15 styleflo-mw-85 shadow-sm leading-relaxed'
+        ? 'p-3 text-white rounded-2xl rounded-tr-none styleflo-text-15 styleflo-mw-85 shadow-sm leading-relaxed w-full'
         : 'p-3 bg-white border border-gray-100 text-gray-800 rounded-2xl rounded-tl-none styleflo-text-15 shadow-sm leading-relaxed w-full';
       
       if (sender === 'user') {
