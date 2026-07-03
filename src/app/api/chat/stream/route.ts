@@ -412,6 +412,7 @@ ${staffContext}`;
                 controller.enqueue(encoder.encode(chunk));
               }
             }
+          }
         } catch (err: any) {
           console.error(`[Chat Stream][${requestId}] In-stream generation error:`, err);
           controller.enqueue(encoder.encode(`\n[STREAM ERROR: ${err.message}]`));
