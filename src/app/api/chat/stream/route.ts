@@ -384,13 +384,34 @@ ${staffContext}`;
             const startStr = bookMatch[6].trim().replace(/['"]/g, '');
             const endStr = bookMatch[7].trim().replace(/['"]/g, '');
             
-            // Run asynchronously so we don't block closing the stream
-            bookMeeting(tenantId, staffId, serviceId, custName, custEmail, custPhone, startStr, endStr, timezone).then(res => {
-                console.log(`[Chat Stream][${requestId}] Booking Background Result:`, res);
-             }).catch(err => {
-                console.error(`[Chat Stream][${requestId}] Booking Background Error:`, err);
-             });
-          }
+            const toolResult = await bookMeeting(tenantId, staffId, serviceId, custName, custEmail, custPhone, startStr, endStr, timezone);
+            console.log(`[Chat Stream][${requestId}] Booking Result:`, toolResult);
+            
+            if (toolResult && toolResult.includes('Error:')) {
+              const pass2Messages = [
+                ...formattedMessages,
+                { role: 'assistant', content: rawText },
+                { role: 'user', content: `[SYSTEM] Booking Result:\n${toolResult}\nThe time slot was snatched by someone else! Apologize to the user naturally and ask them if they would like to pick a different time.` }
+              ];
+              
+              const result2 = await streamText({
+                model: google('gemini-3.5-flash'),
+                system: systemPrompt,
+                messages: pass2Messages as any,
+                onFinish: async (event2) => {
+                  await supabaseAdmin.from('messages').insert({
+                    tenant_id: tenantId,
+                    conversation_id: conversationId,
+                    sender_type: 'bot',
+                    text_content: event2.text,
+                  });
+                }
+              });
+              
+              for await (const chunk of result2.textStream) {
+                controller.enqueue(encoder.encode(chunk));
+              }
+            }
         } catch (err: any) {
           console.error(`[Chat Stream][${requestId}] In-stream generation error:`, err);
           controller.enqueue(encoder.encode(`\n[STREAM ERROR: ${err.message}]`));

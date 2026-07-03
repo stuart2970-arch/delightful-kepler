@@ -232,6 +232,23 @@ export async function bookMeeting(tenantId: string, staffId: string, serviceId: 
     const { data: service } = await getSupabaseAdmin().from('services').select('name').eq('id', serviceId).single();
     const serviceName = service ? service.name : 'Service';
 
+    // 1. Final check for availability to prevent double booking
+    const freeBusyRes = await calendar.freebusy.query({
+      requestBody: {
+        timeMin: new Date(startTimeStr).toISOString(),
+        timeMax: new Date(endTimeStr).toISOString(),
+        timeZone: timezone,
+        items: [{ id: calendarId }],
+      },
+    });
+    
+    const busy = freeBusyRes.data.calendars?.[calendarId]?.busy;
+    if (busy && busy.length > 0) {
+      console.warn(`[Calendar] Double-booking prevented for ${calendarId} at ${startTimeStr}`);
+      return `Error: The requested time slot is no longer available. It was just booked by someone else.`;
+    }
+
+    // 2. Proceed with booking
     const event = {
       summary: `[StyleFlo] ${serviceName} with ${customerName}`,
       description: `Customer Email: ${customerEmail}\nCustomer Phone: ${customerPhone}\nBooked via StyleFlo AI.`,
