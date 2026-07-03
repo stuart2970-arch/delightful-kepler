@@ -5,7 +5,7 @@ import { createGoogleGenerativeAI } from '@ai-sdk/google';
 import { z } from 'zod';
 import formData from 'form-data';
 import Mailgun from 'mailgun.js';
-import { checkAvailability, bookMeeting } from './calendar';
+import { checkAvailability, bookMeeting, lookupAppointments } from './calendar';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -221,8 +221,9 @@ Guidelines:
 - CRITICAL SCHEDULING RULE 3: Once you have checked availability and the user agrees to a specific available slot, you MUST ask for BOTH their email address AND their mobile phone number before booking.
 - CRITICAL SCHEDULING RULE 4: Once you have both their email and mobile number, you MUST book it by responding with a polite message, and then append EXACTLY: [BOOK_MEETING: StaffID, ServiceID, CustomerName, CustomerEmail, CustomerPhone, StartTime, EndTime]. StartTime and EndTime must be precise ISO strings WITH the timezone offset.
 - CRITICAL SCHEDULING RULE 5: When presenting available time slots to the user, you MUST output them using EXACTLY this format on its own line: [TIME_SLOTS: {"YYYY-MM-DD":["HH:MM", "HH:MM"]}]. Do not use markdown tables or bullet points for times. Example: [TIME_SLOTS: {"2026-07-06":["09:00","13:00"],"2026-07-07":["09:00","10:00"]}].
+- CRITICAL SCHEDULING RULE 6: If the user asks to see their upcoming appointments, you MUST first politely ask them to confirm BOTH their email address AND their mobile phone number (for security reasons). Once you have both, reply with a polite message and append EXACTLY: [LOOKUP_APPOINTMENTS: CustomerEmail, CustomerPhone]. You are strictly forbidden from cancelling or modifying appointments; if they ask to cancel, tell them they must contact the business directly.
 - CRITICAL: You MUST use the exact UUID strings for StaffID and ServiceID from the JSON configurations. Do NOT use their names!
-- When outputting a secret tag like [CHECK_AVAILABILITY...] or [BOOK_MEETING...] or [TIME_SLOTS...], it MUST be the very last line of your response.
+- When outputting a secret tag like [CHECK_AVAILABILITY...] or [BOOK_MEETING...] or [TIME_SLOTS...] or [LOOKUP_APPOINTMENTS...], it MUST be the very last line of your response.
 
 Context:
 ${clientName ? `The customer's name is ${clientName}. Greet them by name if appropriate!` : ''}
@@ -411,6 +412,39 @@ ${staffContext}`;
               for await (const chunk of result2.textStream) {
                 controller.enqueue(encoder.encode(chunk));
               }
+            }
+          }
+
+          // --- LOOKUP APPOINTMENTS TOOL PASS ---
+          const lookupMatch = rawText.match(/\[LOOKUP_APPOINTMENTS:\s*(.+?),\s*(.+?)\]/);
+          if (lookupMatch) {
+            const custEmail = lookupMatch[1].trim().replace(/['"]/g, '');
+            const custPhone = lookupMatch[2].trim().replace(/['"]/g, '');
+            
+            const toolResult = await lookupAppointments(tenantId, custEmail, custPhone, timezone);
+            
+            const pass2Messages = [
+              ...formattedMessages,
+              { role: 'assistant', content: rawText },
+              { role: 'user', content: `[SYSTEM] Lookup Result:\n${toolResult}\nNow present this information naturally to the user.` }
+            ];
+            
+            const result2 = await streamText({
+              model: google('gemini-3.5-flash'),
+              system: systemPrompt,
+              messages: pass2Messages as any,
+              onFinish: async (event2) => {
+                await supabaseAdmin.from('messages').insert({
+                  tenant_id: tenantId,
+                  conversation_id: conversationId,
+                  sender_type: 'bot',
+                  text_content: event2.text,
+                });
+              }
+            });
+            
+            for await (const chunk of result2.textStream) {
+              controller.enqueue(encoder.encode(chunk));
             }
           }
         } catch (err: any) {

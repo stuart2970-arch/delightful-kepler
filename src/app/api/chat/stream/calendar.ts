@@ -314,3 +314,82 @@ export async function bookMeeting(tenantId: string, staffId: string, serviceId: 
     return `Failed to book meeting: ${error.message}`;
   }
 }
+
+/**
+ * Looks up future appointments for a customer, live-verifying against Google Calendar.
+ */
+export async function lookupAppointments(tenantId: string, customerEmail: string, customerPhone: string, timezone: string = 'Europe/London') {
+  try {
+    console.log(`[Calendar] Looking up appointments for ${customerEmail} / ${customerPhone}`);
+
+    // Fetch future appointments
+    const now = new Date().toISOString();
+    const { data: appointments, error } = await getSupabaseAdmin()
+      .from('appointments')
+      .select('*, staff(name, google_calendar_id), services(name)')
+      .eq('tenant_id', tenantId)
+      .ilike('customer_email', customerEmail.trim())
+      .gte('start_time', now)
+      .order('start_time', { ascending: true });
+
+    if (error) throw error;
+
+    if (!appointments || appointments.length === 0) {
+      return "No upcoming appointments found for this email address.";
+    }
+
+    const calendar = await getCalendarClient(tenantId);
+    const validAppointments = [];
+
+    for (const appt of appointments) {
+      let isCancelled = false;
+      let newStart = appt.start_time;
+
+      if (appt.google_event_id && appt.staff?.google_calendar_id) {
+        try {
+          // Live check Google Calendar
+          const event = await calendar.events.get({
+            calendarId: appt.staff.google_calendar_id,
+            eventId: appt.google_event_id
+          });
+
+          if (event.data.status === 'cancelled') {
+            isCancelled = true;
+          } else if (event.data.start?.dateTime) {
+             // Check if it was moved
+             const calStartTime = new Date(event.data.start.dateTime).toISOString();
+             if (calStartTime !== new Date(appt.start_time).toISOString()) {
+                 newStart = calStartTime;
+                 // Update DB lazily
+                 await getSupabaseAdmin().from('appointments').update({ start_time: calStartTime }).eq('id', appt.id);
+             }
+          }
+        } catch (calErr: any) {
+          if (calErr.code === 404 || calErr.status === 404) {
+            isCancelled = true;
+          } else {
+             console.error(`[Calendar] Failed to verify event ${appt.google_event_id}:`, calErr.message);
+          }
+        }
+      }
+
+      if (isCancelled) {
+        // Delete or mark cancelled in DB lazily
+        await getSupabaseAdmin().from('appointments').delete().eq('id', appt.id);
+        continue;
+      }
+
+      validAppointments.push(`- ${appt.services?.name} with ${appt.staff?.name} on ${new Date(newStart).toLocaleString('en-GB', { timeZone: timezone, dateStyle: 'full', timeStyle: 'short' })}`);
+    }
+
+    if (validAppointments.length === 0) {
+      return "No upcoming appointments found (any previously booked appointments have been cancelled).";
+    }
+
+    return `Found ${validAppointments.length} upcoming appointment(s):\n` + validAppointments.join('\n');
+
+  } catch (error: any) {
+    console.error('[Calendar] Error looking up appointments:', error);
+    return `Error: Failed to look up appointments.`;
+  }
+}

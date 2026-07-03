@@ -409,6 +409,7 @@
             .replace(/\[CHECK_AVAILABILITY:[\s\S]*?(?:\]|$)/g, '')
             .replace(/\[BOOK_MEETING:[\s\S]*?(?:\]|$)/g, '')
             .replace(/\[LEAD_CAPTURED:[\s\S]*?(?:\]|$)/g, '')
+            .replace(/\[LOOKUP_APPOINTMENTS:[\s\S]*?(?:\]|$)/g, '')
             .replace(/\[TIME_SLOTS:[\s\S]*?(?:\}\]|$)/g, '')
             // Replace bold **text**
             .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
