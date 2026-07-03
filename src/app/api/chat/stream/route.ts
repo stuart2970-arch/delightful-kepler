@@ -25,6 +25,7 @@ const ChatRequestSchema = z.object({
   message: z.string().min(1, { message: 'Message cannot be empty' }),
   chatbotId: z.string().regex(/^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/, { message: 'Invalid chatbot ID format' }),
   sessionId: z.string().min(1, { message: 'Session ID cannot be empty' }),
+  clientName: z.string().optional(),
 });
 
 // Initialize Supabase Admin Client using service role key (bypasses RLS for service logic)
@@ -77,8 +78,8 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: `Validation error: ${errorMsg}` }, { status: 200, headers: corsHeaders });
     }
 
-    const { message, chatbotId, sessionId } = validation.data;
-    console.log(`[Chat Stream][${requestId}] Chatbot ID: ${chatbotId}, Session ID: ${sessionId}`);
+    const { message, chatbotId, sessionId, clientName } = validation.data;
+    console.log(`[Chat Stream][${requestId}] Chatbot ID: ${chatbotId}, Session ID: ${sessionId}, Client: ${clientName || 'Unknown'}`);
 
     // 3. Resolve tenant_id from chatbotId (CRITICAL to prevent cross-tenant queries)
     const { data: chatbot, error: chatbotError } = await supabaseAdmin
@@ -219,10 +220,12 @@ Guidelines:
 - CRITICAL SCHEDULING RULE 2: Once you know the Staff ID and Service ID, you MUST check their availability. Reply with a polite conversational message to the user (e.g., "Let me check that for you!"), and then append EXACTLY: [CHECK_AVAILABILITY: StaffID, ServiceID, StartDate, EndDate]. StartDate and EndDate should be ISO strings WITH the ${timezone} timezone offset (e.g., +01:00 for BST). 
 - CRITICAL SCHEDULING RULE 3: Once you have checked availability and the user agrees to a specific available slot, you MUST ask for BOTH their email address AND their mobile phone number before booking.
 - CRITICAL SCHEDULING RULE 4: Once you have both their email and mobile number, you MUST book it by responding with a polite message, and then append EXACTLY: [BOOK_MEETING: StaffID, ServiceID, CustomerName, CustomerEmail, CustomerPhone, StartTime, EndTime]. StartTime and EndTime must be precise ISO strings WITH the timezone offset.
+- CRITICAL SCHEDULING RULE 5: When presenting available time slots to the user, you MUST output them using EXACTLY this format on its own line: [TIME_SLOTS: {"YYYY-MM-DD":["HH:MM", "HH:MM"]}]. Do not use markdown tables or bullet points for times. Example: [TIME_SLOTS: {"2026-07-06":["09:00","13:00"],"2026-07-07":["09:00","10:00"]}].
 - CRITICAL: You MUST use the exact UUID strings for StaffID and ServiceID from the JSON configurations. Do NOT use their names!
-- When outputting a secret tag like [CHECK_AVAILABILITY...] or [BOOK_MEETING...], it MUST be the very last line of your response.
+- When outputting a secret tag like [CHECK_AVAILABILITY...] or [BOOK_MEETING...] or [TIME_SLOTS...], it MUST be the very last line of your response.
 
 Context:
+${clientName ? `The customer's name is ${clientName}. Greet them by name if appropriate!` : ''}
 [INJECTED CHUNKS]
 ${contextText}
 

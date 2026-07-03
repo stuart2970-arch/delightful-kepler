@@ -613,6 +613,13 @@ export default function DashboardClient({
   }
 
   const handleDateChange = (dateStr: string) => {
+    const selectedDate = new Date(dateStr);
+    // Enforce Monday selection (getDay() === 1)
+    if (selectedDate.getDay() !== 1) {
+      alert('Please select a Monday for the week commencing date.');
+      return;
+    }
+    
     setNewStaffSchedule(prev => {
       const newWeeks = [...prev.weeks];
       newWeeks[activeWeekIndex] = { ...newWeeks[activeWeekIndex], weekCommencingDate: dateStr };
@@ -1282,33 +1289,47 @@ export default function DashboardClient({
                               {(['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'] as Array<keyof Omit<WeeklySchedule, 'weekCommencingDate'>>).map(day => {
                                 const currentDayData = newStaffSchedule.weeks[activeWeekIndex][day];
                                 const isUnavail = currentDayData.unavailable;
+                                
+                                // Calculate if this specific day is in the past
+                                const dayOffsets: Record<string, number> = { 'monday': 0, 'tuesday': 1, 'wednesday': 2, 'thursday': 3, 'friday': 4, 'saturday': 5, 'sunday': 6 };
+                                const currentDayDate = new Date(newStaffSchedule.weeks[activeWeekIndex].weekCommencingDate);
+                                currentDayDate.setDate(currentDayDate.getDate() + dayOffsets[day]);
+                                const today = new Date();
+                                today.setHours(0, 0, 0, 0);
+                                const isPast = currentDayDate < today;
+                                const isDisabled = isUnavail || isPast;
+
                                 return (
-                                  <tr key={day} className={`transition-colors ${isUnavail ? 'bg-gray-900/50' : 'hover:bg-gray-800/30'}`}>
-                                    <td className="p-3 text-sm font-medium text-gray-300 capitalize">{day.substring(0, 3)}</td>
+                                  <tr key={day} className={`transition-colors ${isUnavail || isPast ? 'bg-gray-900/50' : 'hover:bg-gray-800/30'}`}>
+                                    <td className="p-3 text-sm font-medium text-gray-300 capitalize">
+                                      {day.substring(0, 3)}
+                                      {isPast && <span className="block text-[9px] text-red-400 mt-0.5">Past</span>}
+                                    </td>
                                     
                                     <td className="p-3 text-center border-l border-gray-800">
                                       <input 
                                         type="checkbox" 
+                                        disabled={isPast}
                                         checked={isUnavail}
                                         onChange={e => handleUnavailableChange(day, e.target.checked)}
-                                        className="w-4 h-4 rounded bg-gray-900 border-gray-700 text-indigo-600 focus:ring-indigo-600 focus:ring-offset-gray-900"
+                                        className="w-4 h-4 rounded bg-gray-900 border-gray-700 text-indigo-600 focus:ring-indigo-600 focus:ring-offset-gray-900 disabled:opacity-30"
                                       />
                                     </td>
                                     
                                     {/* AM Shift */}
                                     <td className="p-2 border-l border-gray-800 text-center">
-                                      <input type="time" disabled={isUnavail} value={currentDayData.am?.start || ''} onChange={e => handleScheduleChange(day, 'am', 'start', e.target.value)} className="bg-gray-950 disabled:opacity-30 border border-gray-700 rounded px-2 py-1 text-xs text-white w-24 focus:border-indigo-500 outline-none" />
+                                      <input type="time" disabled={isDisabled} value={currentDayData.am?.start || ''} onChange={e => handleScheduleChange(day, 'am', 'start', e.target.value)} className="bg-gray-950 disabled:opacity-30 border border-gray-700 rounded px-2 py-1 text-xs text-white w-24 focus:border-indigo-500 outline-none" />
                                     </td>
                                     <td className="p-2 text-center">
-                                      <input type="time" disabled={isUnavail} value={currentDayData.am?.end || ''} onChange={e => handleScheduleChange(day, 'am', 'end', e.target.value)} className="bg-gray-950 disabled:opacity-30 border border-gray-700 rounded px-2 py-1 text-xs text-white w-24 focus:border-indigo-500 outline-none" />
+                                      <input type="time" disabled={isDisabled} value={currentDayData.am?.end || ''} onChange={e => handleScheduleChange(day, 'am', 'end', e.target.value)} className="bg-gray-950 disabled:opacity-30 border border-gray-700 rounded px-2 py-1 text-xs text-white w-24 focus:border-indigo-500 outline-none" />
                                     </td>
                                     
                                     {/* PM Shift */}
                                     <td className="p-2 border-l border-gray-800 text-center">
-                                      <input type="time" disabled={isUnavail} value={currentDayData.pm?.start || ''} onChange={e => handleScheduleChange(day, 'pm', 'start', e.target.value)} className="bg-gray-950 disabled:opacity-30 border border-gray-700 rounded px-2 py-1 text-xs text-white w-24 focus:border-indigo-500 outline-none" />
+                                      <input type="time" disabled={isDisabled} value={currentDayData.pm?.start || ''} onChange={e => handleScheduleChange(day, 'pm', 'start', e.target.value)} className="bg-gray-950 disabled:opacity-30 border border-gray-700 rounded px-2 py-1 text-xs text-white w-24 focus:border-indigo-500 outline-none" />
                                     </td>
                                     <td className="p-2 text-center">
-                                      <input type="time" disabled={isUnavail} value={currentDayData.pm?.end || ''} onChange={e => handleScheduleChange(day, 'pm', 'end', e.target.value)} className="bg-gray-950 disabled:opacity-30 border border-gray-700 rounded px-2 py-1 text-xs text-white w-24 focus:border-indigo-500 outline-none" />
+                                      <input type="time" disabled={isDisabled} value={currentDayData.pm?.end || ''} onChange={e => handleScheduleChange(day, 'pm', 'end', e.target.value)} className="bg-gray-950 disabled:opacity-30 border border-gray-700 rounded px-2 py-1 text-xs text-white w-24 focus:border-indigo-500 outline-none" />
                                     </td>
                                   </tr>
                                 );

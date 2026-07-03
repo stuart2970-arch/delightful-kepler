@@ -178,6 +178,21 @@
         </button>
       </div>
 
+      <!-- Onboarding Area -->
+      <div id="styleflo-onboarding" class="flex-1 flex flex-col items-center justify-center p-6 bg-gray-50 text-center" style="display: none;">
+        <div class="w-16 h-16 rounded-full flex items-center justify-center mb-4 text-white shadow-lg" style="background-color: ${primaryColor};">
+          <svg class="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14.828 14.828a4 4 0 01-5.656 0M9 10h.01M15 10h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+          </svg>
+        </div>
+        <h4 class="font-bold text-gray-800 text-lg mb-2">Welcome!</h4>
+        <p class="text-gray-500 text-sm mb-6">Please enter your name so we know who we are chatting with.</p>
+        <form id="styleflo-onboarding-form" class="w-full">
+          <input type="text" id="styleflo-onboarding-name" required placeholder="Your full name" class="w-full px-4 py-3 mb-3 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:border-transparent transition-all" style="--tw-ring-color: ${primaryColor};" />
+          <button type="submit" class="w-full py-3 rounded-xl text-white font-semibold shadow-md transition-opacity hover:opacity-95" style="background-color: ${primaryColor};">Start Chatting</button>
+        </form>
+      </div>
+
       <!-- Messages Area -->
       <div id="styleflo-messages" class="flex-1 min-h-0 overflow-y-auto overscroll-y-contain p-4 space-y-4 bg-gray-50 styleflo-scrollbar">
         <!-- Welcome Message -->
@@ -224,6 +239,30 @@
     const closeBtn = shadowRoot.getElementById('styleflo-close-btn') as HTMLButtonElement;
     const chatIcon = shadowRoot.getElementById('styleflo-icon-chat') as HTMLElement;
     const closeIcon = shadowRoot.getElementById('styleflo-icon-close') as HTMLElement;
+    const onboardingContainer = shadowRoot.getElementById('styleflo-onboarding') as HTMLDivElement;
+    const onboardingForm = shadowRoot.getElementById('styleflo-onboarding-form') as HTMLFormElement;
+    const onboardingName = shadowRoot.getElementById('styleflo-onboarding-name') as HTMLInputElement;
+
+    // Check for existing name in localStorage
+    let storedName = localStorage.getItem('styleflo-client-name');
+    if (!storedName) {
+      messagesContainer.style.display = 'none';
+      chatForm.style.display = 'none';
+      onboardingContainer.style.display = 'flex';
+    }
+
+    onboardingForm.addEventListener('submit', (e) => {
+      e.preventDefault();
+      const name = onboardingName.value.trim();
+      if (name) {
+        localStorage.setItem('styleflo-client-name', name);
+        storedName = name;
+        onboardingContainer.style.display = 'none';
+        messagesContainer.style.display = 'flex';
+        chatForm.style.display = 'flex';
+        inputField.focus();
+      }
+    });
 
     let isOpen = false;
 
@@ -334,6 +373,7 @@
             message: messageText,
             chatbotId: chatbotId,
             sessionId: sessionId,
+            clientName: storedName,
           }),
         });
 
@@ -369,6 +409,7 @@
             .replace(/\[CHECK_AVAILABILITY:.*?\]/g, '')
             .replace(/\[BOOK_MEETING:.*?\]/g, '')
             .replace(/\[LEAD_CAPTURED:.*?\]/g, '')
+            .replace(/\[TIME_SLOTS:.*?\]/g, '')
             // Replace bold **text**
             .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
             // Replace markdown links with formatted inline links
@@ -449,6 +490,69 @@
             cardContainer.remove();
           }
           scrollToBottom();
+        }
+
+        // 7. Parse [TIME_SLOTS: ...] if present
+        const timeSlotRegex = /\[TIME_SLOTS:\s*({.*?})\]/;
+        const timeSlotMatch = rawText.match(timeSlotRegex);
+        if (timeSlotMatch && timeSlotMatch[1]) {
+          try {
+            const timeSlotsJSON = JSON.parse(timeSlotMatch[1]);
+            const gridContainer = document.createElement('div');
+            gridContainer.className = 'mt-3 w-full';
+            
+            let gridHtml = '';
+            for (const [dateStr, times] of Object.entries(timeSlotsJSON)) {
+              if (Array.isArray(times) && times.length > 0) {
+                const d = new Date(dateStr);
+                const displayDate = isNaN(d.getTime()) ? dateStr : d.toLocaleDateString('en-GB', { weekday: 'short', month: 'short', day: 'numeric' });
+                
+                gridHtml += `
+                  <div class="mb-3">
+                    <div class="text-[11px] font-bold text-gray-400 uppercase tracking-wider mb-2 ml-1">${displayDate}</div>
+                    <div class="flex flex-wrap gap-2">
+                      ${times.map(t => `<button type="button" class="styleflo-time-btn px-3 py-1.5 rounded-lg border border-gray-200 text-xs font-bold text-gray-700 hover:text-white transition-colors bg-white shadow-sm" data-time="${t}" data-date="${dateStr}">${t}</button>`).join('')}
+                    </div>
+                  </div>
+                `;
+              }
+            }
+            gridContainer.innerHTML = gridHtml;
+            botResponseContainer.appendChild(gridContainer);
+            
+            // Add event listeners to the generated buttons
+            const btns = gridContainer.querySelectorAll('.styleflo-time-btn');
+            btns.forEach((btn: Element) => {
+              const htmlBtn = btn as HTMLButtonElement;
+              htmlBtn.addEventListener('click', (e) => {
+                const target = e.currentTarget as HTMLButtonElement;
+                const date = target.getAttribute('data-date');
+                const time = target.getAttribute('data-time');
+                
+                target.style.backgroundColor = primaryColor;
+                target.style.color = 'white';
+                target.style.borderColor = primaryColor;
+                
+                inputField.value = `I would like to book ${date} at ${time}`;
+                chatForm.dispatchEvent(new Event('submit'));
+              });
+              
+              htmlBtn.addEventListener('mouseenter', () => {
+                htmlBtn.style.backgroundColor = primaryColor;
+                htmlBtn.style.borderColor = primaryColor;
+                htmlBtn.style.color = 'white';
+              });
+              htmlBtn.addEventListener('mouseleave', () => {
+                htmlBtn.style.backgroundColor = 'white';
+                htmlBtn.style.borderColor = '#e5e7eb';
+                htmlBtn.style.color = '#374151';
+              });
+            });
+            
+            scrollToBottom();
+          } catch (e) {
+            console.error('[StyleFlo Widget] Failed to parse TIME_SLOTS', e);
+          }
         }
 
       } catch (err: any) {

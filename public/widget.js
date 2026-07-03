@@ -1,4 +1,4 @@
-"use strict";(()=>{(function(){let I=document.currentScript;if(!I){console.error("[StyleFlo Widget] Current script context not found.");return}let m=I.getAttribute("data-bot-id");if(!m){console.error('[StyleFlo Widget] Missing required "data-bot-id" attribute on script tag.');return}let c=new URL(I.src).origin,z=`styleflo_session_${m}`,x=localStorage.getItem(z);x||(x="session_"+crypto.randomUUID(),localStorage.setItem(z,x));let p=document.createElement("div");p.id="styleflo-chat-widget",p.style.position="fixed",p.style.bottom="0",p.style.right="0",p.style.zIndex="999999",document.body.appendChild(p);let i=p.attachShadow({mode:"open"}),L=document.createElement("link");L.rel="stylesheet",L.href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css",i.appendChild(L);let j=document.createElement("style");j.textContent=`
+"use strict";(()=>{(function(){let B=document.currentScript;if(!B){console.error("[StyleFlo Widget] Current script context not found.");return}let w=B.getAttribute("data-bot-id");if(!w){console.error('[StyleFlo Widget] Missing required "data-bot-id" attribute on script tag.');return}let m=new URL(B.src).origin,U=`styleflo_session_${w}`,C=localStorage.getItem(U);C||(C="session_"+crypto.randomUUID(),localStorage.setItem(U,C));let u=document.createElement("div");u.id="styleflo-chat-widget",u.style.position="fixed",u.style.bottom="0",u.style.right="0",u.style.zIndex="999999",document.body.appendChild(u);let a=u.attachShadow({mode:"open"}),N=document.createElement("link");N.rel="stylesheet",N.href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css",a.appendChild(N);let O=document.createElement("style");O.textContent=`
     @keyframes styleflo-bounce {
       0%, 100% { transform: translateY(0); }
       50% { transform: translateY(-4px); }
@@ -59,7 +59,7 @@
     .styleflo-animate-pulse {
       animation: styleflo-pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
     }
-  `,i.appendChild(j);let w=document.createElement("div");w.className="font-sans",i.appendChild(w);let g="#4F46E5",N="AI Assistant",D="AI Assistant",F="AI Support Agent",f="/avatars/avatar1.png",U="Hello! How can I help you today?",E='<span style="opacity: 0.6; font-size: 11px;">\u26A1 Powered by <strong>StyleFlo</strong></span>';async function R(){try{let n=await fetch(`${c}/api/chatbots/${m}`);if(n.ok){let e=await n.json();e.name&&(N=e.name),e.primaryColor&&(g=e.primaryColor),D=e.agentName||N,F=e.agentRole||"AI Support Agent",f=e.agentAvatarUrl||"/avatars/avatar1.png",U=e.welcomeMessage||"Hello! How can I help you today?",E=e.brandingHtml||E}}catch(n){console.warn("[StyleFlo Widget] Failed to fetch chatbot config, using defaults:",n)}W()}function W(){let n=document.createElement("button");n.className="fixed bottom-5 right-5 w-14 h-14 rounded-full shadow-2xl flex items-center justify-center cursor-pointer transition-all duration-300 hover:scale-110 focus:outline-none z-50",n.style.backgroundColor=g,n.innerHTML=`
+  `,a.appendChild(O);let E=document.createElement("div");E.className="font-sans",a.appendChild(E);let s="#4F46E5",P="AI Assistant",R="AI Assistant",W="AI Support Agent",v="/avatars/avatar1.png",q="Hello! How can I help you today?",j='<span style="opacity: 0.6; font-size: 11px;">\u26A1 Powered by <strong>StyleFlo</strong></span>';async function K(){try{let c=await fetch(`${m}/api/chatbots/${w}`);if(c.ok){let t=await c.json();t.name&&(P=t.name),t.primaryColor&&(s=t.primaryColor),R=t.agentName||P,W=t.agentRole||"AI Support Agent",v=t.agentAvatarUrl||"/avatars/avatar1.png",q=t.welcomeMessage||"Hello! How can I help you today?",j=t.brandingHtml||j}}catch(c){console.warn("[StyleFlo Widget] Failed to fetch chatbot config, using defaults:",c)}V()}function V(){let c=document.createElement("button");c.className="fixed bottom-5 right-5 w-14 h-14 rounded-full shadow-2xl flex items-center justify-center cursor-pointer transition-all duration-300 hover:scale-110 focus:outline-none z-50",c.style.backgroundColor=s,c.innerHTML=`
       <!-- Chat Icon -->
       <svg id="styleflo-icon-chat" class="w-6 h-6 text-white transition-all duration-300 transform scale-100" fill="none" stroke="currentColor" viewBox="0 0 24 24">
         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"></path>
@@ -68,14 +68,14 @@
       <svg id="styleflo-icon-close" class="w-6 h-6 text-white absolute transition-all duration-300 transform scale-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M6 18L18 6M6 6l12 12"></path>
       </svg>
-    `,w.appendChild(n);let e=document.createElement("div");e.className="fixed z-50 flex flex-col bg-white overflow-hidden transition-all duration-300 transform scale-90 opacity-0 pointer-events-none origin-bottom-right bottom-20 right-5 rounded-2xl border border-gray-100 shadow-2xl styleflo-chat-window",e.innerHTML=`
+    `,E.appendChild(c);let t=document.createElement("div");t.className="fixed z-50 flex flex-col bg-white overflow-hidden transition-all duration-300 transform scale-90 opacity-0 pointer-events-none origin-bottom-right bottom-20 right-5 rounded-2xl border border-gray-100 shadow-2xl styleflo-chat-window",t.innerHTML=`
       <!-- Header -->
-      <div class="p-4 text-white flex items-center justify-between shadow-md shrink-0 z-10" style="background-color: ${g};">
+      <div class="p-4 text-white flex items-center justify-between shadow-md shrink-0 z-10" style="background-color: ${s};">
         <div class="flex items-center gap-3">
-          <img src="${c}${f}" alt="Agent Avatar" class="w-10 h-10 rounded-full border border-white/20 bg-white/10 object-cover" />
+          <img src="${m}${v}" alt="Agent Avatar" class="w-10 h-10 rounded-full border border-white/20 bg-white/10 object-cover" />
           <div>
-            <h3 class="font-bold styleflo-text-17 leading-tight">${D}</h3>
-            <p class="styleflo-text-11 opacity-75 mt-0.5">${F}</p>
+            <h3 class="font-bold styleflo-text-17 leading-tight">${R}</h3>
+            <p class="styleflo-text-11 opacity-75 mt-0.5">${W}</p>
           </div>
         </div>
         <button id="styleflo-close-btn" class="text-white opacity-80 hover:opacity-100 focus:outline-none transition-opacity">
@@ -85,13 +85,28 @@
         </button>
       </div>
 
+      <!-- Onboarding Area -->
+      <div id="styleflo-onboarding" class="flex-1 flex flex-col items-center justify-center p-6 bg-gray-50 text-center" style="display: none;">
+        <div class="w-16 h-16 rounded-full flex items-center justify-center mb-4 text-white shadow-lg" style="background-color: ${s};">
+          <svg class="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14.828 14.828a4 4 0 01-5.656 0M9 10h.01M15 10h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+          </svg>
+        </div>
+        <h4 class="font-bold text-gray-800 text-lg mb-2">Welcome!</h4>
+        <p class="text-gray-500 text-sm mb-6">Please enter your name so we know who we are chatting with.</p>
+        <form id="styleflo-onboarding-form" class="w-full">
+          <input type="text" id="styleflo-onboarding-name" required placeholder="Your full name" class="w-full px-4 py-3 mb-3 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:border-transparent transition-all" style="--tw-ring-color: ${s};" />
+          <button type="submit" class="w-full py-3 rounded-xl text-white font-semibold shadow-md transition-opacity hover:opacity-95" style="background-color: ${s};">Start Chatting</button>
+        </form>
+      </div>
+
       <!-- Messages Area -->
       <div id="styleflo-messages" class="flex-1 min-h-0 overflow-y-auto overscroll-y-contain p-4 space-y-4 bg-gray-50 styleflo-scrollbar">
         <!-- Welcome Message -->
         <div class="flex items-start gap-2.5">
-          <img src="${c}${f}" alt="Agent Avatar" class="w-7 h-7 rounded-full object-cover bg-white border border-gray-100" />
+          <img src="${m}${v}" alt="Agent Avatar" class="w-7 h-7 rounded-full object-cover bg-white border border-gray-100" />
           <div class="p-3 bg-white border border-gray-100 text-gray-800 rounded-2xl rounded-tl-none styleflo-text-15 styleflo-mw-75 shadow-sm leading-relaxed">
-            ${U}
+            ${q}
           </div>
         </div>
       </div>
@@ -103,13 +118,13 @@
           type="text" 
           placeholder="Type your message..." 
           class="flex-1 px-3 py-2 styleflo-text-15 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:border-transparent transition-all"
-          style="--tw-ring-color: ${g};"
+          style="--tw-ring-color: ${s};"
           autocomplete="off"
         />
         <button 
           type="submit" 
           class="p-2 rounded-xl text-white hover:opacity-95 focus:outline-none transition-opacity" 
-          style="background-color: ${g};"
+          style="background-color: ${s};"
         >
           <svg class="w-4 h-4 transform rotate-90" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8"></path>
@@ -118,36 +133,43 @@
       </form>
 
       <!-- Branding Footer -->
-      <a href="${c}/api/track?ref=${m}&source=${encodeURIComponent(window.location.hostname)}" target="_blank" rel="noopener noreferrer" class="w-full bg-gray-50 text-center py-1.5 border-t border-gray-100 block hover:bg-gray-100 transition-colors cursor-pointer text-gray-500 flex items-center justify-center">
-        ${E}
+      <a href="${m}/api/track?ref=${w}&source=${encodeURIComponent(window.location.hostname)}" target="_blank" rel="noopener noreferrer" class="w-full bg-gray-50 text-center py-1.5 border-t border-gray-100 block hover:bg-gray-100 transition-colors cursor-pointer text-gray-500 flex items-center justify-center">
+        ${j}
       </a>
-    `,w.appendChild(e);let v=i.getElementById("styleflo-messages"),O=i.getElementById("styleflo-chat-form"),T=i.getElementById("styleflo-input"),K=i.getElementById("styleflo-close-btn"),k=i.getElementById("styleflo-icon-chat"),C=i.getElementById("styleflo-icon-close"),M=!1;function _(){M=!M,M?(e.classList.remove("scale-90","opacity-0","pointer-events-none"),e.classList.add("scale-100","opacity-100","pointer-events-auto"),k.classList.remove("scale-100"),k.classList.add("scale-0"),C.classList.remove("scale-0"),C.classList.add("scale-100"),T.focus()):(e.classList.remove("scale-100","opacity-100","pointer-events-auto"),e.classList.add("scale-90","opacity-0","pointer-events-none"),k.classList.remove("scale-0"),k.classList.add("scale-100"),C.classList.remove("scale-100"),C.classList.add("scale-0"))}n.addEventListener("click",_),K.addEventListener("click",_);function y(){v.scrollTop=v.scrollHeight}function $(o,h=""){let d=document.createElement("div");if(d.className=o==="user"?"flex justify-end":"flex items-start gap-2.5 w-full",o==="bot"){let r=document.createElement("img");r.src=`${c}${f}`,r.alt="Agent Avatar",r.className="w-7 h-7 rounded-full object-cover bg-white border border-gray-100 flex-shrink-0",d.appendChild(r)}let t=document.createElement("div");if(t.className=o==="user"?"p-3 text-white rounded-2xl rounded-tr-none styleflo-text-15 styleflo-mw-85 shadow-sm leading-relaxed":"p-3 bg-white border border-gray-100 text-gray-800 rounded-2xl rounded-tl-none styleflo-text-15 shadow-sm leading-relaxed w-full",o==="user")t.style.backgroundColor=g,t.textContent=h,d.appendChild(t);else{let r=document.createElement("div");r.className="flex flex-col min-w-0 styleflo-mw-75",t.textContent=h,r.appendChild(t),d.appendChild(r)}return v.appendChild(d),y(),t}function Y(){let o=document.createElement("div");return o.id="styleflo-typing-indicator",o.className="flex items-start gap-2.5",o.innerHTML=`
-        <img src="${c}${f}" alt="Agent Avatar" class="w-7 h-7 rounded-full object-cover bg-white border border-gray-100 flex-shrink-0" />
+    `,E.appendChild(t);let b=a.getElementById("styleflo-messages"),L=a.getElementById("styleflo-chat-form"),k=a.getElementById("styleflo-input"),Q=a.getElementById("styleflo-close-btn"),$=a.getElementById("styleflo-icon-chat"),I=a.getElementById("styleflo-icon-close"),Y=a.getElementById("styleflo-onboarding"),X=a.getElementById("styleflo-onboarding-form"),Z=a.getElementById("styleflo-onboarding-name"),D=localStorage.getItem("styleflo-client-name");D||(b.style.display="none",L.style.display="none",Y.style.display="flex"),X.addEventListener("submit",l=>{l.preventDefault();let d=Z.value.trim();d&&(localStorage.setItem("styleflo-client-name",d),D=d,Y.style.display="none",b.style.display="flex",L.style.display="flex",k.focus())});let z=!1;function G(){z=!z,z?(t.classList.remove("scale-90","opacity-0","pointer-events-none"),t.classList.add("scale-100","opacity-100","pointer-events-auto"),$.classList.remove("scale-100"),$.classList.add("scale-0"),I.classList.remove("scale-0"),I.classList.add("scale-100"),k.focus()):(t.classList.remove("scale-100","opacity-100","pointer-events-auto"),t.classList.add("scale-90","opacity-0","pointer-events-none"),$.classList.remove("scale-0"),$.classList.add("scale-100"),I.classList.remove("scale-100"),I.classList.add("scale-0"))}c.addEventListener("click",G),Q.addEventListener("click",G);function x(){b.scrollTop=b.scrollHeight}function T(l,d=""){let g=document.createElement("div");if(g.className=l==="user"?"flex justify-end":"flex items-start gap-2.5 w-full",l==="bot"){let i=document.createElement("img");i.src=`${m}${v}`,i.alt="Agent Avatar",i.className="w-7 h-7 rounded-full object-cover bg-white border border-gray-100 flex-shrink-0",g.appendChild(i)}let n=document.createElement("div");if(n.className=l==="user"?"p-3 text-white rounded-2xl rounded-tr-none styleflo-text-15 styleflo-mw-85 shadow-sm leading-relaxed":"p-3 bg-white border border-gray-100 text-gray-800 rounded-2xl rounded-tl-none styleflo-text-15 shadow-sm leading-relaxed w-full",l==="user")n.style.backgroundColor=s,n.textContent=d,g.appendChild(n);else{let i=document.createElement("div");i.className="flex flex-col min-w-0 styleflo-mw-75",n.textContent=d,i.appendChild(n),g.appendChild(i)}return b.appendChild(g),x(),n}function ee(){let l=document.createElement("div");return l.id="styleflo-typing-indicator",l.className="flex items-start gap-2.5",l.innerHTML=`
+        <img src="${m}${v}" alt="Agent Avatar" class="w-7 h-7 rounded-full object-cover bg-white border border-gray-100 flex-shrink-0" />
         <div class="flex items-center gap-1.5 p-3.5 bg-white border border-gray-100 rounded-2xl rounded-tl-none shadow-sm">
           <div class="styleflo-dot"></div>
           <div class="styleflo-dot"></div>
           <div class="styleflo-dot"></div>
         </div>
-      `,v.appendChild(o),y(),o}O.addEventListener("submit",async o=>{o.preventDefault();let h=T.value.trim();if(!h)return;$("user",h),T.value="";let d=Y();try{let t=await fetch(`${c}/api/chat/stream`,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({message:h,chatbotId:m,sessionId:x})});if(d.remove(),!t.ok)throw new Error(`Server returned HTTP ${t.status}`);let r=t.body?.getReader(),q=new TextDecoder;if(!r){$("bot","Sorry, I am unable to process that message right now.");return}let A=$("bot",""),H="";for(;;){let{done:l,value:s}=await r.read();if(l)break;let b=q.decode(s,{stream:!0});H+=b;let u=H.replace(/\[CHECK_AVAILABILITY:.*?\]/g,"").replace(/\[BOOK_MEETING:.*?\]/g,"").replace(/\[LEAD_CAPTURED:.*?\]/g,"").replace(/\*\*(.*?)\*\*/g,"<strong>$1</strong>").replace(/\[([^\]]+)\]\((https?:\/\/[^)]+)\)/g,'<a href="$2" target="_blank" class="font-semibold text-indigo-600 hover:underline" style="color: ${primaryColor}; text-decoration: underline;">$1</a>').replace(/\n/g,"<br/>");A.innerHTML=u,y()}let G=/\[([^\]]+)\]\((https?:\/\/[^)]+)\)/g,P,B=[];for(;(P=G.exec(H))!==null;){let l=P[2];(l.includes("/products/")||l.includes("/product/")||l.includes("/shop/"))&&!B.includes(l)&&B.push(l)}for(let l of B){let s=document.createElement("div");s.className="my-2 p-3 bg-gray-50 border border-gray-100 rounded-2xl flex items-center gap-3 styleflo-animate-pulse",s.innerHTML=`
+      `,b.appendChild(l),x(),l}L.addEventListener("submit",async l=>{l.preventDefault();let d=k.value.trim();if(!d)return;T("user",d),k.value="";let g=ee();try{let n=await fetch(`${m}/api/chat/stream`,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({message:d,chatbotId:w,sessionId:C,clientName:D})});if(g.remove(),!n.ok)throw new Error(`Server returned HTTP ${n.status}`);let i=n.body?.getReader(),te=new TextDecoder;if(!i){T("bot","Sorry, I am unable to process that message right now.");return}let M=T("bot",""),S="";for(;;){let{done:r,value:o}=await i.read();if(r)break;let y=te.decode(o,{stream:!0});S+=y;let f=S.replace(/\[CHECK_AVAILABILITY:.*?\]/g,"").replace(/\[BOOK_MEETING:.*?\]/g,"").replace(/\[LEAD_CAPTURED:.*?\]/g,"").replace(/\[TIME_SLOTS:.*?\]/g,"").replace(/\*\*(.*?)\*\*/g,"<strong>$1</strong>").replace(/\[([^\]]+)\]\((https?:\/\/[^)]+)\)/g,'<a href="$2" target="_blank" class="font-semibold text-indigo-600 hover:underline" style="color: ${primaryColor}; text-decoration: underline;">$1</a>').replace(/\n/g,"<br/>");M.innerHTML=f,x()}let oe=/\[([^\]]+)\]\((https?:\/\/[^)]+)\)/g,J,F=[];for(;(J=oe.exec(S))!==null;){let r=J[2];(r.includes("/products/")||r.includes("/product/")||r.includes("/shop/"))&&!F.includes(r)&&F.push(r)}for(let r of F){let o=document.createElement("div");o.className="my-2 p-3 bg-gray-50 border border-gray-100 rounded-2xl flex items-center gap-3 styleflo-animate-pulse",o.innerHTML=`
             <div class="w-12 h-12 bg-gray-200 rounded-xl flex-shrink-0" style="width: 48px; height: 48px;"></div>
             <div class="flex-1 space-y-2">
               <div class="h-3 bg-gray-200 rounded w-3/4" style="height: 12px;"></div>
               <div class="h-2.5 bg-gray-200 rounded w-1/2" style="height: 10px;"></div>
             </div>
-          `;let b=A.querySelector(`a[href="${l}"]`);b?b.parentNode?.insertBefore(s,b.nextSibling):A.appendChild(s),y();try{let u=await fetch(`${c}/api/products/metadata?url=${encodeURIComponent(l)}`);if(u.ok){let S=await u.json();if(S.success&&S.metadata){let a=S.metadata;s.className="my-2 p-3 bg-gray-50 border border-gray-100 rounded-2xl flex items-center gap-3 transition-all duration-300 hover:shadow-md",s.innerHTML=`
-                  ${a.image_url?`
-                    <img src="${a.image_url}" alt="${a.title||"Product Image"}" class="w-12 h-12 object-cover rounded-xl border border-gray-100 bg-white flex-shrink-0" style="width: 48px; height: 48px;" />
+          `;let y=M.querySelector(`a[href="${r}"]`);y?y.parentNode?.insertBefore(o,y.nextSibling):M.appendChild(o),x();try{let f=await fetch(`${m}/api/products/metadata?url=${encodeURIComponent(r)}`);if(f.ok){let p=await f.json();if(p.success&&p.metadata){let e=p.metadata;o.className="my-2 p-3 bg-gray-50 border border-gray-100 rounded-2xl flex items-center gap-3 transition-all duration-300 hover:shadow-md",o.innerHTML=`
+                  ${e.image_url?`
+                    <img src="${e.image_url}" alt="${e.title||"Product Image"}" class="w-12 h-12 object-cover rounded-xl border border-gray-100 bg-white flex-shrink-0" style="width: 48px; height: 48px;" />
                   `:`
                     <div class="w-12 h-12 bg-gray-100 rounded-xl flex items-center justify-center flex-shrink-0 border border-gray-100 text-gray-400" style="width: 48px; height: 48px;">\u{1F6CD}\uFE0F</div>
                   `}
                   <div class="flex-1 min-w-0">
-                    <h4 class="font-bold text-xs text-gray-800 truncate leading-tight" style="margin: 0; font-size: 12px;">${a.title||"Product Details"}</h4>
-                    <p class="text-[10px] text-gray-400 mt-1 leading-normal capitalize" style="margin: 4px 0 0 0; font-size: 10px;">${a.site_name||"Store"}</p>
-                    ${a.price?`
-                      <p class="text-xs font-semibold text-gray-900 mt-1" style="margin: 4px 0 0 0; font-size: 11px; font-weight: 600;">${a.currency==="GBP"||a.currency==="\xA3"?"\xA3":a.currency||"$"}${a.price}</p>
+                    <h4 class="font-bold text-xs text-gray-800 truncate leading-tight" style="margin: 0; font-size: 12px;">${e.title||"Product Details"}</h4>
+                    <p class="text-[10px] text-gray-400 mt-1 leading-normal capitalize" style="margin: 4px 0 0 0; font-size: 10px;">${e.site_name||"Store"}</p>
+                    ${e.price?`
+                      <p class="text-xs font-semibold text-gray-900 mt-1" style="margin: 4px 0 0 0; font-size: 11px; font-weight: 600;">${e.currency==="GBP"||e.currency==="\xA3"?"\xA3":e.currency||"$"}${e.price}</p>
                     `:""}
                   </div>
-                  <a href="${l}" target="_blank" class="px-3.5 py-1.5 rounded-xl text-[10px] font-bold text-white transition-opacity flex-shrink-0" style="background-color: ${g}; font-size: 10px; font-weight: 700; padding: 6px 12px; border-radius: 8px; text-decoration: none; display: inline-block;">
+                  <a href="${r}" target="_blank" class="px-3.5 py-1.5 rounded-xl text-[10px] font-bold text-white transition-opacity flex-shrink-0" style="background-color: ${s}; font-size: 10px; font-weight: 700; padding: 6px 12px; border-radius: 8px; text-decoration: none; display: inline-block;">
                     Buy Now
                   </a>
-                `}else s.remove()}else s.remove()}catch(u){console.warn("[Widget] Failed to fetch product card details:",u),s.remove()}y()}}catch(t){console.error("[StyleFlo Widget] Chat Stream fetch error:",t),d.remove(),$("bot","An error occurred. Please try again or refresh the page.")}})}R()})();})();
+                `}else o.remove()}else o.remove()}catch(f){console.warn("[Widget] Failed to fetch product card details:",f),o.remove()}x()}let re=/\[TIME_SLOTS:\s*({.*?})\]/,_=S.match(re);if(_&&_[1])try{let r=JSON.parse(_[1]),o=document.createElement("div");o.className="mt-3 w-full";let y="";for(let[p,e]of Object.entries(r))if(Array.isArray(e)&&e.length>0){let A=new Date(p),h=isNaN(A.getTime())?p:A.toLocaleDateString("en-GB",{weekday:"short",month:"short",day:"numeric"});y+=`
+                  <div class="mb-3">
+                    <div class="text-[11px] font-bold text-gray-400 uppercase tracking-wider mb-2 ml-1">${h}</div>
+                    <div class="flex flex-wrap gap-2">
+                      ${e.map(H=>`<button type="button" class="styleflo-time-btn px-3 py-1.5 rounded-lg border border-gray-200 text-xs font-bold text-gray-700 hover:text-white transition-colors bg-white shadow-sm" data-time="${H}" data-date="${p}">${H}</button>`).join("")}
+                    </div>
+                  </div>
+                `}o.innerHTML=y,M.appendChild(o),o.querySelectorAll(".styleflo-time-btn").forEach(p=>{let e=p;e.addEventListener("click",A=>{let h=A.currentTarget,H=h.getAttribute("data-date"),se=h.getAttribute("data-time");h.style.backgroundColor=s,h.style.color="white",h.style.borderColor=s,k.value=`I would like to book ${H} at ${se}`,L.dispatchEvent(new Event("submit"))}),e.addEventListener("mouseenter",()=>{e.style.backgroundColor=s,e.style.borderColor=s,e.style.color="white"}),e.addEventListener("mouseleave",()=>{e.style.backgroundColor="white",e.style.borderColor="#e5e7eb",e.style.color="#374151"})}),x()}catch(r){console.error("[StyleFlo Widget] Failed to parse TIME_SLOTS",r)}}catch(n){console.error("[StyleFlo Widget] Chat Stream fetch error:",n),g.remove(),T("bot","An error occurred. Please try again or refresh the page.")}})}K()})();})();
