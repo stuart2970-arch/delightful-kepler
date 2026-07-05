@@ -97,6 +97,7 @@ export default function DashboardClient({
   const [conversationMessages, setConversationMessages] = useState<Message[]>([]);
   const [isFetchingMessages, setIsFetchingMessages] = useState(false);
   const [convPage, setConvPage] = useState(0);
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [activeTab, setActiveTab] = useState<'chatbots' | 'crawler' | 'conversations' | 'scheduling' | 'integrations' | 'settings'>('chatbots');
 
   // Global settings state
@@ -861,12 +862,26 @@ export default function DashboardClient({
 
   return (
     <div className="flex h-screen bg-[#09090b] text-gray-100 overflow-hidden font-sans">
+      
+      {/* Mobile Menu Backdrop */}
+      {isMobileMenuOpen && (
+        <div 
+          className="md:hidden fixed inset-0 bg-black/80 z-40 backdrop-blur-sm" 
+          onClick={() => setIsMobileMenuOpen(false)}
+        />
+      )}
+
       {/* Sidebar Navigation */}
-      <aside className="w-64 flex-shrink-0 border-r border-white/5 bg-black/40 backdrop-blur-2xl flex flex-col justify-between">
+      <aside className={`${isMobileMenuOpen ? 'translate-x-0' : '-translate-x-full'} md:translate-x-0 fixed md:relative z-50 transition-transform duration-300 w-64 h-full flex-shrink-0 border-r border-white/5 bg-[#09090b] md:bg-black/40 backdrop-blur-2xl flex flex-col justify-between`}>
          <div className="p-6">
-            <div className="flex items-center gap-3 mb-10 pl-2">
-               <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-indigo-500 to-purple-600 shadow-lg shadow-indigo-500/20"></div>
-               <span className="font-extrabold text-xl tracking-tight text-white">StyleFlo</span>
+            <div className="flex items-center justify-between mb-10 pl-2">
+               <div className="flex items-center gap-3">
+                 <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-indigo-500 to-purple-600 shadow-lg shadow-indigo-500/20"></div>
+                 <span className="font-extrabold text-xl tracking-tight text-white">StyleFlo</span>
+               </div>
+               <button className="md:hidden p-2 -mr-2 text-gray-400 hover:text-white" onClick={() => setIsMobileMenuOpen(false)}>
+                 <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12"></path></svg>
+               </button>
             </div>
             <nav className="space-y-1.5">
               {[
@@ -877,7 +892,7 @@ export default function DashboardClient({
                 { id: 'integrations', label: 'Integrations', icon: <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 10V3L4 14h7v7l9-11h-7z" /> },
                 ...(isSuperAdmin ? [{ id: 'settings', label: 'Platform Settings', icon: <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" /> }] : []),
               ].map(tab => (
-                 <button key={tab.id} onClick={() => setActiveTab(tab.id as any)} className={`w-full flex items-center justify-between px-3 py-3 rounded-xl text-sm font-semibold transition-all duration-300 border border-transparent ${activeTab === tab.id ? 'bg-indigo-500/10 text-indigo-400 border-indigo-500/20 shadow-sm shadow-indigo-500/5' : 'text-gray-400 hover:text-gray-200 hover:bg-white/5 hover:border-white/5'}`}>
+                 <button key={tab.id} onClick={() => { setActiveTab(tab.id as any); setIsMobileMenuOpen(false); }} className={`w-full flex items-center justify-between px-3 py-3 rounded-xl text-sm font-semibold transition-all duration-300 border border-transparent ${activeTab === tab.id ? 'bg-indigo-500/10 text-indigo-400 border-indigo-500/20 shadow-sm shadow-indigo-500/5' : 'text-gray-400 hover:text-gray-200 hover:bg-white/5 hover:border-white/5'}`}>
                     <div className="flex items-center gap-3">
                        <svg className="w-5 h-5 opacity-80" fill="none" stroke="currentColor" viewBox="0 0 24 24">{tab.icon}</svg>
                        {tab.label}
@@ -910,10 +925,14 @@ export default function DashboardClient({
       <main className="flex-1 flex flex-col h-full overflow-hidden relative">
         <div className="absolute top-0 left-0 w-full h-[600px] bg-gradient-to-br from-indigo-500/10 via-purple-500/5 to-transparent pointer-events-none -z-10"></div>
         
-        <div className="flex-1 overflow-y-auto styleflo-scrollbar p-8 lg:p-12 z-10 space-y-8">
-           <header className="flex items-center justify-between mb-8">
-              <div>
-                 <h1 className="text-3xl font-extrabold text-transparent bg-clip-text bg-gradient-to-r from-white to-gray-400 capitalize">
+        <div className="flex-1 overflow-y-auto styleflo-scrollbar p-4 md:p-8 lg:p-12 z-10 space-y-6 md:space-y-8">
+           <header className="flex flex-col md:flex-row items-start md:items-center justify-between mb-6 md:mb-8 gap-4">
+              <div className="flex items-center gap-3 w-full">
+                 <button className="md:hidden p-2 -ml-2 text-gray-300 hover:text-white" onClick={() => setIsMobileMenuOpen(true)}>
+                    <svg className="w-7 h-7" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 6h16M4 12h16M4 18h16"></path></svg>
+                 </button>
+                 <div className="flex-1">
+                    <h1 className="text-2xl md:text-3xl font-extrabold text-transparent bg-clip-text bg-gradient-to-r from-white to-gray-400 capitalize truncate">
                    {activeTab === 'chatbots' ? 'Chatbots Manager' : 
                     activeTab === 'scheduling' ? 'Scheduling & Staff' :
                     activeTab === 'conversations' ? 'Inbox & Logs' :
@@ -921,6 +940,7 @@ export default function DashboardClient({
                     activeTab.replace('_', ' ')}
                  </h1>
                  <p className="text-sm text-gray-400 mt-1">Workspace: <span className="text-indigo-400 font-semibold">{tenantName}</span></p>
+                 </div>
               </div>
               {isDev && (
                  <div className="bg-indigo-500/10 border border-indigo-500/20 px-3 py-1.5 rounded-full flex items-center gap-2 shadow-lg shadow-indigo-500/10">
