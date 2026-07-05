@@ -52,6 +52,8 @@ export default async function DashboardPage() {
   let tenantId = '';
   let tenantName = 'My Workspace';
   let isSuperAdmin = false;
+  let bookingMode = 'single_calendar';
+  let bookingUrl = '';
   
   let chatbots: any[] = [];
   let conversations: any[] = [];
@@ -60,6 +62,14 @@ export default async function DashboardPage() {
     chunksCount: 0,
     sessionsCount: 0,
     messagesCount: 0,
+  };
+  let rwgConfig = {
+    is_rwg_enabled: false,
+    rwg_business_name: '',
+    rwg_street_address: '',
+    rwg_city: '',
+    rwg_postcode: '',
+    rwg_phone: ''
   };
 
   try {
@@ -80,12 +90,22 @@ export default async function DashboardPage() {
       
       const { data: tenant } = await supabase
         .from('tenants')
-        .select('company_name')
+        .select('company_name, is_rwg_enabled, rwg_business_name, rwg_street_address, rwg_city, rwg_postcode, rwg_phone, booking_mode, booking_url')
         .eq('id', tenantId)
         .single();
       
       if (tenant) {
         tenantName = tenant.company_name;
+        bookingMode = tenant.booking_mode || 'single_calendar';
+        bookingUrl = tenant.booking_url || '';
+        rwgConfig = {
+          is_rwg_enabled: tenant.is_rwg_enabled || false,
+          rwg_business_name: tenant.rwg_business_name || '',
+          rwg_street_address: tenant.rwg_street_address || '',
+          rwg_city: tenant.rwg_city || '',
+          rwg_postcode: tenant.rwg_postcode || '',
+          rwg_phone: tenant.rwg_phone || '',
+        };
       }
     }
 
@@ -141,6 +161,9 @@ export default async function DashboardPage() {
         initialConversations={conversations}
         initialMetrics={metrics}
         isSuperAdmin={isSuperAdmin}
+        initialRwgConfig={rwgConfig}
+        initialBookingMode={bookingMode}
+        initialBookingUrl={bookingUrl}
       />
     </main>
   );

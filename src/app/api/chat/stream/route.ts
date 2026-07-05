@@ -137,13 +137,16 @@ export async function POST(request: Request) {
       ? matchedDocuments.map((doc: any) => `- ${doc.content}`).join('\n\n')
       : 'No context available.';
     
-    // Fetch Services and Staff for Calendar integration
-    const [servicesRes, staffRes] = await Promise.all([
+    // Fetch Services, Staff and Tenant Booking Mode for Calendar integration
+    const [servicesRes, staffRes, tenantRes] = await Promise.all([
       supabaseAdmin.from('services').select('id, name, duration_minutes, buffer_minutes, price, staff_services(staff_id, custom_price, custom_duration)').eq('tenant_id', tenantId),
-      supabaseAdmin.from('staff').select('id, name').eq('tenant_id', tenantId)
+      supabaseAdmin.from('staff').select('id, name').eq('tenant_id', tenantId),
+      supabaseAdmin.from('tenants').select('booking_mode, booking_url').eq('id', tenantId).single()
     ]);
     const servicesContext = servicesRes.data ? JSON.stringify(servicesRes.data, null, 2) : '[]';
     const staffContext = staffRes.data ? JSON.stringify(staffRes.data, null, 2) : '[]';
+    const bookingMode = tenantRes.data?.booking_mode || 'single_calendar';
+    const bookingUrl = tenantRes.data?.booking_url || '';
 
     console.log(`[Chat Stream][${requestId}] Retrieved ${matchedDocuments?.length || 0} context documents and calendar config.`);
 
@@ -216,14 +219,16 @@ Guidelines:
 - If presenting multiple items, use clean bullet points.
 - CRITICAL: Use the ${currency} symbol when quoting prices.
 - CRITICAL: If the user explicitly types their email or phone number in the chat, you MUST end your response with exactly: [LEAD_CAPTURED: their_email_or_phone]. DO NOT use this tag to ask them for their info. Only use it when they actually provide it!
-- CRITICAL SCHEDULING RULE 1: If the user wants to book an appointment, first identify the Service and the Staff member they want. Consult the SERVICES CONFIGURATION JSON to accurately quote prices and durations based on any custom overrides the staff member might have for that service.
+${bookingMode === 'walk_in_only' ? '- We DO NOT accept appointments. We are walk-ins only. If the user asks to book, politely inform them that they can just walk in at any time during our opening hours.' : ''}
+${bookingMode === 'external_platform' ? `- We use an external booking platform. If the user asks to book, politely redirect them to our booking page: ${bookingUrl}` : ''}
+${(bookingMode === 'single_calendar' || bookingMode === 'multi_calendar') ? `- CRITICAL SCHEDULING RULE 1: If the user wants to book an appointment, first identify the Service and the Staff member they want. Consult the SERVICES CONFIGURATION JSON to accurately quote prices and durations based on any custom overrides the staff member might have for that service.
 - CRITICAL SCHEDULING RULE 2: Once you know the Staff ID and Service ID, you MUST check their availability. Reply with a polite conversational message to the user (e.g., "Let me check that for you!"), and then append EXACTLY: [CHECK_AVAILABILITY: StaffID, ServiceID, StartDate, EndDate]. StartDate and EndDate should be ISO strings WITH the ${timezone} timezone offset (e.g., +01:00 for BST). 
 - CRITICAL SCHEDULING RULE 3: Once you have checked availability and the user agrees to a specific available slot, you MUST ask for BOTH their email address AND their mobile phone number before booking.
 - CRITICAL SCHEDULING RULE 4: Once you have both their email and mobile number, you MUST book it by responding with a polite message, and then append EXACTLY: [BOOK_MEETING: StaffID, ServiceID, CustomerName, CustomerEmail, CustomerPhone, StartTime, EndTime]. StartTime and EndTime must be precise ISO strings WITH the timezone offset.
 - CRITICAL SCHEDULING RULE 5: When presenting available time slots to the user, you MUST output them using EXACTLY this format on its own line: [TIME_SLOTS: {"YYYY-MM-DD":["HH:MM", "HH:MM"]}]. Do not use markdown tables or bullet points for times. Example: [TIME_SLOTS: {"2026-07-06":["09:00","13:00"],"2026-07-07":["09:00","10:00"]}].
 - CRITICAL SCHEDULING RULE 6: If the user asks to see their upcoming appointments, you MUST first politely ask them to confirm BOTH their email address AND their mobile phone number (for security reasons). Once you have both, reply with a polite message and append EXACTLY: [LOOKUP_APPOINTMENTS: CustomerEmail, CustomerPhone]. You are strictly forbidden from cancelling or modifying appointments; if they ask to cancel, tell them they must contact the business directly.
 - CRITICAL: You MUST use the exact UUID strings for StaffID and ServiceID from the JSON configurations. Do NOT use their names!
-- When outputting a secret tag like [CHECK_AVAILABILITY...] or [BOOK_MEETING...] or [TIME_SLOTS...] or [LOOKUP_APPOINTMENTS...], it MUST be the very last line of your response.
+- When outputting a secret tag like [CHECK_AVAILABILITY...] or [BOOK_MEETING...] or [TIME_SLOTS...] or [LOOKUP_APPOINTMENTS...], it MUST be the very last line of your response.` : ''}
 
 Context:
 ${clientName ? `The customer's name is ${clientName}. Greet them by name if appropriate!` : ''}
@@ -268,24 +273,31 @@ ${staffContext}`;
       onFinish: async (event) => {
         console.log(`[Chat Stream][${requestId}] AI stream finished. Logging conversation in background...`);
         try {
-          const userMessageInsert = supabaseAdmin.from('messages').insert({
+          // Explicit timestamps to guarantee order
+          const now = Date.now();
+          const userTime = new Date(now - 1000).toISOString();
+          const botTime = new Date(now).toISOString();
+
+          const userInsertRes = await supabaseAdmin.from('messages').insert({
             tenant_id: tenantId,
             conversation_id: conversationId,
             sender_type: 'user',
             text_content: message,
+            created_at: userTime,
           });
 
-          const assistantMessageInsert = supabaseAdmin.from('messages').insert({
-            tenant_id: tenantId,
-            conversation_id: conversationId,
-            sender_type: 'bot',
-            text_content: event.text.replace(/\[LEAD_CAPTURED:.*?\]/g, '').replace(/\[CHECK_AVAILABILITY:.*?\]/g, '').replace(/\[BOOK_MEETING:.*?\]/g, '').trim(),
-          });
-
-          const [userInsertRes, assistantInsertRes] = await Promise.all([
-            userMessageInsert,
-            assistantMessageInsert,
-          ]);
+          const cleanBotText = event.text.replace(/\[LEAD_CAPTURED:.*?\]/g, '').replace(/\[CHECK_AVAILABILITY:.*?\]/g, '').replace(/\[BOOK_MEETING:.*?\]/g, '').trim();
+          
+          let assistantInsertRes: any = { error: null };
+          if (cleanBotText) {
+            assistantInsertRes = await supabaseAdmin.from('messages').insert({
+              tenant_id: tenantId,
+              conversation_id: conversationId,
+              sender_type: 'bot',
+              text_content: cleanBotText,
+              created_at: botTime,
+            });
+          }
 
           // Handle manual lead capture
           const leadMatch = event.text.match(/\[LEAD_CAPTURED:\s*(.+?)\]/);
@@ -397,8 +409,77 @@ ${staffContext}`;
               
               const result2 = await streamText({
                 model: google('gemini-3.5-flash'),
-                system: systemPrompt,
+                system: `You are an AI assistant representing the business "${configData.businessName || 'our business'}".
+Your goal is to answer questions strictly using the provided context and handle booking inquiries according to the business's booking mode.
+If the answer isn't in the context, clearly state that you don't know and offer a fallback (like taking an email). Do not invent pricing, policies, or facts.
+
+Booking Mode Information:
+Current Booking Mode: ${bookingMode}
+${bookingMode === 'walk_in_only' ? '- We DO NOT accept appointments. We are walk-ins only. If the user asks to book, politely inform them that they can just walk in at any time during our opening hours.' : ''}
+${bookingMode === 'external_platform' ? `- We use an external booking platform. If the user asks to book, politely redirect them to our booking page: ${bookingUrl}` : ''}
+${(bookingMode === 'single_calendar' || bookingMode === 'multi_calendar') ? '- We accept online bookings via the chat. Use your tools to check availability and book meetings.' : ''}
+
+Available Services and Staff Context:
+Services:
+${servicesContext}
+Staff:
+${staffContext}
+
+${(bookingMode === 'single_calendar' || bookingMode === 'multi_calendar') ? `
+Available Booking Tools (Only invoke if explicitly booking an appointment):
+- checkAvailability: Checks free slots for a specific date/staff/service.
+- lookupAppointments: Finds an existing appointment by email/phone.
+- bookMeeting: Confirms and locks in an appointment.
+IMPORTANT: You cannot update or delete existing appointments. Instruct the user to contact the business directly to make changes.
+` : `IMPORTANT: Do not attempt to use booking tools as the booking mode does not support internal calendar tools.`}
+
+Business Context & FAQ:
+${contextText}
+
+Current time/date: ${new Date().toLocaleString('en-US', { timeZone: timezone })}
+Currency: ${currency}
+User identity context: ${clientName ? 'Client Name: ' + clientName : 'Anonymous'}
+`,
                 messages: pass2Messages as any,
+                tools: (bookingMode === 'single_calendar' || bookingMode === 'multi_calendar') ? {
+                  checkAvailability: tool({
+                    description: 'Check available times for a specific date, service, and staff member.',
+                    parameters: z.object({
+                      startDateStr: z.string().describe('The start date to check in ISO format.'),
+                      endDateStr: z.string().describe('The end date to check in ISO format.'),
+                      serviceId: z.string().describe('The UUID of the requested service.'),
+                      staffId: z.string().describe('The UUID of the requested staff member.'),
+                    }),
+                    execute: async ({ startDateStr, endDateStr, serviceId, staffId }: { startDateStr: string; endDateStr: string; serviceId: string; staffId: string }) => {
+                      return await checkAvailability(tenantId, staffId, serviceId, startDateStr, endDateStr, timezone);
+                    },
+                  }),
+                  lookupAppointments: tool({
+                    description: 'Look up an existing appointment by the customer\'s email or phone number.',
+                    parameters: z.object({
+                      email: z.string().describe('The customer email to look up.'),
+                      phone: z.string().describe('The customer phone number to look up.'),
+                    }),
+                    execute: async ({ email, phone }: { email?: string; phone?: string }) => {
+                      return await lookupAppointments(tenantId, email || '', phone || '');
+                    },
+                  }),
+                  bookMeeting: tool({
+                    description: 'Book a meeting/appointment on the calendar.',
+                    parameters: z.object({
+                      customerName: z.string().describe('The customer\'s full name.'),
+                      customerEmail: z.string().describe('The customer\'s email address.'),
+                      customerPhone: z.string().describe('The customer\'s phone number.'),
+                      startTimeIso: z.string().describe('The exact start time in ISO 8601 format.'),
+                      endTimeIso: z.string().describe('The exact end time in ISO 8601 format.'),
+                      serviceId: z.string().describe('The UUID of the booked service.'),
+                      staffId: z.string().describe('The UUID of the assigned staff member.'),
+                    }),
+                    execute: async ({ customerName, customerEmail, customerPhone, startTimeIso, endTimeIso, serviceId, staffId }: { customerName: string; customerEmail: string; customerPhone: string; startTimeIso: string; endTimeIso: string; serviceId: string; staffId: string }) => {
+                      return await bookMeeting(tenantId, staffId, serviceId, customerName, customerEmail, customerPhone, startTimeIso, endTimeIso, timezone);
+                    },
+                  }),
+                } : ({} as Record<string, any>),
                 onFinish: async (event2) => {
                   await supabaseAdmin.from('messages').insert({
                     tenant_id: tenantId,
