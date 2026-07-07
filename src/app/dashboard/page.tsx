@@ -90,7 +90,7 @@ export default async function DashboardPage() {
       
       const { data: tenant } = await supabase
         .from('tenants')
-        .select('company_name, is_rwg_enabled, rwg_business_name, rwg_street_address, rwg_city, rwg_postcode, rwg_phone, booking_mode, booking_url')
+        .select('company_name, plan_tier, is_rwg_enabled, rwg_business_name, rwg_street_address, rwg_city, rwg_postcode, rwg_phone, booking_mode, booking_url')
         .eq('id', tenantId)
         .single();
       
@@ -145,6 +145,57 @@ export default async function DashboardPage() {
       sessionsCount: conversations.length,
       messagesCount: msgsCount || 0,
     };
+    
+    // 4. Fetch Billing Data
+    let billingData: any = { planTier: 'basic', entitlements: [], usage: { chunks: chunksCount || 0, messages: 0 } };
+    let superadminData: any = null;
+
+    if (tenantId) {
+      const { data: tenantData } = await supabase.from('tenants').select('plan_tier').eq('id', tenantId).single();
+      if (tenantData) {
+        billingData.planTier = tenantData.plan_tier;
+        const { data: entitlements } = await supabase
+          .from('tier_entitlements')
+          .select('feature_id, included_volume, features(name, is_metered)')
+          .eq('tier_id', tenantData.plan_tier);
+        if (entitlements) billingData.entitlements = entitlements;
+      }
+      
+      const firstDay = new Date();
+      firstDay.setDate(1);
+      firstDay.setHours(0, 0, 0, 0);
+
+      // Current user usage
+      const { data: usageRows } = await supabase
+        .from('usage_ledger')
+        .select('quantity, feature_id')
+        .eq('tenant_id', tenantId)
+        .gte('recorded_at', firstDay.toISOString());
+      
+      if (usageRows) {
+        billingData.usage.messages = usageRows
+          .filter(r => r.feature_id === 'message_allowance')
+          .reduce((sum, r) => sum + r.quantity, 0);
+      }
+    }
+
+    if (isSuperAdmin) {
+      const { data: allTenantsList } = await supabase.from('tenants').select('id, company_name, plan_tier');
+      
+      const firstDay = new Date();
+      firstDay.setDate(1);
+      firstDay.setHours(0, 0, 0, 0);
+      const { data: allUsage } = await supabase
+        .from('usage_ledger')
+        .select('quantity, feature_id, tenant_id, actual_cost')
+        .gte('recorded_at', firstDay.toISOString());
+
+      superadminData = {
+        tenants: allTenantsList || [],
+        usage: allUsage || []
+      };
+    }
+
   } catch (err) {
     console.error('[Dashboard] Error querying secure database:', err);
   }
@@ -164,6 +215,8 @@ export default async function DashboardPage() {
         initialRwgConfig={rwgConfig}
         initialBookingMode={bookingMode}
         initialBookingUrl={bookingUrl}
+        billingData={billingData}
+        superadminData={superadminData}
       />
     </main>
   );

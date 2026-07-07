@@ -72,6 +72,8 @@ interface DashboardClientProps {
   initialRwgConfig?: any;
   initialBookingMode?: string;
   initialBookingUrl?: string;
+  billingData?: any;
+  superadminData?: any;
 }
 
 export default function DashboardClient({
@@ -87,6 +89,8 @@ export default function DashboardClient({
   initialRwgConfig,
   initialBookingMode,
   initialBookingUrl,
+  billingData,
+  superadminData,
 }: DashboardClientProps) {
   const [chatbots, setChatbots] = useState<Chatbot[]>(initialChatbots);
   const [conversations, setConversations] = useState<Conversation[]>(initialConversations);
@@ -98,7 +102,7 @@ export default function DashboardClient({
   const [isFetchingMessages, setIsFetchingMessages] = useState(false);
   const [convPage, setConvPage] = useState(0);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
-  const [activeTab, setActiveTab] = useState<'chatbots' | 'crawler' | 'conversations' | 'scheduling' | 'integrations' | 'settings'>('chatbots');
+  const [activeTab, setActiveTab] = useState<'chatbots' | 'crawler' | 'conversations' | 'scheduling' | 'integrations' | 'settings' | 'billing'>('chatbots');
 
   // Global settings state
   const globalBotId = '00000000-0000-0000-0000-000000000000';
@@ -890,6 +894,7 @@ export default function DashboardClient({
                 { id: 'conversations', label: 'Inbox & Logs', icon: <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z" />, count: conversations.length },
                 { id: 'crawler', label: 'Knowledge Base', icon: <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" /> },
                 { id: 'integrations', label: 'Integrations', icon: <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 10V3L4 14h7v7l9-11h-7z" /> },
+                { id: 'billing', label: 'Billing & Usage', icon: <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z" /> },
                 ...(isSuperAdmin ? [{ id: 'settings', label: 'Platform Settings', icon: <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" /> }] : []),
               ].map(tab => (
                  <button key={tab.id} onClick={() => { setActiveTab(tab.id as any); setIsMobileMenuOpen(false); }} className={`w-full flex items-center justify-between px-3 py-3 rounded-xl text-sm font-semibold transition-all duration-300 border border-transparent ${activeTab === tab.id ? 'bg-indigo-500/10 text-indigo-400 border-indigo-500/20 shadow-sm shadow-indigo-500/5' : 'text-gray-400 hover:text-gray-200 hover:bg-white/5 hover:border-white/5'}`}>
@@ -937,6 +942,7 @@ export default function DashboardClient({
                     activeTab === 'scheduling' ? 'Scheduling & Staff' :
                     activeTab === 'conversations' ? 'Inbox & Logs' :
                     activeTab === 'crawler' ? 'Knowledge Base' :
+                    activeTab === 'billing' ? 'Billing & Usage' :
                     activeTab.replace('_', ' ')}
                  </h1>
                  <p className="text-sm text-gray-400 mt-1">Workspace: <span className="text-indigo-400 font-semibold">{tenantName}</span></p>
@@ -1335,6 +1341,133 @@ export default function DashboardClient({
                   </div>
                 </div>
               </div>
+            </div>
+          )}
+
+          {/* Billing & Usage Tab */}
+          {activeTab === 'billing' && (
+            <div className="space-y-6">
+              {/* Standard Tenant View */}
+              <div className="bg-gray-900/30 border border-gray-900 p-6 rounded-2xl shadow-xl">
+                <div className="flex justify-between items-center mb-6">
+                  <div>
+                    <h3 className="text-lg font-bold text-white">Current Plan: <span className="text-indigo-400 uppercase tracking-widest">{billingData?.planTier || 'Basic'}</span></h3>
+                    <p className="text-xs text-gray-400 mt-1">Manage your usage limits and active entitlements.</p>
+                  </div>
+                  <a href="https://styleflo.ai/pricing" target="_blank" rel="noopener noreferrer" className="bg-indigo-600 hover:bg-indigo-500 text-white text-sm font-semibold py-2 px-5 rounded-xl shadow-lg transition-colors">
+                    Compare & Upgrade Plans
+                  </a>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  {/* Chunks Progress */}
+                  <div className="bg-gray-950 p-5 rounded-xl border border-gray-800">
+                    <h4 className="text-sm font-bold text-white mb-2">Knowledge Base Data Chunks</h4>
+                    <div className="flex justify-between text-xs text-gray-400 mb-2">
+                      <span>{billingData?.usage?.chunks || 0} used</span>
+                      <span>
+                        {billingData?.entitlements?.find((e: any) => e.feature_id === 'knowledge_data_chunks')?.included_volume || 0} total
+                      </span>
+                    </div>
+                    <div className="w-full bg-gray-800 rounded-full h-2.5">
+                      <div className="bg-indigo-500 h-2.5 rounded-full" style={{ width: `${Math.min(100, ((billingData?.usage?.chunks || 0) / (billingData?.entitlements?.find((e: any) => e.feature_id === 'knowledge_data_chunks')?.included_volume || 1)) * 100)}%`}}></div>
+                    </div>
+                  </div>
+
+                  {/* Message Allowance */}
+                  <div className="bg-gray-950 p-5 rounded-xl border border-gray-800">
+                    <h4 className="text-sm font-bold text-white mb-2">Monthly Message Allowance</h4>
+                    <div className="flex justify-between text-xs text-gray-400 mb-2">
+                      <span>{billingData?.usage?.messages || 0} messages used this month</span>
+                      <span>
+                        {billingData?.entitlements?.find((e: any) => e.feature_id === 'message_allowance')?.included_volume === -1 ? 'Unlimited' : (billingData?.entitlements?.find((e: any) => e.feature_id === 'message_allowance')?.included_volume || 0) + ' total'}
+                      </span>
+                    </div>
+                    <div className="w-full bg-gray-800 rounded-full h-2.5">
+                      <div className="bg-emerald-500 h-2.5 rounded-full" style={{ width: `${billingData?.entitlements?.find((e: any) => e.feature_id === 'message_allowance')?.included_volume === -1 ? 100 : Math.min(100, ((billingData?.usage?.messages || 0) / (billingData?.entitlements?.find((e: any) => e.feature_id === 'message_allowance')?.included_volume || 1)) * 100)}%`}}></div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Superadmin Overview */}
+              {isSuperAdmin && superadminData && (
+                <div className="bg-gray-900/30 border border-gray-900 p-6 rounded-2xl shadow-xl mt-8">
+                  <h3 className="text-lg font-bold text-white mb-2">Superadmin Control Center</h3>
+                  <p className="text-xs text-gray-400 mb-6">Manage all tenant billing plans and monitor platform aggregate usage.</p>
+                  
+                  {/* Aggregate Summary */}
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+                    <div className="bg-gray-950 p-4 rounded-xl border border-gray-800 text-center">
+                      <p className="text-xs text-gray-500 uppercase tracking-wider mb-1">Total Tenants</p>
+                      <p className="text-xl font-bold text-white">{superadminData.tenants?.length || 0}</p>
+                    </div>
+                    <div className="bg-gray-950 p-4 rounded-xl border border-gray-800 text-center">
+                      <p className="text-xs text-gray-500 uppercase tracking-wider mb-1">Total Platform Messages</p>
+                      <p className="text-xl font-bold text-indigo-400">
+                        {superadminData.usage?.filter((u: any) => u.feature_id === 'message_allowance')?.reduce((sum: number, u: any) => sum + u.quantity, 0) || 0}
+                      </p>
+                    </div>
+                  </div>
+
+                  {/* Tenant Override Table */}
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-left text-sm text-gray-300">
+                      <thead className="bg-gray-950/50 text-xs uppercase text-gray-500 border-b border-gray-800">
+                        <tr>
+                          <th className="px-4 py-3">Tenant Name</th>
+                          <th className="px-4 py-3">Tenant ID</th>
+                          <th className="px-4 py-3">Active Plan</th>
+                          <th className="px-4 py-3">Action</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-gray-800">
+                        {superadminData.tenants?.map((t: any) => (
+                          <tr key={t.id} className="hover:bg-white/5 transition-colors">
+                            <td className="px-4 py-3 font-semibold">{t.company_name}</td>
+                            <td className="px-4 py-3 font-mono text-xs text-gray-500">{t.id}</td>
+                            <td className="px-4 py-3">
+                              <span className="px-2 py-1 rounded text-[10px] font-bold uppercase tracking-wider bg-gray-800 text-gray-300">
+                                {t.plan_tier}
+                              </span>
+                            </td>
+                            <td className="px-4 py-3">
+                              <select 
+                                className="bg-gray-950 border border-gray-700 text-white text-xs rounded px-2 py-1 outline-none focus:ring-1 focus:ring-indigo-500"
+                                value={t.plan_tier}
+                                onChange={async (e) => {
+                                  const newTier = e.target.value;
+                                  if(confirm(`Override ${t.company_name} to ${newTier.toUpperCase()}?`)) {
+                                    try {
+                                      const res = await fetch('/api/billing/override', {
+                                        method: 'POST',
+                                        headers: { 'Content-Type': 'application/json' },
+                                        body: JSON.stringify({ targetTenantId: t.id, newTier })
+                                      });
+                                      if(res.ok) {
+                                        alert('Plan overridden successfully. Refresh to see changes.');
+                                      } else {
+                                        alert('Override failed.');
+                                      }
+                                    } catch(err) {
+                                      alert('Error overriding plan.');
+                                    }
+                                  }
+                                }}
+                              >
+                                <option value="basic">Basic</option>
+                                <option value="starter">Starter</option>
+                                <option value="premium">Premium</option>
+                                <option value="ultimate">Ultimate</option>
+                              </select>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              )}
             </div>
           )}
 
