@@ -7,6 +7,7 @@ import { RecursiveCharacterTextSplitter } from '@langchain/textsplitters';
 import { google } from '@ai-sdk/google';
 import { embed, embedMany } from 'ai';
 import { z } from 'zod';
+import { checkFeatureEntitlement } from '@/lib/entitlements';
 
 // Input validation schema
 const IngestRequestSchema = z.object({
@@ -307,6 +308,16 @@ export async function POST(request: Request) {
     }
 
     console.log(`[Ingest Route][${requestId}] Extracted ${textContent.length} characters of clean text.`);
+
+    // 6.5. Enforce Knowledge Base Quota
+    console.log(`[Ingest Route][${requestId}] Validating knowledge base data chunk quotas using dynamic entitlements...`);
+    const estimatedIncomingChunks = Math.ceil(textContent.length / 1000);
+    const entitlementCheck = await checkFeatureEntitlement(dbClient, tenantId, 'knowledge_data_chunks', estimatedIncomingChunks);
+
+    if (!entitlementCheck.allowed) {
+        console.warn(`[Ingest Route][${requestId}] Quota Exceeded: Tenant ${tenantId}`);
+        return NextResponse.json({ error: entitlementCheck.error }, { status: 403 });
+    }
 
     // 7. Split text into 1,000 character chunks (200 char overlap) using LangChain's splitter
     console.log(`[Ingest Route][${requestId}] Chunking text...`);
