@@ -379,13 +379,44 @@ import Vapi from '@vapi-ai/web';
     }
 
     // Initialize Vapi if enabled
-    if (vapiBtn && voiceEnabled && vapiPublicKey && vapiAssistantId) {
-      vapiInstance = new Vapi(vapiPublicKey);
+    if (vapiBtn && voiceEnabled) {
+      if (vapiPublicKey) {
+        vapiInstance = new Vapi(vapiPublicKey);
+
+        vapiInstance.on('call-start', () => {
+          isVapiActive = true;
+          vapiBtn.style.backgroundColor = primaryColor;
+        });
+        vapiInstance.on('call-end', () => {
+          isVapiActive = false;
+          vapiBtn.style.backgroundColor = '#6B7280';
+          vapiBtn.classList.remove('styleflo-animate-pulse');
+        });
+        vapiInstance.on('speech-start', () => {
+          vapiBtn.classList.add('styleflo-animate-pulse');
+        });
+        vapiInstance.on('speech-end', () => {
+          vapiBtn.classList.remove('styleflo-animate-pulse');
+        });
+        vapiInstance.on('error', (e: unknown) => {
+          console.error('[StyleFlo Widget] Vapi error:', e);
+          appendMessage('bot', 'A voice connection error occurred.');
+        });
+      }
 
       vapiBtn.addEventListener('click', async () => {
-        if (isVapiActive) {
+        if (!vapiPublicKey) {
+          alert('Missing Vapi Public Key in widget configuration.');
+          return;
+        }
+        if (!vapiAssistantId) {
+          alert('Missing Vapi Assistant ID. Please select a Voice Persona and save changes.');
+          return;
+        }
+        
+        if (isVapiActive && vapiInstance) {
           vapiInstance.stop();
-        } else {
+        } else if (vapiInstance) {
           try {
             await vapiInstance.start(vapiAssistantId);
           } catch (e) {
@@ -393,26 +424,6 @@ import Vapi from '@vapi-ai/web';
             appendMessage('bot', 'Microphone access denied or voice connection failed.');
           }
         }
-      });
-
-      vapiInstance.on('call-start', () => {
-        isVapiActive = true;
-        vapiBtn.style.backgroundColor = primaryColor;
-      });
-      vapiInstance.on('call-end', () => {
-        isVapiActive = false;
-        vapiBtn.style.backgroundColor = '#6B7280';
-        vapiBtn.classList.remove('styleflo-animate-pulse');
-      });
-      vapiInstance.on('speech-start', () => {
-        vapiBtn.classList.add('styleflo-animate-pulse');
-      });
-      vapiInstance.on('speech-end', () => {
-        vapiBtn.classList.remove('styleflo-animate-pulse');
-      });
-      vapiInstance.on('error', (e: unknown) => {
-        console.error('[StyleFlo Widget] Vapi error:', e);
-        appendMessage('bot', 'A voice connection error occurred.');
       });
     }
 
