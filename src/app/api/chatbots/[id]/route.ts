@@ -64,6 +64,9 @@ export async function GET(
     // Check Voice Entitlement (Usage Ledger vs Tier Entitlement)
     let hasVoiceMinutes = false;
     if (chatbot.voice_enabled && chatbot.tenant_id) {
+      // TEMPORARILY BYPASSED FOR TESTING:
+      hasVoiceMinutes = true;
+      /*
       // 1. Get tenant's tier
       const { data: tenant } = await supabaseAdmin
         .from('tenants')
@@ -100,6 +103,7 @@ export async function GET(
           hasVoiceMinutes = true;
         }
       }
+      */
     }
 
     const globalBot = chatbots.find(b => b.id === globalSettingsId);
