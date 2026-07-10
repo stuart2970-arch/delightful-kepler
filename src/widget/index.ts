@@ -409,16 +409,36 @@ import Vapi from '@vapi-ai/web';
           alert('Missing Vapi Public Key in widget configuration.');
           return;
         }
-        if (!vapiAssistantId) {
-          alert('Missing Vapi Assistant ID. Please select a Voice Persona and save changes.');
-          return;
-        }
         
         if (isVapiActive && vapiInstance) {
           vapiInstance.stop();
         } else if (vapiInstance) {
           try {
-            await vapiInstance.start(vapiAssistantId);
+            if (vapiAssistantId) {
+              await vapiInstance.start(vapiAssistantId);
+            } else {
+              // Use Transient Assistant
+              await vapiInstance.start({
+                name: `${agentName} Transient Assistant`,
+                model: {
+                  provider: "openai",
+                  model: "gpt-4o-mini",
+                  messages: [
+                    {
+                      role: "system",
+                      content: `You are ${agentName}, ${agentRole}. ${welcomeMessage}`
+                    }
+                  ]
+                },
+                voice: {
+                  provider: "11labs",
+                  voiceId: "bIHbv24MWmeRgasZH58o"
+                },
+                metadata: {
+                  tenant_id: chatbotId
+                }
+              });
+            }
           } catch (e) {
             console.error('[StyleFlo Widget] Vapi start error:', e);
             appendMessage('bot', 'Microphone access denied or voice connection failed.');
