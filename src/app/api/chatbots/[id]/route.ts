@@ -143,7 +143,7 @@ export async function PATCH(
     }
 
     const body = await request.json();
-    const { name, primary_color, configuration_json, voice_enabled } = body;
+    const { name, primary_color, configuration_json, voice_enabled, vapi_assistant_id } = body;
 
     const cookieStore = await cookies();
     const supabaseUrl = process.env['NEXT_PUBLIC_' + 'SUPABASE_URL']!;
@@ -177,6 +177,7 @@ export async function PATCH(
         primary_color,
         configuration_json,
         voice_enabled,
+        vapi_assistant_id,
       })
       .eq('id', id)
       .select()
