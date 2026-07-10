@@ -120,7 +120,7 @@ export async function GET(
       brandingHtml: globalConfig.branding_html || '<span style="opacity: 0.6; font-size: 11px;">⚡ Powered by <strong>StyleFlo</strong></span>',
       brandingUrl: globalConfig.branding_url || 'https://styleflo.ai',
       voiceEnabled: hasVoiceMinutes,
-      vapiPublicKey: process.env.VAPI_PUBLIC_KEY || '',
+      vapiPublicKey: process.env.NEXT_PUBLIC_VAPI_PUBLIC_KEY || process.env.VAPI_PUBLIC_KEY || '',
       vapiAssistantId: chatbot.vapi_assistant_id || process.env.VAPI_MASTER_ASSISTANT_ID || '',
     }, {
       headers: {
