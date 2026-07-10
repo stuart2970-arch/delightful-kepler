@@ -48,7 +48,7 @@ export async function GET(
     const globalSettingsId = '00000000-0000-0000-0000-000000000000';
     const { data: chatbots, error: chatbotError } = await supabaseAdmin
       .from('chatbots')
-      .select('id, tenant_id, name, primary_color, configuration_json, voice_enabled, vapi_assistant_id')
+      .select('id, tenant_id, name, primary_color, configuration_json, voice_enabled')
       .in('id', [id, globalSettingsId]);
 
     if (chatbotError || !chatbots || chatbots.length === 0) {
@@ -121,7 +121,7 @@ export async function GET(
       brandingUrl: globalConfig.branding_url || 'https://styleflo.ai',
       voiceEnabled: hasVoiceMinutes,
       vapiPublicKey: process.env.NEXT_PUBLIC_VAPI_PUBLIC_KEY || process.env.VAPI_PUBLIC_KEY || '',
-      vapiAssistantId: chatbot.vapi_assistant_id || process.env.VAPI_MASTER_ASSISTANT_ID || '',
+      vapiAssistantId: process.env.VAPI_MASTER_ASSISTANT_ID || '',
     }, {
       headers: {
         ...corsHeaders,
@@ -147,7 +147,7 @@ export async function PATCH(
     }
 
     const body = await request.json();
-    const { name, primary_color, configuration_json, voice_enabled, vapi_assistant_id } = body;
+    const { name, primary_color, configuration_json, voice_enabled } = body;
 
     const cookieStore = await cookies();
     const supabaseUrl = process.env['NEXT_PUBLIC_' + 'SUPABASE_URL']!;
@@ -181,7 +181,6 @@ export async function PATCH(
         primary_color,
         configuration_json,
         voice_enabled,
-        vapi_assistant_id,
       })
       .eq('id', id)
       .select()
