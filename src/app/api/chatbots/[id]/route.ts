@@ -48,7 +48,7 @@ export async function GET(
     const globalSettingsId = '00000000-0000-0000-0000-000000000000';
     const { data: chatbots, error: chatbotError } = await supabaseAdmin
       .from('chatbots')
-      .select('id, name, primary_color, configuration_json')
+      .select('id, tenant_id, name, primary_color, configuration_json, voice_enabled')
       .in('id', [id, globalSettingsId]);
 
     if (chatbotError || !chatbots || chatbots.length === 0) {
@@ -59,6 +59,47 @@ export async function GET(
     const chatbot = chatbots.find(b => b.id === id);
     if (!chatbot) {
       return NextResponse.json({ error: 'Chatbot not found' }, { status: 404 });
+    }
+
+    // Check Voice Entitlement (Usage Ledger vs Tier Entitlement)
+    let hasVoiceMinutes = false;
+    if (chatbot.voice_enabled && chatbot.tenant_id) {
+      // 1. Get tenant's tier
+      const { data: tenant } = await supabaseAdmin
+        .from('tenants')
+        .select('plan_tier')
+        .eq('id', chatbot.tenant_id)
+        .single();
+        
+      if (tenant?.plan_tier) {
+        // 2. Get tier limit
+        const { data: entitlement } = await supabaseAdmin
+          .from('tier_entitlements')
+          .select('included_volume')
+          .eq('tier_id', tenant.plan_tier)
+          .eq('feature_id', 'vapi_voice_minutes')
+          .single();
+          
+        const limit = entitlement?.included_volume || 0;
+        
+        // 3. Get current usage for this month
+        const startOfMonth = new Date();
+        startOfMonth.setDate(1);
+        startOfMonth.setHours(0,0,0,0);
+        
+        const { data: usage } = await supabaseAdmin
+          .from('usage_ledger')
+          .select('quantity')
+          .eq('tenant_id', chatbot.tenant_id)
+          .eq('feature_id', 'vapi_voice_minutes')
+          .gte('recorded_at', startOfMonth.toISOString());
+          
+        const totalUsed = usage?.reduce((sum, record) => sum + (record.quantity || 0), 0) || 0;
+        
+        if (limit === null || totalUsed < limit) {
+          hasVoiceMinutes = true;
+        }
+      }
     }
 
     const globalBot = chatbots.find(b => b.id === globalSettingsId);
@@ -74,6 +115,9 @@ export async function GET(
       welcomeMessage: config.welcome_message || 'Hello! How can I help you today?',
       brandingHtml: globalConfig.branding_html || '<span style="opacity: 0.6; font-size: 11px;">⚡ Powered by <strong>StyleFlo</strong></span>',
       brandingUrl: globalConfig.branding_url || 'https://styleflo.ai',
+      voiceEnabled: hasVoiceMinutes,
+      vapiPublicKey: process.env.VAPI_PUBLIC_KEY || '',
+      vapiAssistantId: process.env.VAPI_MASTER_ASSISTANT_ID || '',
     }, {
       headers: {
         ...corsHeaders,
@@ -99,7 +143,7 @@ export async function PATCH(
     }
 
     const body = await request.json();
-    const { name, primary_color, configuration_json } = body;
+    const { name, primary_color, configuration_json, voice_enabled } = body;
 
     const cookieStore = await cookies();
     const supabaseUrl = process.env['NEXT_PUBLIC_' + 'SUPABASE_URL']!;
@@ -132,6 +176,7 @@ export async function PATCH(
         name,
         primary_color,
         configuration_json,
+        voice_enabled,
       })
       .eq('id', id)
       .select()

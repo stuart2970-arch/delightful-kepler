@@ -1,3 +1,5 @@
+import Vapi from '@vapi-ai/web';
+
 (function () {
   // 1. Identify the script element and extract configuration
   const currentScript = document.currentScript as HTMLScriptElement;
@@ -119,6 +121,9 @@
 
   let welcomeMessage = 'Hello! How can I help you today?';
   let brandingHtml = '<span style="opacity: 0.6; font-size: 11px;">⚡ Powered by <strong>StyleFlo</strong></span>';
+  let voiceEnabled = false;
+  let vapiPublicKey = '';
+  let vapiAssistantId = '';
 
   // 6. Fetch Chatbot Public Configuration
   async function fetchConfig() {
@@ -133,6 +138,9 @@
         agentAvatarUrl = config.agentAvatarUrl || '/avatars/avatar1.png';
         welcomeMessage = config.welcomeMessage || 'Hello! How can I help you today?';
         brandingHtml = config.brandingHtml || brandingHtml;
+        voiceEnabled = config.voiceEnabled || false;
+        vapiPublicKey = config.vapiPublicKey || '';
+        vapiAssistantId = config.vapiAssistantId || '';
       }
     } catch (err) {
       console.warn('[StyleFlo Widget] Failed to fetch chatbot config, using defaults:', err);
@@ -206,6 +214,19 @@
 
       <!-- Input Area -->
       <form id="styleflo-chat-form" class="p-3 bg-white border-t border-gray-100 flex items-center gap-2 shrink-0 z-10">
+        ${voiceEnabled ? `
+        <button 
+          type="button" 
+          id="styleflo-vapi-btn"
+          class="p-2 rounded-xl text-white focus:outline-none transition-all flex-shrink-0" 
+          style="background-color: #6B7280; width: 36px; height: 36px;"
+          title="Talk to Bot"
+        >
+          <svg class="w-5 h-5 mx-auto" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z"></path>
+          </svg>
+        </button>
+        ` : ''}
         <input 
           id="styleflo-input" 
           type="text" 
@@ -242,6 +263,10 @@
     const onboardingContainer = shadowRoot.getElementById('styleflo-onboarding') as HTMLDivElement;
     const onboardingForm = shadowRoot.getElementById('styleflo-onboarding-form') as HTMLFormElement;
     const onboardingName = shadowRoot.getElementById('styleflo-onboarding-name') as HTMLInputElement;
+    const vapiBtn = shadowRoot.getElementById('styleflo-vapi-btn') as HTMLButtonElement | null;
+
+    let vapiInstance: Vapi | null = null;
+    let isVapiActive = false;
 
     // Check for existing name in localStorage
     let storedName = localStorage.getItem('styleflo-client-name');
@@ -284,6 +309,10 @@
         chatIcon.classList.add('scale-100');
         closeIcon.classList.remove('scale-100');
         closeIcon.classList.add('scale-0');
+        
+        if (isVapiActive && vapiInstance) {
+          vapiInstance.stop();
+        }
       }
     }
 
@@ -347,6 +376,44 @@
       messagesContainer.appendChild(wrapper);
       scrollToBottom();
       return wrapper;
+    }
+
+    // Initialize Vapi if enabled
+    if (vapiBtn && voiceEnabled && vapiPublicKey && vapiAssistantId) {
+      vapiInstance = new Vapi(vapiPublicKey);
+
+      vapiBtn.addEventListener('click', async () => {
+        if (isVapiActive) {
+          vapiInstance.stop();
+        } else {
+          try {
+            await vapiInstance.start(vapiAssistantId);
+          } catch (e) {
+            console.error('[StyleFlo Widget] Vapi start error:', e);
+            appendMessage('bot', 'Microphone access denied or voice connection failed.');
+          }
+        }
+      });
+
+      vapiInstance.on('call-start', () => {
+        isVapiActive = true;
+        vapiBtn.style.backgroundColor = primaryColor;
+      });
+      vapiInstance.on('call-end', () => {
+        isVapiActive = false;
+        vapiBtn.style.backgroundColor = '#6B7280';
+        vapiBtn.classList.remove('styleflo-animate-pulse');
+      });
+      vapiInstance.on('speech-start', () => {
+        vapiBtn.classList.add('styleflo-animate-pulse');
+      });
+      vapiInstance.on('speech-end', () => {
+        vapiBtn.classList.remove('styleflo-animate-pulse');
+      });
+      vapiInstance.on('error', (e: unknown) => {
+        console.error('[StyleFlo Widget] Vapi error:', e);
+        appendMessage('bot', 'A voice connection error occurred.');
+      });
     }
 
     // Form Submit Event Handler

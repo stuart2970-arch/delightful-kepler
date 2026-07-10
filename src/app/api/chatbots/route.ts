@@ -41,7 +41,7 @@ export async function POST(request: Request) {
     }
 
     const body = await request.json();
-    const { id, tenant_id, name, primary_color, configuration_json } = body;
+    const { id, tenant_id, name, primary_color, configuration_json, voice_enabled } = body;
 
     if (!id || !name || !tenant_id) {
       return NextResponse.json({ error: 'id, name, and tenant_id are required' }, { status: 400 });
@@ -56,6 +56,7 @@ export async function POST(request: Request) {
         name,
         primary_color,
         configuration_json,
+        voice_enabled,
       })
       .select()
       .single();

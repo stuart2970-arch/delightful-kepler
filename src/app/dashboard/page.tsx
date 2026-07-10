@@ -72,6 +72,9 @@ export default async function DashboardPage() {
     rwg_phone: ''
   };
 
+  let billingData: any = { planTier: 'basic', entitlements: [], usage: { chunks: 0, messages: 0 } };
+  let superadminData: any = null;
+
   try {
     // 2. Fetch User Profile & Tenant Mapping
     const { data: profile } = await supabase
@@ -147,8 +150,7 @@ export default async function DashboardPage() {
     };
     
     // 4. Fetch Billing Data
-    let billingData: any = { planTier: 'basic', entitlements: [], usage: { chunks: chunksCount || 0, messages: 0 } };
-    let superadminData: any = null;
+    billingData.usage.chunks = chunksCount || 0;
 
     if (tenantId) {
       const { data: tenantData } = await supabase.from('tenants').select('plan_tier').eq('id', tenantId).single();
