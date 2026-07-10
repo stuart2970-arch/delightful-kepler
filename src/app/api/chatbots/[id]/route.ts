@@ -48,7 +48,7 @@ export async function GET(
     const globalSettingsId = '00000000-0000-0000-0000-000000000000';
     const { data: chatbots, error: chatbotError } = await supabaseAdmin
       .from('chatbots')
-      .select('id, tenant_id, name, primary_color, configuration_json, voice_enabled')
+      .select('id, tenant_id, name, primary_color, configuration_json, voice_enabled, vapi_assistant_id')
       .in('id', [id, globalSettingsId]);
 
     if (chatbotError || !chatbots || chatbots.length === 0) {
@@ -117,7 +117,7 @@ export async function GET(
       brandingUrl: globalConfig.branding_url || 'https://styleflo.ai',
       voiceEnabled: hasVoiceMinutes,
       vapiPublicKey: process.env.VAPI_PUBLIC_KEY || '',
-      vapiAssistantId: process.env.VAPI_MASTER_ASSISTANT_ID || '',
+      vapiAssistantId: chatbot.vapi_assistant_id || process.env.VAPI_MASTER_ASSISTANT_ID || '',
     }, {
       headers: {
         ...corsHeaders,
