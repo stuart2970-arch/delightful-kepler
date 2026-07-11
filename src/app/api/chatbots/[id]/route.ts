@@ -61,6 +61,18 @@ export async function GET(
       return NextResponse.json({ error: 'Chatbot not found' }, { status: 404 });
     }
 
+    // Fetch tenant's global voice disclaimer
+    let globalVoiceDisclaimer = '';
+    if (chatbot.tenant_id) {
+      const { data: tenantData } = await supabaseAdmin
+        .from('tenants')
+        .select('global_voice_disclaimer')
+        .eq('id', chatbot.tenant_id)
+        .single();
+      
+      globalVoiceDisclaimer = tenantData?.global_voice_disclaimer || '';
+    }
+
     // Check Voice Entitlement (Usage Ledger vs Tier Entitlement)
     let hasVoiceMinutes = false;
     if (chatbot.voice_enabled && chatbot.tenant_id) {
@@ -122,6 +134,7 @@ export async function GET(
       voiceEnabled: hasVoiceMinutes,
       vapiPublicKey: process.env.NEXT_PUBLIC_VAPI_PUBLIC_KEY || process.env.VAPI_PUBLIC_KEY || '',
       vapiAssistantId: process.env.VAPI_MASTER_ASSISTANT_ID || '',
+      globalVoiceDisclaimer: globalVoiceDisclaimer,
     }, {
       headers: {
         ...corsHeaders,

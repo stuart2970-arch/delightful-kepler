@@ -124,6 +124,7 @@ import Vapi from '@vapi-ai/web';
   let voiceEnabled = false;
   let vapiPublicKey = '';
   let vapiAssistantId = '';
+  let globalVoiceDisclaimer = '';
 
   // 6. Fetch Chatbot Public Configuration
   async function fetchConfig() {
@@ -141,6 +142,7 @@ import Vapi from '@vapi-ai/web';
         voiceEnabled = config.voiceEnabled || false;
         vapiPublicKey = config.vapiPublicKey || '';
         vapiAssistantId = config.vapiAssistantId || '';
+        globalVoiceDisclaimer = config.globalVoiceDisclaimer || '';
       }
     } catch (err) {
       console.warn('[StyleFlo Widget] Failed to fetch chatbot config, using defaults:', err);
@@ -187,16 +189,31 @@ import Vapi from '@vapi-ai/web';
       </div>
 
       <!-- Onboarding Area -->
-      <div id="styleflo-onboarding" class="flex-1 flex flex-col items-center justify-center p-6 bg-gray-50 text-center" style="display: none;">
-        <div class="w-16 h-16 rounded-full flex items-center justify-center mb-4 text-white shadow-lg" style="background-color: ${primaryColor};">
+      <div id="styleflo-onboarding" class="flex-1 flex flex-col items-center justify-center p-6 bg-gray-50 text-center" style="display: none; overflow-y: auto;">
+        <div class="w-16 h-16 shrink-0 rounded-full flex items-center justify-center mb-4 text-white shadow-lg" style="background-color: ${primaryColor};">
           <svg class="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14.828 14.828a4 4 0 01-5.656 0M9 10h.01M15 10h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
           </svg>
         </div>
-        <h4 class="font-bold text-gray-800 text-lg mb-2">Welcome!</h4>
-        <p class="text-gray-500 text-sm mb-6">Please enter your name so we know who we are chatting with.</p>
-        <form id="styleflo-onboarding-form" class="w-full">
+        <h4 class="font-bold text-gray-800 text-lg mb-2 shrink-0">Welcome!</h4>
+        <p class="text-gray-500 text-sm mb-4 shrink-0">Please enter your name to start.</p>
+        
+        ${globalVoiceDisclaimer ? `
+          <div class="w-full bg-blue-50/50 border border-blue-100 p-3 rounded-xl mb-4 text-left">
+            <p class="text-xs text-blue-900/80 leading-relaxed">${globalVoiceDisclaimer}</p>
+          </div>
+        ` : ''}
+
+        <form id="styleflo-onboarding-form" class="w-full shrink-0">
           <input type="text" id="styleflo-onboarding-name" required placeholder="Name" class="w-full px-4 py-3 mb-3 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:border-transparent transition-all" style="--tw-ring-color: ${primaryColor};" />
+          
+          ${globalVoiceDisclaimer ? `
+          <div class="flex items-start gap-2 mb-4 text-left">
+            <input type="checkbox" id="styleflo-disclaimer-accept" required class="mt-1" />
+            <label for="styleflo-disclaimer-accept" class="text-xs text-gray-600">I have read and accept the disclaimer above.</label>
+          </div>
+          ` : ''}
+
           <button type="submit" class="w-full py-3 rounded-xl text-white font-semibold shadow-md transition-opacity hover:opacity-95" style="background-color: ${primaryColor};">Start Chatting</button>
         </form>
       </div>
