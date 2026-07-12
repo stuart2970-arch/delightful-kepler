@@ -23,6 +23,11 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: 'Missing chatbotId in query' }, { status: 400, headers: corsHeaders });
     }
 
+    // Map GEMINI_API_KEY to GOOGLE_GENERATIVE_AI_API_KEY for the @ai-sdk/google provider and embeddings fetch
+    if (process.env.GEMINI_API_KEY && !process.env.GOOGLE_GENERATIVE_AI_API_KEY) {
+      process.env.GOOGLE_GENERATIVE_AI_API_KEY = process.env.GEMINI_API_KEY;
+    }
+
     const body = await req.json();
     const { messages } = body; // standard OpenAI messages array payload from Vapi
 
