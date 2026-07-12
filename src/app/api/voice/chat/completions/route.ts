@@ -120,9 +120,58 @@ export async function POST(req: Request) {
       temperature: 0.7,
     });
 
-    // Stream back to Vapi in OpenAI format
-    return result.toDataStreamResponse({
-      headers: corsHeaders
+    // 6. Stream back to Vapi in OpenAI format
+    const encoder = new TextEncoder();
+    const stream = new ReadableStream({
+      async start(controller) {
+        try {
+          for await (const textDelta of result.textStream) {
+            const chunk = {
+              id: 'chatcmpl-vapi',
+              object: 'chat.completion.chunk',
+              created: Math.floor(Date.now() / 1000),
+              model: 'gemini-1.5-flash',
+              choices: [
+                {
+                  delta: { content: textDelta },
+                  index: 0,
+                  finish_reason: null
+                }
+              ]
+            };
+            controller.enqueue(encoder.encode(`data: ${JSON.stringify(chunk)}\n\n`));
+          }
+          
+          const finishChunk = {
+            id: 'chatcmpl-vapi',
+            object: 'chat.completion.chunk',
+            created: Math.floor(Date.now() / 1000),
+            model: 'gemini-1.5-flash',
+            choices: [
+              {
+                delta: {},
+                index: 0,
+                finish_reason: 'stop'
+              }
+            ]
+          };
+          controller.enqueue(encoder.encode(`data: ${JSON.stringify(finishChunk)}\n\n`));
+          controller.enqueue(encoder.encode(`data: [DONE]\n\n`));
+          controller.close();
+        } catch (err) {
+          console.error('[Vapi Custom LLM] Stream error:', err);
+          controller.error(err);
+        }
+      }
+    });
+
+    return new Response(stream, {
+      headers: {
+        'Content-Type': 'text/event-stream',
+        'Cache-Control': 'no-cache',
+        'Connection': 'keep-alive',
+        ...corsHeaders
+      }
     });
 
   } catch (error: any) {
