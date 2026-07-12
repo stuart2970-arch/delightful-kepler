@@ -36,7 +36,7 @@ export async function GET(request: Request) {
 export async function POST(request: Request) {
   try {
     const body = await request.json();
-    const { tenant_id, name, email, google_calendar_id, working_days } = body;
+    const { tenant_id, chatbot_id, name, email, google_calendar_id, working_days } = body;
 
     if (!tenant_id || !name || !email) {
       return NextResponse.json({ error: 'Missing required fields' }, { status: 400 });
@@ -47,6 +47,7 @@ export async function POST(request: Request) {
       .from('staff')
       .insert({
         tenant_id,
+        chatbot_id,
         name,
         email,
         google_calendar_id: google_calendar_id || 'primary',
@@ -67,7 +68,7 @@ export async function POST(request: Request) {
 export async function PUT(request: Request) {
   try {
     const body = await request.json();
-    const { id, tenant_id, name, email, google_calendar_id, working_days } = body;
+    const { id, tenant_id, chatbot_id, name, email, google_calendar_id, working_days } = body;
 
     if (!id || !tenant_id || !name || !email) {
       return NextResponse.json({ error: 'Missing required fields' }, { status: 400 });
@@ -77,6 +78,7 @@ export async function PUT(request: Request) {
     const { data, error } = await supabaseAdmin
       .from('staff')
       .update({
+        chatbot_id,
         name,
         email,
         google_calendar_id: google_calendar_id || 'primary',

@@ -139,8 +139,8 @@ export async function POST(request: Request) {
     
     // Fetch Services, Staff and Tenant Booking Mode for Calendar integration
     const [servicesRes, staffRes, tenantRes] = await Promise.all([
-      supabaseAdmin.from('services').select('id, name, duration_minutes, buffer_minutes, price, staff_services(staff_id, custom_price, custom_duration)').eq('tenant_id', tenantId),
-      supabaseAdmin.from('staff').select('id, name').eq('tenant_id', tenantId),
+      supabaseAdmin.from('services').select('id, name, duration_minutes, buffer_minutes, price, staff_services(staff_id, custom_price, custom_duration)').eq('tenant_id', tenantId).eq('chatbot_id', chatbotId),
+      supabaseAdmin.from('staff').select('id, name').eq('tenant_id', tenantId).eq('chatbot_id', chatbotId),
       supabaseAdmin.from('tenants').select('booking_mode, booking_url').eq('id', tenantId).single()
     ]);
     const servicesContext = servicesRes.data ? JSON.stringify(servicesRes.data, null, 2) : '[]';

@@ -36,7 +36,7 @@ export async function GET(request: Request) {
 export async function POST(request: Request) {
   try {
     const body = await request.json();
-    const { tenant_id, name, duration_minutes, buffer_minutes, price, assigned_staff } = body;
+    const { tenant_id, chatbot_id, name, duration_minutes, buffer_minutes, price, assigned_staff } = body;
 
     if (!tenant_id || !name) {
       return NextResponse.json({ error: 'Missing required fields' }, { status: 400 });
@@ -49,6 +49,7 @@ export async function POST(request: Request) {
       .from('services')
       .insert({
         tenant_id,
+        chatbot_id,
         name,
         duration_minutes: duration_minutes || 60,
         buffer_minutes: buffer_minutes || 0,
@@ -89,7 +90,7 @@ export async function POST(request: Request) {
 export async function PUT(request: Request) {
   try {
     const body = await request.json();
-    const { id, tenant_id, name, duration_minutes, buffer_minutes, price, assigned_staff } = body;
+    const { id, tenant_id, chatbot_id, name, duration_minutes, buffer_minutes, price, assigned_staff } = body;
 
     if (!id || !tenant_id || !name) {
       return NextResponse.json({ error: 'Missing required fields' }, { status: 400 });
@@ -101,6 +102,7 @@ export async function PUT(request: Request) {
     const { error } = await supabaseAdmin
       .from('services')
       .update({
+        chatbot_id,
         name,
         duration_minutes: duration_minutes || 60,
         buffer_minutes: buffer_minutes || 0,
