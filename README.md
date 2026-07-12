@@ -108,5 +108,12 @@ This runbook documents the key fixes and architecture enhancements implemented d
     4. Restructured the widget layout to wrap bot messages and loaded product cards in a vertical `flex flex-col` container, resolving horizontal overflow scrollbars and styling squeeze issues.
     5. Adjusted the widget's render pipeline to insert each product preview card inline, directly following its specific link tag mention within the text block, rather than dumping them all at the very bottom.
 
-
-
+### Session 6 (July 12, 2026)
+* **User**: "when i open Karen ai, i am asked if i would like to book in for eyelash or nail work, but these services are only available to Hil from wardrobe at the cross, things like staff, services are bot specific"
+  * **Fix**: Implemented architectural isolation for Services and Staff per Chatbot.
+    1. Added a database migration to introduce `chatbot_id` columns to both `staff` and `services` tables.
+    2. Updated API endpoints (`/api/services` and `/api/staff`) to enforce insertions and updates against the specific `chatbot_id`.
+    3. Updated `useDashboardStore` and the UI to filter displayed staff/services based on the currently selected chatbot in the dashboard.
+    4. Refactored the `/api/chat/stream` RAG prompt generation to only fetch services and staff that correspond to the specific `chatbot_id` requested by the widget.
+* **User**: "still getting a voice connection error"
+  * **Fix**: Resolved a `404 Chatbot not found` error during Vapi Custom LLM initialization. Vapi implicitly appends `/chat/completions` to the end of any custom LLM `url`. Because the URL was constructed as `.../api/voice/chat/completions?chatbotId=[ID]`, Vapi corrupted the query parameter to `[ID]/chat/completions`, causing the database lookup to fail. Updated `/api/voice/chat/completions/route.ts` to defensively strip `/chat/completions` from the `chatbotId` query parameter, resolving the connection issues while remaining backward compatible with cached widget scripts.
