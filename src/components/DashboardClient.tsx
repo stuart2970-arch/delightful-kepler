@@ -66,6 +66,7 @@ interface DashboardClientProps {
   initialRwgConfig?: any;
   initialBookingMode?: string;
   initialBookingUrl?: string;
+  initialGlobalVoiceDisclaimer?: string;
   billingData?: any;
   superadminData?: any;
 }
@@ -83,6 +84,7 @@ export default function DashboardClient({
   initialRwgConfig,
   initialBookingMode,
   initialBookingUrl,
+  initialGlobalVoiceDisclaimer,
   billingData,
   superadminData,
 }: DashboardClientProps) {
@@ -115,6 +117,9 @@ export default function DashboardClient({
   } = useDashboardStore();
 
   // Global settings state
+  const [globalVoiceDisclaimer, setGlobalVoiceDisclaimer] = useState(initialGlobalVoiceDisclaimer || '');
+  const [isSavingDisclaimer, setIsSavingDisclaimer] = useState(false);
+  
   const globalBotId = '00000000-0000-0000-0000-000000000000';
   const [globalBrandingHtml, setGlobalBrandingHtml] = useState('<span style="opacity: 0.6; font-size: 11px;">⚡ Powered by <strong>StyleFlo</strong></span>');
   const [globalTrackingUrl, setGlobalTrackingUrl] = useState('https://styleflo.ai');
@@ -368,6 +373,29 @@ export default function DashboardClient({
 
   // Scheduling Handlers
 
+  const handleSaveGlobalDisclaimer = async () => {
+    setIsSavingDisclaimer(true);
+    try {
+      const supabase = createBrowserClient(
+        process.env.NEXT_PUBLIC_SUPABASE_URL!,
+        process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+      );
+      
+      const { error } = await supabase
+        .from('tenants')
+        .update({ global_voice_disclaimer: globalVoiceDisclaimer })
+        .eq('id', tenantId);
+        
+      if (error) throw error;
+      alert('Global voice disclaimer saved successfully');
+    } catch (err) {
+      console.error('[Dashboard] Error saving global disclaimer:', err);
+      alert('Failed to save disclaimer.');
+    } finally {
+      setIsSavingDisclaimer(false);
+    }
+  };
+
   return (
     <div className="flex h-screen bg-[#09090b] text-gray-100 overflow-hidden font-sans">
       
@@ -399,6 +427,7 @@ export default function DashboardClient({
                 { id: 'crawler', label: 'Knowledge Base', icon: <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" /> },
                 { id: 'integrations', label: 'Integrations', icon: <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 10V3L4 14h7v7l9-11h-7z" /> },
                 { id: 'billing', label: 'Billing & Usage', icon: <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z" /> },
+                { id: 'account', label: 'Account Settings', icon: <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" /> },
                 ...(isSuperAdmin ? [{ id: 'settings', label: 'Platform Settings', icon: <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" /> }] : []),
               ].map(tab => (
                  <button key={tab.id} onClick={() => { setActiveTab(tab.id as any); setIsMobileMenuOpen(false); }} className={`w-full flex items-center justify-between px-3 py-3 rounded-xl text-sm font-semibold transition-all duration-300 border border-transparent ${activeTab === tab.id ? 'bg-indigo-500/10 text-indigo-400 border-indigo-500/20 shadow-sm shadow-indigo-500/5' : 'text-gray-400 hover:text-gray-200 hover:bg-white/5 hover:border-white/5'}`}>
@@ -597,6 +626,39 @@ export default function DashboardClient({
               )}
             </div>
           )}
+
+            {/* Account Settings Tab */}
+            {activeTab === 'account' && (
+              <div className="bg-gray-900/30 border border-gray-900 p-6 rounded-2xl shadow-xl space-y-6">
+                <div>
+                  <h3 className="text-lg font-bold text-white">Account Settings</h3>
+                  <p className="text-xs text-gray-400 mt-0.5">Manage your workspace account preferences.</p>
+                </div>
+
+                <div className="space-y-4">
+                  <div>
+                    <label className="block text-sm font-semibold text-gray-300 mb-2">Global Voice & Chat Disclaimer</label>
+                    <p className="text-xs text-gray-500 mb-2">This disclaimer will be shown to users before they start a chat or voice call.</p>
+                    <textarea 
+                      value={globalVoiceDisclaimer}
+                      onChange={(e) => setGlobalVoiceDisclaimer(e.target.value)}
+                      placeholder="e.g. Please be aware that this call may be recorded for training and quality purposes..."
+                      className="w-full bg-black/40 border border-gray-800 rounded-xl px-4 py-3 text-sm text-gray-100 focus:outline-none focus:ring-2 focus:border-transparent transition-all min-h-[100px]"
+                      style={{ '--tw-ring-color': '#6366f1' } as any}
+                    />
+                  </div>
+                  <div className="flex justify-end pt-2">
+                    <button 
+                      onClick={handleSaveGlobalDisclaimer}
+                      disabled={isSavingDisclaimer}
+                      className="px-6 py-2.5 bg-indigo-600 hover:bg-indigo-500 text-white text-sm font-bold rounded-xl transition-all disabled:opacity-50"
+                    >
+                      {isSavingDisclaimer ? 'Saving...' : 'Save Settings'}
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
 
           {/* Platform Settings Tab */}
           {activeTab === 'settings' && (

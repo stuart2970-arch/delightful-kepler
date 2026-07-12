@@ -54,6 +54,7 @@ export default async function DashboardPage() {
   let isSuperAdmin = false;
   let bookingMode = 'single_calendar';
   let bookingUrl = '';
+  let globalVoiceDisclaimer = '';
   
   let chatbots: any[] = [];
   let conversations: any[] = [];
@@ -93,7 +94,7 @@ export default async function DashboardPage() {
       
       const { data: tenant } = await supabase
         .from('tenants')
-        .select('company_name, plan_tier, is_rwg_enabled, rwg_business_name, rwg_street_address, rwg_city, rwg_postcode, rwg_phone, booking_mode, booking_url')
+        .select('company_name, plan_tier, is_rwg_enabled, rwg_business_name, rwg_street_address, rwg_city, rwg_postcode, rwg_phone, booking_mode, booking_url, global_voice_disclaimer')
         .eq('id', tenantId)
         .single();
       
@@ -109,6 +110,7 @@ export default async function DashboardPage() {
           rwg_postcode: tenant.rwg_postcode || '',
           rwg_phone: tenant.rwg_phone || '',
         };
+        globalVoiceDisclaimer = tenant.global_voice_disclaimer || '';
       }
     }
 
@@ -217,6 +219,7 @@ export default async function DashboardPage() {
         initialRwgConfig={rwgConfig}
         initialBookingMode={bookingMode}
         initialBookingUrl={bookingUrl}
+        initialGlobalVoiceDisclaimer={globalVoiceDisclaimer}
         billingData={billingData}
         superadminData={superadminData}
       />

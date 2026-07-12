@@ -287,17 +287,36 @@ import Vapi from '@vapi-ai/web';
 
     // Check for existing name in localStorage
     let storedName = localStorage.getItem('styleflo-client-name');
-    if (!storedName) {
+    let disclaimerAccepted = localStorage.getItem('styleflo-disclaimer-accepted');
+    
+    // If we need a disclaimer but it hasn't been accepted, force onboarding
+    if (!storedName || (globalVoiceDisclaimer && !disclaimerAccepted)) {
       messagesContainer.style.display = 'none';
       chatForm.style.display = 'none';
       onboardingContainer.style.display = 'flex';
+      
+      // If we already have a name, prepopulate the name field
+      if (storedName && onboardingName) {
+        onboardingName.value = storedName;
+      }
     }
 
     onboardingForm.addEventListener('submit', (e) => {
       e.preventDefault();
       const name = onboardingName.value.trim();
+      const acceptCheckbox = shadowRoot.getElementById('styleflo-disclaimer-accept') as HTMLInputElement | null;
+      
+      if (globalVoiceDisclaimer && acceptCheckbox && !acceptCheckbox.checked) {
+        alert('You must accept the disclaimer to continue.');
+        return;
+      }
+
       if (name) {
         localStorage.setItem('styleflo-client-name', name);
+        if (globalVoiceDisclaimer) {
+          localStorage.setItem('styleflo-disclaimer-accepted', 'true');
+          disclaimerAccepted = 'true';
+        }
         storedName = name;
         onboardingContainer.style.display = 'none';
         messagesContainer.style.display = 'block';
@@ -438,8 +457,9 @@ import Vapi from '@vapi-ai/web';
               await vapiInstance.start({
                 name: `${agentName} Transient Assistant`,
                 model: {
-                  provider: "openai",
-                  model: "gpt-4o-mini",
+                  provider: "custom-llm",
+                  url: `${apiHost}/api/voice/chat/completions?chatbotId=${chatbotId}`,
+                  model: "gemini-1.5-flash",
                   messages: [
                     {
                       role: "system",
