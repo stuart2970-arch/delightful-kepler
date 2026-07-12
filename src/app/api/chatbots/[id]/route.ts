@@ -61,21 +61,29 @@ export async function GET(
       return NextResponse.json({ error: 'Chatbot not found' }, { status: 404 });
     }
 
-    // Fetch tenant's global voice disclaimer
+    // Fetch tenant's global voice disclaimer and plan tier
     let globalVoiceDisclaimer = '';
+    let planTier = 'basic';
+    
     if (chatbot.tenant_id) {
       const { data: tenantData } = await supabaseAdmin
         .from('tenants')
-        .select('global_voice_disclaimer')
+        .select('global_voice_disclaimer, plan_tier')
         .eq('id', chatbot.tenant_id)
         .single();
       
       globalVoiceDisclaimer = tenantData?.global_voice_disclaimer || '';
+      planTier = tenantData?.plan_tier || 'basic';
+    }
+    
+    let voiceProvider = (planTier === 'premium' || planTier === 'ultimate') ? '11labs' : 'playht';
+    if (planTier === 'basic') {
+      voiceProvider = 'none';
     }
 
     // Check Voice Entitlement (Usage Ledger vs Tier Entitlement)
     let hasVoiceMinutes = false;
-    if (chatbot.voice_enabled && chatbot.tenant_id) {
+    if (chatbot.voice_enabled && chatbot.tenant_id && voiceProvider !== 'none') {
       // TEMPORARILY BYPASSED FOR TESTING:
       hasVoiceMinutes = true;
       /*
@@ -135,6 +143,7 @@ export async function GET(
       vapiPublicKey: process.env.NEXT_PUBLIC_VAPI_PUBLIC_KEY || process.env.VAPI_PUBLIC_KEY || '',
       vapiAssistantId: process.env.VAPI_MASTER_ASSISTANT_ID || '',
       globalVoiceDisclaimer: globalVoiceDisclaimer,
+      voiceProvider: voiceProvider,
     }, {
       headers: {
         ...corsHeaders,

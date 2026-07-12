@@ -125,6 +125,7 @@ import Vapi from '@vapi-ai/web';
   let vapiPublicKey = '';
   let vapiAssistantId = '';
   let globalVoiceDisclaimer = '';
+  let voiceProvider = 'playht';
 
   // 6. Fetch Chatbot Public Configuration
   async function fetchConfig() {
@@ -143,6 +144,7 @@ import Vapi from '@vapi-ai/web';
         vapiPublicKey = config.vapiPublicKey || '';
         vapiAssistantId = config.vapiAssistantId || '';
         globalVoiceDisclaimer = config.globalVoiceDisclaimer || '';
+        if (config.voiceProvider) voiceProvider = config.voiceProvider;
       }
     } catch (err) {
       console.warn('[StyleFlo Widget] Failed to fetch chatbot config, using defaults:', err);
@@ -467,9 +469,12 @@ import Vapi from '@vapi-ai/web';
                     }
                   ]
                 },
-                voice: {
+                voice: voiceProvider === '11labs' ? {
                   provider: "11labs",
                   voiceId: "bIHbv24MWmeRgasZH58o"
+                } : {
+                  provider: "playht",
+                  voiceId: "susan"
                 },
                 metadata: {
                   tenant_id: chatbotId
