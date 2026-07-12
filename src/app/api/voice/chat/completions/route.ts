@@ -18,7 +18,11 @@ export async function OPTIONS() {
 export async function POST(req: Request) {
   try {
     const url = new URL(req.url);
-    const chatbotId = url.searchParams.get('chatbotId');
+    let chatbotId = url.searchParams.get('chatbotId');
+    if (chatbotId?.endsWith('/chat/completions')) {
+      chatbotId = chatbotId.replace('/chat/completions', '');
+    }
+
     if (!chatbotId) {
       return NextResponse.json({ error: 'Missing chatbotId in query' }, { status: 400, headers: corsHeaders });
     }
