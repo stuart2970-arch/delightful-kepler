@@ -26,7 +26,8 @@ const VOICE_PERSONAS = [
 ];
 
 export default function ChatbotManagerView() {
-  const { chatbots, setChatbots, setMetrics, tenantId, isSuperAdmin, testWidgetBotId, setTestWidgetBotId } = useDashboardStore();
+  const { chatbots, setChatbots, setMetrics, tenantId, isSuperAdmin } = useDashboardStore();
+  const [testWidgetBotId, setTestWidgetBotId] = useState<string | null>(null);
   const [newBotName, setNewBotName] = useState('');
   const [newBotColor, setNewBotColor] = useState('#4F46E5');
   const [newBotWelcome, setNewBotWelcome] = useState('Hello! How can I help you today?');
