@@ -3,48 +3,26 @@ import { useDashboardStore, Chatbot } from '../../lib/store';
 import { createBrowserClient } from '@supabase/ssr';
 
 const VOICE_PERSONAS = [
-  // Female
-  { id: 'vapi-f-1', name: 'Polished, articulate, professional', role: 'Corporate, executive presentations, news', gender: 'Female', previewUrl: '/audio/f1.mp3' },
-  { id: 'vapi-f-2', name: 'Crisp, authoritative, clear', role: 'Instructions, tutorials, technical support', gender: 'Female', previewUrl: '/audio/f2.mp3' },
-  { id: 'vapi-f-3', name: 'Energetic, bright, youthful', role: 'Fitness apps, entertainment, casual chat', gender: 'Female', previewUrl: '/audio/f3.mp3' },
-  { id: 'vapi-f-4', name: 'Smooth, calming, melodic', role: 'Meditation, sleep aid, luxury branding', gender: 'Female', previewUrl: '/audio/f4.mp3' },
-  { id: 'vapi-f-5', name: 'Friendly, peer-like, natural', role: 'Conversational assistant, daily logging', gender: 'Female', previewUrl: '/audio/f5.mp3' },
-  { id: 'vapi-f-6', name: 'Direct, confident, reassuring', role: 'Financial assistance, customer service', gender: 'Female', previewUrl: '/audio/f6.mp3' },
-  { id: 'vapi-f-7', name: 'Warm, expressive, maternal', role: 'Audiobooks, storytelling, educational tools', gender: 'Female', previewUrl: '/audio/f7.mp3' },
-  { id: 'vapi-f-8', name: 'Vibrant, fast-paced, bubbly', role: 'Gaming, pop culture, youth-focused apps', gender: 'Female', previewUrl: '/audio/f8.mp3' },
-  { id: 'vapi-f-9', name: 'Deep, confident, sophisticated', role: 'Luxury retail, premium brand navigation', gender: 'Female', previewUrl: '/audio/f9.mp3' },
-  { id: 'vapi-f-10', name: 'Soft, airy, gentle', role: 'Wellness, lifestyle, customer check-ins', gender: 'Female', previewUrl: '/audio/f10.mp3' },
-  { id: 'vapi-f-11', name: 'Casual, conversational, relatable', role: 'E-commerce, lifestyle assistant', gender: 'Female', previewUrl: '/audio/f11.mp3' },
-  { id: 'vapi-f-12', name: 'Edgy, modern, confident', role: 'Fashion, design, creative tools', gender: 'Female', previewUrl: '/audio/f12.mp3' },
-  { id: 'vapi-f-13', name: 'Rich, textured, slightly dramatic', role: 'Audiobooks, gaming narratives', gender: 'Female', previewUrl: '/audio/f13.mp3' },
-  { id: 'vapi-f-14', name: 'Empathetic, supportive, smooth', role: 'Healthcare, coaching, personal development', gender: 'Female', previewUrl: '/audio/f14.mp3' },
-  { id: 'vapi-f-15', name: 'Upbeat, crisp, welcoming', role: 'Hospitality, travel guides, scheduling', gender: 'Female', previewUrl: '/audio/f15.mp3' },
-  { id: 'vapi-f-16', name: 'Practical, straightforward, steady', role: 'Productivity tools, data reading', gender: 'Female', previewUrl: '/audio/f16.mp3' },
-  { id: 'vapi-f-17', name: 'Wise, measured, clinical', role: 'Medical contexts, academic summaries', gender: 'Female', previewUrl: '/audio/f17.mp3' },
-  { id: 'vapi-f-18', name: 'Athletic, punchy, motivational', role: 'Sports, active routines, coaching', gender: 'Female', previewUrl: '/audio/f18.mp3' },
-  { id: 'vapi-f-19', name: 'Elegant, smooth, cosmopolitan', role: 'Travel, high-end concierges', gender: 'Female', previewUrl: '/audio/f19.mp3' },
-  { id: 'vapi-f-20', name: 'Down-to-earth, friendly, rustic', role: 'Local service directories, community apps', gender: 'Female', previewUrl: '/audio/f20.mp3' },
-  // Male
-  { id: 'vapi-m-1', name: 'Deep, textured, conversational', role: 'General assistant, podcast reading', gender: 'Male', previewUrl: '/audio/m1.mp3' },
-  { id: 'vapi-m-2', name: 'Command, authoritative, resonant', role: 'Security, executive tools, formal alerts', gender: 'Male', previewUrl: '/audio/m2.mp3' },
-  { id: 'vapi-m-3', name: 'Casual, relatable, warm', role: 'Everyday apps, companion bots', gender: 'Male', previewUrl: '/audio/m3.mp3' },
-  { id: 'vapi-m-4', name: 'Crisp, intelligent, tech-forward', role: 'Technical documentation, coding support', gender: 'Male', previewUrl: '/audio/m4.mp3' },
-  { id: 'vapi-m-5', name: 'Low, bass-heavy, smooth', role: 'Night-mode reading, premium audiobooks', gender: 'Male', previewUrl: '/audio/m5.mp3' },
-  { id: 'vapi-m-6', name: 'Measured, thoughtful, deliberate', role: 'Financial analysis, legal tech, serious topics', gender: 'Male', previewUrl: '/audio/m6.mp3' },
-  { id: 'vapi-m-7', name: 'Urban, smooth, friendly', role: 'Lifestyle, food apps, personal scheduling', gender: 'Male', previewUrl: '/audio/m7.mp3' },
-  { id: 'vapi-m-8', name: 'Gentle, empathetic, calm', role: 'Mental health, customer support', gender: 'Male', previewUrl: '/audio/m8.mp3' },
-  { id: 'vapi-m-9', name: 'High-energy, optimistic, bright', role: 'Fitness tracking, interactive games', gender: 'Male', previewUrl: '/audio/m9.mp3' },
-  { id: 'vapi-m-10', name: 'Steady, structured, trustworthy', role: 'Long-form narration, tutorials', gender: 'Male', previewUrl: '/audio/m10.mp3' },
-  { id: 'vapi-m-11', name: 'Warm, approachable, intellectual', role: 'Education, smart-home management', gender: 'Male', previewUrl: '/audio/m11.mp3' },
-  { id: 'vapi-m-12', name: 'Sharp, precise, clinical', role: 'Analytics, diagnostics, B2B software', gender: 'Male', previewUrl: '/audio/m12.mp3' },
-  { id: 'vapi-m-13', name: 'Charismatic, bold, engaging', role: 'Marketing tools, presentations, sales', gender: 'Male', previewUrl: '/audio/m13.mp3' },
-  { id: 'vapi-m-14', name: 'Playful, quick, friendly', role: 'Creative platforms, casual messaging', gender: 'Male', previewUrl: '/audio/m14.mp3' },
-  { id: 'vapi-m-15', name: 'Balanced, conversational, neutral', role: 'Standard customer service portals', gender: 'Male', previewUrl: '/audio/m15.mp3' },
-  { id: 'vapi-m-16', name: 'Dynamic, intense, suspenseful', role: 'Action narrations, high-stakes alerts', gender: 'Male', previewUrl: '/audio/m16.mp3' },
-  { id: 'vapi-m-17', name: 'Witty, clever, dry', role: 'Smart assistants with an edge', gender: 'Male', previewUrl: '/audio/m17.mp3' },
-  { id: 'vapi-m-18', name: 'Relaxed, smooth, coastal', role: 'Travel, meditation, casual browsing', gender: 'Male', previewUrl: '/audio/m18.mp3' },
-  { id: 'vapi-m-19', name: 'Classic, rich, vintage resonance', role: 'Narration, storytelling, high-end guidance', gender: 'Male', previewUrl: '/audio/m19.mp3' },
-  { id: 'vapi-m-20', name: 'Modern, punchy, youthful', role: 'Trendy apps, social media clip generation', gender: 'Male', previewUrl: '/audio/m20.mp3' },
+  // British (Dominant)
+  { id: 'JBFqnCBsd6RMkjVDRZzb', name: 'British Male - Polished & Professional', role: 'Corporate, executive presentations', gender: 'Male', previewUrl: '/audio/george.mp3', nationality: 'British' },
+  { id: 'Xb7hH8MSALEjdAeoWhZl', name: 'British Female - Crisp & Authoritative', role: 'Instructions, technical support', gender: 'Female', previewUrl: '/audio/alice.mp3', nationality: 'British' },
+  { id: 'pFZP5JQG7iQjIQuC4Bku', name: 'British Female - Warm & Expressive', role: 'Storytelling, educational tools', gender: 'Female', previewUrl: '/audio/lily.mp3', nationality: 'British' },
+  { id: 'XrExE9yKIg1WjnnRuVNn', name: 'British Female - Soft & Calming', role: 'Meditation, luxury branding', gender: 'Female', previewUrl: '/audio/matilda.mp3', nationality: 'British' },
+  { id: 'N2lVS1w4EtoT3dr4eOWO', name: 'British Male - Deep & Confident', role: 'Luxury retail, premium brand navigation', gender: 'Male', previewUrl: '/audio/callum.mp3', nationality: 'British' },
+  { id: 'SOYHLrjzK2X1ezoPC6cr', name: 'British Male - Energetic & Youthful', role: 'Gaming, entertainment, casual chat', gender: 'Male', previewUrl: '/audio/harry.mp3', nationality: 'British' },
+  { id: 'CYw3kZ02Hs0563khs1Fj', name: 'British Male - Casual & Relatable', role: 'E-commerce, lifestyle assistant', gender: 'Male', previewUrl: '/audio/dave.mp3', nationality: 'British' },
+  { id: 'zrHiDhphv9ZnVBTiNxbM', name: 'British Female - Vibrant & Bubbly', role: 'Pop culture, youth-focused apps', gender: 'Female', previewUrl: '/audio/mimi.mp3', nationality: 'British' },
+  { id: 'IKne3meq5aSn9XLyUdCD', name: 'British/Aussie Male - Friendly & Natural', role: 'Conversational assistant', gender: 'Male', previewUrl: '/audio/charlie.mp3', nationality: 'British/Aussie' },
+
+  // American Options
+  { id: '21m00Tcm4TlvDq8ikWAM', name: 'American Female - Clear & Direct', role: 'Customer service, daily logging', gender: 'Female', previewUrl: '/audio/rachel.mp3', nationality: 'American' },
+  { id: '29vD33N1CtxCmqQRPOHJ', name: 'American Male - Sharp & Precise', role: 'Analytics, B2B software', gender: 'Male', previewUrl: '/audio/drew.mp3', nationality: 'American' },
+  { id: '2EiwWnXFnvU5JabPnv8n', name: 'American Male - Urban & Smooth', role: 'Lifestyle, food apps', gender: 'Male', previewUrl: '/audio/clyde.mp3', nationality: 'American' },
+  { id: 'MF3mGyEYCl7XYWbV9V6O', name: 'American Female - Gentle & Empathetic', role: 'Mental health, support', gender: 'Female', previewUrl: '/audio/elli.mp3', nationality: 'American' },
+  { id: 'ErXwobaYiN019PkySvjV', name: 'American Male - Charismatic & Bold', role: 'Presentations, sales', gender: 'Male', previewUrl: '/audio/antoni.mp3', nationality: 'American' },
+  
+  // Other Options
+  { id: 'D38z5RcWu1voky8WS1ja', name: 'Irish Male - Witty & Clever', role: 'Smart assistants with an edge', gender: 'Male', previewUrl: '/audio/fin.mp3', nationality: 'Irish' },
 ];
 
 export default function ChatbotManagerView() {
@@ -56,7 +34,7 @@ export default function ChatbotManagerView() {
   const [newAgentRole, setNewAgentRole] = useState('AI Assistant');
   const [newAgentAvatar, setNewAgentAvatar] = useState('/avatars/avatar1.png');
   const [newVoiceEnabled, setNewVoiceEnabled] = useState(false);
-  const [newVapiAssistantId, setNewVapiAssistantId] = useState('');
+  const [newVoiceId, setNewVoiceId] = useState('');
   const [isCreatingBot, setIsCreatingBot] = useState(false);
   const [editingBotId, setEditingBotId] = useState<string | null>(null);
 
@@ -102,6 +80,7 @@ export default function ChatbotManagerView() {
         agent_name: newAgentName.trim() || newBotName,
         agent_role: newAgentRole.trim(),
         agent_avatar_url: newAgentAvatar,
+        voice_id: newVoiceId,
       },
       created_at: new Date().toISOString(),
     };
@@ -122,6 +101,7 @@ export default function ChatbotManagerView() {
             agent_name: newAgentName.trim() || newBotName,
             agent_role: newAgentRole.trim(),
             agent_avatar_url: newAgentAvatar,
+            voice_id: newVoiceId,
           },
         }),
       });
@@ -169,6 +149,7 @@ export default function ChatbotManagerView() {
       agent_name: newAgentName.trim() || newBotName,
       agent_role: newAgentRole.trim(),
       agent_avatar_url: newAgentAvatar,
+      voice_id: newVoiceId,
     };
 
     try {
@@ -180,7 +161,6 @@ export default function ChatbotManagerView() {
           name: newBotName,
           primary_color: newBotColor,
           voice_enabled: newVoiceEnabled,
-          vapi_assistant_id: newVapiAssistantId,
           configuration_json: updatedConfig,
         }),
       });
@@ -352,15 +332,15 @@ export default function ChatbotManagerView() {
                         <label className="block text-xs font-semibold text-gray-400 mb-2">Select Voice Persona</label>
                         <div className="bg-gray-950 border border-gray-800 rounded-xl max-h-[300px] overflow-y-auto styleflo-scrollbar divide-y divide-gray-800/50">
                           {VOICE_PERSONAS.map((voice) => (
-                            <div key={voice.id} className={`flex items-center justify-between p-3 transition-colors ${newVapiAssistantId === voice.id ? 'bg-indigo-900/20' : 'hover:bg-gray-900/50'}`}>
-                              <div className="flex items-center gap-3 flex-1 cursor-pointer" onClick={() => setNewVapiAssistantId(voice.id)}>
-                                <div className={`w-4 h-4 rounded-full border flex items-center justify-center flex-shrink-0 ${newVapiAssistantId === voice.id ? 'border-indigo-500 bg-indigo-500' : 'border-gray-600'}`}>
-                                  {newVapiAssistantId === voice.id && <div className="w-1.5 h-1.5 bg-white rounded-full"></div>}
+                            <div key={voice.id} className={`flex items-center justify-between p-3 transition-colors ${newVoiceId === voice.id ? 'bg-indigo-900/20' : 'hover:bg-gray-900/50'}`}>
+                              <div className="flex items-center gap-3 flex-1 cursor-pointer" onClick={() => setNewVoiceId(voice.id)}>
+                                <div className={`w-4 h-4 rounded-full border flex items-center justify-center flex-shrink-0 ${newVoiceId === voice.id ? 'border-indigo-500 bg-indigo-500' : 'border-gray-600'}`}>
+                                  {newVoiceId === voice.id && <div className="w-1.5 h-1.5 bg-white rounded-full"></div>}
                                 </div>
                                 <div>
                                   <div className="text-xs font-bold text-white flex items-center gap-2">
                                     {voice.name}
-                                    <span className={`text-[9px] px-1.5 py-0.5 rounded font-mono ${voice.gender === 'Female' ? 'bg-pink-500/20 text-pink-300' : 'bg-blue-500/20 text-blue-300'}`}>{voice.gender}</span>
+                                    <span className="text-[9px] px-1.5 py-0.5 rounded font-mono bg-indigo-500/20 text-indigo-300">{voice.nationality}</span>
                                   </div>
                                   <div className="text-[10px] text-gray-500 mt-0.5">{voice.role}</div>
                                 </div>
@@ -403,6 +383,7 @@ export default function ChatbotManagerView() {
                           setNewAgentRole('AI Assistant');
                           setNewAgentAvatar('/avatars/avatar1.png');
                           setNewVoiceEnabled(false);
+                          setNewVoiceId('');
                         }}
                         className="bg-gray-800 hover:bg-gray-700 text-gray-300 text-sm font-semibold py-2 px-5 rounded-xl transition-colors"
                       >
@@ -455,15 +436,16 @@ export default function ChatbotManagerView() {
                       </button>
                       <button
                         onClick={() => {
+                          const config = bot.configuration_json || {};
                           setEditingBotId(bot.id);
                           setNewBotName(bot.name);
                           setNewBotColor(bot.primary_color);
-                          setNewBotWelcome(bot.configuration_json?.welcome_message || 'Hello!');
-                          setNewAgentName(bot.configuration_json?.agent_name || bot.name);
-                          setNewAgentRole(bot.configuration_json?.agent_role || 'AI Assistant');
-                          setNewAgentAvatar(bot.configuration_json?.agent_avatar_url || '/avatars/avatar1.png');
+                          setNewBotWelcome(config.welcome_message || 'Hello!');
+                          setNewAgentName(config.agent_name || bot.name);
+                          setNewAgentRole(config.agent_role || 'AI Assistant');
+                          setNewAgentAvatar(config.agent_avatar_url || '/avatars/avatar1.png');
                           setNewVoiceEnabled(bot.voice_enabled || false);
-                          setNewVapiAssistantId(bot.vapi_assistant_id || '');
+                          setNewVoiceId(config.voice_id || '');
                           
                           // Scroll form into view
                           window.scrollTo({ top: 0, behavior: 'smooth' });

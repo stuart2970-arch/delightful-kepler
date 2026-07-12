@@ -144,6 +144,7 @@ export async function GET(
       vapiAssistantId: process.env.VAPI_MASTER_ASSISTANT_ID || '',
       globalVoiceDisclaimer: globalVoiceDisclaimer,
       voiceProvider: voiceProvider,
+      voiceId: config.voice_id || 'bIHbv24MWmeRgasZH58o',
     }, {
       headers: {
         ...corsHeaders,
