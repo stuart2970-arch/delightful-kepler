@@ -471,6 +471,7 @@ import Vapi from '@vapi-ai/web';
                     }
                   ]
                 },
+                firstMessage: welcomeMessage,
                 voice: voiceProvider === '11labs' ? {
                   provider: "11labs",
                   voiceId: voiceId.length === 20 ? voiceId : 'bIHbv24MWmeRgasZH58o'
