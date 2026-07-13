@@ -473,11 +473,10 @@ import Vapi from '@vapi-ai/web';
                 },
                 voice: voiceProvider === '11labs' ? {
                   provider: "11labs",
-                  voiceId: voiceId === 'susan' ? 'bIHbv24MWmeRgasZH58o' : voiceId,
-                  model: "eleven_turbo_v2_5"
+                  voiceId: voiceId.length === 20 ? voiceId : 'bIHbv24MWmeRgasZH58o'
                 } : {
                   provider: "playht",
-                  voiceId: voiceId !== 'bIHbv24MWmeRgasZH58o' ? voiceId : "susan"
+                  voiceId: voiceId.length !== 20 ? voiceId : "susan"
                 },
                 metadata: {
                   tenant_id: chatbotId
