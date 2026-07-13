@@ -462,7 +462,7 @@ import Vapi from '@vapi-ai/web';
                 name: `${agentName} Transient Assistant`,
                 model: {
                   provider: "custom-llm",
-                  url: `${apiHost}/api/voice/${chatbotId}`,
+                  url: `${apiHost}/api/voice/${chatbotId}/`,
                   model: "gemini-1.5-flash",
                   messages: [
                     {
