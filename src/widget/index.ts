@@ -473,7 +473,8 @@ import Vapi from '@vapi-ai/web';
                 },
                 voice: voiceProvider === '11labs' ? {
                   provider: "11labs",
-                  voiceId: voiceId
+                  voiceId: voiceId === 'susan' ? 'bIHbv24MWmeRgasZH58o' : voiceId,
+                  model: "eleven_turbo_v2_5"
                 } : {
                   provider: "playht",
                   voiceId: voiceId !== 'bIHbv24MWmeRgasZH58o' ? voiceId : "susan"
