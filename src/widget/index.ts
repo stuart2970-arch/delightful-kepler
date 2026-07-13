@@ -440,6 +440,9 @@ import Vapi from '@vapi-ai/web';
         });
         vapiInstance.on('error', (e: unknown) => {
           console.error('[StyleFlo Widget] Vapi error:', e);
+          try {
+            alert('VAPI ERROR DETAILS: ' + JSON.stringify(e));
+          } catch(err) {}
           appendMessage('bot', 'A voice connection error occurred.');
         });
       }
