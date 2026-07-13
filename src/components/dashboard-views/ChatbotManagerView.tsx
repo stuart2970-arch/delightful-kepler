@@ -462,7 +462,7 @@ export default function ChatbotManagerView() {
                       <div className="pt-2 text-left space-y-2 border-t border-gray-800 mt-2">
                         <label className="block text-[10px] font-semibold text-gray-400">Host Injection Snippet:</label>
                         <pre className="p-2.5 bg-gray-950 border border-gray-800 text-[10px] rounded-xl overflow-x-auto text-gray-300 font-mono leading-relaxed select-all">
-                          {`<!-- StyleFlo Widget Injection -->\n<script\n  src="${window.location.origin}/widget.js"\n  data-bot-id="${bot.id}">\n</script>`}
+                          {`<!-- StyleFlo Widget Injection -->\n<script\n  src="${window.location.origin}/widget.js"\n  data-api-host="${window.location.origin}"\n  data-bot-id="${bot.id}">\n</script>`}
                         </pre>
                         <p className="text-[9px] text-gray-400">
                           Paste this tag inside any website's <code>&lt;body&gt;</code> container to inject the floating chatbot.

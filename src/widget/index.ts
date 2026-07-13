@@ -14,9 +14,9 @@ import Vapi from '@vapi-ai/web';
     return;
   }
 
-  // Parse host URL from script source
+  // Parse host URL from script source, or override if provided
   const scriptUrl = new URL(currentScript.src);
-  const apiHost = scriptUrl.origin;
+  const apiHost = currentScript.getAttribute('data-api-host') || scriptUrl.origin;
 
   // 2. Generate or retrieve Session ID to preserve chat history
   const sessionKey = `styleflo_session_${chatbotId}`;
