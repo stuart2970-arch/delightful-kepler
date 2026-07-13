@@ -67,7 +67,12 @@ This runbook documents the key fixes and architecture enhancements implemented d
 
 ---
 
-## Session Chat History Log
+### Session Chat History Log
+
+**Update (Voice Connection Debugging 3):**
+- **Discovery**: The user provided an error screenshot showing `easy-server297.tempurl.host says VAPI ERROR DETAILS: {"type":"daily-error", "error":{"message":{"type":"ejected","msg":"Meeting has ended"}}}`. This revealed that the user had injected the widget into an external WordPress site (`easy-server297.tempurl.host`). 
+- **Root Cause**: Because `widget.js` dynamically extracts its `apiHost` from the domain it is currently hosted on (using `document.currentScript.src`), when injected into WordPress, it mistakenly instructed Vapi to send Custom LLM API requests to the WordPress server (`https://easy-server297.tempurl.host/api/voice/...`) instead of the Cloud Run backend. Vapi received a `404 Page Not Found` HTML response from WordPress and immediately aborted the voice call.
+- **Fix**: Added support for an optional `data-api-host` script attribute in `widget.js` to securely override the API host URL. Updated the Dashboard's Embed Code generator (`ChatbotManagerView.tsx`) to automatically include `data-api-host="${window.location.origin}"` so that cross-domain injections always point to the correct backend.
 
 ### Session 1 (June 16, 2026)
 * **User**: "also, the conversation explorer is not populating"
