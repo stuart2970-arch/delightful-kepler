@@ -124,7 +124,7 @@ export async function POST(req: Request) {
 
     // 5. LLM Generation
     const result = streamText({
-      model: google('gemini-1.5-flash'),
+      model: google('gemini-2.5-flash'),
       messages: enhancedMessages,
       temperature: 0.7,
     });
@@ -139,7 +139,7 @@ export async function POST(req: Request) {
               id: 'chatcmpl-vapi',
               object: 'chat.completion.chunk',
               created: Math.floor(Date.now() / 1000),
-              model: 'gemini-1.5-flash',
+              model: 'gemini-2.5-flash',
               choices: [
                 {
                   delta: { content: textDelta },
@@ -155,7 +155,7 @@ export async function POST(req: Request) {
             id: 'chatcmpl-vapi',
             object: 'chat.completion.chunk',
             created: Math.floor(Date.now() / 1000),
-            model: 'gemini-1.5-flash',
+            model: 'gemini-2.5-flash',
             choices: [
               {
                 delta: {},
