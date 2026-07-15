@@ -165,7 +165,7 @@ export async function POST(
                 object: 'chat.completion.chunk',
                 created: Math.floor(Date.now() / 1000),
                 model: 'gemini-3.5-flash',
-                choices: [{ delta: { role: 'assistant', content: '' }, index: 0, finish_reason: null }]
+                choices: [{ delta: { role: 'assistant' }, index: 0, finish_reason: null }]
               };
               controller.enqueue(encoder.encode(`data: ${JSON.stringify(roleChunk)}\n\n`));
               isFirst = false;
