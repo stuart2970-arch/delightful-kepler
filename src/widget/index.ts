@@ -483,7 +483,8 @@ import Vapi from '@vapi-ai/web';
                 firstMessage: welcomeMessage,
                 voice: voiceProvider === '11labs' ? {
                   provider: "11labs",
-                  voiceId: voiceId.length === 20 ? voiceId : 'bIHbv24MWmeRgasZH58o'
+                  voiceId: voiceId.length === 20 ? voiceId : 'bIHbv24MWmeRgasZH58o',
+                  model: 'eleven_multilingual_v2'
                 } : {
                   provider: "playht",
                   voiceId: voiceId.length !== 20 ? voiceId : "susan"
