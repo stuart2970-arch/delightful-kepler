@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
-import { streamText } from 'ai';
+import { streamText, generateText } from 'ai';
 import { google } from '@ai-sdk/google';
 
 export const maxDuration = 300;
@@ -123,6 +123,29 @@ export async function POST(
     });
 
     // 5. LLM Generation
+    const isStream = body.stream !== false;
+    
+    if (!isStream) {
+      const { text } = await generateText({
+        model: google('gemini-1.5-flash'),
+        messages: enhancedMessages,
+        temperature: 0.7,
+      });
+      return NextResponse.json({
+        id: 'chatcmpl-vapi',
+        object: 'chat.completion',
+        created: Math.floor(Date.now() / 1000),
+        model: 'gemini-1.5-flash',
+        choices: [
+          {
+            message: { role: 'assistant', content: text },
+            finish_reason: 'stop',
+            index: 0
+          }
+        ]
+      }, { headers: corsHeaders });
+    }
+
     const result = streamText({
       model: google('gemini-1.5-flash'),
       messages: enhancedMessages,
@@ -134,7 +157,20 @@ export async function POST(
     const stream = new ReadableStream({
       async start(controller) {
         try {
+          let isFirst = true;
           for await (const textDelta of result.textStream) {
+            if (isFirst) {
+              const roleChunk = {
+                id: 'chatcmpl-vapi',
+                object: 'chat.completion.chunk',
+                created: Math.floor(Date.now() / 1000),
+                model: 'gemini-1.5-flash',
+                choices: [{ delta: { role: 'assistant', content: '' }, index: 0, finish_reason: null }]
+              };
+              controller.enqueue(encoder.encode(`data: ${JSON.stringify(roleChunk)}\n\n`));
+              isFirst = false;
+            }
+            
             const chunk = {
               id: 'chatcmpl-vapi',
               object: 'chat.completion.chunk',
