@@ -281,3 +281,15 @@ This runbook documents the key fixes and architecture enhancements implemented d
 
 * **User**: "we need to rebuild how a voice is presented to the business uer, who should be able to choose as they are now, however, as a superadmin, i must be able to map a voice id in the admin dashboard, the code and the api should handle everything else"
   * **Fix**: Implemented a dynamic voice persona system. Created a `voice_personas` table in Supabase via migration `20260715115527_voice_personas.sql`. Added a `SuperAdminVoiceManagerView` to the dashboard for superadmins to manage voices, map underlying ElevenLabs IDs, and configure display names. Refactored `ChatbotManagerView` to fetch personas dynamically via a new `/api/voice-personas` route. Updated the chatbot resolution API (`/api/chatbots/[id]/route.ts`) to intercept UUIDs stored in the chatbot configuration and seamlessly resolve them to the mapped `external_voice_id` (ElevenLabs ID) before sending the configuration to the Vapi frontend widget.
+
+**Update (Voice Connection Debugging 5):**
+- **Discovery**: The user reported that while the welcome message was finally playing successfully with their new ElevenLabs voice, the Custom LLM assistant replies were failing instantly, causing another immediate `Meeting ended due to ejection` error in Vapi.
+- **Root Cause**: There were three deep-rooted issues causing the Assistant's reply stream to crash Vapi's ElevenLabs WebSocket connection:
+  1. **Google Gemini Deprecation 404**: Google completely deprecated the `gemini-1.5-flash` and `gemini-2.5-flash` models for API access without warning, causing the Custom LLM API to throw silent 404s in the background, which Vapi interpreted as a total pipeline failure.
+  2. **SSE Chunk Empty String Bug**: The Custom LLM API stream was explicitly generating an initial OpenAI `chunk` with `content: ""` (an empty string). Because Vapi streams this directly to ElevenLabs, it was immediately passing an empty text string to be spoken. The ElevenLabs WebSocket API instantly crashed when it received "nothing" to synthesize.
+  3. **Markdown Incompatibility**: The `gemini-3.5-flash` model naturally outputs markdown (like asterisks for bolding). When Vapi passed these raw markdown characters into the ElevenLabs WebSockets streaming API, it caused synthesis failures on strict model configurations.
+- **Fix**: 
+  - Upgraded the hardcoded models across all backend routes to the new `gemini-3.5-flash` model which resolved the 404 deprecation errors.
+  - Refactored the Server-Sent Events (SSE) generator in `route.ts` to strictly strip out any empty `textDelta` chunks to prevent sending `""` to ElevenLabs.
+  - Updated the Vapi Widget script (`src/widget/index.ts`) to explicitly map the ElevenLabs Voice config to the `eleven_turbo_v2_5` model, which is specifically optimized for low-latency WebSockets.
+  - Injected an explicit system prompt restriction (`DO NOT use any markdown formatting, asterisks, bullet points, or special characters. Speak naturally in plain text.`) to prevent ElevenLabs from attempting to synthesize formatting syntax.
