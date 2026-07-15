@@ -8,6 +8,23 @@ export default function KnowledgeBaseView() {
   const [isCrawling, setIsCrawling] = useState(false);
   const [crawlLogs, setCrawlLogs] = useState<string[]>([]);
   const [crawlResult, setCrawlResult] = useState<{ success: boolean; message: string } | null>(null);
+  
+  const [ingestedUrls, setIngestedUrls] = useState<any[]>([]);
+  const [isLoadingUrls, setIsLoadingUrls] = useState(false);
+
+  const loadIngestedUrls = async (botId: string) => {
+    setIsLoadingUrls(true);
+    try {
+      const res = await fetch(`/api/ingest/urls?chatbotId=${encodeURIComponent(botId)}`);
+      if (res.ok) {
+        const data = await res.json();
+        setIngestedUrls(data.urls || []);
+      }
+    } catch (err) {
+      console.error('Failed to load ingested urls:', err);
+    }
+    setIsLoadingUrls(false);
+  };
 
   useEffect(() => {
     const realBots = chatbots.filter(b => b.id !== '00000000-0000-0000-0000-000000000000');
@@ -15,6 +32,34 @@ export default function KnowledgeBaseView() {
       setCrawlBotId(realBots[0].id);
     }
   }, [chatbots, crawlBotId]);
+
+  useEffect(() => {
+    if (crawlBotId) {
+      loadIngestedUrls(crawlBotId);
+    } else {
+      setIngestedUrls([]);
+    }
+  }, [crawlBotId]);
+
+  const handleDeleteUrl = async (url: string) => {
+    if (!crawlBotId || !confirm(`Are you sure you want to delete all chunks for ${url}?`)) return;
+    
+    try {
+      const res = await fetch(`/api/ingest/urls?chatbotId=${encodeURIComponent(crawlBotId)}&sourceUrl=${encodeURIComponent(url)}`, {
+        method: 'DELETE'
+      });
+      if (res.ok) {
+        setIngestedUrls(prev => prev.filter(item => item.url !== url));
+        // We could also optionally adjust the metric chunksCount down here, but usually it's fine.
+      } else {
+        alert('Failed to delete URL from knowledge base.');
+      }
+    } catch (err) {
+      console.error(err);
+      alert('An error occurred during deletion.');
+    }
+  };
+
 
   const handleTriggerCrawl = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -71,6 +116,8 @@ export default function KnowledgeBaseView() {
         chunksCount: prev.chunksCount + totalChunks,
       }));
       setCrawlUrl('');
+      // Reload the URLs list to reflect new data
+      loadIngestedUrls(crawlBotId);
     } else {
       setCrawlResult({
         success: false,
@@ -155,6 +202,42 @@ export default function KnowledgeBaseView() {
                     : 'bg-red-950/40 border-red-500/30 text-red-200'
                 }`}>
                   {crawlResult.message}
+                </div>
+              )}
+            </div>
+
+            {/* Ingested URLs List */}
+            <div className="bg-gray-900/30 border border-gray-900 p-6 rounded-2xl shadow-xl space-y-4">
+              <div>
+                <h3 className="text-lg font-bold text-white">Ingested Sources</h3>
+                <p className="text-xs text-gray-400 mt-0.5">Manage the websites and content already loaded into this chatbot's knowledge base.</p>
+              </div>
+
+              {isLoadingUrls ? (
+                <div className="text-sm text-gray-400 py-4">Loading sources...</div>
+              ) : ingestedUrls.length === 0 ? (
+                <div className="text-sm text-gray-500 py-4">No sources ingested yet for this chatbot.</div>
+              ) : (
+                <div className="space-y-2">
+                  {ingestedUrls.map((item, idx) => (
+                    <div key={idx} className="flex items-center justify-between p-3 bg-gray-950 border border-gray-800 rounded-xl">
+                      <div className="flex-1 min-w-0 pr-4">
+                        <p className="text-sm font-medium text-gray-200 truncate" title={item.url}>{item.url}</p>
+                        <p className="text-xs text-gray-500 mt-0.5">
+                          {item.chunkCount} {item.chunkCount === 1 ? 'chunk' : 'chunks'} &bull; Last updated {new Date(item.latestDate).toLocaleDateString()}
+                        </p>
+                      </div>
+                      <button
+                        onClick={() => handleDeleteUrl(item.url)}
+                        className="p-1.5 text-gray-400 hover:text-red-400 hover:bg-white/5 rounded-lg transition-colors shrink-0"
+                        title="Delete source"
+                      >
+                        <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                        </svg>
+                      </button>
+                    </div>
+                  ))}
                 </div>
               )}
             </div>
