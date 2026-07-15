@@ -124,7 +124,6 @@ export default function ChatbotManagerView() {
       setNewAgentRole('AI Assistant');
       setNewAgentAvatar('/avatars/avatar1.png');
       setNewVoiceEnabled(false);
-      setNewVapiAssistantId('');
     }
     setIsCreatingBot(false);
   };
@@ -177,7 +176,6 @@ export default function ChatbotManagerView() {
         name: newBotName,
         primary_color: newBotColor,
         voice_enabled: newVoiceEnabled,
-        vapi_assistant_id: newVapiAssistantId,
         configuration_json: updatedConfig
       } : bot));
       
@@ -188,7 +186,6 @@ export default function ChatbotManagerView() {
       setNewAgentRole('AI Assistant');
       setNewAgentAvatar('/avatars/avatar1.png');
       setNewVoiceEnabled(false);
-      setNewVapiAssistantId('');
     }
     setIsCreatingBot(false);
   };
