@@ -9,6 +9,7 @@ import KnowledgeBaseView from './dashboard-views/KnowledgeBaseView';
 import InboxView from './dashboard-views/InboxView';
 import SchedulingView from './dashboard-views/SchedulingView';
 import IntegrationsView from './dashboard-views/IntegrationsView';
+import SuperAdminVoiceManagerView from './dashboard-views/SuperAdminVoiceManagerView';
 import { useDashboardStore } from '../lib/store';
 
 interface Chatbot {
@@ -428,7 +429,10 @@ export default function DashboardClient({
                 { id: 'integrations', label: 'Integrations', icon: <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 10V3L4 14h7v7l9-11h-7z" /> },
                 { id: 'billing', label: 'Billing & Usage', icon: <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z" /> },
                 { id: 'account', label: 'Account Settings', icon: <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" /> },
-                ...(isSuperAdmin ? [{ id: 'settings', label: 'Platform Settings', icon: <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" /> }] : []),
+                ...(isSuperAdmin ? [
+                  { id: 'settings', label: 'Platform Settings', icon: <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" /> },
+                  { id: 'superadmin_voices', label: 'Voice Personas', icon: <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z" /> }
+                ] : []),
               ].map(tab => (
                  <button key={tab.id} onClick={() => { setActiveTab(tab.id as any); setIsMobileMenuOpen(false); }} className={`w-full flex items-center justify-between px-3 py-3 rounded-xl text-sm font-semibold transition-all duration-300 border border-transparent ${activeTab === tab.id ? 'bg-indigo-500/10 text-indigo-400 border-indigo-500/20 shadow-sm shadow-indigo-500/5' : 'text-gray-400 hover:text-gray-200 hover:bg-white/5 hover:border-white/5'}`}>
                     <div className="flex items-center gap-3">
@@ -476,6 +480,7 @@ export default function DashboardClient({
                     activeTab === 'conversations' ? 'Inbox & Logs' :
                     activeTab === 'crawler' ? 'Knowledge Base' :
                     activeTab === 'billing' ? 'Billing & Usage' :
+                    activeTab === 'superadmin_voices' ? 'Voice Personas Management' :
                     activeTab.replace('_', ' ')}
                  </h1>
                  <p className="text-sm text-gray-400 mt-1">Workspace: <span className="text-indigo-400 font-semibold">{tenantName}</span></p>
@@ -499,6 +504,9 @@ export default function DashboardClient({
 
           {/* Conversations Tab */}
           {activeTab === 'conversations' && <InboxView />}
+
+          {/* Superadmin Voices Tab */}
+          {activeTab === 'superadmin_voices' && isSuperAdmin && <SuperAdminVoiceManagerView />}
 
           {/* Billing & Usage Tab */}
           {activeTab === 'billing' && (

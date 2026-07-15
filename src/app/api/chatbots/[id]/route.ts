@@ -130,6 +130,21 @@ export async function GET(
     const globalConfig = (globalBot?.configuration_json || {}) as Record<string, any>;
     const config = (chatbot.configuration_json || {}) as Record<string, any>;
 
+    let resolvedVoiceId = config.voice_id || 'bIHbv24MWmeRgasZH58o';
+    
+    // If the voice_id is a valid UUID, look it up in the voice_personas table
+    if (/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(resolvedVoiceId)) {
+      const { data: persona } = await supabaseAdmin
+        .from('voice_personas')
+        .select('external_voice_id')
+        .eq('id', resolvedVoiceId)
+        .single();
+        
+      if (persona && persona.external_voice_id) {
+        resolvedVoiceId = persona.external_voice_id;
+      }
+    }
+
     return NextResponse.json({
       name: chatbot.name,
       primaryColor: chatbot.primary_color,
@@ -144,7 +159,7 @@ export async function GET(
       vapiAssistantId: process.env.VAPI_MASTER_ASSISTANT_ID || '',
       globalVoiceDisclaimer: globalVoiceDisclaimer,
       voiceProvider: voiceProvider,
-      voiceId: config.voice_id || 'bIHbv24MWmeRgasZH58o',
+      voiceId: resolvedVoiceId,
     }, {
       headers: {
         ...corsHeaders,

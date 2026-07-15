@@ -1,29 +1,8 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { useDashboardStore, Chatbot } from '../../lib/store';
 import { createBrowserClient } from '@supabase/ssr';
 
-const VOICE_PERSONAS = [
-  // British (Dominant)
-  { id: 'JBFqnCBsd6RMkjVDRZzb', name: 'British Male - Polished & Professional', role: 'Corporate, executive presentations', gender: 'Male', previewUrl: '/audio/george.mp3', nationality: 'British' },
-  { id: 'Xb7hH8MSALEjdAeoWhZl', name: 'British Female - Crisp & Authoritative', role: 'Instructions, technical support', gender: 'Female', previewUrl: '/audio/alice.mp3', nationality: 'British' },
-  { id: 'pFZP5JQG7iQjIQuC4Bku', name: 'British Female - Warm & Expressive', role: 'Storytelling, educational tools', gender: 'Female', previewUrl: '/audio/lily.mp3', nationality: 'British' },
-  { id: 'XrExE9yKIg1WjnnRuVNn', name: 'British Female - Soft & Calming', role: 'Meditation, luxury branding', gender: 'Female', previewUrl: '/audio/matilda.mp3', nationality: 'British' },
-  { id: 'N2lVS1w4EtoT3dr4eOWO', name: 'British Male - Deep & Confident', role: 'Luxury retail, premium brand navigation', gender: 'Male', previewUrl: '/audio/callum.mp3', nationality: 'British' },
-  { id: 'SOYHLrjzK2X1ezoPC6cr', name: 'British Male - Energetic & Youthful', role: 'Gaming, entertainment, casual chat', gender: 'Male', previewUrl: '/audio/harry.mp3', nationality: 'British' },
-  { id: 'CYw3kZ02Hs0563khs1Fj', name: 'British Male - Casual & Relatable', role: 'E-commerce, lifestyle assistant', gender: 'Male', previewUrl: '/audio/dave.mp3', nationality: 'British' },
-  { id: 'zrHiDhphv9ZnVBTiNxbM', name: 'British Female - Vibrant & Bubbly', role: 'Pop culture, youth-focused apps', gender: 'Female', previewUrl: '/audio/mimi.mp3', nationality: 'British' },
-  { id: 'IKne3meq5aSn9XLyUdCD', name: 'British/Aussie Male - Friendly & Natural', role: 'Conversational assistant', gender: 'Male', previewUrl: '/audio/charlie.mp3', nationality: 'British/Aussie' },
 
-  // American Options
-  { id: '21m00Tcm4TlvDq8ikWAM', name: 'American Female - Clear & Direct', role: 'Customer service, daily logging', gender: 'Female', previewUrl: '/audio/rachel.mp3', nationality: 'American' },
-  { id: '29vD33N1CtxCmqQRPOHJ', name: 'American Male - Sharp & Precise', role: 'Analytics, B2B software', gender: 'Male', previewUrl: '/audio/drew.mp3', nationality: 'American' },
-  { id: '2EiwWnXFnvU5JabPnv8n', name: 'American Male - Urban & Smooth', role: 'Lifestyle, food apps', gender: 'Male', previewUrl: '/audio/clyde.mp3', nationality: 'American' },
-  { id: 'MF3mGyEYCl7XYWbV9V6O', name: 'American Female - Gentle & Empathetic', role: 'Mental health, support', gender: 'Female', previewUrl: '/audio/elli.mp3', nationality: 'American' },
-  { id: 'ErXwobaYiN019PkySvjV', name: 'American Male - Charismatic & Bold', role: 'Presentations, sales', gender: 'Male', previewUrl: '/audio/antoni.mp3', nationality: 'American' },
-  
-  // Other Options
-  { id: 'D38z5RcWu1voky8WS1ja', name: 'Irish Male - Witty & Clever', role: 'Smart assistants with an edge', gender: 'Male', previewUrl: '/audio/fin.mp3', nationality: 'Irish' },
-];
 
 export default function ChatbotManagerView() {
   const { chatbots, setChatbots, setMetrics, tenantId, isSuperAdmin } = useDashboardStore();
@@ -38,6 +17,18 @@ export default function ChatbotManagerView() {
   const [newVoiceId, setNewVoiceId] = useState('');
   const [isCreatingBot, setIsCreatingBot] = useState(false);
   const [editingBotId, setEditingBotId] = useState<string | null>(null);
+  const [voicePersonas, setVoicePersonas] = useState<any[]>([]);
+
+  useEffect(() => {
+    fetch('/api/voice-personas')
+      .then(res => res.json())
+      .then(data => {
+        if (Array.isArray(data)) {
+          setVoicePersonas(data);
+        }
+      })
+      .catch(err => console.error('Error fetching voice personas:', err));
+  }, []);
 
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
@@ -332,7 +323,7 @@ export default function ChatbotManagerView() {
                       <div className="mt-4">
                         <label className="block text-xs font-semibold text-gray-400 mb-2">Select Voice Persona</label>
                         <div className="bg-gray-950 border border-gray-800 rounded-xl max-h-[300px] overflow-y-auto styleflo-scrollbar divide-y divide-gray-800/50">
-                          {VOICE_PERSONAS.map((voice) => (
+                          {voicePersonas.map((voice) => (
                             <div key={voice.id} className={`flex items-center justify-between p-3 transition-colors ${newVoiceId === voice.id ? 'bg-indigo-900/20' : 'hover:bg-gray-900/50'}`}>
                               <div className="flex items-center gap-3 flex-1 cursor-pointer" onClick={() => setNewVoiceId(voice.id)}>
                                 <div className={`w-4 h-4 rounded-full border flex items-center justify-center flex-shrink-0 ${newVoiceId === voice.id ? 'border-indigo-500 bg-indigo-500' : 'border-gray-600'}`}>
