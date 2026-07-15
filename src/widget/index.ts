@@ -442,7 +442,10 @@ import Vapi from '@vapi-ai/web';
           console.error('[StyleFlo Widget] Vapi error:', e);
           
           // Ignore harmless WebRTC ejection errors
-          if (e?.type === 'daily-error' && e?.errorMsg === 'Meeting has ended') {
+          if (
+            e?.type === 'daily-error' && 
+            (e?.error?.errorMsg === 'Meeting has ended' || e?.error?.message?.msg === 'Meeting has ended')
+          ) {
             return;
           }
           
