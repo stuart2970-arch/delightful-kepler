@@ -484,7 +484,7 @@ import Vapi from '@vapi-ai/web';
                 voice: voiceProvider === '11labs' ? {
                   provider: "11labs",
                   voiceId: voiceId.length === 20 ? voiceId : 'bIHbv24MWmeRgasZH58o',
-                  model: 'eleven_multilingual_v2'
+                  model: 'eleven_turbo_v2_5'
                 } : {
                   provider: "playht",
                   voiceId: voiceId.length !== 20 ? voiceId : "susan"

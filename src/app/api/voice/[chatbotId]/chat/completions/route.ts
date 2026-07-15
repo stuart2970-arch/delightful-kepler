@@ -116,7 +116,7 @@ export async function POST(
       if (msg.role === 'system') {
         return {
           role: 'system',
-          content: `${msg.content}\n\nBUSINESS KNOWLEDGE:\n${ragContext}\n\nREGULATORY DISCLAIMER:\n${globalDisclaimer}`
+          content: `${msg.content}\n\nIMPORTANT INSTRUCTION: You are speaking through a Text-to-Speech engine. DO NOT use any markdown formatting, asterisks, bullet points, or special characters. Speak naturally in plain text.\n\nBUSINESS KNOWLEDGE:\n${ragContext}\n\nREGULATORY DISCLAIMER:\n${globalDisclaimer}`
         };
       }
       return msg;
@@ -171,20 +171,22 @@ export async function POST(
               isFirst = false;
             }
             
-            const chunk = {
-              id: 'chatcmpl-vapi',
-              object: 'chat.completion.chunk',
-              created: Math.floor(Date.now() / 1000),
-              model: 'gemini-3.5-flash',
-              choices: [
-                {
-                  delta: { content: textDelta },
-                  index: 0,
-                  finish_reason: null
-                }
-              ]
-            };
-            controller.enqueue(encoder.encode(`data: ${JSON.stringify(chunk)}\n\n`));
+            if (textDelta) {
+              const chunk = {
+                id: 'chatcmpl-vapi',
+                object: 'chat.completion.chunk',
+                created: Math.floor(Date.now() / 1000),
+                model: 'gemini-3.5-flash',
+                choices: [
+                  {
+                    delta: { content: textDelta },
+                    index: 0,
+                    finish_reason: null
+                  }
+                ]
+              };
+              controller.enqueue(encoder.encode(`data: ${JSON.stringify(chunk)}\n\n`));
+            }
           }
           
           const finishChunk = {
