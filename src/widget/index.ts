@@ -438,11 +438,14 @@ import Vapi from '@vapi-ai/web';
         vapiInstance.on('speech-end', () => {
           vapiBtn.classList.remove('styleflo-animate-pulse');
         });
-        vapiInstance.on('error', (e: unknown) => {
+        vapiInstance.on('error', (e: any) => {
           console.error('[StyleFlo Widget] Vapi error:', e);
-          try {
-            alert('VAPI ERROR DETAILS: ' + JSON.stringify(e));
-          } catch(err) {}
+          
+          // Ignore harmless WebRTC ejection errors
+          if (e?.type === 'daily-error' && e?.errorMsg === 'Meeting has ended') {
+            return;
+          }
+          
           appendMessage('bot', 'A voice connection error occurred.');
         });
       }
