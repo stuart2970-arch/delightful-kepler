@@ -1,29 +1,42 @@
 import { NextResponse } from 'next/server';
+import { createServerClient } from '@supabase/ssr';
 import { createClient } from '@supabase/supabase-js';
 import { cookies } from 'next/headers';
-import { jwtDecode } from 'jwt-decode';
 
 export const dynamic = 'force-dynamic';
 
-function getTenantIdFromCookie(): string | null {
-  try {
-    const cookieStore = cookies();
-    const token = cookieStore.get('sb-access-token')?.value;
-    if (!token) return null;
-    
-    const decoded = jwtDecode<any>(token);
-    return decoded.tenant_id || null;
-  } catch (err) {
-    return null;
-  }
+async function getSupabaseAuthClient() {
+  const cookieStore = await cookies();
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.SUPABASE_URL!;
+  const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || process.env.SUPABASE_ANON_KEY!;
+
+  return createServerClient(supabaseUrl, anonKey, {
+    cookies: {
+      getAll() { return cookieStore.getAll(); },
+      setAll(cookiesToSet) {
+        try {
+          cookiesToSet.forEach(({ name, value, options }) =>
+            cookieStore.set(name, value, options)
+          );
+        } catch {}
+      },
+    },
+  });
 }
 
 export async function GET(req: Request) {
   try {
-    const tenantId = getTenantIdFromCookie();
-    if (!tenantId) {
+    const supabase = await getSupabaseAuthClient();
+    const { data: { user } } = await supabase.auth.getUser();
+
+    if (!user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
+    
+    // Get profile to check for superadmin
+    const { data: profile } = await supabase.from('profiles').select('tenant_id, is_super_admin').eq('id', user.id).single();
+    const tenantId = profile?.tenant_id;
+    const isSuperAdmin = profile?.is_super_admin === true;
 
     const { searchParams } = new URL(req.url);
     const chatbotId = searchParams.get('chatbotId');
@@ -38,19 +51,6 @@ export async function GET(req: Request) {
       auth: { persistSession: false, autoRefreshToken: false }
     });
 
-    // Determine if user is super admin
-    const cookieStore = await cookies();
-    const token = cookieStore.get('sb-access-token')?.value;
-    let isSuperAdmin = false;
-    
-    if (token) {
-      const decoded = jwtDecode<any>(token);
-      if (decoded.sub) {
-        const { data: profile } = await supabaseAdmin.from('profiles').select('is_super_admin').eq('id', decoded.sub).single();
-        if (profile?.is_super_admin) isSuperAdmin = true;
-      }
-    }
-
     // Verify ownership if not super admin
     if (!isSuperAdmin) {
       const { data: bot } = await supabaseAdmin.from('chatbots').select('id').eq('id', chatbotId).eq('tenant_id', tenantId).single();
@@ -62,9 +62,7 @@ export async function GET(req: Request) {
       .select('id, source_url, created_at')
       .eq('chatbot_id', chatbotId);
 
-    if (error) {
-      throw error;
-    }
+    if (error) throw error;
 
     // Group by source_url in memory
     const urlMap = new Map<string, { url: string; chunkCount: number; latestDate: string }>();
@@ -93,10 +91,17 @@ export async function GET(req: Request) {
 
 export async function DELETE(req: Request) {
   try {
-    const tenantId = getTenantIdFromCookie();
-    if (!tenantId) {
+    const supabase = await getSupabaseAuthClient();
+    const { data: { user } } = await supabase.auth.getUser();
+
+    if (!user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
+    
+    // Get profile to check for superadmin
+    const { data: profile } = await supabase.from('profiles').select('tenant_id, is_super_admin').eq('id', user.id).single();
+    const tenantId = profile?.tenant_id;
+    const isSuperAdmin = profile?.is_super_admin === true;
 
     const { searchParams } = new URL(req.url);
     const chatbotId = searchParams.get('chatbotId');
@@ -111,19 +116,6 @@ export async function DELETE(req: Request) {
     const supabaseAdmin = createClient(supabaseUrl, serviceRoleKey, {
       auth: { persistSession: false, autoRefreshToken: false }
     });
-
-    // Determine if user is super admin
-    const cookieStore = await cookies();
-    const token = cookieStore.get('sb-access-token')?.value;
-    let isSuperAdmin = false;
-    
-    if (token) {
-      const decoded = jwtDecode<any>(token);
-      if (decoded.sub) {
-        const { data: profile } = await supabaseAdmin.from('profiles').select('is_super_admin').eq('id', decoded.sub).single();
-        if (profile?.is_super_admin) isSuperAdmin = true;
-      }
-    }
 
     // Verify ownership if not super admin
     if (!isSuperAdmin) {
@@ -143,10 +135,7 @@ export async function DELETE(req: Request) {
     }
 
     const { error } = await query;
-
-    if (error) {
-      throw error;
-    }
+    if (error) throw error;
 
     return NextResponse.json({ success: true });
   } catch (error: any) {
@@ -154,3 +143,4 @@ export async function DELETE(req: Request) {
     return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 });
   }
 }
+

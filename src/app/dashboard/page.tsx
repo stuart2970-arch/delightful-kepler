@@ -122,14 +122,19 @@ export default async function DashboardPage(props: { searchParams?: Promise<{ [k
     
     // Check for Impersonation
     let isImpersonating = false;
+    let queryClient = supabase;
     const resolvedParams = props.searchParams ? await props.searchParams : {};
     
     if (isSuperAdmin && resolvedParams.tenant_id && typeof resolvedParams.tenant_id === 'string') {
       tenantId = resolvedParams.tenant_id;
       isImpersonating = true;
       
-      // Override tenant mapping to fetch the impersonated tenant's data
-      const { data: impTenant } = await supabase
+      const supabaseUrl = process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL!;
+      const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
+      queryClient = createClient(supabaseUrl, serviceRoleKey);
+      
+      // Override tenant mapping to fetch the impersonated tenant's data using the admin client
+      const { data: impTenant } = await queryClient
         .from('tenants')
         .select('company_name, plan_tier, is_rwg_enabled, rwg_business_name, rwg_street_address, rwg_city, rwg_postcode, rwg_phone, booking_mode, booking_url, global_voice_disclaimer')
         .eq('id', tenantId)
@@ -155,13 +160,13 @@ export default async function DashboardPage(props: { searchParams?: Promise<{ [k
     let queryFilter = { key: 'tenant_id', value: tenantId };
 
     // Chatbots
-    let botsQuery = supabase.from('chatbots').select('*').order('created_at', { ascending: false });
+    let botsQuery = queryClient.from('chatbots').select('*').order('created_at', { ascending: false });
     if (queryFilter && queryFilter.value) botsQuery = botsQuery.eq(queryFilter.key, queryFilter.value);
     const { data: bots } = await botsQuery;
     if (bots) chatbots = bots;
 
     // Conversations
-    let convsQuery = supabase.from('conversations').select('*').order('created_at', { ascending: false });
+    let convsQuery = queryClient.from('conversations').select('*').order('created_at', { ascending: false });
     if (queryFilter && queryFilter.value) convsQuery = convsQuery.eq(queryFilter.key, queryFilter.value);
     const { data: convs } = await convsQuery;
     if (convs) conversations = convs;
@@ -170,7 +175,7 @@ export default async function DashboardPage(props: { searchParams?: Promise<{ [k
     let chunksCount = 0;
     const chatbotIds = chatbots.map((b: any) => b.id);
     if (chatbotIds.length > 0) {
-      const { count } = await supabase
+      const { count } = await queryClient
         .from('document_chunks')
         .select('*', { count: 'exact', head: true })
         .in('chatbot_id', chatbotIds);
@@ -178,7 +183,7 @@ export default async function DashboardPage(props: { searchParams?: Promise<{ [k
     }
 
     // Metrics (Messages)
-    let msgsQuery = supabase.from('messages').select('*', { count: 'exact', head: true });
+    let msgsQuery = queryClient.from('messages').select('*', { count: 'exact', head: true });
     if (queryFilter && queryFilter.value) msgsQuery = msgsQuery.eq(queryFilter.key, queryFilter.value);
     const { count: msgsCount } = await msgsQuery;
 
@@ -193,10 +198,10 @@ export default async function DashboardPage(props: { searchParams?: Promise<{ [k
     billingData.usage.chunks = chunksCount || 0;
 
     if (tenantId) {
-      const { data: tenantData } = await supabase.from('tenants').select('plan_tier').eq('id', tenantId).single();
+      const { data: tenantData } = await queryClient.from('tenants').select('plan_tier').eq('id', tenantId).single();
       if (tenantData) {
         billingData.planTier = tenantData.plan_tier;
-        const { data: entitlements } = await supabase
+        const { data: entitlements } = await queryClient
           .from('tier_entitlements')
           .select('feature_id, included_volume, features(name, is_metered)')
           .eq('tier_id', tenantData.plan_tier);
@@ -208,7 +213,7 @@ export default async function DashboardPage(props: { searchParams?: Promise<{ [k
       firstDay.setHours(0, 0, 0, 0);
 
       // Current user usage
-      const { data: usageRows } = await supabase
+      const { data: usageRows } = await queryClient
         .from('usage_ledger')
         .select('quantity, feature_id')
         .eq('tenant_id', tenantId)

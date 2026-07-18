@@ -54,17 +54,18 @@ export async function GET(request: Request) {
     const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
     const supabaseAdmin = createClient(supabaseUrl, serviceRoleKey);
 
-    const { data: tenants } = await supabaseAdmin
-      .from('tenants')
-      .select('id, company_name')
-      .ilike('company_name', `%${query}%`)
-      .limit(20);
+    const queryWords = query.trim().split(/\s+/);
+    let tenantQuery = supabaseAdmin.from('tenants').select('id, company_name');
+    let botQuery = supabaseAdmin.from('chatbots').select('id, name, tenant_id');
 
-    const { data: chatbots } = await supabaseAdmin
-      .from('chatbots')
-      .select('id, name, tenant_id')
-      .ilike('name', `%${query}%`)
-      .limit(20);
+    // Build ILIKE chain for each word to make it an AND search
+    queryWords.forEach(word => {
+      tenantQuery = tenantQuery.ilike('company_name', `%${word}%`);
+      botQuery = botQuery.ilike('name', `%${word}%`);
+    });
+
+    const { data: tenants } = await tenantQuery.limit(20);
+    const { data: chatbots } = await botQuery.limit(20);
 
     const tenantIdsToFetch = new Set<string>();
     

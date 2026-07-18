@@ -2,7 +2,8 @@ import React, { useState, useEffect } from 'react';
 import { useDashboardStore } from '../../lib/store';
 
 export default function KnowledgeBaseView() {
-  const { chatbots, setMetrics } = useDashboardStore();
+  const { chatbots, setMetrics, billingData } = useDashboardStore();
+  const planTier = billingData?.planTier || 'basic';
   const [crawlBotId, setCrawlBotId] = useState(chatbots.filter(b => b.id !== '00000000-0000-0000-0000-000000000000')[0]?.id || '');
   const [crawlUrl, setCrawlUrl] = useState('');
   const [isCrawling, setIsCrawling] = useState(false);
@@ -22,6 +23,10 @@ export default function KnowledgeBaseView() {
   const [shopifyAnalysis, setShopifyAnalysis] = useState<any>(null);
   const [isShopifyPreflight, setIsShopifyPreflight] = useState(false);
   const [isShopifyExecuting, setIsShopifyExecuting] = useState(false);
+
+  // Scheduled Crawling State
+  const [crawlSchedule, setCrawlSchedule] = useState('none');
+  const [isSavingSchedule, setIsSavingSchedule] = useState(false);
 
   const loadIngestedUrls = async (botId: string) => {
     setIsLoadingUrls(true);
@@ -47,10 +52,49 @@ export default function KnowledgeBaseView() {
   useEffect(() => {
     if (crawlBotId) {
       loadIngestedUrls(crawlBotId);
+      const bot = chatbots.find(b => b.id === crawlBotId);
+      if (bot) {
+        const config = bot.configuration_json as any || {};
+        setCrawlSchedule(config.crawl_schedule || 'none');
+      }
     } else {
       setIngestedUrls([]);
     }
-  }, [crawlBotId]);
+  }, [crawlBotId, chatbots]);
+
+  const handleSaveSchedule = async (schedule: string) => {
+    setCrawlSchedule(schedule);
+    
+    // Limits
+    const limit = planTier === 'basic' ? 5 : planTier === 'starter' ? 20 : planTier === 'pro' ? 100 : 500;
+    if (schedule === 'daily' && ingestedUrls.length > limit) {
+      alert(`Your active plan (${planTier}) limits daily rescanning to ${limit} URLs. Please remove some URLs, select a different frequency, or upgrade your plan.`);
+      // We still update the UI, but we won't save it to the DB if it fails validation, so revert:
+      const bot = chatbots.find(b => b.id === crawlBotId);
+      setCrawlSchedule((bot?.configuration_json as any)?.crawl_schedule || 'none');
+      return;
+    }
+
+    setIsSavingSchedule(true);
+    try {
+      const bot = chatbots.find(b => b.id === crawlBotId);
+      const newConfig = { ...(bot?.configuration_json as any || {}), crawl_schedule: schedule };
+      
+      const res = await fetch(`/api/chatbots/${crawlBotId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ configuration_json: newConfig })
+      });
+      
+      if (!res.ok) {
+        throw new Error('Failed to save schedule');
+      }
+    } catch (err) {
+      console.error(err);
+      alert('Failed to save schedule settings.');
+    }
+    setIsSavingSchedule(false);
+  };
 
   const handleDeleteUrl = async (url: string) => {
     if (!crawlBotId || !confirm(`Are you sure you want to delete all chunks for ${url}?`)) return;
@@ -298,7 +342,24 @@ export default function KnowledgeBaseView() {
                       ))}
                     </select>
                   </div>
-                  <div className="md:col-span-2">
+                  <div className="md:col-span-1">
+                    <label className="block text-xs font-semibold text-gray-400 mb-1.5">Rescan Frequency</label>
+                    <select
+                      value={crawlSchedule}
+                      onChange={(e) => handleSaveSchedule(e.target.value)}
+                      disabled={isSavingSchedule}
+                      className="w-full bg-gray-950 border border-gray-800 rounded-xl px-3.5 py-2.5 text-sm text-white focus:outline-none focus:ring-1 focus:ring-indigo-500 disabled:opacity-50"
+                    >
+                      <option value="none">Never (Manual Only)</option>
+                      <option value="daily">Daily</option>
+                      <option value="weekly">Weekly</option>
+                      <option value="biweekly">Every 2 Weeks</option>
+                    </select>
+                  </div>
+                  <div className="md:col-span-1">
+                    {/* Placeholder for layout alignment if needed */}
+                  </div>
+                  <div className="md:col-span-3">
                     <div className="flex justify-between items-end mb-1.5">
                       <label className="block text-xs font-semibold text-gray-400">Website URLs to Scrape (comma or space separated)</label>
                       <button 

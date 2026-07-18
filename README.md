@@ -335,3 +335,8 @@ This runbook documents the key fixes and architecture enhancements implemented d
     4. **Superadmin Search Scope**: Updated the `/api/superadmin/impersonate/search` endpoint to use the service role key, bypassing RLS to display all tenants across the system.
     5. **Impersonation Data Leakage**: Isolated tenant scope so superadmins don't see all platform tenants' data mixed together in their personal UI. Explicitly hid the Superadmin Control Center while actively impersonating an account.
     6. **Knowledge Base Chunk Metrics**: Fixed `document_chunks` metric tracking and API fetching to resolve the '0 used' display bug that occurred because the schema lacked a `tenant_id` column. Metrics are now securely verified by mapping ownership through the `chatbots` table.
+
+**Update (Impersonation and Crawling Limits):**
+- **Fixed Impersonation Leakage**: Updated the Next.js dashboard server components to conditionally spin up an admin client exclusively when impersonating so superadmins can properly see tenant metrics without hitting RLS blockers.
+- **Improved Superadmin Search**: Modified the impersonation search API to tolerate spacing variations, ensuring tenants like 'Wardrobe at the Cross' can be successfully matched via 'wardrobeatthecross'.
+- **Scheduled Crawling UI**: Added a new rescan frequency UI control (Never, Daily, Weekly, Bi-weekly) to the Knowledge Base panel. Integrates with the Chatbot PATCH API to save `crawl_schedule` into the configuration JSON. Also enforces daily url scanning limits based on the active billing tier.
