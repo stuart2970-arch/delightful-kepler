@@ -314,10 +314,18 @@ export default function DashboardClient({
     setIsCreatingBot(false);
   };
 
-  const handleSaveGlobalSettings = async (e: React.FormEvent) => {
+  const handleSaveBranding = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsSavingGlobal(true);
     try {
+      const globalBot = chatbots.find(b => b.id === globalBotId);
+      const currentConfig = globalBot?.configuration_json || {};
+      const newConfig = {
+        ...currentConfig,
+        branding_html: globalBrandingHtml,
+        branding_url: globalTrackingUrl,
+      };
+
       const response = await fetch(`/api/chatbots`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -326,25 +334,13 @@ export default function DashboardClient({
           tenant_id: tenantId,
           name: 'GLOBAL_PLATFORM_SETTINGS',
           primary_color: '#000000',
-          configuration_json: {
-            branding_html: globalBrandingHtml,
-            branding_url: globalTrackingUrl,
-            global_voice_disclaimer: globalVoiceDisclaimer,
-          },
+          configuration_json: newConfig,
         }),
       });
       if (!response.ok) {
         const errData = await response.json();
         throw new Error(errData.error || response.statusText);
       }
-      // Update local state
-      const globalBot = chatbots.find(b => b.id === globalBotId);
-      const newConfig = {
-        ...(globalBot?.configuration_json || {}),
-        branding_html: globalBrandingHtml,
-        branding_url: globalTrackingUrl,
-        global_voice_disclaimer: globalVoiceDisclaimer
-      };
       
       if (!supabase) return;
       const { error } = await supabase
@@ -368,9 +364,66 @@ export default function DashboardClient({
           created_at: globalBot?.created_at || new Date().toISOString()
         }];
       });
-      alert('Global settings saved successfully!');
+      alert('Global branding saved successfully!');
     } catch (err: any) {
-      alert('Failed to save global settings: ' + err.message);
+      alert('Failed to save global branding: ' + err.message);
+    } finally {
+      setIsSavingGlobal(false);
+    }
+  };
+
+  const handleSaveDisclaimer = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setIsSavingGlobal(true);
+    try {
+      const globalBot = chatbots.find(b => b.id === globalBotId);
+      const currentConfig = globalBot?.configuration_json || {};
+      const newConfig = {
+        ...currentConfig,
+        global_voice_disclaimer: globalVoiceDisclaimer,
+      };
+
+      const response = await fetch(`/api/chatbots`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          id: globalBotId,
+          tenant_id: tenantId,
+          name: 'GLOBAL_PLATFORM_SETTINGS',
+          primary_color: '#000000',
+          configuration_json: newConfig,
+        }),
+      });
+      if (!response.ok) {
+        const errData = await response.json();
+        throw new Error(errData.error || response.statusText);
+      }
+      
+      if (!supabase) return;
+      const { error } = await supabase
+        .from('chatbots')
+        .upsert({
+          id: globalBotId,
+          tenant_id: tenantId,
+          name: 'Global Branding Bot',
+          primary_color: '#000000',
+          configuration_json: newConfig
+        }, { onConflict: 'id' });
+        
+      if (error) throw error;
+      setChatbots(prev => {
+        const others = prev.filter(b => b.id !== globalBotId);
+        return [...others, {
+          id: globalBotId,
+          name: 'Global Branding Bot',
+          primary_color: '#000000',
+          configuration_json: newConfig,
+          created_at: globalBot?.created_at || new Date().toISOString()
+        }];
+      });
+      alert('Global disclaimer saved successfully!');
+    } catch (err: any) {
+      alert('Failed to save global disclaimer: ' + err.message);
     } finally {
       setIsSavingGlobal(false);
     }
@@ -648,58 +701,80 @@ export default function DashboardClient({
 
           {/* Platform Settings Tab */}
           {activeTab === 'settings' && !isImpersonating && (
-            <div className="bg-gray-900/30 border border-gray-900 p-6 rounded-2xl shadow-xl space-y-6">
-              <div>
-                <h3 className="text-lg font-bold text-white">Global Platform Settings</h3>
-                <p className="text-xs text-gray-400 mt-0.5">Manage system-wide configurations, including the chatbot widget branding.</p>
+            <div className="space-y-6">
+              {/* Branding Panel */}
+              <div className="bg-gray-900/30 border border-gray-900 p-6 rounded-2xl shadow-xl space-y-6">
+                <div>
+                  <h3 className="text-lg font-bold text-white">Global Platform Branding</h3>
+                  <p className="text-xs text-gray-400 mt-0.5">Manage the chatbot widget branding. This watermark is automatically hidden for tenants on Premium and Ultimate tiers.</p>
+                </div>
+
+                <form onSubmit={handleSaveBranding} className="space-y-4">
+                  <div>
+                    <label className="block text-xs font-semibold text-gray-400 mb-1.5">Branding HTML (Footer Watermark)</label>
+                    <textarea
+                      value={globalBrandingHtml}
+                      onChange={(e) => setGlobalBrandingHtml(e.target.value)}
+                      className="w-full bg-gray-950 border border-gray-800 rounded-xl px-3.5 py-2 text-sm text-white focus:outline-none focus:ring-1 focus:ring-indigo-500 font-mono min-h-[80px]"
+                      placeholder='<span style="opacity: 0.6; font-size: 11px;">⚡ Powered by StyleFlo</span>'
+                    />
+                    <p className="text-[10px] text-gray-500 mt-1">This HTML is injected at the bottom of all chatbot widgets. It will automatically be wrapped in an anchor tag pointing to the URL below.</p>
+                  </div>
+                  
+                  <div>
+                    <label className="block text-xs font-semibold text-gray-400 mb-1.5">Tracking Destination URL</label>
+                    <input
+                      type="url"
+                      value={globalTrackingUrl}
+                      onChange={(e) => setGlobalTrackingUrl(e.target.value)}
+                      className="w-full bg-gray-950 border border-gray-800 rounded-xl px-3.5 py-2 text-sm text-white focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                      placeholder="https://styleflo.ai"
+                      required
+                    />
+                    <p className="text-[10px] text-gray-500 mt-1">Users clicking the watermark will be tracked and redirected here. Originating chatbot ID will be appended as ?ref=...</p>
+                  </div>
+                  
+                  <div className="pt-2">
+                    <button
+                      type="submit"
+                      disabled={isSavingGlobal}
+                      className="bg-indigo-600 hover:bg-indigo-500 text-white text-sm font-semibold py-2 px-5 rounded-xl shadow-lg shadow-indigo-500/10 transition-colors disabled:opacity-50"
+                    >
+                      {isSavingGlobal ? 'Saving Settings...' : 'Save Global Branding'}
+                    </button>
+                  </div>
+                </form>
               </div>
 
-              <form onSubmit={handleSaveGlobalSettings} className="space-y-4">
+              {/* Disclaimer Panel */}
+              <div className="bg-gray-900/30 border border-gray-900 p-6 rounded-2xl shadow-xl space-y-6">
                 <div>
-                  <label className="block text-xs font-semibold text-gray-400 mb-1.5">Branding HTML (Footer Watermark)</label>
-                  <textarea
-                    value={globalBrandingHtml}
-                    onChange={(e) => setGlobalBrandingHtml(e.target.value)}
-                    className="w-full bg-gray-950 border border-gray-800 rounded-xl px-3.5 py-2 text-sm text-white focus:outline-none focus:ring-1 focus:ring-indigo-500 font-mono min-h-[80px]"
-                    placeholder='<span style="opacity: 0.6; font-size: 11px;">⚡ Powered by StyleFlo</span>'
-                  />
-                  <p className="text-[10px] text-gray-500 mt-1">This HTML is injected at the bottom of all chatbot widgets. It will automatically be wrapped in an anchor tag pointing to the URL below.</p>
-                </div>
-                
-                <div>
-                  <label className="block text-xs font-semibold text-gray-400 mb-1.5">Tracking Destination URL</label>
-                  <input
-                    type="url"
-                    value={globalTrackingUrl}
-                    onChange={(e) => setGlobalTrackingUrl(e.target.value)}
-                    className="w-full bg-gray-950 border border-gray-800 rounded-xl px-3.5 py-2 text-sm text-white focus:outline-none focus:ring-1 focus:ring-indigo-500"
-                    placeholder="https://styleflo.ai"
-                    required
-                  />
-                  <p className="text-[10px] text-gray-500 mt-1">Users clicking the watermark will be tracked and redirected here. Originating chatbot ID will be appended as ?ref=...</p>
-                </div>
-                
-                <div>
-                  <label className="block text-xs font-semibold text-gray-400 mb-1.5">Global Voice & Chat Disclaimer</label>
-                  <textarea 
-                    value={globalVoiceDisclaimer}
-                    onChange={(e) => setGlobalVoiceDisclaimer(e.target.value)}
-                    placeholder="e.g. Please be aware that this call may be recorded for training and quality purposes..."
-                    className="w-full bg-gray-950 border border-gray-800 rounded-xl px-3.5 py-2 text-sm text-white focus:outline-none focus:ring-1 focus:ring-indigo-500 min-h-[100px]"
-                  />
-                  <p className="text-[10px] text-gray-500 mt-1">This disclaimer will be shown to users before they start a chat or voice call.</p>
+                  <h3 className="text-lg font-bold text-white">Global Voice & Chat Disclaimer</h3>
+                  <p className="text-xs text-gray-400 mt-0.5">Manage the system-wide disclaimer shown across all chatbots regardless of their billing tier.</p>
                 </div>
 
-                <div className="pt-2">
-                  <button
-                    type="submit"
-                    disabled={isSavingGlobal}
-                    className="bg-indigo-600 hover:bg-indigo-500 text-white text-sm font-semibold py-2 px-5 rounded-xl shadow-lg shadow-indigo-500/10 transition-colors disabled:opacity-50"
-                  >
-                    {isSavingGlobal ? 'Saving Settings...' : 'Save Global Settings'}
-                  </button>
-                </div>
-              </form>
+                <form onSubmit={handleSaveDisclaimer} className="space-y-4">
+                  <div>
+                    <textarea 
+                      value={globalVoiceDisclaimer}
+                      onChange={(e) => setGlobalVoiceDisclaimer(e.target.value)}
+                      placeholder="e.g. Please be aware that this call may be recorded for training and quality purposes..."
+                      className="w-full bg-gray-950 border border-gray-800 rounded-xl px-3.5 py-2 text-sm text-white focus:outline-none focus:ring-1 focus:ring-indigo-500 min-h-[100px]"
+                    />
+                    <p className="text-[10px] text-gray-500 mt-1">This disclaimer will be shown to users before they start a chat or voice call.</p>
+                  </div>
+
+                  <div className="pt-2">
+                    <button
+                      type="submit"
+                      disabled={isSavingGlobal}
+                      className="bg-indigo-600 hover:bg-indigo-500 text-white text-sm font-semibold py-2 px-5 rounded-xl shadow-lg shadow-indigo-500/10 transition-colors disabled:opacity-50"
+                    >
+                      {isSavingGlobal ? 'Saving Settings...' : 'Save Global Disclaimer'}
+                    </button>
+                  </div>
+                </form>
+              </div>
             </div>
           )}
 
