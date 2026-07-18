@@ -18,6 +18,11 @@ export default function KnowledgeBaseView() {
   const [isDiscoveringSitemap, setIsDiscoveringSitemap] = useState(false);
   const [sitemapMessage, setSitemapMessage] = useState<{type: 'success'|'error'|'info', text: string} | null>(null);
 
+  // Shopify Preflight State
+  const [shopifyAnalysis, setShopifyAnalysis] = useState<any>(null);
+  const [isShopifyPreflight, setIsShopifyPreflight] = useState(false);
+  const [isShopifyExecuting, setIsShopifyExecuting] = useState(false);
+
   const loadIngestedUrls = async (botId: string) => {
     setIsLoadingUrls(true);
     try {
@@ -144,6 +149,27 @@ export default function KnowledgeBaseView() {
     let totalChunks = 0;
     let hasError = false;
 
+    // Shopify Preflight Check
+    if (urls.length === 1 && !urls[0].includes('.html') && !urls[0].includes('.xml')) {
+      try {
+        const analyzeRes = await fetch('/api/ingest/shopify/analyze', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ storeUrl: urls[0], chatbotId: crawlBotId })
+        });
+        
+        if (analyzeRes.ok) {
+          const analysis = await analyzeRes.json();
+          setShopifyAnalysis({ ...analysis, storeUrl: urls[0] });
+          setIsShopifyPreflight(true);
+          setIsCrawling(false);
+          return;
+        }
+      } catch (e) {
+        // Not a Shopify store or failed analysis, continue to normal scraping
+      }
+    }
+
     for (let i = 0; i < urls.length; i++) {
       const currentUrl = urls[i];
       setCrawlLogs((prev) => [...prev, `[System] [${i+1}/${urls.length}] Crawling ${currentUrl}...`]);
@@ -199,6 +225,51 @@ export default function KnowledgeBaseView() {
     setIsCrawling(false);
   };
 
+  const handleExecuteShopify = () => {
+    if (!shopifyAnalysis) return;
+    
+    setIsShopifyPreflight(false);
+    setIsShopifyExecuting(true);
+    setCrawlLogs([`[System] Initializing Shopify Ingestion Engine for ${shopifyAnalysis.storeUrl}...`]);
+    setCrawlResult(null);
+
+    const sseUrl = `/api/ingest/shopify/execute?storeUrl=${encodeURIComponent(shopifyAnalysis.storeUrl)}&chatbotId=${encodeURIComponent(crawlBotId)}`;
+    const eventSource = new EventSource(sseUrl);
+
+    eventSource.onmessage = (event) => {
+      try {
+        const data = JSON.parse(event.data);
+        if (data.type === 'status') {
+          setCrawlLogs(prev => [...prev, `[Status] ${data.message}`]);
+        } else if (data.type === 'progress') {
+          setCrawlLogs(prev => [...prev, `[Progress] ${data.message} (${data.current}/${data.total})`]);
+        } else if (data.type === 'warning') {
+          setCrawlLogs(prev => [...prev, `[Warning] ${data.message}`]);
+        } else if (data.type === 'complete') {
+          setCrawlLogs(prev => [...prev, `[Success] ${data.message}`]);
+          setCrawlResult({ success: true, message: data.message });
+          setIsShopifyExecuting(false);
+          loadIngestedUrls(crawlBotId);
+          eventSource.close();
+        } else if (data.type === 'error') {
+          setCrawlLogs(prev => [...prev, `[Error] ${data.message}`]);
+          setCrawlResult({ success: false, message: data.message });
+          setIsShopifyExecuting(false);
+          eventSource.close();
+        }
+      } catch (e) {
+        // ignore JSON parse error
+      }
+    };
+
+    eventSource.onerror = (err) => {
+      console.error("SSE Error:", err);
+      setCrawlLogs(prev => [...prev, `[System] Connection lost or closed unexpectedly.`]);
+      setIsShopifyExecuting(false);
+      eventSource.close();
+    };
+  };
+
   return (
     <>
           
@@ -208,6 +279,7 @@ export default function KnowledgeBaseView() {
                 <p className="text-xs text-gray-400 mt-0.5">Scrapes client sites, chunks content, generates embeddings, and saves vectors to the chatbot.</p>
               </div>
 
+              {!isShopifyPreflight ? (
               <form onSubmit={handleTriggerCrawl} className="space-y-4">
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                   <div className="md:col-span-1">
@@ -303,9 +375,46 @@ export default function KnowledgeBaseView() {
                   disabled={isCrawling || !crawlBotId || !crawlUrl}
                   className="bg-indigo-600 hover:bg-indigo-500 text-white text-sm font-semibold py-2 px-5 rounded-xl shadow-lg shadow-indigo-500/10 transition-colors disabled:opacity-50"
                 >
-                  {isCrawling ? 'Processing Crawler...' : 'Trigger Crawler Pipeline'}
+                  {isCrawling || isShopifyExecuting ? 'Processing...' : 'Trigger Crawler Pipeline'}
                 </button>
               </form>
+              ) : (
+                <div className="bg-gray-950 p-6 rounded-2xl border border-gray-800 space-y-4">
+                  <h4 className="text-sm font-bold text-white">🛍️ Shopify Store Detected</h4>
+                  <p className="text-sm text-gray-400 leading-relaxed">
+                    We found a structured Shopify catalog at <strong className="text-gray-200">{shopifyAnalysis?.storeUrl}</strong>.
+                    <br/>
+                    Total Products: <span className="text-white font-mono">{shopifyAnalysis?.totalProducts}</span> <br/>
+                    Estimated Data Chunks Required: <span className="text-white font-mono">{shopifyAnalysis?.estimatedChunks}</span>
+                  </p>
+                  
+                  {shopifyAnalysis?.willHitLimit && (
+                    <div className="bg-orange-500/10 border border-orange-500/30 p-4 rounded-xl mt-2">
+                      <p className="text-xs font-bold text-orange-400 mb-1">⚠️ Data Limit Warning</p>
+                      <p className="text-xs text-orange-300">
+                        {shopifyAnalysis.limitError || `This store has more products than your current plan allows. We will ingest as much data as possible up to your limit of ${shopifyAnalysis.limitLimit} chunks. Please upgrade your plan to capture the entire store.`}
+                      </p>
+                    </div>
+                  )}
+
+                  <div className="flex gap-3 pt-2">
+                    <button
+                      type="button"
+                      onClick={() => setIsShopifyPreflight(false)}
+                      className="px-4 py-2 text-xs font-semibold text-gray-300 hover:text-white transition-colors"
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      type="button"
+                      onClick={handleExecuteShopify}
+                      className="px-5 py-2 bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-semibold rounded-xl shadow-lg shadow-indigo-500/20 transition-colors"
+                    >
+                      {shopifyAnalysis?.willHitLimit ? 'Proceed with Reduced Data' : 'Start Shopify Ingestion'}
+                    </button>
+                  </div>
+                </div>
+              )}
 
               {/* Crawler Log Screen */}
               {crawlLogs.length > 0 && (
