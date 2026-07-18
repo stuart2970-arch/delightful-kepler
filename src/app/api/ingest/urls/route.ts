@@ -38,10 +38,28 @@ export async function GET(req: Request) {
       auth: { persistSession: false, autoRefreshToken: false }
     });
 
+    // Determine if user is super admin
+    const cookieStore = await cookies();
+    const token = cookieStore.get('sb-access-token')?.value;
+    let isSuperAdmin = false;
+    
+    if (token) {
+      const decoded = jwtDecode<any>(token);
+      if (decoded.sub) {
+        const { data: profile } = await supabaseAdmin.from('profiles').select('is_super_admin').eq('id', decoded.sub).single();
+        if (profile?.is_super_admin) isSuperAdmin = true;
+      }
+    }
+
+    // Verify ownership if not super admin
+    if (!isSuperAdmin) {
+      const { data: bot } = await supabaseAdmin.from('chatbots').select('id').eq('id', chatbotId).eq('tenant_id', tenantId).single();
+      if (!bot) return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+    }
+
     const { data, error } = await supabaseAdmin
       .from('document_chunks')
       .select('id, source_url, created_at')
-      .eq('tenant_id', tenantId)
       .eq('chatbot_id', chatbotId);
 
     if (error) {
@@ -94,10 +112,28 @@ export async function DELETE(req: Request) {
       auth: { persistSession: false, autoRefreshToken: false }
     });
 
+    // Determine if user is super admin
+    const cookieStore = await cookies();
+    const token = cookieStore.get('sb-access-token')?.value;
+    let isSuperAdmin = false;
+    
+    if (token) {
+      const decoded = jwtDecode<any>(token);
+      if (decoded.sub) {
+        const { data: profile } = await supabaseAdmin.from('profiles').select('is_super_admin').eq('id', decoded.sub).single();
+        if (profile?.is_super_admin) isSuperAdmin = true;
+      }
+    }
+
+    // Verify ownership if not super admin
+    if (!isSuperAdmin) {
+      const { data: bot } = await supabaseAdmin.from('chatbots').select('id').eq('id', chatbotId).eq('tenant_id', tenantId).single();
+      if (!bot) return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+    }
+
     let query = supabaseAdmin
       .from('document_chunks')
       .delete()
-      .eq('tenant_id', tenantId)
       .eq('chatbot_id', chatbotId);
 
     if (sourceUrl === 'Unknown Source') {

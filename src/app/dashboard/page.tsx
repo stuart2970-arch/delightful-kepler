@@ -166,10 +166,16 @@ export default async function DashboardPage(props: { searchParams?: Promise<{ [k
     const { data: convs } = await convsQuery;
     if (convs) conversations = convs;
 
-    // Metrics (Chunks)
-    let chunksQuery = supabase.from('document_chunks').select('*', { count: 'exact', head: true });
-    if (queryFilter && queryFilter.value) chunksQuery = chunksQuery.eq(queryFilter.key, queryFilter.value);
-    const { count: chunksCount } = await chunksQuery;
+    // Metrics (Chunks) - document_chunks doesn't have tenant_id, so we filter by chatbot_ids
+    let chunksCount = 0;
+    const chatbotIds = chatbots.map((b: any) => b.id);
+    if (chatbotIds.length > 0) {
+      const { count } = await supabase
+        .from('document_chunks')
+        .select('*', { count: 'exact', head: true })
+        .in('chatbot_id', chatbotIds);
+      chunksCount = count || 0;
+    }
 
     // Metrics (Messages)
     let msgsQuery = supabase.from('messages').select('*', { count: 'exact', head: true });
@@ -215,7 +221,7 @@ export default async function DashboardPage(props: { searchParams?: Promise<{ [k
       }
     }
 
-    if (isSuperAdmin) {
+    if (isSuperAdmin && !isImpersonating) {
       const supabaseUrl = process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL!;
       const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
       const adminSupabase = createClient(supabaseUrl, serviceRoleKey);
