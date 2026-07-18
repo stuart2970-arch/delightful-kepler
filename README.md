@@ -327,3 +327,5 @@ This runbook documents the key fixes and architecture enhancements implemented d
     2. Fixed the Supabase Storage "no blob" error in handleCustomAvatarUpload inside ChatbotManagerView.tsx. Uploaded files are now strictly converted via wait file.arrayBuffer() and injected with contentType: file.type to bypass client-side File reference dropouts.
 
 - **[2026-07-18]** Implemented Superadmin Impersonate Feature: Added a secure backend API for searching tenants and chatbots, a modal inside the BillingView for superadmins to initiate impersonation, URL-param-driven server-side dashboard scoping, and a highly visible warning banner ensuring the superadmin knows they are currently viewing a scoped tenant account.
+
+- **[2026-07-18]** Fixed Entitlements Service: Rewrote the \checkFeatureEntitlement\ module to correctly authorize features based on the new \	ier_entitlements\ and \usage_ledger\ schema, completely removing the dependency on the deprecated \	enant_entitlements\ table and preventing crawler authorization failures.

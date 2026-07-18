@@ -3,7 +3,7 @@ import { useDashboardStore, DailySchedule, WeeklySchedule } from '../../lib/stor
 import ServiceEditor from '../ServiceEditor';
 
 export default function SchedulingView() {
-  const { tenantId, chatbots, services, setServices, staff, setStaff, bookingMode, bookingUrl, isGoogleConnected, setIsGoogleConnected } = useDashboardStore();
+  const { tenantId, chatbots, services, setServices, staff, setStaff, bookingMode, setBookingMode, bookingUrl, setBookingUrl, isGoogleConnected, setIsGoogleConnected } = useDashboardStore();
 
   const realBots = chatbots.filter(b => b.id !== '00000000-0000-0000-0000-000000000000' && b.id !== 'global');
   const [targetChatbotId, setTargetChatbotId] = useState(realBots[0]?.id || '');
@@ -19,10 +19,27 @@ export default function SchedulingView() {
 
   const [activeWeekIndex, setActiveWeekIndex] = useState(0);
   const [isSavingBookingMode, setIsSavingBookingMode] = useState(false);
-  const [bookingModeLocal, setBookingModeLocal] = useState(bookingMode);
-  const [bookingUrlLocal, setBookingUrlLocal] = useState(bookingUrl);
 
-  const handleSaveBookingMode = async () => {};
+  const handleSaveBookingMode = async () => {
+    setIsSavingBookingMode(true);
+    try {
+      const res = await fetch('/api/tenants/settings', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ tenantId, bookingMode, bookingUrl })
+      });
+      if (res.ok) {
+        alert('Booking settings saved successfully!');
+      } else {
+        alert('Failed to save booking settings.');
+      }
+    } catch (err) {
+      console.error('Failed to save booking settings', err);
+      alert('An error occurred while saving.');
+    } finally {
+      setIsSavingBookingMode(false);
+    }
+  };
   const handleDisconnectCalendar = async () => {};
   const [isFetchingScheduling, setIsFetchingScheduling] = useState(false);
 

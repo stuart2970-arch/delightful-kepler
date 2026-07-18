@@ -94,7 +94,9 @@ export interface DashboardState {
   // RWG & Scheduling Context
   rwgConfig: any;
   bookingMode: string;
+  setBookingMode: (mode: string) => void;
   bookingUrl: string;
+  setBookingUrl: (url: string) => void;
 
   // Initialization
   initialize: (data: Partial<DashboardState>) => void;
@@ -130,7 +132,9 @@ export const useDashboardStore = create<DashboardState>((set) => ({
 
   rwgConfig: {},
   bookingMode: 'single_calendar',
+  setBookingMode: (bookingMode) => set({ bookingMode }),
   bookingUrl: '',
+  setBookingUrl: (bookingUrl) => set({ bookingUrl }),
 
   initialize: (data) => set((state) => ({ ...state, ...data })),
 }));
