@@ -61,9 +61,6 @@ export async function GET(
       return NextResponse.json({ error: 'Chatbot not found' }, { status: 404 });
     }
 
-    const globalBot = chatbots.find(b => b.id === globalSettingsId);
-    let globalVoiceDisclaimer = globalBot?.configuration_json?.global_voice_disclaimer || '';
-
     let planTier = 'basic';
     
     if (chatbot.tenant_id) {
@@ -157,7 +154,7 @@ export async function GET(
       voiceEnabled: hasVoiceMinutes,
       vapiPublicKey: process.env.NEXT_PUBLIC_VAPI_PUBLIC_KEY || process.env.VAPI_PUBLIC_KEY || '',
       vapiAssistantId: process.env.VAPI_MASTER_ASSISTANT_ID || '',
-      globalVoiceDisclaimer: globalVoiceDisclaimer,
+      globalVoiceDisclaimer: globalConfig.global_voice_disclaimer || '',
       voiceProvider: voiceProvider,
       voiceId: resolvedVoiceId,
     }, {
