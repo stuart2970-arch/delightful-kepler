@@ -27,7 +27,7 @@ export async function checkFeatureEntitlement(
     // 1. Get the Feature definition
     const { data: feature, error: featureError } = await dbClient
       .from('features')
-      .select('type, name')
+      .select('name, is_metered')
       .eq('id', featureId)
       .single();
 
