@@ -293,3 +293,15 @@ This runbook documents the key fixes and architecture enhancements implemented d
   - Refactored the Server-Sent Events (SSE) generator in `route.ts` to strictly strip out any empty `textDelta` chunks to prevent sending `""` to ElevenLabs.
   - Updated the Vapi Widget script (`src/widget/index.ts`) to explicitly map the ElevenLabs Voice config to the `eleven_turbo_v2_5` model, which is specifically optimized for low-latency WebSockets.
   - Injected an explicit system prompt restriction (`DO NOT use any markdown formatting, asterisks, bullet points, or special characters. Speak naturally in plain text.`) to prevent ElevenLabs from attempting to synthesize formatting syntax.
+
+### Session 8 (July 18, 2026)
+* **User**: "when a user creates an account nothing happens. if the users selects creat account again an error message is shown stating the email rate limit exceded"
+  * **Fix**: Implemented a success feedback state in `src/app/login/page.tsx` that captures the successful signup event (which triggers Supabase's default email verification) and displays a green banner instructing the user to check their email, preventing them from repeatedly clicking the button and hitting rate limits.
+* **User**: "when an account is created and the user enters a web address, the registration form should check the site for a sitemap feed and use this feed to prepopulate the knowlede base for the user when creating a chatbot"
+  * **Fix**: Built an interactive Sitemap Discovery pipeline. Created `/api/sitemap/discover` to parse standard and index XML sitemaps. Updated `KnowledgeBaseView.tsx` with a "Discover Sitemap" UI that presents a scrollable checklist of discovered URLs to the user. Users can select up to 20 pages at a time to prevent scraping abuse, and add them directly to the ingestion queue.
+* **User**: "Next i would like to offer the user 10 male and 10 female avatars, or upload their own (1:1)"
+  * **Fix**: Transformed the chatbot agent configuration to support dynamic and custom avatars. 
+    1. Hooked into the Dicebear `notionists` API to generate a grid of 20 distinct professional avatars using fixed name seeds (10 male, 10 female). 
+    2. Created a new Supabase Storage bucket (`chatbot-assets`) via a SQL migration, enforcing RLS so users can only upload files into their isolated `tenant_id` directories. 
+    3. Added a custom file upload input in `ChatbotManagerView.tsx` with a 2MB limit that saves files directly to Supabase and returns the public URL. 
+    4. Refactored the floating widget (`src/widget/index.ts`) to handle rendering absolute avatar URLs seamlessly.
