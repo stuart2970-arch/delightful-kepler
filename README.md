@@ -305,3 +305,25 @@ This runbook documents the key fixes and architecture enhancements implemented d
     2. Created a new Supabase Storage bucket (`chatbot-assets`) via a SQL migration, enforcing RLS so users can only upload files into their isolated `tenant_id` directories. 
     3. Added a custom file upload input in `ChatbotManagerView.tsx` with a 2MB limit that saves files directly to Supabase and returns the public URL. 
     4. Refactored the floating widget (`src/widget/index.ts`) to handle rendering absolute avatar URLs seamlessly.
+* **User**: "lastly for now, i want you to create a bot building wizard that takes the user through the journey, the user should be able to save the bot created at the end and it must show at the top of the page where they are up to in the journey"
+  * **Fix**: Refactored `ChatbotManagerView.tsx` to implement a multi-step creation wizard. Added `wizardStep` state and grouped form inputs into 4 distinct segments (Basics, Persona, Avatar, Voice) that render conditionally with fade-in animations. Implemented a dynamic visual progress tracker at the top. Preserved the original "single-page" form view for when users are *editing* an existing bot, allowing for rapid edits without having to click "Next" multiple times. Added `Back`/`Next` navigation and deferred API submission until the final "Finish & Save" step.
+
+### Session 9 (July 18, 2026)
+* **User**: "3. Node.js Ingestion Pipeline Framework (/pages/api/ingest/shopify.ts)... Implement this target microservice inside your backend logic block."
+  * **Fix**: Built the Shopify JSON-Native Crawler Engine & Preflight UI.
+    1. Designed and built the Shopify ingestion pipeline utilizing native /products.json extraction for structured, HTML-noise-free context ingestion.
+    2. Implemented a two-phase architecture:
+      - **Phase 1: Preflight Analysis (/api/ingest/shopify/analyze)**: Validates the Shopify JSON endpoint, counts products, checks 	enant_entitlements quota caps, and presents a warnings UI in KnowledgeBaseView.tsx if the data volume exceeds limits.
+      - **Phase 2: Execution Engine (/api/ingest/shopify/execute)**: Deployed an SSE (Server-Sent Events) stream to bypass HTTP timeouts during sequential parsing of hundreds of products and policy endpoints (.shopify-policy__container).
+    3. Integrated real-time crawler logs into the frontend to visualize ingestion progress dynamically.
+* **User**: "how do i delete chatbots... Before you proceed, as well as deleting the chatbot, the user (business) must be warned before the deletion takes place that all data, including any customer data collated by that chatbot will also be deleted along with any data storred in its knowledgebase"
+  * **Fix**: Implemented the Chatbot Deletion Feature.
+    1. Built a DELETE endpoint at /api/chatbots/[id] that securely deletes the chatbot. Leveraged Postgres ON DELETE CASCADE to guarantee that all associated data (knowledge base chunks, sessions, messages, services, staff) are simultaneously and securely deleted.
+    2. Updated ChatbotManagerView.tsx with a new "Delete" action button.
+    3. Implemented a strict confirmation modal displaying the exact warning requested, ensuring business users explicitly understand that all customer data and knowledgebase data will be permanently wiped before the API call is executed.
+* **User**: "the avatars you created need to reflect the business trpes we are catering for and the fact that AI is invilved so some robot waiters/ stylists/ nail technisions, the upload does nit save as there is no blob"
+  * **Fix**: Generated high-quality custom AI robot avatars using DALL-E/Imagen and fixed the Supabase avatar upload bug.
+    1. Executed generative image tools to create 13 custom robot avatars representing Waiters, Hair Stylists, and Nail Technicians. Replaced generic Dicebear seeds with these local assets.
+    2. Fixed the Supabase Storage "no blob" error in handleCustomAvatarUpload inside ChatbotManagerView.tsx. Uploaded files are now strictly converted via wait file.arrayBuffer() and injected with contentType: file.type to bypass client-side File reference dropouts.
+
+- **[2026-07-18]** Implemented Superadmin Impersonate Feature: Added a secure backend API for searching tenants and chatbots, a modal inside the BillingView for superadmins to initiate impersonation, URL-param-driven server-side dashboard scoping, and a highly visible warning banner ensuring the superadmin knows they are currently viewing a scoped tenant account.

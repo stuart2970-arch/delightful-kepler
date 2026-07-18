@@ -33,7 +33,7 @@ async function createSupabaseServerClient() {
   });
 }
 
-export default async function DashboardPage() {
+export default async function DashboardPage(props: { searchParams?: Promise<{ [key: string]: string | string[] | undefined }> }) {
   const supabase = await createSupabaseServerClient();
   
   const {
@@ -119,8 +119,40 @@ export default async function DashboardPage() {
     // The DB Client is already running under the user's JWT. 
     // RLS in Postgres will handle filtering by tenant_id (or letting superadmin see all).
     
-    // For now, we still explicitly query by tenantId unless they are super admin.
-    let queryFilter = isSuperAdmin ? null : { key: 'tenant_id', value: tenantId };
+    // Check for Impersonation
+    let isImpersonating = false;
+    const resolvedParams = props.searchParams ? await props.searchParams : {};
+    
+    if (isSuperAdmin && resolvedParams.tenant_id && typeof resolvedParams.tenant_id === 'string') {
+      tenantId = resolvedParams.tenant_id;
+      isImpersonating = true;
+      
+      // Override tenant mapping to fetch the impersonated tenant's data
+      const { data: impTenant } = await supabase
+        .from('tenants')
+        .select('company_name, plan_tier, is_rwg_enabled, rwg_business_name, rwg_street_address, rwg_city, rwg_postcode, rwg_phone, booking_mode, booking_url, global_voice_disclaimer')
+        .eq('id', tenantId)
+        .single();
+        
+      if (impTenant) {
+        tenantName = impTenant.company_name;
+        bookingMode = impTenant.booking_mode || 'single_calendar';
+        bookingUrl = impTenant.booking_url || '';
+        rwgConfig = {
+          is_rwg_enabled: impTenant.is_rwg_enabled || false,
+          rwg_business_name: impTenant.rwg_business_name || '',
+          rwg_street_address: impTenant.rwg_street_address || '',
+          rwg_city: impTenant.rwg_city || '',
+          rwg_postcode: impTenant.rwg_postcode || '',
+          rwg_phone: impTenant.rwg_phone || '',
+        };
+        globalVoiceDisclaimer = impTenant.global_voice_disclaimer || '';
+      }
+    }
+
+    // For now, we still explicitly query by tenantId unless they are super admin NOT impersonating.
+    // Wait, if they are super admin and impersonating, we MUST query by that specific tenantId.
+    let queryFilter = (isSuperAdmin && !isImpersonating) ? null : { key: 'tenant_id', value: tenantId };
 
     // Chatbots
     let botsQuery = supabase.from('chatbots').select('*').order('created_at', { ascending: false });
@@ -184,12 +216,22 @@ export default async function DashboardPage() {
     }
 
     if (isSuperAdmin) {
-      const { data: allTenantsList } = await supabase.from('tenants').select('id, company_name, plan_tier');
+      const cookieStore = await cookies();
+      const supabaseUrl = process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL!;
+      const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
+      const adminSupabase = createServerClient(supabaseUrl, serviceRoleKey, {
+        cookies: {
+          getAll() { return cookieStore.getAll(); },
+          setAll() {}
+        }
+      });
+
+      const { data: allTenantsList } = await adminSupabase.from('tenants').select('id, company_name, plan_tier');
       
       const firstDay = new Date();
       firstDay.setDate(1);
       firstDay.setHours(0, 0, 0, 0);
-      const { data: allUsage } = await supabase
+      const { data: allUsage } = await adminSupabase
         .from('usage_ledger')
         .select('quantity, feature_id, tenant_id, actual_cost')
         .gte('recorded_at', firstDay.toISOString());
@@ -222,6 +264,7 @@ export default async function DashboardPage() {
         initialGlobalVoiceDisclaimer={globalVoiceDisclaimer}
         billingData={billingData}
         superadminData={superadminData}
+        isImpersonating={isSuperAdmin && typeof (props.searchParams ? await props.searchParams : {}).tenant_id === 'string'}
       />
     </main>
   );

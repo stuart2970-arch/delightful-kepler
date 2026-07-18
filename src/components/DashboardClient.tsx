@@ -70,6 +70,7 @@ interface DashboardClientProps {
   initialGlobalVoiceDisclaimer?: string;
   billingData?: any;
   superadminData?: any;
+  isImpersonating?: boolean;
 }
 
 export default function DashboardClient({
@@ -88,6 +89,7 @@ export default function DashboardClient({
   initialGlobalVoiceDisclaimer,
   billingData,
   superadminData,
+  isImpersonating,
 }: DashboardClientProps) {
   const storeInitialized = React.useRef(false);
   if (!storeInitialized.current) {
@@ -398,10 +400,16 @@ export default function DashboardClient({
   };
 
   return (
-    <div className="flex h-screen bg-[#09090b] text-gray-100 overflow-hidden font-sans">
-      
-      {/* Mobile Menu Backdrop */}
-      {isMobileMenuOpen && (
+    <div className="flex flex-col h-screen bg-[#09090b] text-gray-100 overflow-hidden font-sans">
+      {isImpersonating && (
+        <div className="bg-amber-600 text-white font-bold py-3 px-6 text-center w-full shadow-lg border-b border-amber-700 flex justify-between items-center z-[200]">
+          <span>⚠️ SUPER ADMIN IMPERSONATION MODE: You are viewing data as {tenantName}</span>
+          <a href="/dashboard" className="bg-black/20 hover:bg-black/40 px-4 py-1.5 rounded-lg text-sm transition-colors border border-white/10 shrink-0">Exit Impersonation</a>
+        </div>
+      )}
+      <div className="flex flex-1 overflow-hidden">
+        {/* Mobile Menu Backdrop */}
+        {isMobileMenuOpen && (
         <div 
           className="md:hidden fixed inset-0 bg-black/80 z-40 backdrop-blur-sm" 
           onClick={() => setIsMobileMenuOpen(false)}
@@ -722,6 +730,7 @@ export default function DashboardClient({
             </div>
         </div>
       </main>
+      </div>
     </div>
   );
 }

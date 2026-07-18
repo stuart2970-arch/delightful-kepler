@@ -1,5 +1,6 @@
 'use client';
 
+import { useState, useEffect } from 'react';
 import { useDashboardStore } from '@/lib/store';
 
 export default function BillingView() {
@@ -10,6 +11,35 @@ export default function BillingView() {
   // Usage metrics (safe defaults)
   const messagesUsed = billingData?.usage?.messages || 0;
   const chunksUsed = billingData?.usage?.chunks || 0;
+
+  const [showImpersonateModal, setShowImpersonateModal] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [searchResults, setSearchResults] = useState<any[]>([]);
+  const [isSearching, setIsSearching] = useState(false);
+
+  useEffect(() => {
+    if (!searchQuery.trim() || searchQuery.length < 2) {
+      setSearchResults([]);
+      return;
+    }
+    
+    const timer = setTimeout(async () => {
+      setIsSearching(true);
+      try {
+        const res = await fetch(`/api/superadmin/impersonate/search?q=${encodeURIComponent(searchQuery)}`);
+        const data = await res.json();
+        if (data.results) {
+          setSearchResults(data.results);
+        }
+      } catch (err) {
+        console.error('Failed to search tenants:', err);
+      } finally {
+        setIsSearching(false);
+      }
+    }, 500);
+
+    return () => clearTimeout(timer);
+  }, [searchQuery]);
   
   const handleUpgrade = () => {
     // Redirect to WordPress pricing page, passing the tenant_id 
@@ -80,10 +110,75 @@ export default function BillingView() {
               <button className="bg-indigo-900 hover:bg-indigo-800 text-indigo-100 text-xs font-semibold px-4 py-2 rounded-lg transition-colors">
                 Force Sync Entitlements
               </button>
+              <button 
+                onClick={() => setShowImpersonateModal(true)}
+                className="bg-amber-600/20 hover:bg-amber-600/40 border border-amber-600/50 text-amber-300 text-xs font-semibold px-4 py-2 rounded-lg transition-colors"
+              >
+                Impersonate User
+              </button>
             </div>
           </div>
         )}
       </div>
+
+      {/* Impersonate Modal */}
+      {showImpersonateModal && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
+          <div className="bg-gray-900 border border-gray-800 rounded-2xl p-6 max-w-2xl w-full shadow-2xl relative overflow-hidden flex flex-col h-[80vh]">
+            <div className="absolute top-0 left-0 w-full h-1 bg-amber-500"></div>
+            
+            <div className="flex justify-between items-center mb-6 shrink-0">
+              <h3 className="text-xl font-bold text-white">Impersonate Tenant</h3>
+              <button onClick={() => setShowImpersonateModal(false)} className="text-gray-400 hover:text-white">
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12"></path></svg>
+              </button>
+            </div>
+
+            <div className="shrink-0 mb-4">
+              <input 
+                type="text" 
+                placeholder="Search by Business Name or Chatbot Name..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="w-full bg-gray-950 border border-gray-800 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-amber-500 transition-colors"
+                autoFocus
+              />
+            </div>
+
+            <div className="flex-1 overflow-y-auto space-y-2 pr-2 custom-scrollbar">
+              {isSearching ? (
+                <div className="text-center py-8 text-gray-500 text-sm">Searching...</div>
+              ) : searchResults.length > 0 ? (
+                searchResults.map(res => (
+                  <div key={res.tenant_id} className="bg-gray-950 border border-gray-800 rounded-xl p-4 flex items-center justify-between hover:border-gray-700 transition-colors group">
+                    <div>
+                      <div className="text-white font-bold">{res.company_name || 'Unnamed Business'}</div>
+                      <div className="text-xs text-gray-400 mt-1">ID: <span className="font-mono text-gray-500">{res.tenant_id}</span></div>
+                      {res.matched_chatbots && res.matched_chatbots.length > 0 && (
+                        <div className="text-xs text-amber-500/80 mt-1">
+                          Chatbots: {res.matched_chatbots.join(', ')}
+                        </div>
+                      )}
+                    </div>
+                    <button 
+                      onClick={() => {
+                        window.location.href = `/dashboard?tenant_id=${res.tenant_id}`;
+                      }}
+                      className="opacity-0 group-hover:opacity-100 bg-amber-600 hover:bg-amber-500 text-white text-xs font-bold px-4 py-2 rounded-lg transition-all"
+                    >
+                      Impersonate
+                    </button>
+                  </div>
+                ))
+              ) : searchQuery.length >= 2 ? (
+                <div className="text-center py-8 text-gray-500 text-sm">No tenants or chatbots found matching "{searchQuery}"</div>
+              ) : (
+                <div className="text-center py-8 text-gray-600 text-sm">Type at least 2 characters to search...</div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
