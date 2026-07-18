@@ -20,6 +20,8 @@ export default function ChatbotManagerView() {
   const [wizardStep, setWizardStep] = useState(1);
   const [voicePersonas, setVoicePersonas] = useState<any[]>([]);
   const [isUploadingAvatar, setIsUploadingAvatar] = useState(false);
+  const [showDeleteModal, setShowDeleteModal] = useState<string | null>(null);
+  const [isDeletingBot, setIsDeletingBot] = useState(false);
   
   // 10 Male and 10 Female Names for Dicebear Seeds
   const maleSeeds = ['Felix', 'Jack', 'Aidan', 'Luis', 'Marcus', 'Christian', 'Ethan', 'Oliver', 'Noah', 'Leo'];
@@ -240,6 +242,43 @@ export default function ChatbotManagerView() {
       setNewVoiceEnabled(false);
     }
     setIsCreatingBot(false);
+  };
+
+  const handleDeleteChatbot = async () => {
+    if (!showDeleteModal) return;
+    setIsDeletingBot(true);
+    let successfullyDeleted = false;
+    try {
+      const response = await fetch(`/api/chatbots/${encodeURIComponent(showDeleteModal)}`, {
+        method: 'DELETE',
+      });
+      if (!response.ok) {
+        const errData = await response.json();
+        throw new Error(errData.error || response.statusText);
+      }
+      successfullyDeleted = true;
+    } catch (err: any) {
+      console.error('Failed to delete chatbot:', err);
+      if (!supabase) {
+        console.warn('Operating in visual-only mode, mockup deleting locally.');
+        successfullyDeleted = true;
+      } else {
+        alert(`Failed to delete chatbot: ${err.message}`);
+      }
+    }
+
+    if (successfullyDeleted) {
+      setChatbots(chatbots.filter(bot => bot.id !== showDeleteModal));
+      setMetrics((prev) => ({
+        ...prev,
+        chatbotsCount: Math.max(0, prev.chatbotsCount - 1),
+      }));
+      setShowDeleteModal(null);
+      if (editingBotId === showDeleteModal) {
+        setEditingBotId(null);
+      }
+    }
+    setIsDeletingBot(false);
   };
 
   return (
@@ -589,6 +628,12 @@ export default function ChatbotManagerView() {
                       >
                         Edit Persona
                       </button>
+                      <button
+                        onClick={() => setShowDeleteModal(bot.id)}
+                        className="flex-1 bg-red-950/40 hover:bg-red-950/70 text-red-400 hover:text-red-300 border border-red-900/50 py-1.5 px-3 rounded-xl text-xs font-semibold transition-colors"
+                      >
+                        Delete
+                      </button>
                     </div>
 
                     {/* Embed Code Section */}
@@ -607,6 +652,38 @@ export default function ChatbotManagerView() {
                 ))}
               </div>
             </div>
+
+            {/* Delete Confirmation Modal */}
+            {showDeleteModal && (
+              <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
+                <div className="bg-gray-900 border border-gray-800 rounded-2xl p-6 max-w-md w-full shadow-2xl relative overflow-hidden">
+                  <div className="absolute top-0 left-0 w-full h-1 bg-red-600"></div>
+                  <h3 className="text-xl font-bold text-white mb-2">Delete Chatbot?</h3>
+                  <div className="bg-red-500/10 border border-red-500/20 rounded-xl p-4 mb-6">
+                    <p className="text-sm text-red-400 font-semibold mb-2">⚠️ Warning: This action cannot be undone.</p>
+                    <p className="text-xs text-red-300 leading-relaxed">
+                      This will permanently delete your chatbot, including any customer data collated by the chatbot, conversations, and any data stored in its knowledgebase.
+                    </p>
+                  </div>
+                  <div className="flex justify-end gap-3">
+                    <button
+                      onClick={() => setShowDeleteModal(null)}
+                      disabled={isDeletingBot}
+                      className="px-4 py-2 rounded-xl text-sm font-semibold text-gray-300 hover:text-white transition-colors disabled:opacity-50"
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      onClick={handleDeleteChatbot}
+                      disabled={isDeletingBot}
+                      className="px-5 py-2 rounded-xl text-sm font-semibold bg-red-600 hover:bg-red-500 text-white shadow-lg shadow-red-600/20 transition-all disabled:opacity-50 flex items-center gap-2"
+                    >
+                      {isDeletingBot ? 'Deleting...' : 'Yes, Delete Chatbot'}
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
     </>
   );
 }
