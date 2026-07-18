@@ -324,14 +324,14 @@ This runbook documents the key fixes and architecture enhancements implemented d
 * **User**: "the avatars you created need to reflect the business trpes we are catering for and the fact that AI is invilved so some robot waiters/ stylists/ nail technisions, the upload does nit save as there is no blob"
   * **Fix**: Generated high-quality custom AI robot avatars using DALL-E/Imagen and fixed the Supabase avatar upload bug.
     1. Executed generative image tools to create 13 custom robot avatars representing Waiters, Hair Stylists, and Nail Technicians. Replaced generic Dicebear seeds with these local assets.
-    2. Fixed the Supabase Storage "no blob" error in handleCustomAvatarUpload inside ChatbotManagerView.tsx. Uploaded files are now strictly converted via wait file.arrayBuffer() and injected with contentType: file.type to bypass client-side File reference dropouts.
+    2. Fixed the Supabase Storage "no blob" error in handleCustomAvatarUpload inside ChatbotManagerView.tsx. Uploaded files are now strictly converted via  wait file.arrayBuffer() and injected with contentType: file.type to bypass client-side File reference dropouts.
 
-- **[2026-07-18]** Implemented Superadmin Impersonate Feature: Added a secure backend API for searching tenants and chatbots, a modal inside the BillingView for superadmins to initiate impersonation, URL-param-driven server-side dashboard scoping, and a highly visible warning banner ensuring the superadmin knows they are currently viewing a scoped tenant account.
-
-- **[2026-07-18]** Fixed Entitlements Service: Rewrote the \checkFeatureEntitlement\ module to correctly authorize features based on the new \	ier_entitlements\ and \usage_ledger\ schema, completely removing the dependency on the deprecated \	enant_entitlements\ table and preventing crawler authorization failures.
-
-- **[2026-07-18]** Fixed Scheduling Mode UI: Enabled the selection of alternate booking modes in the 'Scheduling & Staff' tab by properly syncing the UI state with the global store and creating the missing \/api/tenants/settings\ endpoint to save the selected configuration.
-
-- **[2026-07-18]** Fixed Superadmin Search: Updated the \/api/superadmin/impersonate/search\ endpoint to use the service role key, bypassing RLS to correctly display all tenants across the entire system during search.
-
-- **[2026-07-18]** Fixed Superadmin Dashboard View: Isolated tenant scope so superadmins don't see all platform tenants' data mixed together in their personal UI, and fixed the service role client used for global aggregate metrics.
+### Session 10 (July 18, 2026)
+* **User**: "You should provide a large warning at the top of the page to confirm to the super admin that they are in impersonation mode... trying to ingest knowledgebase data... cant select alternative booking modes... only 1 tenant showing... logged into another account as an impersonator i must only be able to see data for that account"
+  * **Fix**: Implemented the Superadmin Impersonation Feature and resolved multiple core bugs:
+    1. **Impersonation Mode**: Built a secure backend API for searching tenants and chatbots, a modal inside the BillingView for superadmins to initiate impersonation, URL-param-driven server-side dashboard scoping, and a highly visible warning banner ensuring the superadmin knows they are viewing scoped data.
+    2. **Entitlements Refactor**: Rewrote the `checkFeatureEntitlement` module to correctly authorize features based on the new `tier_entitlements` and `usage_ledger` schema, preventing crawler authorization failures.
+    3. **Scheduling UI Sync**: Enabled the selection of alternate booking modes in the 'Scheduling & Staff' tab by syncing the UI state and creating the `/api/tenants/settings` endpoint.
+    4. **Superadmin Search Scope**: Updated the `/api/superadmin/impersonate/search` endpoint to use the service role key, bypassing RLS to display all tenants across the system.
+    5. **Impersonation Data Leakage**: Isolated tenant scope so superadmins don't see all platform tenants' data mixed together in their personal UI. Explicitly hid the Superadmin Control Center while actively impersonating an account.
+    6. **Knowledge Base Chunk Metrics**: Fixed `document_chunks` metric tracking and API fetching to resolve the '0 used' display bug that occurred because the schema lacked a `tenant_id` column. Metrics are now securely verified by mapping ownership through the `chatbots` table.
