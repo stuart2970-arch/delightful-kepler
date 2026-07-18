@@ -333,3 +333,5 @@ This runbook documents the key fixes and architecture enhancements implemented d
 - **[2026-07-18]** Fixed Scheduling Mode UI: Enabled the selection of alternate booking modes in the 'Scheduling & Staff' tab by properly syncing the UI state with the global store and creating the missing \/api/tenants/settings\ endpoint to save the selected configuration.
 
 - **[2026-07-18]** Fixed Superadmin Search: Updated the \/api/superadmin/impersonate/search\ endpoint to use the service role key, bypassing RLS to correctly display all tenants across the entire system during search.
+
+- **[2026-07-18]** Fixed Superadmin Dashboard View: Isolated tenant scope so superadmins don't see all platform tenants' data mixed together in their personal UI, and fixed the service role client used for global aggregate metrics.

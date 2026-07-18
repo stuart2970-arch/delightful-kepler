@@ -604,8 +604,17 @@ export default function DashboardClient({
                               </span>
                             </td>
                             <td className="px-4 py-3">
-                              <select 
-                                className="bg-gray-950 border border-gray-700 text-white text-xs rounded px-2 py-1 outline-none focus:ring-1 focus:ring-indigo-500"
+                              <div className="flex items-center gap-2">
+                                <button
+                                  onClick={() => {
+                                    window.location.href = `/dashboard?tenant_id=${t.id}`;
+                                  }}
+                                  className="bg-amber-600/20 hover:bg-amber-600/40 border border-amber-600/50 text-amber-300 text-[10px] font-bold px-2 py-1 rounded transition-colors"
+                                >
+                                  Impersonate
+                                </button>
+                                <select 
+                                  className="bg-gray-950 border border-gray-700 text-white text-xs rounded px-2 py-1 outline-none focus:ring-1 focus:ring-indigo-500"
                                 value={t.plan_tier}
                                 onChange={async (e) => {
                                   const newTier = e.target.value;
@@ -631,7 +640,8 @@ export default function DashboardClient({
                                 <option value="starter">Starter</option>
                                 <option value="premium">Premium</option>
                                 <option value="ultimate">Ultimate</option>
-                              </select>
+                                </select>
+                              </div>
                             </td>
                           </tr>
                         ))}
