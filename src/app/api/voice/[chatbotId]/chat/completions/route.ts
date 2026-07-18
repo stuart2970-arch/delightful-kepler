@@ -62,13 +62,14 @@ export async function POST(
     }
 
     let globalDisclaimer = '';
-    if (chatbot.tenant_id) {
-      const { data: tenant } = await supabaseAdmin
-        .from('tenants')
-        .select('global_voice_disclaimer')
-        .eq('id', chatbot.tenant_id)
-        .single();
-      globalDisclaimer = tenant?.global_voice_disclaimer || '';
+    const { data: globalBot } = await supabaseAdmin
+      .from('chatbots')
+      .select('configuration_json')
+      .eq('id', '00000000-0000-0000-0000-000000000000')
+      .single();
+    
+    if (globalBot?.configuration_json) {
+      globalDisclaimer = (globalBot.configuration_json as any).global_voice_disclaimer || '';
     }
 
     // 3. Extract the latest user message for RAG embedding

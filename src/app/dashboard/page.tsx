@@ -95,7 +95,7 @@ export default async function DashboardPage(props: { searchParams?: Promise<{ [k
       
       const { data: tenant } = await supabase
         .from('tenants')
-        .select('company_name, plan_tier, is_rwg_enabled, rwg_business_name, rwg_street_address, rwg_city, rwg_postcode, rwg_phone, booking_mode, booking_url, global_voice_disclaimer')
+        .select('company_name, plan_tier, is_rwg_enabled, rwg_business_name, rwg_street_address, rwg_city, rwg_postcode, rwg_phone, booking_mode, booking_url')
         .eq('id', tenantId)
         .single();
       
@@ -111,7 +111,6 @@ export default async function DashboardPage(props: { searchParams?: Promise<{ [k
           rwg_postcode: tenant.rwg_postcode || '',
           rwg_phone: tenant.rwg_phone || '',
         };
-        globalVoiceDisclaimer = tenant.global_voice_disclaimer || '';
       }
     }
 
@@ -136,7 +135,7 @@ export default async function DashboardPage(props: { searchParams?: Promise<{ [k
       // Override tenant mapping to fetch the impersonated tenant's data using the admin client
       const { data: impTenant } = await queryClient
         .from('tenants')
-        .select('company_name, plan_tier, is_rwg_enabled, rwg_business_name, rwg_street_address, rwg_city, rwg_postcode, rwg_phone, booking_mode, booking_url, global_voice_disclaimer')
+        .select('company_name, plan_tier, is_rwg_enabled, rwg_business_name, rwg_street_address, rwg_city, rwg_postcode, rwg_phone, booking_mode, booking_url')
         .eq('id', tenantId)
         .single();
         
@@ -152,7 +151,6 @@ export default async function DashboardPage(props: { searchParams?: Promise<{ [k
           rwg_postcode: impTenant.rwg_postcode || '',
           rwg_phone: impTenant.rwg_phone || '',
         };
-        globalVoiceDisclaimer = impTenant.global_voice_disclaimer || '';
       }
     }
 

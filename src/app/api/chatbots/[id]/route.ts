@@ -61,18 +61,18 @@ export async function GET(
       return NextResponse.json({ error: 'Chatbot not found' }, { status: 404 });
     }
 
-    // Fetch tenant's global voice disclaimer and plan tier
-    let globalVoiceDisclaimer = '';
+    const globalBot = chatbots.find(b => b.id === globalSettingsId);
+    let globalVoiceDisclaimer = globalBot?.configuration_json?.global_voice_disclaimer || '';
+
     let planTier = 'basic';
     
     if (chatbot.tenant_id) {
       const { data: tenantData } = await supabaseAdmin
         .from('tenants')
-        .select('global_voice_disclaimer, plan_tier')
+        .select('plan_tier')
         .eq('id', chatbot.tenant_id)
         .single();
       
-      globalVoiceDisclaimer = tenantData?.global_voice_disclaimer || '';
       planTier = tenantData?.plan_tier || 'basic';
     }
     

@@ -120,7 +120,7 @@ export default function DashboardClient({
   } = useDashboardStore();
 
   // Global settings state
-  const [globalVoiceDisclaimer, setGlobalVoiceDisclaimer] = useState(initialGlobalVoiceDisclaimer || '');
+  const [globalVoiceDisclaimer, setGlobalVoiceDisclaimer] = useState('');
   const [isSavingDisclaimer, setIsSavingDisclaimer] = useState(false);
   
   const globalBotId = '00000000-0000-0000-0000-000000000000';
@@ -181,8 +181,9 @@ export default function DashboardClient({
     if (globalBot?.configuration_json) {
       if (globalBot.configuration_json.branding_html) setGlobalBrandingHtml(globalBot.configuration_json.branding_html);
       if (globalBot.configuration_json.branding_url) setGlobalTrackingUrl(globalBot.configuration_json.branding_url);
+      if (globalBot.configuration_json.global_voice_disclaimer !== undefined) setGlobalVoiceDisclaimer(globalBot.configuration_json.global_voice_disclaimer);
     }
-  }, [chatbots, ]);
+  }, [chatbots]);
 
 
 
@@ -328,6 +329,7 @@ export default function DashboardClient({
           configuration_json: {
             branding_html: globalBrandingHtml,
             branding_url: globalTrackingUrl,
+            global_voice_disclaimer: globalVoiceDisclaimer,
           },
         }),
       });
@@ -340,7 +342,8 @@ export default function DashboardClient({
       const newConfig = {
         ...(globalBot?.configuration_json || {}),
         branding_html: globalBrandingHtml,
-        branding_url: globalTrackingUrl
+        branding_url: globalTrackingUrl,
+        global_voice_disclaimer: globalVoiceDisclaimer
       };
       
       if (!supabase) return;
@@ -375,29 +378,6 @@ export default function DashboardClient({
 
 
   // Scheduling Handlers
-
-  const handleSaveGlobalDisclaimer = async () => {
-    setIsSavingDisclaimer(true);
-    try {
-      const supabase = createBrowserClient(
-        process.env.NEXT_PUBLIC_SUPABASE_URL!,
-        process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-      );
-      
-      const { error } = await supabase
-        .from('tenants')
-        .update({ global_voice_disclaimer: globalVoiceDisclaimer })
-        .eq('id', tenantId);
-        
-      if (error) throw error;
-      alert('Global voice disclaimer saved successfully');
-    } catch (err) {
-      console.error('[Dashboard] Error saving global disclaimer:', err);
-      alert('Failed to save disclaimer.');
-    } finally {
-      setIsSavingDisclaimer(false);
-    }
-  };
 
   return (
     <div className="flex flex-col h-screen bg-[#09090b] text-gray-100 overflow-hidden font-sans">
@@ -662,26 +642,6 @@ export default function DashboardClient({
                 </div>
 
                 <div className="space-y-4">
-                  <div>
-                    <label className="block text-sm font-semibold text-gray-300 mb-2">Global Voice & Chat Disclaimer</label>
-                    <p className="text-xs text-gray-500 mb-2">This disclaimer will be shown to users before they start a chat or voice call.</p>
-                    <textarea 
-                      value={globalVoiceDisclaimer}
-                      onChange={(e) => setGlobalVoiceDisclaimer(e.target.value)}
-                      placeholder="e.g. Please be aware that this call may be recorded for training and quality purposes..."
-                      className="w-full bg-black/40 border border-gray-800 rounded-xl px-4 py-3 text-sm text-gray-100 focus:outline-none focus:ring-2 focus:border-transparent transition-all min-h-[100px]"
-                      style={{ '--tw-ring-color': '#6366f1' } as any}
-                    />
-                  </div>
-                  <div className="flex justify-end pt-2">
-                    <button 
-                      onClick={handleSaveGlobalDisclaimer}
-                      disabled={isSavingDisclaimer}
-                      className="px-6 py-2.5 bg-indigo-600 hover:bg-indigo-500 text-white text-sm font-bold rounded-xl transition-all disabled:opacity-50"
-                    >
-                      {isSavingDisclaimer ? 'Saving...' : 'Save Settings'}
-                    </button>
-                  </div>
                 </div>
               </div>
             )}
@@ -717,6 +677,17 @@ export default function DashboardClient({
                     required
                   />
                   <p className="text-[10px] text-gray-500 mt-1">Users clicking the watermark will be tracked and redirected here. Originating chatbot ID will be appended as ?ref=...</p>
+                </div>
+                
+                <div>
+                  <label className="block text-xs font-semibold text-gray-400 mb-1.5">Global Voice & Chat Disclaimer</label>
+                  <textarea 
+                    value={globalVoiceDisclaimer}
+                    onChange={(e) => setGlobalVoiceDisclaimer(e.target.value)}
+                    placeholder="e.g. Please be aware that this call may be recorded for training and quality purposes..."
+                    className="w-full bg-gray-950 border border-gray-800 rounded-xl px-3.5 py-2 text-sm text-white focus:outline-none focus:ring-1 focus:ring-indigo-500 min-h-[100px]"
+                  />
+                  <p className="text-[10px] text-gray-500 mt-1">This disclaimer will be shown to users before they start a chat or voice call.</p>
                 </div>
 
                 <div className="pt-2">
