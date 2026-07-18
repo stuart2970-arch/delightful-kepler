@@ -329,3 +329,5 @@ This runbook documents the key fixes and architecture enhancements implemented d
 - **[2026-07-18]** Implemented Superadmin Impersonate Feature: Added a secure backend API for searching tenants and chatbots, a modal inside the BillingView for superadmins to initiate impersonation, URL-param-driven server-side dashboard scoping, and a highly visible warning banner ensuring the superadmin knows they are currently viewing a scoped tenant account.
 
 - **[2026-07-18]** Fixed Entitlements Service: Rewrote the \checkFeatureEntitlement\ module to correctly authorize features based on the new \	ier_entitlements\ and \usage_ledger\ schema, completely removing the dependency on the deprecated \	enant_entitlements\ table and preventing crawler authorization failures.
+
+- **[2026-07-18]** Fixed Scheduling Mode UI: Enabled the selection of alternate booking modes in the 'Scheduling & Staff' tab by properly syncing the UI state with the global store and creating the missing \/api/tenants/settings\ endpoint to save the selected configuration.

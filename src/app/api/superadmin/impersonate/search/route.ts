@@ -49,16 +49,24 @@ export async function GET(request: Request) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
 
-    // We can query tenants matching company_name, and chatbots matching name.
-    // For simplicity, let's query them separately and merge.
+    // Create a service role client to bypass RLS since we verified superadmin
+    const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
+    const supabaseAdmin = createServerClient(supabaseUrl, serviceRoleKey, {
+      cookies: {
+        getAll() {
+          return cookieStore.getAll();
+        },
+        setAll() {}
+      }
+    });
 
-    const { data: tenants } = await supabase
+    const { data: tenants } = await supabaseAdmin
       .from('tenants')
       .select('id, company_name')
       .ilike('company_name', `%${query}%`)
       .limit(20);
 
-    const { data: chatbots } = await supabase
+    const { data: chatbots } = await supabaseAdmin
       .from('chatbots')
       .select('id, name, tenant_id')
       .ilike('name', `%${query}%`)
@@ -77,7 +85,7 @@ export async function GET(request: Request) {
       const missingIds = Array.from(tenantIdsToFetch).filter(id => !existingIds.has(id));
       
       if (missingIds.length > 0) {
-        const { data: moreTenants } = await supabase
+        const { data: moreTenants } = await supabaseAdmin
           .from('tenants')
           .select('id, company_name')
           .in('id', missingIds);
