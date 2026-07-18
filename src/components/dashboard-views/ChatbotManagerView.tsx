@@ -23,13 +23,23 @@ export default function ChatbotManagerView() {
   const [showDeleteModal, setShowDeleteModal] = useState<string | null>(null);
   const [isDeletingBot, setIsDeletingBot] = useState(false);
   
-  // 10 Male and 10 Female Names for Dicebear Seeds
-  const maleSeeds = ['Felix', 'Jack', 'Aidan', 'Luis', 'Marcus', 'Christian', 'Ethan', 'Oliver', 'Noah', 'Leo'];
-  const femaleSeeds = ['Mia', 'Zoe', 'Lily', 'Chloe', 'Amelia', 'Sophia', 'Isabella', 'Charlotte', 'Ava', 'Harper'];
-  
   const generatedAvatars = [
-    ...maleSeeds.map(seed => `https://api.dicebear.com/9.x/notionists/svg?seed=${seed}`),
-    ...femaleSeeds.map(seed => `https://api.dicebear.com/9.x/notionists/svg?seed=${seed}`)
+    '/avatars/robot_waiter_1.png',
+    '/avatars/robot_waiter_2.png',
+    '/avatars/robot_waiter_3.png',
+    '/avatars/robot_waiter_4.png',
+    '/avatars/robot_waiter_5.png',
+    '/avatars/robot_stylist_1.png',
+    '/avatars/robot_stylist_2.png',
+    '/avatars/robot_stylist_3.png',
+    '/avatars/robot_stylist_4.png',
+    '/avatars/robot_stylist_5.png',
+    '/avatars/robot_nail_tech_1.png',
+    '/avatars/robot_nail_tech_2.png',
+    '/avatars/robot_nail_tech_3.png',
+    '/avatars/avatar1.png',
+    '/avatars/avatar2.png',
+    '/avatars/avatar3.png'
   ];
 
   useEffect(() => {
@@ -86,9 +96,14 @@ export default function ChatbotManagerView() {
       const fileExt = file.name.split('.').pop();
       const fileName = `${tenantId}/${crypto.randomUUID()}.${fileExt}`;
       
+      const arrayBuffer = await file.arrayBuffer();
+      
       const { error: uploadError, data } = await supabase.storage
         .from('chatbot-assets')
-        .upload(fileName, file, { upsert: true });
+        .upload(fileName, arrayBuffer, { 
+          upsert: true,
+          contentType: file.type
+        });
 
       if (uploadError) throw uploadError;
 
