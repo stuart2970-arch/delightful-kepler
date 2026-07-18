@@ -12,6 +12,12 @@ export default function KnowledgeBaseView() {
   const [ingestedUrls, setIngestedUrls] = useState<any[]>([]);
   const [isLoadingUrls, setIsLoadingUrls] = useState(false);
 
+  // Sitemap Discovery State
+  const [discoveredSitemapUrls, setDiscoveredSitemapUrls] = useState<string[]>([]);
+  const [selectedSitemapUrls, setSelectedSitemapUrls] = useState<Set<string>>(new Set());
+  const [isDiscoveringSitemap, setIsDiscoveringSitemap] = useState(false);
+  const [sitemapMessage, setSitemapMessage] = useState<{type: 'success'|'error'|'info', text: string} | null>(null);
+
   const loadIngestedUrls = async (botId: string) => {
     setIsLoadingUrls(true);
     try {
@@ -58,6 +64,71 @@ export default function KnowledgeBaseView() {
       console.error(err);
       alert('An error occurred during deletion.');
     }
+  };
+
+  const handleDiscoverSitemap = async () => {
+    if (!crawlUrl.trim()) {
+      setSitemapMessage({ type: 'error', text: 'Please enter a website URL first to discover its sitemap.' });
+      return;
+    }
+
+    setIsDiscoveringSitemap(true);
+    setSitemapMessage({ type: 'info', text: 'Searching for sitemap...' });
+    setDiscoveredSitemapUrls([]);
+    setSelectedSitemapUrls(new Set());
+
+    try {
+      const response = await fetch('/api/sitemap/discover', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ websiteUrl: crawlUrl.trim() }),
+      });
+
+      const data = await response.json();
+
+      if (response.ok && data.urls && data.urls.length > 0) {
+        setDiscoveredSitemapUrls(data.urls);
+        setSitemapMessage({ type: 'success', text: data.message || `Found ${data.urls.length} pages in sitemap!` });
+        // Auto-select up to 5 URLs to help the user get started
+        setSelectedSitemapUrls(new Set(data.urls.slice(0, 5)));
+      } else {
+        setSitemapMessage({ type: 'error', text: data.message || data.error || 'No sitemap found or no valid URLs extracted.' });
+      }
+    } catch (err: any) {
+      console.error(err);
+      setSitemapMessage({ type: 'error', text: 'An error occurred while discovering the sitemap.' });
+    } finally {
+      setIsDiscoveringSitemap(false);
+    }
+  };
+
+  const handleToggleSitemapUrl = (url: string) => {
+    const nextSet = new Set(selectedSitemapUrls);
+    if (nextSet.has(url)) {
+      nextSet.delete(url);
+    } else {
+      nextSet.add(url);
+    }
+    setSelectedSitemapUrls(nextSet);
+  };
+
+  const handleSelectAllSitemap = () => {
+    // Arbitrary reasonable limit (e.g., 20) to prevent abuse if they just click "select all" on a huge site
+    const limit = 20;
+    setSelectedSitemapUrls(new Set(discoveredSitemapUrls.slice(0, limit)));
+    setSitemapMessage({ type: 'info', text: `Selected the first ${Math.min(limit, discoveredSitemapUrls.length)} pages to respect reasonable ingestion limits.` });
+  };
+
+  const handleIngestSelectedSitemap = async () => {
+    if (selectedSitemapUrls.size === 0) return;
+    
+    // Convert Set back to string for the existing crawlUrl state, then trigger crawl
+    setCrawlUrl(Array.from(selectedSitemapUrls).join(', '));
+    setDiscoveredSitemapUrls([]); // Hide the UI
+    setSitemapMessage(null);
+    
+    // We defer the actual crawling to the user clicking the main button, or we can just trigger it directly:
+    // It's safer to just populate the text area and let them click the main button.
   };
 
 
@@ -156,7 +227,17 @@ export default function KnowledgeBaseView() {
                     </select>
                   </div>
                   <div className="md:col-span-2">
-                    <label className="block text-xs font-semibold text-gray-400 mb-1.5">Website URLs to Scrape (comma or space separated)</label>
+                    <div className="flex justify-between items-end mb-1.5">
+                      <label className="block text-xs font-semibold text-gray-400">Website URLs to Scrape (comma or space separated)</label>
+                      <button 
+                        type="button" 
+                        onClick={handleDiscoverSitemap}
+                        disabled={isDiscoveringSitemap || !crawlUrl.trim()}
+                        className="text-xs text-indigo-400 hover:text-indigo-300 font-medium disabled:opacity-50"
+                      >
+                        {isDiscoveringSitemap ? 'Searching...' : '🔍 Discover Sitemap'}
+                      </button>
+                    </div>
                     <textarea
                       placeholder="https://example.com/about, https://example.com/pricing"
                       value={crawlUrl}
@@ -165,8 +246,58 @@ export default function KnowledgeBaseView() {
                       required
                       rows={2}
                     />
+                    
+                    {sitemapMessage && (
+                      <div className={`mt-2 p-2 rounded text-xs font-medium ${
+                        sitemapMessage.type === 'success' ? 'bg-emerald-500/10 text-emerald-400' :
+                        sitemapMessage.type === 'error' ? 'bg-red-500/10 text-red-400' :
+                        'bg-indigo-500/10 text-indigo-400'
+                      }`}>
+                        {sitemapMessage.text}
+                      </div>
+                    )}
                   </div>
                 </div>
+
+                {/* Sitemap Selection UI */}
+                {discoveredSitemapUrls.length > 0 && (
+                  <div className="mt-4 p-4 border border-indigo-500/30 bg-indigo-500/5 rounded-xl space-y-4">
+                    <div className="flex items-center justify-between">
+                      <h4 className="text-sm font-semibold text-white">Select Pages to Ingest</h4>
+                      <div className="flex gap-2">
+                        <button
+                          type="button"
+                          onClick={handleSelectAllSitemap}
+                          className="text-xs px-3 py-1.5 bg-gray-800 hover:bg-gray-700 text-gray-200 rounded-lg transition-colors"
+                        >
+                          Select Up To 20
+                        </button>
+                        <button
+                          type="button"
+                          onClick={handleIngestSelectedSitemap}
+                          disabled={selectedSitemapUrls.size === 0}
+                          className="text-xs px-3 py-1.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg transition-colors disabled:opacity-50"
+                        >
+                          Add Selected to Queue ({selectedSitemapUrls.size})
+                        </button>
+                      </div>
+                    </div>
+                    
+                    <div className="max-h-60 overflow-y-auto space-y-1 styleflo-scrollbar pr-2">
+                      {discoveredSitemapUrls.map(url => (
+                        <label key={url} className="flex items-start gap-3 p-2 hover:bg-white/5 rounded-lg cursor-pointer transition-colors group">
+                          <input 
+                            type="checkbox" 
+                            checked={selectedSitemapUrls.has(url)}
+                            onChange={() => handleToggleSitemapUrl(url)}
+                            className="mt-0.5 rounded border-gray-600 text-indigo-500 focus:ring-indigo-500 bg-gray-900 w-4 h-4"
+                          />
+                          <span className="text-sm text-gray-300 break-all group-hover:text-white transition-colors">{url}</span>
+                        </label>
+                      ))}
+                    </div>
+                  </div>
+                )}
                 <button
                   type="submit"
                   disabled={isCrawling || !crawlBotId || !crawlUrl}
