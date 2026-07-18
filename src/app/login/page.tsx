@@ -15,6 +15,7 @@ export default function LoginPage() {
   const [companyName, setCompanyName] = useState('');
   const [websiteUrl, setWebsiteUrl] = useState('');
   const [error, setError] = useState<string | null>(null);
+  const [successMessage, setSuccessMessage] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
   // Provide fallback strings to prevent Next.js build from crashing during static render
@@ -41,6 +42,7 @@ export default function LoginPage() {
     e.preventDefault();
     setLoading(true);
     setError(null);
+    setSuccessMessage(null);
 
     try {
       if (isLogin) {
@@ -50,7 +52,7 @@ export default function LoginPage() {
         });
         if (error) throw error;
       } else {
-        const { error } = await supabase.auth.signUp({
+        const { data, error } = await supabase.auth.signUp({
           email,
           password,
           options: {
@@ -62,6 +64,10 @@ export default function LoginPage() {
           },
         });
         if (error) throw error;
+        
+        if (data?.session === null) {
+          setSuccessMessage("Account created successfully! Please check your email to verify your account.");
+        }
       }
     } catch (err: any) {
       console.error("Signup error:", err);
@@ -99,6 +105,12 @@ export default function LoginPage() {
         {error && (
           <div className="mb-6 p-4 bg-red-500/10 border border-red-500/50 rounded-xl text-red-400 text-sm font-medium">
             {error}
+          </div>
+        )}
+
+        {successMessage && (
+          <div className="mb-6 p-4 bg-green-500/10 border border-green-500/50 rounded-xl text-green-400 text-sm font-medium">
+            {successMessage}
           </div>
         )}
 
