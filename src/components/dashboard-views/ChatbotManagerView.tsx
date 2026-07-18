@@ -18,6 +18,16 @@ export default function ChatbotManagerView() {
   const [isCreatingBot, setIsCreatingBot] = useState(false);
   const [editingBotId, setEditingBotId] = useState<string | null>(null);
   const [voicePersonas, setVoicePersonas] = useState<any[]>([]);
+  const [isUploadingAvatar, setIsUploadingAvatar] = useState(false);
+  
+  // 10 Male and 10 Female Names for Dicebear Seeds
+  const maleSeeds = ['Felix', 'Jack', 'Aidan', 'Luis', 'Marcus', 'Christian', 'Ethan', 'Oliver', 'Noah', 'Leo'];
+  const femaleSeeds = ['Mia', 'Zoe', 'Lily', 'Chloe', 'Amelia', 'Sophia', 'Isabella', 'Charlotte', 'Ava', 'Harper'];
+  
+  const generatedAvatars = [
+    ...maleSeeds.map(seed => `https://api.dicebear.com/9.x/notionists/svg?seed=${seed}`),
+    ...femaleSeeds.map(seed => `https://api.dicebear.com/9.x/notionists/svg?seed=${seed}`)
+  ];
 
   useEffect(() => {
     fetch('/api/voice-personas')
@@ -51,6 +61,46 @@ export default function ChatbotManagerView() {
       audio.onended = () => setPlayingAudio(null);
       audioRef.current = audio;
       setPlayingAudio(url);
+    }
+  };
+
+  const handleCustomAvatarUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file || !supabase) return;
+
+    if (!file.type.startsWith('image/')) {
+      alert('Please upload an image file.');
+      return;
+    }
+    
+    if (file.size > 2 * 1024 * 1024) {
+      alert('Image size must be less than 2MB.');
+      return;
+    }
+
+    setIsUploadingAvatar(true);
+    try {
+      const fileExt = file.name.split('.').pop();
+      const fileName = `${tenantId}/${crypto.randomUUID()}.${fileExt}`;
+      
+      const { error: uploadError, data } = await supabase.storage
+        .from('chatbot-assets')
+        .upload(fileName, file, { upsert: true });
+
+      if (uploadError) throw uploadError;
+
+      const { data: publicUrlData } = supabase.storage
+        .from('chatbot-assets')
+        .getPublicUrl(fileName);
+
+      setNewAgentAvatar(publicUrlData.publicUrl);
+    } catch (err: any) {
+      console.error('Error uploading avatar:', err);
+      alert(`Failed to upload avatar: ${err.message}`);
+    } finally {
+      setIsUploadingAvatar(false);
+      // Reset input
+      if (e.target) e.target.value = '';
     }
   };
 
@@ -268,30 +318,50 @@ export default function ChatbotManagerView() {
 
                     <div>
                       <label className="block text-xs font-semibold text-gray-400 mb-2">Select Agent Avatar Preset</label>
-                      <div className="flex gap-4">
-                        {[
-                          { id: '/avatars/avatar1.png', label: 'Robo Assistant' },
-                          { id: '/avatars/avatar2.png', label: 'Support Specialist' },
-                          { id: '/avatars/avatar3.png', label: 'Brand Mascot' },
-                        ].map((avatar) => (
+                      
+                      <div className="grid grid-cols-5 md:grid-cols-10 gap-2 mb-4 max-h-48 overflow-y-auto styleflo-scrollbar pr-2">
+                        {generatedAvatars.map((url, idx) => (
                           <button
-                            key={avatar.id}
+                            key={idx}
                             type="button"
-                            onClick={() => setNewAgentAvatar(avatar.id)}
-                            className={`flex flex-col items-center gap-1.5 p-2 rounded-xl border transition-all ${
-                              newAgentAvatar === avatar.id
-                                ? 'bg-indigo-950/20 border-indigo-500 shadow-md shadow-indigo-500/10'
-                                : 'bg-gray-950/40 border-gray-800 hover:border-gray-700'
+                            onClick={() => setNewAgentAvatar(url)}
+                            className={`relative aspect-square rounded-full border-2 transition-all p-0.5 overflow-hidden ${
+                              newAgentAvatar === url
+                                ? 'border-indigo-500 shadow-md shadow-indigo-500/20 bg-indigo-500/10'
+                                : 'border-transparent hover:border-gray-600 bg-gray-900/50'
                             }`}
                           >
                             <img
-                              src={avatar.id}
-                              alt={avatar.label}
-                              className="w-12 h-12 rounded-full border border-gray-800 object-cover bg-gray-900"
+                              src={url}
+                              alt={`Avatar ${idx}`}
+                              className="w-full h-full object-cover rounded-full bg-white"
                             />
-                            <span className="text-[10px] text-gray-400 font-medium">{avatar.label}</span>
                           </button>
                         ))}
+                      </div>
+
+                      <div className="flex items-center gap-4">
+                        <div className="relative">
+                          {newAgentAvatar && !generatedAvatars.includes(newAgentAvatar) && (
+                            <img
+                              src={newAgentAvatar}
+                              alt="Custom Avatar"
+                              className="w-12 h-12 rounded-full border border-indigo-500 object-cover bg-gray-900 shadow-md"
+                            />
+                          )}
+                        </div>
+                        <label className={`relative flex items-center justify-center gap-2 px-4 py-2 border border-gray-700 rounded-xl cursor-pointer hover:bg-gray-800 transition-colors ${isUploadingAvatar ? 'opacity-50 pointer-events-none' : ''}`}>
+                          <input 
+                            type="file" 
+                            accept="image/*" 
+                            className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+                            onChange={handleCustomAvatarUpload}
+                            disabled={isUploadingAvatar}
+                          />
+                          <span className="text-xs font-semibold text-gray-300">
+                            {isUploadingAvatar ? 'Uploading...' : 'Upload Custom Image (1:1)'}
+                          </span>
+                        </label>
                       </div>
                     </div>
                   </div>

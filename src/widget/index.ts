@@ -156,6 +156,8 @@ import Vapi from '@vapi-ai/web';
 
   // 7. Initialize and render the DOM elements
   function initializeWidget() {
+    const finalAvatarSrc = agentAvatarUrl.startsWith('http') ? agentAvatarUrl : `${apiHost}${agentAvatarUrl}`;
+
     // Floating Chat Bubble
     const bubble = document.createElement('button');
     bubble.className = 'fixed bottom-5 right-5 w-14 h-14 rounded-full shadow-2xl flex items-center justify-center cursor-pointer transition-all duration-300 hover:scale-110 focus:outline-none z-50';
@@ -179,7 +181,7 @@ import Vapi from '@vapi-ai/web';
       <!-- Header -->
       <div class="p-4 text-white flex items-center justify-between shadow-md shrink-0 z-10" style="background-color: ${primaryColor};">
         <div class="flex items-center gap-3">
-          <img src="${apiHost}${agentAvatarUrl}" alt="Agent Avatar" class="w-10 h-10 rounded-full border border-white/20 bg-white/10 object-cover" />
+          <img src="${finalAvatarSrc}" alt="Agent Avatar" class="w-10 h-10 rounded-full border border-white/20 bg-white/10 object-cover" />
           <div>
             <h3 class="font-bold styleflo-text-17 leading-tight">${agentName}</h3>
             <p class="styleflo-text-11 opacity-75 mt-0.5">${agentRole}</p>
@@ -226,7 +228,7 @@ import Vapi from '@vapi-ai/web';
       <div id="styleflo-messages" class="flex-1 min-h-0 overflow-y-auto overscroll-y-contain p-4 space-y-4 bg-gray-50 styleflo-scrollbar">
         <!-- Welcome Message -->
         <div class="flex items-start gap-2.5 w-full">
-          <img src="${apiHost}${agentAvatarUrl}" alt="Agent Avatar" class="w-7 h-7 rounded-full object-cover bg-white border border-gray-100 flex-shrink-0" />
+          <img src="${finalAvatarSrc}" alt="Agent Avatar" class="w-7 h-7 rounded-full object-cover bg-white border border-gray-100 flex-shrink-0" />
           <div class="p-3 bg-white border border-gray-100 text-gray-800 rounded-2xl rounded-tl-none styleflo-text-15 styleflo-mw-75 shadow-sm leading-relaxed w-full">
             ${welcomeMessage}
           </div>
@@ -371,7 +373,7 @@ import Vapi from '@vapi-ai/web';
       
       if (sender === 'bot') {
         const avatarImg = document.createElement('img');
-        avatarImg.src = `${apiHost}${agentAvatarUrl}`;
+        avatarImg.src = finalAvatarSrc;
         avatarImg.alt = 'Agent Avatar';
         avatarImg.className = 'w-7 h-7 rounded-full object-cover bg-white border border-gray-100 flex-shrink-0';
         wrapper.appendChild(avatarImg);
@@ -406,7 +408,7 @@ import Vapi from '@vapi-ai/web';
       wrapper.className = 'flex items-start gap-2.5';
       
       wrapper.innerHTML = `
-        <img src="${apiHost}${agentAvatarUrl}" alt="Agent Avatar" class="w-7 h-7 rounded-full object-cover bg-white border border-gray-100 flex-shrink-0" />
+        <img src="${finalAvatarSrc}" alt="Agent Avatar" class="w-7 h-7 rounded-full object-cover bg-white border border-gray-100 flex-shrink-0" />
         <div class="flex items-center gap-1.5 p-3.5 bg-white border border-gray-100 rounded-2xl rounded-tl-none shadow-sm">
           <div class="styleflo-dot"></div>
           <div class="styleflo-dot"></div>
