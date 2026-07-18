@@ -36,17 +36,29 @@ export async function checkFeatureEntitlement(
       return { allowed: false, error: 'Internal error: Invalid feature configuration.' };
     }
 
-    // 2. Get the specific entitlement for this tenant and feature
+    // 2. Get the tenant's current plan tier
+    const { data: tenant, error: tenantError } = await dbClient
+      .from('tenants')
+      .select('plan_tier')
+      .eq('id', tenantId)
+      .single();
+
+    if (tenantError || !tenant) {
+      console.error(`[Entitlements] Error fetching tenant ${tenantId}:`, tenantError);
+      return { allowed: false, error: 'Internal error: Could not load tenant plan.' };
+    }
+
+    // 3. Get the entitlement for this plan tier and feature
     const { data: entitlement, error: entitlementError } = await dbClient
-      .from('tenant_entitlements')
-      .select('is_enabled, numeric_limit, used_amount, reset_period')
-      .eq('tenant_id', tenantId)
+      .from('tier_entitlements')
+      .select('included_volume')
+      .eq('tier_id', tenant.plan_tier)
       .eq('feature_id', featureId)
       .single();
 
     if (entitlementError && entitlementError.code !== 'PGRST116') {
-      console.error(`[Entitlements] Error fetching entitlement for ${tenantId} -> ${featureId}:`, entitlementError);
-      return { allowed: false, error: 'Internal error: Could not load tenant entitlements.' };
+      console.error(`[Entitlements] Error fetching tier entitlement for ${tenant.plan_tier} -> ${featureId}:`, entitlementError);
+      return { allowed: false, error: 'Internal error: Could not load tier entitlements.' };
     }
 
     if (!entitlement) {
@@ -58,39 +70,51 @@ export async function checkFeatureEntitlement(
       };
     }
 
-    // Handle boolean features
-    if (feature.type === 'boolean') {
-      if (!entitlement.is_enabled) {
-        return { allowed: false, error: `Access to ${feature.name} is disabled for your account.` };
-      }
+    // Handle non-metered features (boolean access)
+    if (!feature.is_metered) {
       return { allowed: true };
     }
 
-    // Handle numeric features (e.g. metered usage)
-    if (feature.type === 'numeric') {
-      if (!entitlement.is_enabled) {
-        return { allowed: false, error: `Access to ${feature.name} is disabled for your account.` };
-      }
-
-      const limit = Number(entitlement.numeric_limit);
-      const currentUsage = Number(entitlement.used_amount);
-
-      // If limit is 0 or very large, treat as unlimited or soft limit.
-      // We will enforce the limit strictly if > 0.
-      if (limit > 0 && (currentUsage + requestedVolume > limit)) {
-        console.log(`[EMAIL STUB] Action Required: ${feature.name} Quota Exceeded for Tenant ${tenantId}`);
-        return {
-          allowed: false,
-          limit,
-          currentUsage,
-          error: `${feature.name} quota exceeded. Your plan limits you to ${limit} units. You have used ${currentUsage}, and this action requires ${requestedVolume} more. Please upgrade your active package plan to unlock higher capacity.`
-        };
-      }
-
-      return { allowed: true, limit, currentUsage };
+    // Handle metered features
+    const limit = Number(entitlement.included_volume);
+    
+    // -1 signifies unlimited
+    if (limit === -1) {
+      return { allowed: true, limit, currentUsage: 0 };
     }
 
-    return { allowed: true };
+    // 4. Calculate current usage for the current billing period (e.g. this month)
+    const firstDay = new Date();
+    firstDay.setDate(1);
+    firstDay.setHours(0, 0, 0, 0);
+
+    const { data: usageRows, error: usageError } = await dbClient
+      .from('usage_ledger')
+      .select('quantity')
+      .eq('tenant_id', tenantId)
+      .eq('feature_id', featureId)
+      .gte('recorded_at', firstDay.toISOString());
+
+    if (usageError) {
+      console.error(`[Entitlements] Error fetching usage for ${tenantId} -> ${featureId}:`, usageError);
+      return { allowed: false, error: 'Internal error: Could not verify current usage.' };
+    }
+
+    const currentUsage = usageRows ? usageRows.reduce((sum, r) => sum + Number(r.quantity), 0) : 0;
+
+    // If limit is 0 or very large, treat as unlimited or soft limit.
+    // We will enforce the limit strictly if > 0.
+    if (limit > 0 && (currentUsage + requestedVolume > limit)) {
+      console.log(`[EMAIL STUB] Action Required: ${feature.name} Quota Exceeded for Tenant ${tenantId}`);
+      return {
+        allowed: false,
+        limit,
+        currentUsage,
+        error: `${feature.name} quota exceeded. Your plan limits you to ${limit} units. You have used ${currentUsage}, and this action requires ${requestedVolume} more. Please upgrade your active package plan to unlock higher capacity.`
+      };
+    }
+
+    return { allowed: true, limit, currentUsage };
 
   } catch (err: unknown) {
     console.error(`[Entitlements] Unexpected error checking entitlement:`, err);
