@@ -1,4 +1,5 @@
 import { createServerClient } from '@supabase/ssr';
+import { createClient } from '@supabase/supabase-js';
 import { cookies } from 'next/headers';
 import DashboardClient from '@/components/DashboardClient';
 import { redirect } from 'next/navigation';
@@ -150,9 +151,8 @@ export default async function DashboardPage(props: { searchParams?: Promise<{ [k
       }
     }
 
-    // For now, we still explicitly query by tenantId unless they are super admin NOT impersonating.
-    // Wait, if they are super admin and impersonating, we MUST query by that specific tenantId.
-    let queryFilter = (isSuperAdmin && !isImpersonating) ? null : { key: 'tenant_id', value: tenantId };
+    // Super admins should only see data for the tenant they are currently viewing (their own or impersonated).
+    let queryFilter = { key: 'tenant_id', value: tenantId };
 
     // Chatbots
     let botsQuery = supabase.from('chatbots').select('*').order('created_at', { ascending: false });
@@ -216,15 +216,9 @@ export default async function DashboardPage(props: { searchParams?: Promise<{ [k
     }
 
     if (isSuperAdmin) {
-      const cookieStore = await cookies();
       const supabaseUrl = process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL!;
       const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
-      const adminSupabase = createServerClient(supabaseUrl, serviceRoleKey, {
-        cookies: {
-          getAll() { return cookieStore.getAll(); },
-          setAll() {}
-        }
-      });
+      const adminSupabase = createClient(supabaseUrl, serviceRoleKey);
 
       const { data: allTenantsList } = await adminSupabase.from('tenants').select('id, company_name, plan_tier');
       

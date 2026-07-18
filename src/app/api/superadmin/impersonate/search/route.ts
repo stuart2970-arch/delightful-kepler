@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { createServerClient } from '@supabase/ssr';
+import { createClient } from '@supabase/supabase-js';
 import { cookies } from 'next/headers';
 
 export const dynamic = 'force-dynamic';
@@ -51,14 +52,7 @@ export async function GET(request: Request) {
 
     // Create a service role client to bypass RLS since we verified superadmin
     const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
-    const supabaseAdmin = createServerClient(supabaseUrl, serviceRoleKey, {
-      cookies: {
-        getAll() {
-          return cookieStore.getAll();
-        },
-        setAll() {}
-      }
-    });
+    const supabaseAdmin = createClient(supabaseUrl, serviceRoleKey);
 
     const { data: tenants } = await supabaseAdmin
       .from('tenants')
