@@ -270,14 +270,19 @@ export async function DELETE(
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const { error: deleteError } = await supabase
+    const { error: deleteError, count } = await supabase
       .from('chatbots')
-      .delete()
+      .delete({ count: 'exact' })
       .eq('id', id);
 
     if (deleteError) {
       console.error('[Chatbot Config DELETE API] Error deleting chatbot:', deleteError);
       return NextResponse.json({ error: deleteError.message }, { status: 500 });
+    }
+
+    if (count === 0) {
+      // RLS prevented deletion (or the bot didn't exist), enforce 403 Forbidden
+      return NextResponse.json({ error: '403 Forbidden: Unauthorized access to this chatbot' }, { status: 403 });
     }
 
     return NextResponse.json({ success: true });

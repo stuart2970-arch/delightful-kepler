@@ -292,6 +292,7 @@ export default function ChatbotManagerView() {
       if (editingBotId === showDeleteModal) {
         setEditingBotId(null);
       }
+      alert('Chatbot successfully deleted. All associated data has been permanently wiped.');
     }
     setIsDeletingBot(false);
   };
