@@ -36,7 +36,7 @@ export async function GET(request: Request) {
 export async function POST(request: Request) {
   try {
     const body = await request.json();
-    const { tenant_id, chatbot_id, name, duration_minutes, buffer_minutes, price, assigned_staff } = body;
+    const { tenant_id, chatbot_id, name, description, duration_minutes, buffer_minutes, price, assigned_staff } = body;
 
     if (!tenant_id || !name) {
       return NextResponse.json({ error: 'Missing required fields' }, { status: 400 });
@@ -51,6 +51,7 @@ export async function POST(request: Request) {
         tenant_id,
         chatbot_id,
         name,
+        description: description || null,
         duration_minutes: duration_minutes || 60,
         buffer_minutes: buffer_minutes || 0,
         price: price || 0,
@@ -90,7 +91,7 @@ export async function POST(request: Request) {
 export async function PUT(request: Request) {
   try {
     const body = await request.json();
-    const { id, tenant_id, chatbot_id, name, duration_minutes, buffer_minutes, price, assigned_staff } = body;
+    const { id, tenant_id, chatbot_id, name, description, duration_minutes, buffer_minutes, price, assigned_staff } = body;
 
     if (!id || !tenant_id || !name) {
       return NextResponse.json({ error: 'Missing required fields' }, { status: 400 });
@@ -104,6 +105,7 @@ export async function PUT(request: Request) {
       .update({
         chatbot_id,
         name,
+        description: description || null,
         duration_minutes: duration_minutes || 60,
         buffer_minutes: buffer_minutes || 0,
         price: price || 0,

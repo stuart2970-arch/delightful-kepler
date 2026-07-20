@@ -5,6 +5,7 @@ export default function ServiceEditor({ tenantId, services, setServices, staff }
   const [showAddService, setShowAddService] = useState(false);
   const [editingServiceId, setEditingServiceId] = useState<string | null>(null);
   const [newServiceName, setNewServiceName] = useState('');
+  const [newServiceDescription, setNewServiceDescription] = useState('');
   const [newServiceDuration, setNewServiceDuration] = useState(30);
   const [newServiceBuffer, setNewServiceBuffer] = useState(0);
   const [newServicePrice, setNewServicePrice] = useState(0);
@@ -13,6 +14,7 @@ export default function ServiceEditor({ tenantId, services, setServices, staff }
   const handleEditClick = (srv: any) => {
     setEditingServiceId(srv.id);
     setNewServiceName(srv.name);
+    setNewServiceDescription(srv.description || '');
     setNewServiceDuration(srv.duration_minutes || 30);
     setNewServiceBuffer(srv.buffer_minutes || 0);
     setNewServicePrice(srv.price || 0);
@@ -23,6 +25,7 @@ export default function ServiceEditor({ tenantId, services, setServices, staff }
   const handleAddClick = () => {
     setEditingServiceId(null);
     setNewServiceName('');
+    setNewServiceDescription('');
     setNewServiceDuration(30);
     setNewServiceBuffer(0);
     setNewServicePrice(0);
@@ -57,6 +60,7 @@ export default function ServiceEditor({ tenantId, services, setServices, staff }
         id: editingServiceId,
         tenant_id: tenantId,
         name: newServiceName,
+        description: newServiceDescription,
         duration_minutes: newServiceDuration,
         buffer_minutes: newServiceBuffer,
         price: newServicePrice,
@@ -110,6 +114,12 @@ export default function ServiceEditor({ tenantId, services, setServices, staff }
             <div>
               <label className="block text-xs font-semibold text-gray-400 mb-1">Service Name</label>
               <input required type="text" value={newServiceName} onChange={e => setNewServiceName(e.target.value)} className="w-full bg-gray-900 border border-gray-800 rounded-lg px-3 py-2 text-sm text-white" placeholder="e.g. Consultation" />
+            </div>
+
+            <div>
+              <label className="block text-xs font-semibold text-gray-400 mb-1">Brief Description</label>
+              <textarea maxLength={255} value={newServiceDescription} onChange={e => setNewServiceDescription(e.target.value)} className="w-full bg-gray-900 border border-gray-800 rounded-lg px-3 py-2 text-sm text-white resize-none h-20" placeholder="Optional brief description of this service (max 255 chars)" />
+              <div className="text-right text-[10px] text-gray-500 mt-1">{newServiceDescription.length}/255</div>
             </div>
             
             <div className="grid grid-cols-3 gap-4">
@@ -184,6 +194,9 @@ export default function ServiceEditor({ tenantId, services, setServices, staff }
           <div key={srv.id} onClick={() => handleEditClick(srv)} className="bg-gray-950 border border-gray-800 p-4 rounded-xl flex items-center justify-between group hover:border-indigo-500/50 hover:bg-indigo-900/10 cursor-pointer transition-all">
             <div>
               <div className="font-bold text-gray-200 text-sm">{srv.name}</div>
+              {srv.description && (
+                <div className="text-xs text-gray-400 mt-0.5 line-clamp-1">{srv.description}</div>
+              )}
               <div className="text-xs text-gray-500 mt-0.5">{srv.duration_minutes}m duration • ${srv.price || 0}</div>
               {srv.staff_services && srv.staff_services.length > 0 && (
                 <div className="text-xs text-indigo-400 mt-1">
