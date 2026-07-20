@@ -57,6 +57,22 @@ export type WeeklySchedule = {
   sunday: DailySchedule;
 };
 
+export interface BusinessDailySchedule {
+  unavailable: boolean;
+  hours: { start: string, end: string } | null;
+}
+
+export type BusinessWeeklySchedule = {
+  weekCommencingDate: string; // YYYY-MM-DD format (Monday's date)
+  monday: BusinessDailySchedule;
+  tuesday: BusinessDailySchedule;
+  wednesday: BusinessDailySchedule;
+  thursday: BusinessDailySchedule;
+  friday: BusinessDailySchedule;
+  saturday: BusinessDailySchedule;
+  sunday: BusinessDailySchedule;
+};
+
 export type ActiveTab = 'chatbots' | 'crawler' | 'conversations' | 'scheduling' | 'integrations' | 'settings' | 'billing';
 
 export interface DashboardState {

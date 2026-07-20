@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { useDashboardStore, WeeklySchedule, DailySchedule } from '../../lib/store';
+import { useDashboardStore, BusinessWeeklySchedule, BusinessDailySchedule } from '../../lib/store';
 
 export default function BusinessOperatingHours() {
   const { tenantId, generalOperatingHours, setGeneralOperatingHours, operatingHoursOverrides, setOperatingHoursOverrides, holidaySettings, setHolidaySettings } = useDashboardStore();
@@ -10,24 +10,24 @@ export default function BusinessOperatingHours() {
   const [globalHolidays, setGlobalHolidays] = useState<any[]>([]);
 
   // Initialize schedules if missing
-  const createEmptySchedule = (weekDate?: string): WeeklySchedule => ({
+  const createEmptySchedule = (weekDate?: string): BusinessWeeklySchedule => ({
     weekCommencingDate: weekDate || new Date().toISOString().split('T')[0],
-    monday: { unavailable: false, am: null, pm: null },
-    tuesday: { unavailable: false, am: null, pm: null },
-    wednesday: { unavailable: false, am: null, pm: null },
-    thursday: { unavailable: false, am: null, pm: null },
-    friday: { unavailable: false, am: null, pm: null },
-    saturday: { unavailable: false, am: null, pm: null },
-    sunday: { unavailable: false, am: null, pm: null },
+    monday: { unavailable: false, hours: null },
+    tuesday: { unavailable: false, hours: null },
+    wednesday: { unavailable: false, hours: null },
+    thursday: { unavailable: false, hours: null },
+    friday: { unavailable: false, hours: null },
+    saturday: { unavailable: false, hours: null },
+    sunday: { unavailable: false, hours: null },
   });
 
-  const [localGeneral, setLocalGeneral] = useState<WeeklySchedule>(() => {
+  const [localGeneral, setLocalGeneral] = useState<BusinessWeeklySchedule>(() => {
     return Object.keys(generalOperatingHours || {}).length > 0 
-      ? (generalOperatingHours as WeeklySchedule) 
+      ? (generalOperatingHours as BusinessWeeklySchedule) 
       : createEmptySchedule();
   });
 
-  const [localOverrides, setLocalOverrides] = useState<{weeks: WeeklySchedule[]}>({
+  const [localOverrides, setLocalOverrides] = useState<{weeks: BusinessWeeklySchedule[]}>({
     weeks: operatingHoursOverrides && operatingHoursOverrides.length > 0
       ? operatingHoursOverrides
       : [createEmptySchedule(), createEmptySchedule(), createEmptySchedule(), createEmptySchedule()]
@@ -81,24 +81,23 @@ export default function BusinessOperatingHours() {
 
   const updateSchedule = (
     isGeneral: boolean,
-    day: keyof Omit<WeeklySchedule, 'weekCommencingDate'>, 
-    shift: 'am' | 'pm', 
+    day: keyof Omit<BusinessWeeklySchedule, 'weekCommencingDate'>, 
     field: 'start' | 'end', 
     value: string
   ) => {
     if (isGeneral) {
       setLocalGeneral(prev => {
         const newSched = { ...prev };
-        if (!newSched[day][shift]) {
+        if (!newSched[day].hours) {
           if (!value) return prev;
-          newSched[day][shift] = { start: '', end: '' };
+          newSched[day].hours = { start: '', end: '' };
         }
         if (value) {
-          newSched[day][shift]![field] = value;
+          newSched[day].hours![field] = value;
         } else {
-          newSched[day][shift]![field] = '';
-          if (!newSched[day][shift]!.start && !newSched[day][shift]!.end) {
-            newSched[day][shift] = null;
+          newSched[day].hours![field] = '';
+          if (!newSched[day].hours!.start && !newSched[day].hours!.end) {
+            newSched[day].hours = null;
           }
         }
         return newSched;
@@ -107,16 +106,16 @@ export default function BusinessOperatingHours() {
       setLocalOverrides(prev => {
         const newWeeks = [...prev.weeks];
         const newSched = { ...newWeeks[activeWeekIndex] };
-        if (!newSched[day][shift]) {
+        if (!newSched[day].hours) {
           if (!value) return prev;
-          newSched[day][shift] = { start: '', end: '' };
+          newSched[day].hours = { start: '', end: '' };
         }
         if (value) {
-          newSched[day][shift]![field] = value;
+          newSched[day].hours![field] = value;
         } else {
-          newSched[day][shift]![field] = '';
-          if (!newSched[day][shift]!.start && !newSched[day][shift]!.end) {
-            newSched[day][shift] = null;
+          newSched[day].hours![field] = '';
+          if (!newSched[day].hours!.start && !newSched[day].hours!.end) {
+            newSched[day].hours = null;
           }
         }
         newWeeks[activeWeekIndex] = newSched;
@@ -125,14 +124,13 @@ export default function BusinessOperatingHours() {
     }
   };
 
-  const updateUnavailable = (isGeneral: boolean, day: keyof Omit<WeeklySchedule, 'weekCommencingDate'>, checked: boolean) => {
+  const updateUnavailable = (isGeneral: boolean, day: keyof Omit<BusinessWeeklySchedule, 'weekCommencingDate'>, checked: boolean) => {
     if (isGeneral) {
       setLocalGeneral(prev => {
         const newSched = { ...prev };
         newSched[day] = { ...newSched[day], unavailable: checked };
         if (checked) {
-          newSched[day].am = null;
-          newSched[day].pm = null;
+          newSched[day].hours = null;
         }
         return newSched;
       });
@@ -142,8 +140,7 @@ export default function BusinessOperatingHours() {
         const newSched = { ...newWeeks[activeWeekIndex] };
         newSched[day] = { ...newSched[day], unavailable: checked };
         if (checked) {
-          newSched[day].am = null;
-          newSched[day].pm = null;
+          newSched[day].hours = null;
         }
         newWeeks[activeWeekIndex] = newSched;
         return { weeks: newWeeks };
@@ -164,7 +161,7 @@ export default function BusinessOperatingHours() {
     });
   };
 
-  const renderScheduleGrid = (schedule: WeeklySchedule, isGeneral: boolean) => {
+  const renderScheduleGrid = (schedule: BusinessWeeklySchedule, isGeneral: boolean) => {
     return (
       <div className="bg-gray-900 rounded-xl border border-gray-800 overflow-hidden flex flex-col">
         {!isGeneral && (
@@ -199,14 +196,13 @@ export default function BusinessOperatingHours() {
         <table className="w-full text-left border-collapse">
           <thead>
             <tr className="bg-gray-900 text-[10px] text-gray-400 uppercase tracking-wider border-b border-gray-800">
-              <th className="p-3 font-semibold w-24">Day</th>
-              <th className="p-3 font-semibold text-center border-l border-gray-800 w-16">Closed</th>
-              <th className="p-3 font-semibold border-l border-gray-800 text-center" colSpan={2}>AM Shift</th>
-              <th className="p-3 font-semibold border-l border-gray-800 text-center" colSpan={2}>PM Shift</th>
+              <th className="p-3 font-semibold w-32">Day</th>
+              <th className="p-3 font-semibold text-center border-l border-gray-800 w-20">Closed</th>
+              <th className="p-3 font-semibold border-l border-gray-800 text-center" colSpan={2}>Operating Hours</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-gray-800">
-            {(['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'] as Array<keyof Omit<WeeklySchedule, 'weekCommencingDate'>>).map(day => {
+            {(['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'] as Array<keyof Omit<BusinessWeeklySchedule, 'weekCommencingDate'>>).map(day => {
               const currentDayData = schedule[day];
               const isUnavail = currentDayData.unavailable;
               
@@ -239,17 +235,16 @@ export default function BusinessOperatingHours() {
                   </td>
                   
                   <td className="p-2 border-l border-gray-800 text-center">
-                    <input type="time" disabled={isDisabled} value={currentDayData.am?.start || ''} onChange={e => updateSchedule(isGeneral, day, 'am', 'start', e.target.value)} className="bg-gray-950 disabled:opacity-30 border border-gray-700 rounded px-2 py-1 text-xs text-white w-24 focus:border-indigo-500 outline-none" />
+                    <div className="flex items-center justify-center gap-2">
+                      <span className="text-xs text-gray-500 font-medium">Open:</span>
+                      <input type="time" disabled={isDisabled} value={currentDayData.hours?.start || ''} onChange={e => updateSchedule(isGeneral, day, 'start', e.target.value)} className="bg-gray-950 disabled:opacity-30 border border-gray-700 rounded px-2 py-1 text-xs text-white w-24 focus:border-indigo-500 outline-none" />
+                    </div>
                   </td>
                   <td className="p-2 text-center">
-                    <input type="time" disabled={isDisabled} value={currentDayData.am?.end || ''} onChange={e => updateSchedule(isGeneral, day, 'am', 'end', e.target.value)} className="bg-gray-950 disabled:opacity-30 border border-gray-700 rounded px-2 py-1 text-xs text-white w-24 focus:border-indigo-500 outline-none" />
-                  </td>
-                  
-                  <td className="p-2 border-l border-gray-800 text-center">
-                    <input type="time" disabled={isDisabled} value={currentDayData.pm?.start || ''} onChange={e => updateSchedule(isGeneral, day, 'pm', 'start', e.target.value)} className="bg-gray-950 disabled:opacity-30 border border-gray-700 rounded px-2 py-1 text-xs text-white w-24 focus:border-indigo-500 outline-none" />
-                  </td>
-                  <td className="p-2 text-center">
-                    <input type="time" disabled={isDisabled} value={currentDayData.pm?.end || ''} onChange={e => updateSchedule(isGeneral, day, 'pm', 'end', e.target.value)} className="bg-gray-950 disabled:opacity-30 border border-gray-700 rounded px-2 py-1 text-xs text-white w-24 focus:border-indigo-500 outline-none" />
+                    <div className="flex items-center justify-center gap-2">
+                      <span className="text-xs text-gray-500 font-medium">Close:</span>
+                      <input type="time" disabled={isDisabled} value={currentDayData.hours?.end || ''} onChange={e => updateSchedule(isGeneral, day, 'end', e.target.value)} className="bg-gray-950 disabled:opacity-30 border border-gray-700 rounded px-2 py-1 text-xs text-white w-24 focus:border-indigo-500 outline-none" />
+                    </div>
                   </td>
                 </tr>
               );
