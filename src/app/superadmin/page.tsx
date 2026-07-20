@@ -55,6 +55,23 @@ export default async function SuperadminPage() {
     redirect('/dashboard');
   }
 
+  // Fetch global platform settings
+  const { data: globalBot } = await supabase
+    .from('chatbots')
+    .select('configuration_json')
+    .eq('id', '00000000-0000-0000-0000-000000000000')
+    .single();
+
+  let initialGlobalBrandingHtml = '<span style="opacity: 0.6; font-size: 11px;">⚡ Powered by <strong>StyleFlo</strong></span>';
+  let initialGlobalTrackingUrl = 'https://styleflo.ai';
+  let initialGlobalVoiceDisclaimer = '';
+
+  if (globalBot?.configuration_json) {
+    if (globalBot.configuration_json.branding_html !== undefined) initialGlobalBrandingHtml = globalBot.configuration_json.branding_html;
+    if (globalBot.configuration_json.branding_url !== undefined) initialGlobalTrackingUrl = globalBot.configuration_json.branding_url;
+    if (globalBot.configuration_json.global_voice_disclaimer !== undefined) initialGlobalVoiceDisclaimer = globalBot.configuration_json.global_voice_disclaimer;
+  }
+
   // Fetch all tenants
   const { data: tenants } = await supabase
     .from('tenants')
@@ -89,7 +106,12 @@ export default async function SuperadminPage() {
 
   return (
     <main className="min-h-screen bg-gray-950 text-gray-100 font-sans">
-      <SuperadminClient tenants={tenantStats} />
+      <SuperadminClient 
+        tenants={tenantStats} 
+        initialGlobalBrandingHtml={initialGlobalBrandingHtml}
+        initialGlobalTrackingUrl={initialGlobalTrackingUrl}
+        initialGlobalVoiceDisclaimer={initialGlobalVoiceDisclaimer}
+      />
     </main>
   );
 }

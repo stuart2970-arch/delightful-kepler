@@ -169,14 +169,8 @@ export default function DashboardClient({
     }
   };
 
-  // Global settings state
-  const [globalVoiceDisclaimer, setGlobalVoiceDisclaimer] = useState('');
-  const [isSavingDisclaimer, setIsSavingDisclaimer] = useState(false);
-  
-  const globalBotId = '00000000-0000-0000-0000-000000000000';
-  const [globalBrandingHtml, setGlobalBrandingHtml] = useState('<span style="opacity: 0.6; font-size: 11px;">⚡ Powered by <strong>StyleFlo</strong></span>');
-  const [globalTrackingUrl, setGlobalTrackingUrl] = useState('https://styleflo.ai');
-  const [isSavingGlobal, setIsSavingGlobal] = useState(false);  // Form states
+const globalBotId = '00000000-0000-0000-0000-000000000000';
+// Form states
   const [newBotName, setNewBotName] = useState('');
   const [newBotColor, setNewBotColor] = useState('#4F46E5');
   const [newBotWelcome, setNewBotWelcome] = useState('Hello! How can I help you today?');
@@ -224,15 +218,9 @@ export default function DashboardClient({
     }
   };
 
-  // Auto-select first real chatbot for crawler if available, and load global settings
+  // Auto-select first real chatbot for crawler if available
   useEffect(() => {
     const realBots = chatbots.filter(b => b.id !== globalBotId);
-    const globalBot = chatbots.find(b => b.id === globalBotId);
-    if (globalBot?.configuration_json) {
-      if (globalBot.configuration_json.branding_html) setGlobalBrandingHtml(globalBot.configuration_json.branding_html);
-      if (globalBot.configuration_json.branding_url) setGlobalTrackingUrl(globalBot.configuration_json.branding_url);
-      if (globalBot.configuration_json.global_voice_disclaimer !== undefined) setGlobalVoiceDisclaimer(globalBot.configuration_json.global_voice_disclaimer);
-    }
   }, [chatbots]);
 
 
@@ -789,86 +777,7 @@ export default function DashboardClient({
               </div>
             )}
 
-          {/* Platform Settings Tab */}
-          {activeTab === 'settings' && !isImpersonating && (
-            <div className="space-y-6">
-              {/* Branding Panel */}
-              <div className="bg-gray-900/30 border border-gray-900 p-6 rounded-2xl shadow-xl space-y-6">
-                <div>
-                  <h3 className="text-lg font-bold text-white">Global Platform Branding</h3>
-                  <p className="text-xs text-gray-400 mt-0.5">Manage the chatbot widget branding. This watermark is automatically hidden for tenants on Premium and Ultimate tiers.</p>
-                </div>
-
-                <form onSubmit={handleSaveBranding} className="space-y-4">
-                  <div>
-                    <label className="block text-xs font-semibold text-gray-400 mb-1.5">Branding HTML (Footer Watermark)</label>
-                    <textarea
-                      value={globalBrandingHtml}
-                      onChange={(e) => setGlobalBrandingHtml(e.target.value)}
-                      className="w-full bg-gray-950 border border-gray-800 rounded-xl px-3.5 py-2 text-sm text-white focus:outline-none focus:ring-1 focus:ring-indigo-500 font-mono min-h-[80px]"
-                      placeholder='<span style="opacity: 0.6; font-size: 11px;">⚡ Powered by StyleFlo</span>'
-                    />
-                    <p className="text-[10px] text-gray-500 mt-1">This HTML is injected at the bottom of all chatbot widgets. It will automatically be wrapped in an anchor tag pointing to the URL below.</p>
-                  </div>
-                  
-                  <div>
-                    <label className="block text-xs font-semibold text-gray-400 mb-1.5">Tracking Destination URL</label>
-                    <input
-                      type="url"
-                      value={globalTrackingUrl}
-                      onChange={(e) => setGlobalTrackingUrl(e.target.value)}
-                      className="w-full bg-gray-950 border border-gray-800 rounded-xl px-3.5 py-2 text-sm text-white focus:outline-none focus:ring-1 focus:ring-indigo-500"
-                      placeholder="https://styleflo.ai"
-                      required
-                    />
-                    <p className="text-[10px] text-gray-500 mt-1">Users clicking the watermark will be tracked and redirected here. Originating chatbot ID will be appended as ?ref=...</p>
-                  </div>
-                  
-                  <div className="pt-2">
-                    <button
-                      type="submit"
-                      disabled={isSavingGlobal}
-                      className="bg-indigo-600 hover:bg-indigo-500 text-white text-sm font-semibold py-2 px-5 rounded-xl shadow-lg shadow-indigo-500/10 transition-colors disabled:opacity-50"
-                    >
-                      {isSavingGlobal ? 'Saving Settings...' : 'Save Global Branding'}
-                    </button>
-                  </div>
-                </form>
-              </div>
-
-              {/* Disclaimer Panel */}
-              <div className="bg-gray-900/30 border border-gray-900 p-6 rounded-2xl shadow-xl space-y-6">
-                <div>
-                  <h3 className="text-lg font-bold text-white">Global Voice & Chat Disclaimer</h3>
-                  <p className="text-xs text-gray-400 mt-0.5">Manage the system-wide disclaimer shown across all chatbots regardless of their billing tier.</p>
-                </div>
-
-                <form onSubmit={handleSaveDisclaimer} className="space-y-4">
-                  <div>
-                    <textarea 
-                      value={globalVoiceDisclaimer}
-                      onChange={(e) => setGlobalVoiceDisclaimer(e.target.value)}
-                      placeholder="e.g. Please be aware that this call may be recorded for training and quality purposes..."
-                      className="w-full bg-gray-950 border border-gray-800 rounded-xl px-3.5 py-2 text-sm text-white focus:outline-none focus:ring-1 focus:ring-indigo-500 min-h-[100px]"
-                    />
-                    <p className="text-[10px] text-gray-500 mt-1">This disclaimer will be shown to users before they start a chat or voice call.</p>
-                  </div>
-
-                  <div className="pt-2">
-                    <button
-                      type="submit"
-                      disabled={isSavingGlobal}
-                      className="bg-indigo-600 hover:bg-indigo-500 text-white text-sm font-semibold py-2 px-5 rounded-xl shadow-lg shadow-indigo-500/10 transition-colors disabled:opacity-50"
-                    >
-                      {isSavingGlobal ? 'Saving Settings...' : 'Save Global Disclaimer'}
-                    </button>
-                  </div>
-                </form>
-              </div>
-            </div>
-          )}
-
-          {/* Integrations Tab */}
+{/* Integrations Tab */}
           {activeTab === 'integrations' && <IntegrationsView />}
 
           {/* Scheduling Tab */}
