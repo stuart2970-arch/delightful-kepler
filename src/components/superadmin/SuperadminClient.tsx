@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
+import PricingMatrixView from './PricingMatrixView';
 
 type GlobalHoliday = {
   id: string;
@@ -33,6 +34,8 @@ export default function SuperadminClient({ tenants }: { tenants: TenantStat[] })
   const [holidays, setHolidays] = useState<GlobalHoliday[]>([]);
   const [newHoliday, setNewHoliday] = useState({ countries: ['UK'], date: new Date().toISOString().split('T')[0], name: '' });
   const [isSavingHoliday, setIsSavingHoliday] = useState(false);
+
+  const [activeTab, setActiveTab] = useState<'overview' | 'pricing' | 'holidays'>('overview');
 
   const fetchHolidays = async () => {
     try {
@@ -111,8 +114,30 @@ export default function SuperadminClient({ tenants }: { tenants: TenantStat[] })
         </div>
       </div>
 
-      {/* Tenants Table */}
-      <div className="bg-gray-900 border border-gray-800 rounded-2xl overflow-hidden">
+      {/* Tabs */}
+      <div className="flex space-x-1 bg-gray-900 p-1 rounded-xl border border-gray-800">
+        <button 
+          onClick={() => setActiveTab('overview')}
+          className={`flex-1 py-2.5 text-sm font-medium rounded-lg transition-colors ${activeTab === 'overview' ? 'bg-indigo-600 text-white shadow' : 'text-gray-400 hover:text-white hover:bg-gray-800'}`}
+        >
+          Tenants & Usage
+        </button>
+        <button 
+          onClick={() => setActiveTab('pricing')}
+          className={`flex-1 py-2.5 text-sm font-medium rounded-lg transition-colors ${activeTab === 'pricing' ? 'bg-indigo-600 text-white shadow' : 'text-gray-400 hover:text-white hover:bg-gray-800'}`}
+        >
+          Pricing & Packaging
+        </button>
+        <button 
+          onClick={() => setActiveTab('holidays')}
+          className={`flex-1 py-2.5 text-sm font-medium rounded-lg transition-colors ${activeTab === 'holidays' ? 'bg-indigo-600 text-white shadow' : 'text-gray-400 hover:text-white hover:bg-gray-800'}`}
+        >
+          Global Holidays
+        </button>
+      </div>
+
+      {activeTab === 'overview' && (
+        <div className="bg-gray-900 border border-gray-800 rounded-2xl overflow-hidden mt-6">
         <div className="p-4 border-b border-gray-800 flex items-center justify-between">
           <h2 className="text-lg font-bold text-white">Active Tenants</h2>
           <input 
@@ -173,9 +198,14 @@ export default function SuperadminClient({ tenants }: { tenants: TenantStat[] })
           </table>
         </div>
       </div>
+      )}
 
-      {/* Global Holidays Manager */}
-      <div className="bg-gray-900 border border-gray-800 rounded-2xl overflow-hidden mt-8">
+      {activeTab === 'pricing' && (
+        <PricingMatrixView />
+      )}
+
+      {activeTab === 'holidays' && (
+      <div className="bg-gray-900 border border-gray-800 rounded-2xl overflow-hidden mt-6">
         <div className="p-4 border-b border-gray-800">
           <h2 className="text-lg font-bold text-white">Global Public Holidays</h2>
           <p className="text-sm text-gray-400 mt-1">Managed across all tenants. Chatbots will prompt businesses to decide how to handle these dates.</p>
@@ -247,6 +277,7 @@ export default function SuperadminClient({ tenants }: { tenants: TenantStat[] })
           </div>
         </div>
       </div>
+      )}
     </div>
   );
 }
