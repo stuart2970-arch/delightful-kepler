@@ -5,9 +5,8 @@ import Link from 'next/link';
 
 type GlobalHoliday = {
   id: string;
-  country: string;
-  month: number;
-  day: number;
+  countries: string[];
+  date: string;
   name: string;
 };
 
@@ -32,7 +31,7 @@ export default function SuperadminClient({ tenants }: { tenants: TenantStat[] })
   const totalCrawls = tenants.reduce((acc, t) => acc + t.crawlsCount, 0);
 
   const [holidays, setHolidays] = useState<GlobalHoliday[]>([]);
-  const [newHoliday, setNewHoliday] = useState({ country: 'UK', month: 1, day: 1, name: '' });
+  const [newHoliday, setNewHoliday] = useState({ countries: ['UK'], date: new Date().toISOString().split('T')[0], name: '' });
   const [isSavingHoliday, setIsSavingHoliday] = useState(false);
 
   const fetchHolidays = async () => {
@@ -62,7 +61,7 @@ export default function SuperadminClient({ tenants }: { tenants: TenantStat[] })
         body: JSON.stringify(newHoliday)
       });
       if (res.ok) {
-        setNewHoliday({ country: 'UK', month: 1, day: 1, name: '' });
+        setNewHoliday({ countries: ['UK'], date: new Date().toISOString().split('T')[0], name: '' });
         fetchHolidays();
       }
     } catch (err) {
@@ -182,33 +181,43 @@ export default function SuperadminClient({ tenants }: { tenants: TenantStat[] })
           <p className="text-sm text-gray-400 mt-1">Managed across all tenants. Chatbots will prompt businesses to decide how to handle these dates.</p>
         </div>
         <div className="p-6">
-          <form onSubmit={handleAddHoliday} className="flex gap-4 items-end mb-6 bg-gray-950 p-4 rounded-xl border border-gray-800">
-            <div>
-              <label className="block text-xs font-semibold text-gray-400 mb-1">Country</label>
-              <select value={newHoliday.country} onChange={e => setNewHoliday({...newHoliday, country: e.target.value})} className="bg-gray-900 border border-gray-700 rounded-lg px-3 py-2 text-sm text-white">
-                <option value="UK">UK</option>
-                <option value="US">US</option>
+          <form onSubmit={handleAddHoliday} className="flex flex-col md:flex-row gap-4 items-end mb-6 bg-gray-950 p-4 rounded-xl border border-gray-800">
+            <div className="w-full md:w-auto">
+              <label className="block text-xs font-semibold text-gray-400 mb-1">Countries (Ctrl/Cmd+Click to multi-select)</label>
+              <select 
+                multiple
+                value={newHoliday.countries} 
+                onChange={e => {
+                  const options = Array.from(e.target.selectedOptions, option => option.value);
+                  setNewHoliday({...newHoliday, countries: options});
+                }} 
+                className="bg-gray-900 border border-gray-700 rounded-lg px-3 py-2 text-sm text-white h-24"
+              >
+                <option value="UK">United Kingdom</option>
+                <option value="ENG">England</option>
+                <option value="SCT">Scotland</option>
+                <option value="WAL">Wales</option>
+                <option value="NIR">Northern Ireland</option>
+                <option value="US">United States</option>
                 <option value="CA">Canada</option>
                 <option value="AU">Australia</option>
               </select>
             </div>
-            <div>
-              <label className="block text-xs font-semibold text-gray-400 mb-1">Month</label>
-              <select value={newHoliday.month} onChange={e => setNewHoliday({...newHoliday, month: parseInt(e.target.value)})} className="bg-gray-900 border border-gray-700 rounded-lg px-3 py-2 text-sm text-white w-24">
-                {Array.from({length: 12}, (_, i) => i + 1).map(m => (
-                  <option key={m} value={m}>{new Date(0, m - 1).toLocaleString('default', { month: 'short' })}</option>
-                ))}
-              </select>
+            <div className="w-full md:w-auto">
+              <label className="block text-xs font-semibold text-gray-400 mb-1">Date</label>
+              <input 
+                type="date" 
+                required 
+                value={newHoliday.date} 
+                onChange={e => setNewHoliday({...newHoliday, date: e.target.value})} 
+                className="bg-gray-900 border border-gray-700 rounded-lg px-3 py-2 text-sm text-white" 
+              />
             </div>
-            <div>
-              <label className="block text-xs font-semibold text-gray-400 mb-1">Day</label>
-              <input type="number" min="1" max="31" value={newHoliday.day} onChange={e => setNewHoliday({...newHoliday, day: parseInt(e.target.value)})} className="bg-gray-900 border border-gray-700 rounded-lg px-3 py-2 text-sm text-white w-20" />
-            </div>
-            <div className="flex-1">
+            <div className="flex-1 w-full md:w-auto">
               <label className="block text-xs font-semibold text-gray-400 mb-1">Holiday Name</label>
               <input required type="text" placeholder="e.g. Christmas Day" value={newHoliday.name} onChange={e => setNewHoliday({...newHoliday, name: e.target.value})} className="w-full bg-gray-900 border border-gray-700 rounded-lg px-3 py-2 text-sm text-white" />
             </div>
-            <button type="submit" disabled={isSavingHoliday} className="px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white text-sm font-bold rounded-lg h-[38px]">
+            <button type="submit" disabled={isSavingHoliday} className="w-full md:w-auto px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white text-sm font-bold rounded-lg h-[38px]">
               {isSavingHoliday ? 'Adding...' : 'Add Holiday'}
             </button>
           </form>
@@ -217,9 +226,13 @@ export default function SuperadminClient({ tenants }: { tenants: TenantStat[] })
             {holidays.map(holiday => (
               <div key={holiday.id} className="bg-gray-950 border border-gray-800 p-4 rounded-xl flex items-center justify-between group">
                 <div>
-                  <div className="text-xs font-bold text-indigo-400 uppercase tracking-wider mb-1">{holiday.country}</div>
+                  <div className="flex flex-wrap gap-1 mb-1">
+                    {holiday.countries?.map(c => (
+                      <span key={c} className="text-[10px] font-bold text-indigo-400 uppercase tracking-wider bg-indigo-900/30 px-1.5 py-0.5 rounded border border-indigo-500/20">{c}</span>
+                    ))}
+                  </div>
                   <div className="font-bold text-white">{holiday.name}</div>
-                  <div className="text-sm text-gray-400">{new Date(2000, holiday.month - 1, holiday.day).toLocaleDateString(undefined, { month: 'long', day: 'numeric' })}</div>
+                  <div className="text-sm text-gray-400">{new Date(holiday.date).toLocaleDateString(undefined, { weekday: 'short', year: 'numeric', month: 'long', day: 'numeric' })}</div>
                 </div>
                 <button onClick={() => handleDeleteHoliday(holiday.id)} className="text-gray-600 hover:text-red-400 opacity-0 group-hover:opacity-100 transition-opacity">
                   <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg>

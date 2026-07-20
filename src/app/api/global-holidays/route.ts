@@ -14,8 +14,7 @@ export async function GET(request: Request) {
     const { data, error } = await supabaseAdmin
       .from('global_holidays')
       .select('*')
-      .order('month', { ascending: true })
-      .order('day', { ascending: true });
+      .order('date', { ascending: true });
 
     if (error) throw error;
     return NextResponse.json({ holidays: data || [] });
@@ -28,16 +27,16 @@ export async function GET(request: Request) {
 export async function POST(request: Request) {
   try {
     const body = await request.json();
-    const { country, month, day, name } = body;
+    const { countries, date, name } = body;
 
-    if (!country || !month || !day || !name) {
+    if (!countries || !Array.isArray(countries) || countries.length === 0 || !date || !name) {
       return NextResponse.json({ error: 'Missing required fields' }, { status: 400 });
     }
 
     const supabaseAdmin = getSupabaseAdmin();
     const { data, error } = await supabaseAdmin
       .from('global_holidays')
-      .insert({ country, month, day, name })
+      .insert({ countries, date, name })
       .select()
       .single();
 
