@@ -67,6 +67,9 @@ interface DashboardClientProps {
   initialRwgConfig?: any;
   initialBookingMode?: string;
   initialBookingUrl?: string;
+  initialGeneralOperatingHours?: any;
+  initialOperatingHoursOverrides?: any;
+  initialHolidaySettings?: any;
   initialGlobalVoiceDisclaimer?: string;
   billingData?: any;
   superadminData?: any;
@@ -86,6 +89,10 @@ export default function DashboardClient({
   initialRwgConfig,
   initialBookingMode,
   initialBookingUrl,
+  initialGeneralOperatingHours,
+  initialOperatingHoursOverrides,
+  initialHolidaySettings,
+  initialGoogleConnected,
   initialGlobalVoiceDisclaimer,
   billingData,
   superadminData,
@@ -107,6 +114,10 @@ export default function DashboardClient({
       rwgConfig: initialRwgConfig || {},
       bookingMode: initialBookingMode || 'single_calendar',
       bookingUrl: initialBookingUrl || '',
+      generalOperatingHours: initialGeneralOperatingHours || {},
+      operatingHoursOverrides: initialOperatingHoursOverrides || [],
+      holidaySettings: initialHolidaySettings || {},
+      isGoogleConnected: initialGoogleConnected || false,
     });
     storeInitialized.current = true;
   }

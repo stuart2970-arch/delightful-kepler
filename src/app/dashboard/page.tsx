@@ -55,6 +55,9 @@ export default async function DashboardPage(props: { searchParams?: Promise<{ [k
   let isSuperAdmin = false;
   let bookingMode = 'single_calendar';
   let bookingUrl = '';
+  let generalOperatingHours = {};
+  let operatingHoursOverrides = [];
+  let holidaySettings = {};
   let globalVoiceDisclaimer = '';
   
   let chatbots: any[] = [];
@@ -95,7 +98,7 @@ export default async function DashboardPage(props: { searchParams?: Promise<{ [k
       
       const { data: tenant } = await supabase
         .from('tenants')
-        .select('company_name, plan_tier, is_rwg_enabled, rwg_business_name, rwg_street_address, rwg_city, rwg_postcode, rwg_phone, booking_mode, booking_url')
+        .select('company_name, plan_tier, is_rwg_enabled, rwg_business_name, rwg_street_address, rwg_city, rwg_postcode, rwg_phone, booking_mode, booking_url, general_operating_hours, operating_hours_overrides, holiday_settings')
         .eq('id', tenantId)
         .single();
       
@@ -111,6 +114,9 @@ export default async function DashboardPage(props: { searchParams?: Promise<{ [k
           rwg_postcode: tenant.rwg_postcode || '',
           rwg_phone: tenant.rwg_phone || '',
         };
+        generalOperatingHours = tenant.general_operating_hours || {};
+        operatingHoursOverrides = tenant.operating_hours_overrides || [];
+        holidaySettings = tenant.holiday_settings || {};
       }
     }
 
@@ -135,7 +141,7 @@ export default async function DashboardPage(props: { searchParams?: Promise<{ [k
       // Override tenant mapping to fetch the impersonated tenant's data using the admin client
       const { data: impTenant } = await queryClient
         .from('tenants')
-        .select('company_name, plan_tier, is_rwg_enabled, rwg_business_name, rwg_street_address, rwg_city, rwg_postcode, rwg_phone, booking_mode, booking_url')
+        .select('company_name, plan_tier, is_rwg_enabled, rwg_business_name, rwg_street_address, rwg_city, rwg_postcode, rwg_phone, booking_mode, booking_url, general_operating_hours, operating_hours_overrides, holiday_settings')
         .eq('id', tenantId)
         .single();
         
@@ -151,6 +157,9 @@ export default async function DashboardPage(props: { searchParams?: Promise<{ [k
           rwg_postcode: impTenant.rwg_postcode || '',
           rwg_phone: impTenant.rwg_phone || '',
         };
+        generalOperatingHours = impTenant.general_operating_hours || {};
+        operatingHoursOverrides = impTenant.operating_hours_overrides || [];
+        holidaySettings = impTenant.holiday_settings || {};
       }
     }
 
@@ -264,6 +273,9 @@ export default async function DashboardPage(props: { searchParams?: Promise<{ [k
         initialRwgConfig={rwgConfig}
         initialBookingMode={bookingMode}
         initialBookingUrl={bookingUrl}
+        initialGeneralOperatingHours={generalOperatingHours}
+        initialOperatingHoursOverrides={operatingHoursOverrides}
+        initialHolidaySettings={holidaySettings}
         initialGlobalVoiceDisclaimer={globalVoiceDisclaimer}
         billingData={billingData}
         superadminData={superadminData}

@@ -97,6 +97,12 @@ export interface DashboardState {
   setBookingMode: (mode: string) => void;
   bookingUrl: string;
   setBookingUrl: (url: string) => void;
+  generalOperatingHours: any;
+  setGeneralOperatingHours: (hours: any) => void;
+  operatingHoursOverrides: any[];
+  setOperatingHoursOverrides: (overrides: any[]) => void;
+  holidaySettings: any;
+  setHolidaySettings: (settings: any) => void;
 
   // Initialization
   initialize: (data: Partial<DashboardState>) => void;
@@ -132,9 +138,15 @@ export const useDashboardStore = create<DashboardState>((set) => ({
 
   rwgConfig: {},
   bookingMode: 'single_calendar',
-  setBookingMode: (bookingMode) => set({ bookingMode }),
+  setBookingMode: (mode) => set({ bookingMode: mode }),
   bookingUrl: '',
-  setBookingUrl: (bookingUrl) => set({ bookingUrl }),
+  setBookingUrl: (url) => set({ bookingUrl: url }),
+  generalOperatingHours: {},
+  setGeneralOperatingHours: (hours) => set({ generalOperatingHours: hours }),
+  operatingHoursOverrides: [],
+  setOperatingHoursOverrides: (overrides) => set({ operatingHoursOverrides: overrides }),
+  holidaySettings: {},
+  setHolidaySettings: (settings) => set({ holidaySettings: settings }),
 
   initialize: (data) => set((state) => ({ ...state, ...data })),
 }));

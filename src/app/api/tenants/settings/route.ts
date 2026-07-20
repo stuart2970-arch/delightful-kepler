@@ -15,7 +15,15 @@ export async function PATCH(req: NextRequest) {
 
     const supabase = createClient(supabaseUrl, supabaseKey);
 
-    const { tenantId, bookingMode, bookingUrl } = await req.json();
+    const body = await req.json();
+    const { 
+      tenantId, 
+      bookingMode, 
+      bookingUrl,
+      general_operating_hours,
+      operating_hours_overrides,
+      holiday_settings
+    } = body;
 
     if (!tenantId) {
       return NextResponse.json({ error: 'tenantId is required' }, { status: 400 });
@@ -24,8 +32,11 @@ export async function PATCH(req: NextRequest) {
     const { data, error } = await supabase
       .from('tenants')
       .update({
-        booking_mode: bookingMode,
-        booking_url: bookingUrl
+        ...(bookingMode !== undefined && { booking_mode: bookingMode }),
+        ...(bookingUrl !== undefined && { booking_url: bookingUrl }),
+        ...(general_operating_hours !== undefined && { general_operating_hours }),
+        ...(operating_hours_overrides !== undefined && { operating_hours_overrides }),
+        ...(holiday_settings !== undefined && { holiday_settings }),
       })
       .eq('id', tenantId)
       .select()

@@ -1,7 +1,15 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import Link from 'next/link';
+
+type GlobalHoliday = {
+  id: string;
+  country: string;
+  month: number;
+  day: number;
+  name: string;
+};
 
 type TenantStat = {
   id: string;
@@ -22,6 +30,59 @@ export default function SuperadminClient({ tenants }: { tenants: TenantStat[] })
 
   const totalMessages = tenants.reduce((acc, t) => acc + t.messagesCount, 0);
   const totalCrawls = tenants.reduce((acc, t) => acc + t.crawlsCount, 0);
+
+  const [holidays, setHolidays] = useState<GlobalHoliday[]>([]);
+  const [newHoliday, setNewHoliday] = useState({ country: 'UK', month: 1, day: 1, name: '' });
+  const [isSavingHoliday, setIsSavingHoliday] = useState(false);
+
+  const fetchHolidays = async () => {
+    try {
+      const res = await fetch('/api/global-holidays');
+      if (res.ok) {
+        const data = await res.json();
+        setHolidays(data.holidays || []);
+      }
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
+  useEffect(() => {
+    fetchHolidays();
+  }, []);
+
+  const handleAddHoliday = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newHoliday.name) return;
+    setIsSavingHoliday(true);
+    try {
+      const res = await fetch('/api/global-holidays', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(newHoliday)
+      });
+      if (res.ok) {
+        setNewHoliday({ country: 'UK', month: 1, day: 1, name: '' });
+        fetchHolidays();
+      }
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setIsSavingHoliday(false);
+    }
+  };
+
+  const handleDeleteHoliday = async (id: string) => {
+    if (!confirm('Delete this holiday?')) return;
+    try {
+      const res = await fetch(`/api/global-holidays?id=${id}`, { method: 'DELETE' });
+      if (res.ok) {
+        setHolidays(holidays.filter(h => h.id !== id));
+      }
+    } catch (err) {
+      console.error(err);
+    }
+  };
 
   return (
     <div className="max-w-7xl mx-auto p-6 space-y-6">
@@ -111,6 +172,66 @@ export default function SuperadminClient({ tenants }: { tenants: TenantStat[] })
               )}
             </tbody>
           </table>
+        </div>
+      </div>
+
+      {/* Global Holidays Manager */}
+      <div className="bg-gray-900 border border-gray-800 rounded-2xl overflow-hidden mt-8">
+        <div className="p-4 border-b border-gray-800">
+          <h2 className="text-lg font-bold text-white">Global Public Holidays</h2>
+          <p className="text-sm text-gray-400 mt-1">Managed across all tenants. Chatbots will prompt businesses to decide how to handle these dates.</p>
+        </div>
+        <div className="p-6">
+          <form onSubmit={handleAddHoliday} className="flex gap-4 items-end mb-6 bg-gray-950 p-4 rounded-xl border border-gray-800">
+            <div>
+              <label className="block text-xs font-semibold text-gray-400 mb-1">Country</label>
+              <select value={newHoliday.country} onChange={e => setNewHoliday({...newHoliday, country: e.target.value})} className="bg-gray-900 border border-gray-700 rounded-lg px-3 py-2 text-sm text-white">
+                <option value="UK">UK</option>
+                <option value="US">US</option>
+                <option value="CA">Canada</option>
+                <option value="AU">Australia</option>
+              </select>
+            </div>
+            <div>
+              <label className="block text-xs font-semibold text-gray-400 mb-1">Month</label>
+              <select value={newHoliday.month} onChange={e => setNewHoliday({...newHoliday, month: parseInt(e.target.value)})} className="bg-gray-900 border border-gray-700 rounded-lg px-3 py-2 text-sm text-white w-24">
+                {Array.from({length: 12}, (_, i) => i + 1).map(m => (
+                  <option key={m} value={m}>{new Date(0, m - 1).toLocaleString('default', { month: 'short' })}</option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label className="block text-xs font-semibold text-gray-400 mb-1">Day</label>
+              <input type="number" min="1" max="31" value={newHoliday.day} onChange={e => setNewHoliday({...newHoliday, day: parseInt(e.target.value)})} className="bg-gray-900 border border-gray-700 rounded-lg px-3 py-2 text-sm text-white w-20" />
+            </div>
+            <div className="flex-1">
+              <label className="block text-xs font-semibold text-gray-400 mb-1">Holiday Name</label>
+              <input required type="text" placeholder="e.g. Christmas Day" value={newHoliday.name} onChange={e => setNewHoliday({...newHoliday, name: e.target.value})} className="w-full bg-gray-900 border border-gray-700 rounded-lg px-3 py-2 text-sm text-white" />
+            </div>
+            <button type="submit" disabled={isSavingHoliday} className="px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white text-sm font-bold rounded-lg h-[38px]">
+              {isSavingHoliday ? 'Adding...' : 'Add Holiday'}
+            </button>
+          </form>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            {holidays.map(holiday => (
+              <div key={holiday.id} className="bg-gray-950 border border-gray-800 p-4 rounded-xl flex items-center justify-between group">
+                <div>
+                  <div className="text-xs font-bold text-indigo-400 uppercase tracking-wider mb-1">{holiday.country}</div>
+                  <div className="font-bold text-white">{holiday.name}</div>
+                  <div className="text-sm text-gray-400">{new Date(2000, holiday.month - 1, holiday.day).toLocaleDateString(undefined, { month: 'long', day: 'numeric' })}</div>
+                </div>
+                <button onClick={() => handleDeleteHoliday(holiday.id)} className="text-gray-600 hover:text-red-400 opacity-0 group-hover:opacity-100 transition-opacity">
+                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg>
+                </button>
+              </div>
+            ))}
+            {holidays.length === 0 && (
+              <div className="col-span-full text-center text-gray-500 py-8 text-sm italic">
+                No holidays configured yet.
+              </div>
+            )}
+          </div>
         </div>
       </div>
     </div>
