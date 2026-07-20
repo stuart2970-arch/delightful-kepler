@@ -53,6 +53,9 @@ export default async function DashboardPage(props: { searchParams?: Promise<{ [k
   let tenantId = '';
   let tenantName = 'My Workspace';
   let isSuperAdmin = false;
+  let domain = '';
+  let businessAddress = '';
+  let postcode = '';
   let bookingMode = 'single_calendar';
   let bookingUrl = '';
   let generalOperatingHours = {};
@@ -98,12 +101,15 @@ export default async function DashboardPage(props: { searchParams?: Promise<{ [k
       
       const { data: tenant } = await supabase
         .from('tenants')
-        .select('company_name, plan_tier, is_rwg_enabled, rwg_business_name, rwg_street_address, rwg_city, rwg_postcode, rwg_phone, booking_mode, booking_url, general_operating_hours, operating_hours_overrides, holiday_settings')
+        .select('company_name, domain, business_address, postcode, plan_tier, is_rwg_enabled, rwg_business_name, rwg_street_address, rwg_city, rwg_postcode, rwg_phone, booking_mode, booking_url, general_operating_hours, operating_hours_overrides, holiday_settings')
         .eq('id', tenantId)
         .single();
       
       if (tenant) {
         tenantName = tenant.company_name;
+        domain = tenant.domain || '';
+        businessAddress = tenant.business_address || '';
+        postcode = tenant.postcode || '';
         bookingMode = tenant.booking_mode || 'single_calendar';
         bookingUrl = tenant.booking_url || '';
         rwgConfig = {
@@ -141,12 +147,15 @@ export default async function DashboardPage(props: { searchParams?: Promise<{ [k
       // Override tenant mapping to fetch the impersonated tenant's data using the admin client
       const { data: impTenant } = await queryClient
         .from('tenants')
-        .select('company_name, plan_tier, is_rwg_enabled, rwg_business_name, rwg_street_address, rwg_city, rwg_postcode, rwg_phone, booking_mode, booking_url, general_operating_hours, operating_hours_overrides, holiday_settings')
+        .select('company_name, domain, business_address, postcode, plan_tier, is_rwg_enabled, rwg_business_name, rwg_street_address, rwg_city, rwg_postcode, rwg_phone, booking_mode, booking_url, general_operating_hours, operating_hours_overrides, holiday_settings')
         .eq('id', tenantId)
         .single();
         
       if (impTenant) {
         tenantName = impTenant.company_name;
+        domain = impTenant.domain || '';
+        businessAddress = impTenant.business_address || '';
+        postcode = impTenant.postcode || '';
         bookingMode = impTenant.booking_mode || 'single_calendar';
         bookingUrl = impTenant.booking_url || '';
         rwgConfig = {
@@ -270,6 +279,9 @@ export default async function DashboardPage(props: { searchParams?: Promise<{ [k
         initialConversations={conversations}
         initialMetrics={metrics}
         isSuperAdmin={isSuperAdmin}
+        initialDomain={domain}
+        initialBusinessAddress={businessAddress}
+        initialPostcode={postcode}
         initialRwgConfig={rwgConfig}
         initialBookingMode={bookingMode}
         initialBookingUrl={bookingUrl}

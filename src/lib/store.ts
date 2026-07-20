@@ -107,6 +107,14 @@ export interface DashboardState {
   billingData: any;
   superadminData: any;
 
+  // Account Settings Context
+  domain: string;
+  setDomain: (domain: string) => void;
+  businessAddress: string;
+  setBusinessAddress: (address: string) => void;
+  postcode: string;
+  setPostcode: (postcode: string) => void;
+
   // RWG & Scheduling Context
   rwgConfig: any;
   bookingMode: string;
@@ -151,6 +159,13 @@ export const useDashboardStore = create<DashboardState>((set) => ({
 
   billingData: null,
   superadminData: null,
+
+  domain: '',
+  setDomain: (domain) => set({ domain }),
+  businessAddress: '',
+  setBusinessAddress: (businessAddress) => set({ businessAddress }),
+  postcode: '',
+  setPostcode: (postcode) => set({ postcode }),
 
   rwgConfig: {},
   bookingMode: 'single_calendar',

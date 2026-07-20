@@ -64,6 +64,9 @@ interface DashboardClientProps {
   initialConversations: any[];
   initialMetrics: Metrics;
   isSuperAdmin: boolean;
+  initialDomain?: string;
+  initialBusinessAddress?: string;
+  initialPostcode?: string;
   initialRwgConfig?: any;
   initialBookingMode?: string;
   initialBookingUrl?: string;
@@ -86,6 +89,9 @@ export default function DashboardClient({
   initialConversations,
   initialMetrics,
   isSuperAdmin,
+  initialDomain,
+  initialBusinessAddress,
+  initialPostcode,
   initialRwgConfig,
   initialBookingMode,
   initialBookingUrl,
@@ -111,6 +117,9 @@ export default function DashboardClient({
       metrics: initialMetrics,
       billingData,
       superadminData,
+      domain: initialDomain || '',
+      businessAddress: initialBusinessAddress || '',
+      postcode: initialPostcode || '',
       rwgConfig: initialRwgConfig || {},
       bookingMode: initialBookingMode || 'single_calendar',
       bookingUrl: initialBookingUrl || '',
@@ -127,8 +136,38 @@ export default function DashboardClient({
     conversations, setConversations,
     metrics, setMetrics,
     activeTab, setActiveTab,
-    isMobileMenuOpen, setIsMobileMenuOpen
+    isMobileMenuOpen, setIsMobileMenuOpen,
+    domain, setDomain,
+    businessAddress, setBusinessAddress,
+    postcode, setPostcode
   } = useDashboardStore();
+  
+  const [isSavingAccountSettings, setIsSavingAccountSettings] = useState(false);
+
+  const handleSaveAccountSettings = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setIsSavingAccountSettings(true);
+    try {
+      const response = await fetch('/api/tenants/settings', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          tenantId,
+          domain,
+          business_address: businessAddress,
+          postcode
+        }),
+      });
+      if (!response.ok) {
+        throw new Error('Failed to save account settings');
+      }
+      alert('Account settings saved successfully!');
+    } catch (err: any) {
+      alert('Error: ' + err.message);
+    } finally {
+      setIsSavingAccountSettings(false);
+    }
+  };
 
   // Global settings state
   const [globalVoiceDisclaimer, setGlobalVoiceDisclaimer] = useState('');
@@ -705,8 +744,48 @@ export default function DashboardClient({
                   <p className="text-xs text-gray-400 mt-0.5">Manage your workspace account preferences.</p>
                 </div>
 
-                <div className="space-y-4">
-                </div>
+                <form onSubmit={handleSaveAccountSettings} className="space-y-4">
+                  <div>
+                    <label className="block text-xs font-semibold text-gray-400 mb-1.5">Custom Domain</label>
+                    <input
+                      type="text"
+                      value={domain}
+                      onChange={(e) => setDomain(e.target.value)}
+                      className="w-full bg-gray-950 border border-gray-800 rounded-xl px-3.5 py-2 text-sm text-white focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                      placeholder="e.g. www.mycompany.com"
+                    />
+                    <p className="text-[10px] text-gray-500 mt-1">Point this domain to the webpage we are creating for you.</p>
+                  </div>
+                  <div>
+                    <label className="block text-xs font-semibold text-gray-400 mb-1.5">Business Address</label>
+                    <input
+                      type="text"
+                      value={businessAddress}
+                      onChange={(e) => setBusinessAddress(e.target.value)}
+                      className="w-full bg-gray-950 border border-gray-800 rounded-xl px-3.5 py-2 text-sm text-white focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                      placeholder="e.g. 123 Business Road"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-semibold text-gray-400 mb-1.5">Postcode</label>
+                    <input
+                      type="text"
+                      value={postcode}
+                      onChange={(e) => setPostcode(e.target.value)}
+                      className="w-full bg-gray-950 border border-gray-800 rounded-xl px-3.5 py-2 text-sm text-white focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                      placeholder="e.g. AB12 3CD"
+                    />
+                  </div>
+                  <div className="pt-2">
+                    <button
+                      type="submit"
+                      disabled={isSavingAccountSettings}
+                      className="bg-indigo-600 hover:bg-indigo-500 text-white text-sm font-semibold py-2 px-5 rounded-xl shadow-lg shadow-indigo-500/10 transition-colors disabled:opacity-50"
+                    >
+                      {isSavingAccountSettings ? 'Saving Settings...' : 'Save Account Settings'}
+                    </button>
+                  </div>
+                </form>
               </div>
             )}
 

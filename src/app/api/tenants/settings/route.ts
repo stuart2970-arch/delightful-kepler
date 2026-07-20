@@ -18,6 +18,9 @@ export async function PATCH(req: NextRequest) {
     const body = await req.json();
     const { 
       tenantId, 
+      domain,
+      business_address,
+      postcode,
       bookingMode, 
       bookingUrl,
       general_operating_hours,
@@ -32,6 +35,9 @@ export async function PATCH(req: NextRequest) {
     const { data, error } = await supabase
       .from('tenants')
       .update({
+        ...(domain !== undefined && { domain }),
+        ...(business_address !== undefined && { business_address }),
+        ...(postcode !== undefined && { postcode }),
         ...(bookingMode !== undefined && { booking_mode: bookingMode }),
         ...(bookingUrl !== undefined && { booking_url: bookingUrl }),
         ...(general_operating_hours !== undefined && { general_operating_hours }),

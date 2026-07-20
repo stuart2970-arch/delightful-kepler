@@ -359,7 +359,8 @@ This runbook documents the key fixes and architecture enhancements implemented d
   3. Refactored the `SuperadminClient.tsx` UI to use a clean tabbed layout (Tenants & Usage, Pricing & Packaging, Global Holidays).
   4. Built a visual grid (`PricingMatrixView.tsx`) to let superadmins review active plans and feature limits in a single place. The architecture supports **Option A: Plan Versioning**, meaning changing a tier can spawn a new `v2` for new signups while grandfathering old accounts on their `v1` limits.
 
-- **Bug Fix**: Fixed a bug where creating or saving a service would fail with "Failed to save service". The `ServiceEditor` was not receiving the `chatbotId` from `SchedulingView`, leading to a rejection when attempting to insert the service into the database.
+- **Bug Fix**: Fixed a bug where creating or saving a service would fail with "Failed to save service" when assigning staff. The `staff_services` database table (which links staff to services) was missing from our database migrations. Created `20260720204500_create_staff_services.sql` to inject it into the database schema.
 - **Bug Fix**: Fixed two issues in the `BusinessOperatingHours.tsx` component when setting specific week overrides:
   1. Restored the "Copy Week 1" button that was missing from weeks 2, 3, and 4.
   2. Fixed the date picker behavior so it no longer interrupts typing with an alert popup. It now safely accepts user input and automatically snaps valid dates to the correct Monday for the week.
+- **Account Settings Profile UI**: Added a database migration (`20260720210000_add_business_address_to_tenants.sql`) to introduce `business_address` and `postcode` to the `tenants` table. Implemented an "Account Settings" form in the dashboard allowing users to input and manage their Custom Domain, Business Address, and Postcode. Plumbed these fields through the server components, Zustand store, and the PATCH API route.
