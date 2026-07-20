@@ -149,14 +149,39 @@ export default function BusinessOperatingHours() {
   };
 
   const handleDateChange = (dateStr: string) => {
+    if (!dateStr) return;
+    
     const selectedDate = new Date(dateStr);
-    if (selectedDate.getDay() !== 1) {
-      alert('Please select a Monday for the week commencing date.');
-      return;
+    // If it's a valid date, snap it to the Monday of that week
+    if (!isNaN(selectedDate.getTime())) {
+      const day = selectedDate.getDay();
+      const diff = selectedDate.getDate() - day + (day === 0 ? -6 : 1); // adjust when day is sunday
+      selectedDate.setDate(diff);
+      
+      const mondayStr = selectedDate.toISOString().split('T')[0];
+      setLocalOverrides(prev => {
+        const newWeeks = [...prev.weeks];
+        newWeeks[activeWeekIndex] = { ...newWeeks[activeWeekIndex], weekCommencingDate: mondayStr };
+        return { weeks: newWeeks };
+      });
+    } else {
+      setLocalOverrides(prev => {
+        const newWeeks = [...prev.weeks];
+        newWeeks[activeWeekIndex] = { ...newWeeks[activeWeekIndex], weekCommencingDate: dateStr };
+        return { weeks: newWeeks };
+      });
     }
+  };
+
+  const copyWeekOne = () => {
+    if (activeWeekIndex === 0) return;
     setLocalOverrides(prev => {
       const newWeeks = [...prev.weeks];
-      newWeeks[activeWeekIndex] = { ...newWeeks[activeWeekIndex], weekCommencingDate: dateStr };
+      const weekOne = prev.weeks[0];
+      newWeeks[activeWeekIndex] = {
+        ...weekOne,
+        weekCommencingDate: newWeeks[activeWeekIndex].weekCommencingDate // preserve current week's date
+      };
       return { weeks: newWeeks };
     });
   };
@@ -179,17 +204,26 @@ export default function BusinessOperatingHours() {
               ))}
             </div>
             
-            <div className="flex items-center justify-between bg-gray-800/30 px-4 py-3 border-b border-gray-800">
-              <div className="flex items-center gap-3">
-                <span className="text-sm font-bold text-gray-200">Week Commencing (Monday)</span>
-                <input 
-                  type="date" 
-                  value={schedule.weekCommencingDate}
-                  onChange={e => handleDateChange(e.target.value)}
-                  className="bg-gray-950 border border-gray-700 rounded px-3 py-1.5 text-xs text-white focus:border-indigo-500 outline-none"
-                />
+              <div className="flex items-center justify-between bg-gray-800/30 px-4 py-3 border-b border-gray-800">
+                <div className="flex items-center gap-3">
+                  <span className="text-sm font-bold text-gray-200">Week Commencing (Monday)</span>
+                  <input 
+                    type="date" 
+                    value={schedule.weekCommencingDate}
+                    onChange={e => handleDateChange(e.target.value)}
+                    className="bg-gray-950 border border-gray-700 rounded px-3 py-1.5 text-xs text-white focus:border-indigo-500 outline-none"
+                  />
+                </div>
+                {activeWeekIndex > 0 && (
+                  <button 
+                    type="button"
+                    onClick={copyWeekOne}
+                    className="text-xs font-bold bg-indigo-600/20 text-indigo-400 px-3 py-1.5 rounded-lg hover:bg-indigo-600 hover:text-white transition-colors"
+                  >
+                    Copy Week 1
+                  </button>
+                )}
               </div>
-            </div>
           </>
         )}
 

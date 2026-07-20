@@ -358,3 +358,5 @@ This runbook documents the key fixes and architecture enhancements implemented d
   2. Added an `is_active` flag to `subscription_tiers` and a `string_value` column to `tier_entitlements` to support non-integer text features (e.g., "Multiple Calendars").
   3. Refactored the `SuperadminClient.tsx` UI to use a clean tabbed layout (Tenants & Usage, Pricing & Packaging, Global Holidays).
   4. Built a visual grid (`PricingMatrixView.tsx`) to let superadmins review active plans and feature limits in a single place. The architecture supports **Option A: Plan Versioning**, meaning changing a tier can spawn a new `v2` for new signups while grandfathering old accounts on their `v1` limits.
+
+- **Bug Fix**: Fixed a bug where creating or saving a service would fail with "Failed to save service". The `ServiceEditor` was not receiving the `chatbotId` from `SchedulingView`, leading to a rejection when attempting to insert the service into the database.
