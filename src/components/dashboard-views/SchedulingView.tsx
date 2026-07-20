@@ -385,7 +385,8 @@ export default function SchedulingView() {
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                   {/* Services List using ServiceEditor */}
                   <ServiceEditor 
-                    tenantId={tenantId} 
+                    tenantId={tenantId}
+                    chatbotId={targetChatbotId}
                     services={filteredServices} 
                     setServices={setServices} 
                     staff={filteredStaff} 

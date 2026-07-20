@@ -352,3 +352,9 @@ This runbook documents the key fixes and architecture enhancements implemented d
   2. Built a Superadmin UI panel in the Control Center to manage upcoming global public holidays across the platform. Holidays can now be mapped to multiple countries (UK, Scotland, Wales, N Ireland, US, CA, AU) simultaneously.
   3. Extracted scheduling logic into a new `BusinessOperatingHours.tsx` dashboard component. This allows tenants to set a recurring "General" schedule or apply strict 4-week "Overrides". The UI was simplified to capture a single 'Open' and 'Close' time per day, recognizing that businesses stay open through lunch.
   4. Tenants can now configure how their chatbot handles bookings on global public holidays (Automatically Close, Follow General Times, or Prompt Beforehand).
+
+- **Dynamic Pricing Matrix (Plan Versioning)**: Built out a God Mode UI for the platform's pricing matrix.
+  1. Added a `20260720160000_pricing_matrix.sql` migration that injects all the requested spreadsheet features into the DB (e.g. Chatbots Limit, Google Calendar Sync, Custom Domains, etc.). Added an `is_available` flag to hide/grey-out features that are "coming soon".
+  2. Added an `is_active` flag to `subscription_tiers` and a `string_value` column to `tier_entitlements` to support non-integer text features (e.g., "Multiple Calendars").
+  3. Refactored the `SuperadminClient.tsx` UI to use a clean tabbed layout (Tenants & Usage, Pricing & Packaging, Global Holidays).
+  4. Built a visual grid (`PricingMatrixView.tsx`) to let superadmins review active plans and feature limits in a single place. The architecture supports **Option A: Plan Versioning**, meaning changing a tier can spawn a new `v2` for new signups while grandfathering old accounts on their `v1` limits.

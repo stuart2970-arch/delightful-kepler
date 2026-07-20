@@ -1,7 +1,7 @@
 'use client';
 import React, { useState } from 'react';
 
-export default function ServiceEditor({ tenantId, services, setServices, staff }: any) {
+export default function ServiceEditor({ tenantId, chatbotId, services, setServices, staff }: any) {
   const [showAddService, setShowAddService] = useState(false);
   const [editingServiceId, setEditingServiceId] = useState<string | null>(null);
   const [newServiceName, setNewServiceName] = useState('');
@@ -59,6 +59,7 @@ export default function ServiceEditor({ tenantId, services, setServices, staff }
       const body = {
         id: editingServiceId,
         tenant_id: tenantId,
+        chatbot_id: chatbotId,
         name: newServiceName,
         description: newServiceDescription,
         duration_minutes: newServiceDuration,
