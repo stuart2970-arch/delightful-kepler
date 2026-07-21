@@ -15,8 +15,8 @@ export default function SchedulingView() {
     }
   }, [chatbots, targetChatbotId]);
 
-  const filteredServices = services.filter(s => s.chatbot_id === targetChatbotId);
-  const filteredStaff = staff.filter(s => s.chatbot_id === targetChatbotId);
+  const filteredServices = services.filter(s => s.chatbot_id === targetChatbotId || !s.chatbot_id);
+  const filteredStaff = staff.filter(s => s.chatbot_id === targetChatbotId || !s.chatbot_id);
 
   const [activeWeekIndex, setActiveWeekIndex] = useState(0);
   const [isSavingBookingMode, setIsSavingBookingMode] = useState(false);
