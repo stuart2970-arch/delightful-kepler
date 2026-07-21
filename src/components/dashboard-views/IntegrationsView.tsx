@@ -258,7 +258,11 @@ export default function IntegrationsView() {
                                 if (data.city) setRwgCity(data.city);
                                 if (data.postcode) setRwgPostcode(data.postcode);
                                 
-                                alert("Successfully imported details from Google Maps!");
+                                if (data.warning) {
+                                  alert("Partial Import: " + data.warning + "\n\nWe extracted your business name from the URL, but you will need to manually enter your address since it is not fully visible to the Google Places API yet.");
+                                } else {
+                                  alert("Successfully imported details from Google Maps!");
+                                }
                               } catch (err: any) {
                                 alert(err.message || 'Error importing from Google');
                               } finally {

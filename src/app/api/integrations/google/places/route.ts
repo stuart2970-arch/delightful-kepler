@@ -54,7 +54,17 @@ export async function POST(req: NextRequest) {
     const searchData = await searchRes.json();
 
     if (!searchData.results || searchData.results.length === 0) {
-      return NextResponse.json({ error: 'Could not find a matching business on Google Places.' }, { status: 404 });
+      // Fallback: If we couldn't find the exact place (often happens with brand new unindexed businesses), 
+      // just return the basic info we managed to parse from the URL!
+      return NextResponse.json({
+        name: query,
+        phone: '',
+        streetAddress: '',
+        city: '',
+        postcode: '',
+        placeId: '',
+        warning: 'Business not yet fully indexed by Google Places API. Partially imported name from URL.'
+      });
     }
 
     const placeId = searchData.results[0].place_id;
