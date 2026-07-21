@@ -38,9 +38,12 @@ export async function PATCH(req: NextRequest) {
       .update({
         ...(domain !== undefined && { domain }),
         ...(rwgConfig !== undefined && { 
+          is_rwg_enabled: rwgConfig.is_rwg_enabled,
+          rwg_business_name: rwgConfig.rwg_business_name,
           rwg_street_address: rwgConfig.rwg_street_address,
           rwg_city: rwgConfig.rwg_city,
-          rwg_postcode: rwgConfig.rwg_postcode
+          rwg_postcode: rwgConfig.rwg_postcode,
+          rwg_phone: rwgConfig.rwg_phone
         }),
         ...(bookingMode !== undefined && { booking_mode: bookingMode }),
         ...(bookingUrl !== undefined && { booking_url: bookingUrl }),

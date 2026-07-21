@@ -20,22 +20,24 @@ export default function IntegrationsView() {
 
 
   const handleSaveRwgSettings = async () => {
-    if (!supabase) return;
     setIsSavingRwg(true);
     try {
-      const { error } = await supabase
-        .from('tenants')
-        .update({
-          is_rwg_enabled: isRwgEnabled,
-          rwg_business_name: rwgBusinessName,
-          rwg_street_address: rwgStreetAddress,
-          rwg_city: rwgCity,
-          rwg_postcode: rwgPostcode,
-          rwg_phone: rwgPhone
+      const res = await fetch('/api/tenants/settings', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          tenantId,
+          rwgConfig: {
+            is_rwg_enabled: isRwgEnabled,
+            rwg_business_name: rwgBusinessName,
+            rwg_street_address: rwgStreetAddress,
+            rwg_city: rwgCity,
+            rwg_postcode: rwgPostcode,
+            rwg_phone: rwgPhone
+          }
         })
-        .eq('id', tenantId);
-
-      if (error) throw error;
+      });
+      if (!res.ok) throw new Error('Failed to update settings');
       alert('Reserve with Google settings updated successfully!');
     } catch (err: any) {
       alert('Failed to update Reserve with Google settings: ' + err.message);
@@ -45,18 +47,18 @@ export default function IntegrationsView() {
   };
 
   const handleSaveBookingMode = async () => {
-    if (!supabase) return;
     setIsSavingBookingMode(true);
     try {
-      const { error } = await supabase
-        .from('tenants')
-        .update({
-          booking_mode: bookingMode,
-          booking_url: bookingMode === 'external_platform' ? bookingUrl : null
+      const res = await fetch('/api/tenants/settings', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          tenantId,
+          bookingMode,
+          bookingUrl: bookingMode === 'external_platform' ? bookingUrl : null
         })
-        .eq('id', tenantId);
-
-      if (error) throw error;
+      });
+      if (!res.ok) throw new Error('Failed to update settings');
       alert('Booking Mode updated successfully!');
     } catch (err: any) {
       alert('Failed to update Booking Mode: ' + err.message);
