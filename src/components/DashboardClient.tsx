@@ -67,8 +67,6 @@ interface DashboardClientProps {
   initialDomain?: string;
   initialServices?: any[];
   initialStaff?: any[];
-  initialBusinessAddress?: string;
-  initialPostcode?: string;
   initialRwgConfig?: any;
   initialBookingMode?: string;
   initialBookingUrl?: string;
@@ -92,8 +90,6 @@ export default function DashboardClient({
   initialMetrics,
   isSuperAdmin,
   initialDomain,
-  initialBusinessAddress,
-  initialPostcode,
   initialRwgConfig,
   initialBookingMode,
   initialBookingUrl,
@@ -122,8 +118,6 @@ export default function DashboardClient({
       billingData,
       superadminData,
       domain: initialDomain || '',
-      businessAddress: initialBusinessAddress || '',
-      postcode: initialPostcode || '',
       rwgConfig: initialRwgConfig || {},
       bookingMode: initialBookingMode || 'single_calendar',
       bookingUrl: initialBookingUrl || '',
@@ -142,8 +136,7 @@ export default function DashboardClient({
     activeTab, setActiveTab,
     isMobileMenuOpen, setIsMobileMenuOpen,
     domain, setDomain,
-    businessAddress, setBusinessAddress,
-    postcode, setPostcode,
+    rwgConfig, setRwgConfig,
     services, setServices,
     staff, setStaff
   } = useDashboardStore();
@@ -165,9 +158,8 @@ export default function DashboardClient({
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           tenantId,
-          domain,
-          business_address: businessAddress,
-          postcode
+          domain: domain,
+          rwgConfig: rwgConfig
         }),
       });
       if (!response.ok) {
@@ -760,18 +752,28 @@ const globalBotId = '00000000-0000-0000-0000-000000000000';
                     <label className="block text-xs font-semibold text-gray-400 mb-1.5">Business Address</label>
                     <input
                       type="text"
-                      value={businessAddress}
-                      onChange={(e) => setBusinessAddress(e.target.value)}
+                      value={rwgConfig?.rwg_street_address || ''}
+                      onChange={(e) => setRwgConfig({ ...rwgConfig, rwg_street_address: e.target.value })}
                       className="w-full bg-gray-950 border border-gray-800 rounded-xl px-3.5 py-2 text-sm text-white focus:outline-none focus:ring-1 focus:ring-indigo-500"
                       placeholder="e.g. 123 Business Road"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-semibold text-gray-400 mb-1.5">City</label>
+                    <input
+                      type="text"
+                      value={rwgConfig?.rwg_city || ''}
+                      onChange={(e) => setRwgConfig({ ...rwgConfig, rwg_city: e.target.value })}
+                      className="w-full bg-gray-950 border border-gray-800 rounded-xl px-3.5 py-2 text-sm text-white focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                      placeholder="e.g. London"
                     />
                   </div>
                   <div>
                     <label className="block text-xs font-semibold text-gray-400 mb-1.5">Postcode</label>
                     <input
                       type="text"
-                      value={postcode}
-                      onChange={(e) => setPostcode(e.target.value)}
+                      value={rwgConfig?.rwg_postcode || ''}
+                      onChange={(e) => setRwgConfig({ ...rwgConfig, rwg_postcode: e.target.value })}
                       className="w-full bg-gray-950 border border-gray-800 rounded-xl px-3.5 py-2 text-sm text-white focus:outline-none focus:ring-1 focus:ring-indigo-500"
                       placeholder="e.g. AB12 3CD"
                     />

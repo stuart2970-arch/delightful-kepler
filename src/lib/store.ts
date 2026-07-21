@@ -162,12 +162,8 @@ export const useDashboardStore = create<DashboardState>((set) => ({
 
   domain: '',
   setDomain: (domain) => set({ domain }),
-  businessAddress: '',
-  setBusinessAddress: (businessAddress) => set({ businessAddress }),
-  postcode: '',
-  setPostcode: (postcode) => set({ postcode }),
-
   rwgConfig: {},
+  setRwgConfig: (rwgConfig) => set({ rwgConfig }),
   bookingMode: 'single_calendar',
   setBookingMode: (mode) => set({ bookingMode: mode }),
   bookingUrl: '',

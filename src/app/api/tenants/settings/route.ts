@@ -21,6 +21,7 @@ export async function PATCH(req: NextRequest) {
       domain,
       business_address,
       postcode,
+      rwgConfig,
       bookingMode, 
       bookingUrl,
       general_operating_hours,
@@ -36,8 +37,11 @@ export async function PATCH(req: NextRequest) {
       .from('tenants')
       .update({
         ...(domain !== undefined && { domain }),
-        ...(business_address !== undefined && { business_address }),
-        ...(postcode !== undefined && { postcode }),
+        ...(rwgConfig !== undefined && { 
+          rwg_street_address: rwgConfig.rwg_street_address,
+          rwg_city: rwgConfig.rwg_city,
+          rwg_postcode: rwgConfig.rwg_postcode
+        }),
         ...(bookingMode !== undefined && { booking_mode: bookingMode }),
         ...(bookingUrl !== undefined && { booking_url: bookingUrl }),
         ...(general_operating_hours !== undefined && { general_operating_hours }),
