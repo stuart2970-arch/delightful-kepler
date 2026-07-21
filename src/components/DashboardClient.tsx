@@ -65,6 +65,8 @@ interface DashboardClientProps {
   initialMetrics: Metrics;
   isSuperAdmin: boolean;
   initialDomain?: string;
+  initialServices?: any[];
+  initialStaff?: any[];
   initialBusinessAddress?: string;
   initialPostcode?: string;
   initialRwgConfig?: any;
@@ -100,6 +102,8 @@ export default function DashboardClient({
   initialHolidaySettings,
   initialGoogleConnected,
   initialGlobalVoiceDisclaimer,
+  initialServices = [],
+  initialStaff = [],
   billingData,
   superadminData,
   isImpersonating,
@@ -131,7 +135,7 @@ export default function DashboardClient({
     storeInitialized.current = true;
   }
 
-  const {
+  const { 
     chatbots, setChatbots,
     conversations, setConversations,
     metrics, setMetrics,
@@ -139,9 +143,17 @@ export default function DashboardClient({
     isMobileMenuOpen, setIsMobileMenuOpen,
     domain, setDomain,
     businessAddress, setBusinessAddress,
-    postcode, setPostcode
+    postcode, setPostcode,
+    services, setServices,
+    staff, setStaff
   } = useDashboardStore();
   
+  // Sync initial services/staff into store
+  useEffect(() => {
+    if (initialServices.length > 0 && services.length === 0) setServices(initialServices);
+    if (initialStaff.length > 0 && staff.length === 0) setStaff(initialStaff);
+  }, [initialServices, initialStaff, services.length, staff.length, setServices, setStaff]);
+
   const [isSavingAccountSettings, setIsSavingAccountSettings] = useState(false);
 
   const handleSaveAccountSettings = async (e: React.FormEvent) => {

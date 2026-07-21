@@ -187,6 +187,18 @@ export default async function DashboardPage(props: { searchParams?: Promise<{ [k
     const { data: convs } = await convsQuery;
     if (convs) conversations = convs;
 
+    // Services
+    let servicesQuery = queryClient.from('services').select('*').order('created_at', { ascending: false });
+    if (queryFilter && queryFilter.value) servicesQuery = servicesQuery.eq(queryFilter.key, queryFilter.value);
+    const { data: srvs } = await servicesQuery;
+    let services = srvs || [];
+
+    // Staff
+    let staffQuery = queryClient.from('staff').select('*').order('created_at', { ascending: false });
+    if (queryFilter && queryFilter.value) staffQuery = staffQuery.eq(queryFilter.key, queryFilter.value);
+    const { data: stff } = await staffQuery;
+    let staff = stff || [];
+
     // Metrics (Chunks) - document_chunks doesn't have tenant_id, so we filter by chatbot_ids
     let chunksCount = 0;
     const chatbotIds = chatbots.map((b: any) => b.id);
@@ -277,6 +289,8 @@ export default async function DashboardPage(props: { searchParams?: Promise<{ [k
         userName={userName}
         initialChatbots={chatbots}
         initialConversations={conversations}
+        initialServices={services}
+        initialStaff={staff}
         initialMetrics={metrics}
         isSuperAdmin={isSuperAdmin}
         initialDomain={domain}

@@ -60,6 +60,7 @@ export default function LoginPage() {
               full_name: fullName,
               company_name: companyName,
               website_url: websiteUrl,
+              slug: companyName.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, ''),
             },
           },
         });
