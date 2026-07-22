@@ -5,6 +5,7 @@ CREATE TABLE IF NOT EXISTS public.feature_categories (
     display_order INT DEFAULT 0,
     created_at TIMESTAMPTZ DEFAULT NOW()
 );
+ALTER TABLE public.feature_categories ADD COLUMN IF NOT EXISTS display_order INT DEFAULT 0;
 
 -- 2. Centralized Features Catalog
 CREATE TABLE IF NOT EXISTS public.features (
@@ -16,6 +17,7 @@ CREATE TABLE IF NOT EXISTS public.features (
     base_cost_incurred NUMERIC(10, 4) DEFAULT 0.0000,
     created_at TIMESTAMPTZ DEFAULT NOW()
 );
+ALTER TABLE public.features ADD COLUMN IF NOT EXISTS base_cost_incurred NUMERIC(10, 4) DEFAULT 0.0000;
 
 -- 3. Tiers Reference Table (already exists, but just in case)
 CREATE TABLE IF NOT EXISTS public.subscription_tiers (
