@@ -117,6 +117,7 @@ export interface DashboardState {
 
   // RWG & Scheduling Context
   rwgConfig: any;
+  setRwgConfig: (config: any) => void;
   bookingMode: string;
   setBookingMode: (mode: string) => void;
   bookingUrl: string;
@@ -138,6 +139,11 @@ export const useDashboardStore = create<DashboardState>((set) => ({
   userEmail: '',
   userName: '',
   isSuperAdmin: false,
+  
+  businessAddress: '',
+  setBusinessAddress: (addr) => set({ businessAddress: addr }),
+  postcode: '',
+  setPostcode: (postcode) => set({ postcode }),
   
   activeTab: 'chatbots',
   setActiveTab: (tab) => set({ activeTab: tab }),

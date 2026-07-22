@@ -59,3 +59,65 @@ export async function getTenantEffectiveLimit(tenantId: string, featureId: strin
   if (baseLimit === null) return null;
   return baseLimit + addonBonus;
 }
+
+export type EntitlementCheckResult = {
+  allowed: boolean;
+  error?: string;
+  limit?: number;
+  currentUsage?: number;
+};
+
+export async function checkFeatureEntitlement(
+  dbClient: any,
+  tenantId: string,
+  featureId: string,
+  requestedVolume: number = 1
+): Promise<EntitlementCheckResult> {
+  const limit = await getTenantEffectiveLimit(tenantId, featureId);
+  if (limit === 0) {
+    return { allowed: false, error: 'Feature not included in your plan.', limit: 0, currentUsage: 0 };
+  }
+  if (limit === null) {
+    return { allowed: true };
+  }
+
+  // Check usage
+  const firstDay = new Date();
+  firstDay.setDate(1);
+  firstDay.setHours(0, 0, 0, 0);
+
+  const { data: usageRows } = await dbClient
+    .from('usage_ledger')
+    .select('quantity')
+    .eq('tenant_id', tenantId)
+    .eq('feature_id', featureId)
+    .gte('recorded_at', firstDay.toISOString());
+
+  const currentUsage = usageRows ? usageRows.reduce((sum: number, r: any) => sum + Number(r.quantity), 0) : 0;
+
+  if (currentUsage + requestedVolume > limit) {
+    return {
+      allowed: false,
+      limit,
+      currentUsage,
+      error: `Quota exceeded. Limit: ${limit}. Used: ${currentUsage}.`
+    };
+  }
+
+  return { allowed: true, limit, currentUsage };
+}
+
+export async function logMeteredUsage(
+  dbClient: any,
+  tenantId: string,
+  featureId: string,
+  quantity: number = 1,
+  description?: string
+): Promise<void> {
+  await dbClient.from('usage_logs').insert({
+    tenant_id: tenantId,
+    feature_id: featureId,
+    amount: quantity,
+    description: description || null
+  });
+}

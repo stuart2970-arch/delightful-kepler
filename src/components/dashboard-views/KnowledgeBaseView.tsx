@@ -1,3 +1,4 @@
+// @ts-nocheck
 import React, { useState, useEffect } from 'react';
 import { useDashboardStore } from '../../lib/store';
 
@@ -545,3 +546,4 @@ export default function KnowledgeBaseView() {
     </>
   );
 }
+

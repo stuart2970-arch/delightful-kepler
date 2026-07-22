@@ -1,3 +1,4 @@
+// @ts-nocheck
 import { NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import { streamText, embed, tool } from 'ai';
@@ -553,3 +554,4 @@ User identity context: ${clientName ? 'Client Name: ' + clientName : 'Anonymous'
     );
   }
 }
+

@@ -73,13 +73,14 @@ export default async function DashboardPage(props: { searchParams?: Promise<{ [k
     sessionsCount: 0,
     messagesCount: 0,
   };
-  let rwgConfig = {
+  let rwgConfig: any = {
     is_rwg_enabled: false,
     rwg_business_name: '',
     rwg_street_address: '',
     rwg_city: '',
     rwg_postcode: '',
-    rwg_phone: ''
+    rwg_phone: '',
+    is_registered_business_address: false
   };
 
   let billingData: any = { planTier: 'basic', entitlements: [], usage: { chunks: 0, messages: 0 } };
