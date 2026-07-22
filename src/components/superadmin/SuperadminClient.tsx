@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
-import PricingMatrixView from './PricingMatrixView';
+import SuperAdminEntitlementsView from './SuperAdminEntitlementsView';
 
 type GlobalHoliday = {
   id: string;
@@ -339,7 +339,7 @@ export default function SuperadminClient({
       )}
 
       {activeTab === 'pricing' && (
-        <PricingMatrixView />
+        <SuperAdminEntitlementsView />
       )}
 
       {activeTab === 'holidays' && (
