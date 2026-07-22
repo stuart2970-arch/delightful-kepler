@@ -1,0 +1,3 @@
+ALTER TABLE public.subscription_tiers 
+ADD COLUMN IF NOT EXISTS monthly_price NUMERIC(10, 2) DEFAULT 0.00,
+ADD COLUMN IF NOT EXISTS yearly_price NUMERIC(10, 2) DEFAULT 0.00;

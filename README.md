@@ -372,3 +372,5 @@ This runbook documents the key fixes and architecture enhancements implemented d
 - **2026-07-22:** Investigated and resolved an issue where the SuperAdmin Entitlements view was not rendering correctly due to a build failure caused by TypeScript errors introduced in earlier steps. Fixed the TS errors by ignoring them temporarily and rewriting legacy entitlement functions. Changes successfully pushed to main branch.
 
 - **2026-07-22 (Later):** Resolved an issue where only two features were appearing in the Dynamic Tier Entitlements UI. The root cause was that the migration script dropped the legacy tier_entitlements mapping table but only re-seeded two example features. I ran a script to re-populate the database with all 27 platform features and their correct numeric tier caps, restoring the full UI.
+
+- **2026-07-22 (Drag and Drop):** Added drag-and-drop feature reordering to the SuperAdminEntitlementsView component using HTML5 native drag and drop. Created a new PATCH endpoint at /api/superadmin/features/reorder to sync the order changes sequentially with the display_order column in the features table.
