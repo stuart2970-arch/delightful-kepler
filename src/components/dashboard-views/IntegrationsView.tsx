@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { useDashboardStore } from '../../lib/store';
 
 export default function IntegrationsView() {
-  const { tenantId, isGoogleConnected, setIsGoogleConnected, bookingMode, bookingUrl, rwgConfig, services, staff } = useDashboardStore();
+  const { tenantId, isGoogleConnected, setIsGoogleConnected, bookingMode, bookingUrl, rwgConfig, setRwgConfig, services, staff } = useDashboardStore();
 
   const [rwgIntegrityLogs, setRwgIntegrityLogs] = useState<string[]>([]);
   const [isCheckingRwgIntegrity, setIsCheckingRwgIntegrity] = useState(false);
@@ -22,22 +22,28 @@ export default function IntegrationsView() {
   const handleSaveRwgSettings = async () => {
     setIsSavingRwg(true);
     try {
+      const newConfig = {
+        is_rwg_enabled: isRwgEnabled,
+        rwg_business_name: rwgBusinessName,
+        rwg_street_address: rwgStreetAddress,
+        rwg_city: rwgCity,
+        rwg_postcode: rwgPostcode,
+        rwg_phone: rwgPhone
+      };
+      
       const res = await fetch('/api/tenants/settings', {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           tenantId,
-          rwgConfig: {
-            is_rwg_enabled: isRwgEnabled,
-            rwg_business_name: rwgBusinessName,
-            rwg_street_address: rwgStreetAddress,
-            rwg_city: rwgCity,
-            rwg_postcode: rwgPostcode,
-            rwg_phone: rwgPhone
-          }
+          rwgConfig: newConfig
         })
       });
       if (!res.ok) throw new Error('Failed to update settings');
+      
+      // Update global store so navigating away and back doesn't reset it
+      setRwgConfig(newConfig);
+      
       alert('Reserve with Google settings updated successfully!');
     } catch (err: any) {
       alert('Failed to update Reserve with Google settings: ' + err.message);
