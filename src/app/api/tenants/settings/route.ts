@@ -43,7 +43,8 @@ export async function PATCH(req: NextRequest) {
           rwg_street_address: rwgConfig.rwg_street_address,
           rwg_city: rwgConfig.rwg_city,
           rwg_postcode: rwgConfig.rwg_postcode,
-          rwg_phone: rwgConfig.rwg_phone
+          rwg_phone: rwgConfig.rwg_phone,
+          is_registered_business_address: rwgConfig.is_registered_business_address
         }),
         ...(bookingMode !== undefined && { booking_mode: bookingMode }),
         ...(bookingUrl !== undefined && { booking_url: bookingUrl }),

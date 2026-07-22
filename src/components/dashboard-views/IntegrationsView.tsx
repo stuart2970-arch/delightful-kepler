@@ -15,6 +15,7 @@ export default function IntegrationsView() {
   const [rwgCity, setRwgCity] = useState(rwgConfig?.city || '');
   const [rwgPostcode, setRwgPostcode] = useState(rwgConfig?.postcode || '');
   const [rwgPhone, setRwgPhone] = useState(rwgConfig?.telephone || '');
+  const [isRegisteredBusinessAddress, setIsRegisteredBusinessAddress] = useState(rwgConfig?.is_registered_business_address || false);
 
   const rwgStatus = isRwgEnabled ? (rwgBusinessName && rwgStreetAddress ? 'Active on Google' : 'Pending Verification') : 'Disconnected';
 
@@ -28,7 +29,8 @@ export default function IntegrationsView() {
         rwg_street_address: rwgStreetAddress,
         rwg_city: rwgCity,
         rwg_postcode: rwgPostcode,
-        rwg_phone: rwgPhone
+        rwg_phone: rwgPhone,
+        is_registered_business_address: isRegisteredBusinessAddress
       };
       
       const res = await fetch('/api/tenants/settings', {
@@ -306,6 +308,20 @@ export default function IntegrationsView() {
                           <label className="block text-xs font-semibold text-gray-400 mb-1.5">Postcode</label>
                           <input type="text" value={rwgPostcode} onChange={(e) => setRwgPostcode(e.target.value)} className="w-full bg-gray-900 border border-gray-800 rounded-xl px-3.5 py-2 text-sm text-white focus:outline-none focus:ring-1 focus:ring-indigo-500" placeholder="SW1A 1AA" />
                         </div>
+                      </div>
+
+                      <div className="pt-2">
+                        <label className="flex items-center gap-2 cursor-pointer">
+                          <input 
+                            type="checkbox" 
+                            checked={isRegisteredBusinessAddress}
+                            onChange={(e) => setIsRegisteredBusinessAddress(e.target.checked)}
+                            className="w-4 h-4 text-indigo-600 bg-gray-900 border-gray-700 rounded focus:ring-indigo-500 focus:ring-2"
+                          />
+                          <span className="text-sm font-medium text-gray-300">
+                            Confirm this is also the registered business address
+                          </span>
+                        </label>
                       </div>
 
                       <div className="flex items-center gap-3 pt-2">
