@@ -6,6 +6,7 @@ type Feature = {
   name: string;
   is_metered: boolean;
   category_id: string;
+  display_order?: number;
 };
 
 type Entitlement = {
@@ -18,12 +19,21 @@ type Entitlement = {
 export default function SuperAdminEntitlementsView() {
   const [entitlements, setEntitlements] = useState<Entitlement[]>([]);
   const [loading, setLoading] = useState(true);
+  const [orderedFeatures, setOrderedFeatures] = useState<Feature[]>([]);
+  const [draggedFeatureId, setDraggedFeatureId] = useState<string | null>(null);
 
   useEffect(() => {
     fetch('/api/superadmin/entitlements')
       .then((res) => res.json())
       .then((res) => {
-        setEntitlements(res.data || []);
+        const data = res.data || [];
+        setEntitlements(data);
+        
+        // Extract unique features and sort by display_order
+        const unique = Array.from(new Map(data.map((e: Entitlement) => [e.feature_id, e.features])).values()) as Feature[];
+        unique.sort((a, b) => (a.display_order || 0) - (b.display_order || 0));
+        setOrderedFeatures(unique);
+        
         setLoading(false);
       });
   }, []);
@@ -54,7 +64,55 @@ export default function SuperAdminEntitlementsView() {
   if (loading) return <div className="p-8 text-center text-gray-400 animate-pulse">Loading dynamic feature matrix...</div>;
 
   const tiers = ['basic', 'starter', 'premium', 'ultimate'];
-  const uniqueFeatures = Array.from(new Map(entitlements.map(e => [e.feature_id, e.features])).values());
+
+  const handleDragStart = (e: React.DragEvent, id: string) => {
+    e.dataTransfer.setData('text/plain', id);
+    setDraggedFeatureId(id);
+    // Needed for Firefox
+    e.dataTransfer.effectAllowed = 'move';
+  };
+
+  const handleDragOver = (e: React.DragEvent) => {
+    e.preventDefault(); // allow drop
+    e.dataTransfer.dropEffect = 'move';
+  };
+
+  const handleDrop = async (e: React.DragEvent, targetId: string) => {
+    e.preventDefault();
+    const sourceId = e.dataTransfer.getData('text/plain');
+    setDraggedFeatureId(null);
+    if (sourceId === targetId || !sourceId) return;
+
+    const newOrder = [...orderedFeatures];
+    const sourceIndex = newOrder.findIndex(f => f.id === sourceId);
+    const targetIndex = newOrder.findIndex(f => f.id === targetId);
+
+    if (sourceIndex < 0 || targetIndex < 0) return;
+
+    // Reorder array
+    const [movedItem] = newOrder.splice(sourceIndex, 1);
+    newOrder.splice(targetIndex, 0, movedItem);
+
+    // Update display_order property
+    const updatedFeatures = newOrder.map((f, index) => ({
+      ...f,
+      display_order: index
+    }));
+
+    setOrderedFeatures(updatedFeatures);
+
+    // Persist to backend
+    const payload = updatedFeatures.map(f => ({ id: f.id, display_order: f.display_order }));
+    try {
+      await fetch('/api/superadmin/features/reorder', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ features: payload })
+      });
+    } catch (err) {
+      console.error("Failed to reorder features", err);
+    }
+  };
 
   return (
     <div className="bg-gray-900 border border-gray-800 rounded-2xl overflow-hidden mt-8">
@@ -78,11 +136,22 @@ export default function SuperAdminEntitlementsView() {
             </tr>
           </thead>
           <tbody className="divide-y divide-gray-800">
-            {uniqueFeatures.map(feature => {
+            {orderedFeatures.map(feature => {
               return (
-                <tr key={feature.id} className="hover:bg-gray-800/30 transition-colors">
-                  <td className="px-6 py-4">
-                    <div className="font-medium text-gray-200">{feature.name}</div>
+                <tr 
+                  key={feature.id} 
+                  className={`hover:bg-gray-800/30 transition-colors ${draggedFeatureId === feature.id ? 'opacity-50 bg-gray-800' : ''}`}
+                  draggable
+                  onDragStart={(e) => handleDragStart(e, feature.id)}
+                  onDragOver={handleDragOver}
+                  onDrop={(e) => handleDrop(e, feature.id)}
+                  onDragEnd={() => setDraggedFeatureId(null)}
+                >
+                  <td className="px-6 py-4 cursor-grab active:cursor-grabbing">
+                    <div className="flex items-center gap-2">
+                      <span className="text-gray-500 hover:text-gray-300">⋮⋮</span>
+                      <div className="font-medium text-gray-200">{feature.name}</div>
+                    </div>
                     <div className="text-xs text-gray-500 mt-1 text-[10px] font-mono">{feature.id}</div>
                   </td>
                   
