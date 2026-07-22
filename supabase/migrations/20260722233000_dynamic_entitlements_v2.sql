@@ -17,12 +17,13 @@ CREATE TABLE IF NOT EXISTS public.features (
     created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
--- 3. Tiers Reference Table
+-- 3. Tiers Reference Table (already exists, but just in case)
 CREATE TABLE IF NOT EXISTS public.subscription_tiers (
-    tier_id TEXT PRIMARY KEY,
+    id TEXT PRIMARY KEY,
     name TEXT NOT NULL,
     stripe_price_id TEXT UNIQUE,
-    created_at TIMESTAMPTZ DEFAULT NOW()
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    is_active BOOLEAN DEFAULT TRUE
 );
 
 -- 4. Rebuild Tier Entitlements Bridge
@@ -31,7 +32,7 @@ CREATE TABLE IF NOT EXISTS public.subscription_tiers (
 -- To be safe, we'll create it if not exists, and if it does exist, we ensure limit_value is present.
 DROP TABLE IF EXISTS public.tier_entitlements CASCADE;
 CREATE TABLE public.tier_entitlements (
-    tier_id TEXT REFERENCES public.subscription_tiers(tier_id) ON DELETE CASCADE,
+    tier_id TEXT REFERENCES public.subscription_tiers(id) ON DELETE CASCADE,
     feature_id TEXT REFERENCES public.features(id) ON DELETE CASCADE,
     limit_value INT, -- NULL = Unlimited, 0 = No Access, >0 = Numeric cap
     PRIMARY KEY (tier_id, feature_id)
@@ -70,9 +71,9 @@ CREATE TABLE IF NOT EXISTS public.entitlement_change_logs (
 );
 
 -- Seed Initial Data
-INSERT INTO public.subscription_tiers (tier_id, name) VALUES 
+INSERT INTO public.subscription_tiers (id, name) VALUES 
 ('basic', 'Basic'), ('starter', 'Starter'), ('premium', 'Premium'), ('ultimate', 'Ultimate')
-ON CONFLICT (tier_id) DO NOTHING;
+ON CONFLICT (id) DO NOTHING;
 
 INSERT INTO public.feature_categories (id, name, display_order) VALUES 
 ('c1000000-0000-0000-0000-000000000001', 'Core AI & Limits', 1),
