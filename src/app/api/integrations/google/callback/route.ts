@@ -28,6 +28,16 @@ export async function GET(request: Request) {
 
     const expiryDate = tokens.expiry_date ? new Date(tokens.expiry_date).toISOString() : null;
 
+    let accountEmail = null;
+    try {
+      oauth2Client.setCredentials(tokens);
+      const oauth2 = google.oauth2({ version: 'v2', auth: oauth2Client });
+      const userInfo = await oauth2.userinfo.get();
+      accountEmail = userInfo.data.email;
+    } catch (e) {
+      console.error('Failed to fetch user email:', e);
+    }
+
     const { error: upsertError } = await supabaseAdmin
       .from('tenant_integrations')
       .upsert({
@@ -36,6 +46,7 @@ export async function GET(request: Request) {
         access_token: tokens.access_token,
         refresh_token: tokens.refresh_token, // Might be undefined if not first time
         expiry_date: expiryDate,
+        account_email: accountEmail,
         updated_at: new Date().toISOString()
       }, {
         onConflict: 'tenant_id,provider'

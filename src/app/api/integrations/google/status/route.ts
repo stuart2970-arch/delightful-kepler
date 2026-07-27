@@ -20,7 +20,7 @@ export async function GET(request: Request) {
     const supabaseAdmin = getSupabaseAdmin();
     const { data, error } = await supabaseAdmin
       .from('tenant_integrations')
-      .select('id, provider, updated_at')
+      .select('id, provider, updated_at, account_email')
       .eq('tenant_id', tenantId)
       .eq('provider', 'google_calendar')
       .single();

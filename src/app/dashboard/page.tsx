@@ -63,6 +63,9 @@ export default async function DashboardPage(props: { searchParams?: Promise<{ [k
   let holidaySettings = {};
   let globalVoiceDisclaimer = '';
   
+  let initialGoogleConnected = false;
+  let initialGoogleConnectedEmail = null;
+  
   let chatbots: any[] = [];
   let conversations: any[] = [];
   let services: any[] = [];
@@ -127,6 +130,19 @@ export default async function DashboardPage(props: { searchParams?: Promise<{ [k
         generalOperatingHours = tenant.general_operating_hours || {};
         operatingHoursOverrides = tenant.operating_hours_overrides || [];
         holidaySettings = tenant.holiday_settings || {};
+      }
+
+      // Check Google Connection Status
+      const { data: googleIntegration } = await supabase
+        .from('tenant_integrations')
+        .select('account_email')
+        .eq('tenant_id', tenantId)
+        .eq('provider', 'google_calendar')
+        .single();
+      
+      if (googleIntegration) {
+        initialGoogleConnected = true;
+        initialGoogleConnectedEmail = googleIntegration.account_email || null;
       }
     }
 
@@ -307,6 +323,8 @@ export default async function DashboardPage(props: { searchParams?: Promise<{ [k
         initialGeneralOperatingHours={generalOperatingHours}
         initialOperatingHoursOverrides={operatingHoursOverrides}
         initialHolidaySettings={holidaySettings}
+        initialGoogleConnected={initialGoogleConnected}
+        initialGoogleConnectedEmail={initialGoogleConnectedEmail}
         initialGlobalVoiceDisclaimer={globalVoiceDisclaimer}
         billingData={billingData}
         superadminData={superadminData}

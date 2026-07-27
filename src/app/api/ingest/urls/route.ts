@@ -134,10 +134,12 @@ export async function DELETE(req: Request) {
       query = query.eq('source_url', sourceUrl);
     }
 
-    const { error } = await query;
+    const { data: deletedChunks, error } = await query.select('id');
     if (error) throw error;
+    
+    console.log(`[RAG Deletion] Deleted ${deletedChunks?.length || 0} chunks for chatbot ${chatbotId} and source ${sourceUrl}`);
 
-    return NextResponse.json({ success: true });
+    return NextResponse.json({ success: true, deletedCount: deletedChunks?.length || 0 });
   } catch (error: any) {
     console.error('Failed to delete knowledge base URLs:', error);
     return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 });

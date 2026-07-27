@@ -197,7 +197,7 @@ import Vapi from '@vapi-ai/web';
 
     // Floating Chat Bubble
     const bubble = document.createElement('button');
-    bubble.className = 'fixed bottom-5 right-5 w-14 h-14 rounded-full shadow-2xl flex items-center justify-center cursor-pointer transition-all duration-300 hover:scale-110 focus:outline-none z-50';
+    bubble.className = 'fixed bottom-5 right-5 w-14 h-14 rounded-full shadow-2xl flex items-center justify-center cursor-pointer transition-all duration-300 hover:scale-110 focus:outline-none z-[999999]';
     bubble.style.backgroundColor = primaryColor;
     bubble.innerHTML = `
       <!-- Chat Icon -->
@@ -231,7 +231,7 @@ import Vapi from '@vapi-ai/web';
 
     // Chat Window
     const chatWindow = document.createElement('div');
-    chatWindow.className = 'fixed z-50 flex flex-col bg-white overflow-hidden transition-all duration-300 transform scale-90 opacity-0 pointer-events-none origin-bottom-right bottom-20 right-5 rounded-2xl border border-gray-100 shadow-2xl styleflo-chat-window';
+    chatWindow.className = 'fixed z-[999999] flex flex-col bg-white overflow-hidden transition-all duration-300 transform scale-90 opacity-0 pointer-events-none origin-bottom-right bottom-20 right-5 rounded-2xl border border-gray-100 shadow-2xl styleflo-chat-window';
     chatWindow.innerHTML = `
       <!-- Header -->
       <div class="p-4 text-white flex items-center justify-between shadow-md shrink-0 z-10" style="background-color: ${primaryColor};">

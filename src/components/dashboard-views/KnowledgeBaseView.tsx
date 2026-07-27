@@ -114,8 +114,14 @@ export default function KnowledgeBaseView() {
         method: 'DELETE'
       });
       if (res.ok) {
+        const deletedItem = ingestedUrls.find(item => item.url === url);
+        if (deletedItem) {
+          setMetrics(prev => ({
+            ...prev,
+            chunksCount: Math.max(0, prev.chunksCount - deletedItem.chunkCount)
+          }));
+        }
         setIngestedUrls(prev => prev.filter(item => item.url !== url));
-        // We could also optionally adjust the metric chunksCount down here, but usually it's fine.
       } else {
         alert('Failed to delete URL from knowledge base.');
       }
@@ -414,7 +420,7 @@ export default function KnowledgeBaseView() {
               </div>
 
               {!isShopifyPreflight ? (
-              <form onSubmit={handleTriggerCrawl} className="space-y-4">
+              <form onSubmit={ingestMode === 'url' ? handleTriggerCrawl : ingestMode === 'text' ? handleTriggerText : handleTriggerFile} className="space-y-4">
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                   <div className="md:col-span-1">
                     <label className="block text-xs font-semibold text-gray-400 mb-1.5">Target Chatbot</label>
@@ -447,39 +453,119 @@ export default function KnowledgeBaseView() {
                     </select>
                   </div>
                   <div className="md:col-span-1">
-                    {/* Placeholder for layout alignment if needed */}
-                  </div>
-                  <div className="md:col-span-3">
-                    <div className="flex justify-between items-end mb-1.5">
-                      <label className="block text-xs font-semibold text-gray-400">Website URLs to Scrape (comma or space separated)</label>
-                      <button 
-                        type="button" 
-                        onClick={handleDiscoverSitemap}
-                        disabled={isDiscoveringSitemap || !crawlUrl.trim()}
-                        className="text-xs text-indigo-400 hover:text-indigo-300 font-medium disabled:opacity-50"
-                      >
-                        {isDiscoveringSitemap ? 'Searching...' : '🔍 Discover Sitemap'}
-                      </button>
+                    <label className="block text-xs font-semibold text-gray-400 mb-1.5">Source Type</label>
+                    <div className="flex bg-gray-950 rounded-xl border border-gray-800 overflow-hidden">
+                      <button type="button" onClick={() => setIngestMode('url')} className={`flex-1 py-2.5 text-xs font-semibold ${ingestMode === 'url' ? 'bg-indigo-600/20 text-indigo-400' : 'text-gray-400 hover:bg-white/5'}`}>URL</button>
+                      <button type="button" onClick={() => setIngestMode('text')} className={`flex-1 py-2.5 text-xs font-semibold border-l border-gray-800 ${ingestMode === 'text' ? 'bg-indigo-600/20 text-indigo-400' : 'text-gray-400 hover:bg-white/5'}`}>Text</button>
+                      <button type="button" onClick={() => setIngestMode('file')} className={`flex-1 py-2.5 text-xs font-semibold border-l border-gray-800 ${ingestMode === 'file' ? 'bg-indigo-600/20 text-indigo-400' : 'text-gray-400 hover:bg-white/5'}`}>File</button>
                     </div>
-                    <textarea
-                      placeholder="https://example.com/about, https://example.com/pricing"
-                      value={crawlUrl}
-                      onChange={(e) => setCrawlUrl(e.target.value)}
-                      className="w-full bg-gray-950 border border-gray-800 rounded-xl px-3.5 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-indigo-500 text-white min-h-[42px] resize-y"
-                      required
-                      rows={2}
-                    />
-                    
-                    {sitemapMessage && (
-                      <div className={`mt-2 p-2 rounded text-xs font-medium ${
-                        sitemapMessage.type === 'success' ? 'bg-emerald-500/10 text-emerald-400' :
-                        sitemapMessage.type === 'error' ? 'bg-red-500/10 text-red-400' :
-                        'bg-indigo-500/10 text-indigo-400'
-                      }`}>
-                        {sitemapMessage.text}
-                      </div>
-                    )}
                   </div>
+                  
+                  {ingestMode === 'url' && (
+                    <div className="md:col-span-3">
+                      <div className="flex justify-between items-end mb-1.5">
+                        <label className="block text-xs font-semibold text-gray-400">Website URLs to Scrape (comma or space separated)</label>
+                        <button 
+                          type="button" 
+                          onClick={handleDiscoverSitemap}
+                          disabled={isDiscoveringSitemap || !crawlUrl.trim()}
+                          className="text-xs text-indigo-400 hover:text-indigo-300 font-medium disabled:opacity-50"
+                        >
+                          {isDiscoveringSitemap ? 'Searching...' : '🔍 Discover Sitemap'}
+                        </button>
+                      </div>
+                      <textarea
+                        placeholder="https://example.com/about, https://example.com/pricing"
+                        value={crawlUrl}
+                        onChange={(e) => setCrawlUrl(e.target.value)}
+                        className="w-full bg-gray-950 border border-gray-800 rounded-xl px-3.5 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-indigo-500 text-white min-h-[42px] resize-y"
+                        required
+                        rows={2}
+                      />
+                      
+                      {sitemapMessage && (
+                        <div className={`mt-2 p-2 rounded text-xs font-medium ${
+                          sitemapMessage.type === 'success' ? 'bg-emerald-500/10 text-emerald-400' :
+                          sitemapMessage.type === 'error' ? 'bg-red-500/10 text-red-400' :
+                          'bg-indigo-500/10 text-indigo-400'
+                        }`}>
+                          {sitemapMessage.text}
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                  {ingestMode === 'text' && (
+                    <div className="md:col-span-3 space-y-4">
+                      <div>
+                        <label className="block text-xs font-semibold text-gray-400 mb-1.5">Source Name / Title</label>
+                        <input
+                          type="text"
+                          value={rawTextSource}
+                          onChange={(e) => setRawTextSource(e.target.value)}
+                          placeholder="e.g. Employee Handbook"
+                          className="w-full bg-gray-950 border border-gray-800 rounded-xl px-3.5 py-2.5 text-sm focus:outline-none focus:ring-1 focus:ring-indigo-500 text-white"
+                          required
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-xs font-semibold text-gray-400 mb-1.5">Raw Text Content</label>
+                        <textarea
+                          value={rawTextContent}
+                          onChange={(e) => setRawTextContent(e.target.value)}
+                          placeholder="Paste your text content here..."
+                          className="w-full bg-gray-950 border border-gray-800 rounded-xl px-3.5 py-2.5 text-sm focus:outline-none focus:ring-1 focus:ring-indigo-500 text-white min-h-[150px] resize-y styleflo-scrollbar"
+                          required
+                        />
+                      </div>
+                    </div>
+                  )}
+
+                  {ingestMode === 'file' && (
+                    <div className="md:col-span-3">
+                      <label className="block text-xs font-semibold text-gray-400 mb-1.5">Upload File (PDF or TXT, max 5MB)</label>
+                      <div className="flex items-center gap-4">
+                        <label className="flex-1 max-w-sm flex items-center justify-center px-4 py-6 bg-gray-950 border-2 border-dashed border-gray-800 rounded-xl cursor-pointer hover:border-indigo-500/50 hover:bg-indigo-500/5 transition-colors">
+                          <div className="space-y-1 text-center">
+                            <svg className="mx-auto h-8 w-8 text-gray-500" stroke="currentColor" fill="none" viewBox="0 0 48 48" aria-hidden="true">
+                              <path d="M28 8H12a4 4 0 00-4 4v20m32-12v8m0 0v8a4 4 0 01-4 4H12a4 4 0 01-4-4v-4m32-4l-3.172-3.172a4 4 0 00-5.656 0L28 28M8 32l9.172-9.172a4 4 0 015.656 0L28 28m0 0l4 4m4-24h8m-4-4v8m-12 4h.02" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+                            </svg>
+                            <div className="text-sm text-gray-400">
+                              <span className="text-indigo-400 font-semibold focus-within:outline-none focus-within:ring-2 focus-within:ring-indigo-500 focus-within:ring-offset-2 hover:text-indigo-300">Upload a file</span>
+                              <p className="pl-1 text-xs">or drag and drop</p>
+                            </div>
+                            <p className="text-xs text-gray-500">PDF, TXT up to 5MB</p>
+                          </div>
+                          <input 
+                            type="file" 
+                            className="hidden" 
+                            accept=".txt,.pdf"
+                            onChange={(e) => {
+                              const file = e.target.files?.[0];
+                              if (file) {
+                                if (file.size > 5 * 1024 * 1024) {
+                                  alert('File exceeds 5MB limit.');
+                                } else {
+                                  setSelectedFile(file);
+                                }
+                              }
+                            }} 
+                          />
+                        </label>
+                        {selectedFile && (
+                          <div className="flex-1 bg-gray-950 border border-emerald-500/30 p-3 rounded-xl flex items-center justify-between">
+                            <div className="flex flex-col min-w-0">
+                              <span className="text-sm font-semibold text-emerald-400 truncate">{selectedFile.name}</span>
+                              <span className="text-xs text-gray-500">{(selectedFile.size / 1024).toFixed(1)} KB</span>
+                            </div>
+                            <button type="button" onClick={() => setSelectedFile(null)} className="text-gray-400 hover:text-red-400 p-1">
+                              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12"></path></svg>
+                            </button>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  )}
                 </div>
 
                 {/* Sitemap Selection UI */}
@@ -523,10 +609,10 @@ export default function KnowledgeBaseView() {
                 )}
                 <button
                   type="submit"
-                  disabled={isCrawling || !crawlBotId || !crawlUrl}
+                  disabled={isCrawling || !crawlBotId || (ingestMode === 'url' ? !crawlUrl : ingestMode === 'text' ? (!rawTextContent || !rawTextSource) : !selectedFile)}
                   className="bg-indigo-600 hover:bg-indigo-500 text-white text-sm font-semibold py-2 px-5 rounded-xl shadow-lg shadow-indigo-500/10 transition-colors disabled:opacity-50"
                 >
-                  {isCrawling || isShopifyExecuting ? 'Processing...' : 'Trigger Crawler Pipeline'}
+                  {isCrawling || isShopifyExecuting ? 'Processing...' : ingestMode === 'url' ? 'Trigger Crawler Pipeline' : ingestMode === 'text' ? 'Ingest Text Content' : 'Upload File'}
                 </button>
               </form>
               ) : (

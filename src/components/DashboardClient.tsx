@@ -81,6 +81,7 @@ interface DashboardClientProps {
   initialGoogleConnected?: boolean;
   initialBusinessAddress?: string;
   initialPostcode?: string;
+  initialGoogleConnectedEmail?: string | null;
 }
 
 export default function DashboardClient({
@@ -101,6 +102,7 @@ export default function DashboardClient({
   initialOperatingHoursOverrides,
   initialHolidaySettings,
   initialGoogleConnected,
+  initialGoogleConnectedEmail,
   initialGlobalVoiceDisclaimer,
   initialServices = [],
   initialStaff = [],
@@ -131,6 +133,7 @@ export default function DashboardClient({
       operatingHoursOverrides: initialOperatingHoursOverrides || [],
       holidaySettings: initialHolidaySettings || {},
       isGoogleConnected: initialGoogleConnected || false,
+      googleConnectedEmail: initialGoogleConnectedEmail || null,
       businessAddress: initialBusinessAddress || '',
       postcode: initialPostcode || '',
     });

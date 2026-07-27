@@ -106,6 +106,8 @@ export interface DashboardState {
   setStaff: (staff: any[]) => void;
   isGoogleConnected: boolean;
   setIsGoogleConnected: (connected: boolean) => void;
+  googleConnectedEmail: string | null;
+  setGoogleConnectedEmail: (email: string | null) => void;
 
   // Billing & Superadmin
   billingData: any;
@@ -166,6 +168,8 @@ export const useDashboardStore = create<DashboardState>((set) => ({
   setStaff: (staff) => set({ staff }),
   isGoogleConnected: false,
   setIsGoogleConnected: (isGoogleConnected) => set({ isGoogleConnected }),
+  googleConnectedEmail: null,
+  setGoogleConnectedEmail: (googleConnectedEmail) => set({ googleConnectedEmail }),
 
   billingData: null,
   superadminData: null,

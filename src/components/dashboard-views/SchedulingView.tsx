@@ -342,6 +342,9 @@ export default function SchedulingView() {
                     <div>
                       {isGoogleConnected ? (
                         <div className="flex flex-col items-end gap-2">
+                          {useDashboardStore.getState().googleConnectedEmail && (
+                            <span className="text-xs text-gray-400">Connected to: <strong className="text-gray-300">{useDashboardStore.getState().googleConnectedEmail}</strong></span>
+                          )}
                           <button onClick={handleDisconnectCalendar} className="text-xs text-red-400 hover:text-red-300 font-semibold transition-colors">
                             Disconnect
                           </button>
