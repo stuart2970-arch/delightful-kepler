@@ -313,7 +313,11 @@ ${staffContext}`;
                 const { data: authUser } = await supabaseAdmin.auth.admin.getUserById(profile.id);
                 if (authUser?.user?.email && process.env.MAILGUN_API_KEY && process.env.MAILGUN_DOMAIN) {
                   const mailgun = new Mailgun(formData);
-                  const mg = mailgun.client({ username: 'api', key: process.env.MAILGUN_API_KEY });
+                  const mg = mailgun.client({ 
+                    username: 'api', 
+                    key: process.env.MAILGUN_API_KEY,
+                    url: 'https://api.eu.mailgun.net'
+                  });
                   await mg.messages.create(process.env.MAILGUN_DOMAIN, {
                     from: `StyleFlo Assistant <no-reply@${process.env.MAILGUN_DOMAIN}>`,
                     to: [authUser.user.email],
