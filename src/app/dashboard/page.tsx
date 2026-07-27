@@ -301,7 +301,7 @@ export default async function DashboardPage(props: { searchParams?: Promise<{ [k
   }
 
   return (
-    <main className="min-h-screen bg-gray-950 text-gray-100 p-6 md:p-8 font-sans">
+    <main className="min-h-0 bg-gray-950 text-gray-100 p-6 md:p-8 font-sans">
       <DashboardClient
         isDevMode={false}
         tenantId={tenantId}

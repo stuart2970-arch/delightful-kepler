@@ -1,7 +1,5 @@
 "use client";
 
-export const dynamic = 'force-dynamic';
-
 import { useEffect, useState } from 'react';
 import { createBrowserClient } from '@supabase/ssr';
 import { useRouter } from 'next/navigation';
@@ -18,10 +16,10 @@ export default function LoginPage() {
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
-  // Provide fallback strings to prevent Next.js build from crashing during static render
+  // Initialize Supabase client
   const [supabase] = useState(() =>
     createBrowserClient(
-      process.env['NEXT_PUBLIC_' + 'SUPABASE_URL'] || 'https://dummy.supabase.co',
+      process.env.NEXT_PUBLIC_SUPABASE_URL || 'https://dummy.supabase.co',
       process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || 'dummy-anon-key'
     )
   );
@@ -31,8 +29,14 @@ export default function LoginPage() {
       data: { subscription },
     } = supabase.auth.onAuthStateChange((event, session) => {
       if (event === 'SIGNED_IN') {
-        router.push('/dashboard');
-        router.refresh();
+        // Bounce the top-level window back to WordPress after login
+        const isLocal = process.env.NODE_ENV === 'development' || process.env.NEXT_PUBLIC_ENV === 'development';
+        const wpAppUrl = isLocal ? 'https://styleflo.test/app' : 'https://styleflo.ai/app';
+        if (window.top) {
+          window.top.location.href = wpAppUrl;
+        } else {
+          window.location.href = wpAppUrl;
+        }
       }
     });
     return () => subscription.unsubscribe();

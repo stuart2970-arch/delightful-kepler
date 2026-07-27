@@ -486,14 +486,14 @@ const globalBotId = '00000000-0000-0000-0000-000000000000';
   // Scheduling Handlers
 
   return (
-    <div className="flex flex-col h-screen bg-[#09090b] text-gray-100 overflow-hidden font-sans">
+    <div className="flex flex-col min-h-0 bg-[#09090b] text-gray-100 font-sans">
       {isImpersonating && (
         <div className="bg-amber-600 text-white font-bold py-3 px-6 text-center w-full shadow-lg border-b border-amber-700 flex justify-between items-center z-[200]">
           <span>⚠️ SUPER ADMIN IMPERSONATION MODE: You are viewing data as {tenantName}</span>
           <a href="/dashboard" className="bg-black/20 hover:bg-black/40 px-4 py-1.5 rounded-lg text-sm transition-colors border border-white/10 shrink-0">Exit Impersonation</a>
         </div>
       )}
-      <div className="flex flex-1 overflow-hidden">
+      <div className="flex flex-1">
         {/* Mobile Menu Backdrop */}
         {isMobileMenuOpen && (
         <div 
