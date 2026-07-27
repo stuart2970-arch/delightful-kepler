@@ -6,8 +6,7 @@ import { RecursiveCharacterTextSplitter } from '@langchain/textsplitters';
 import { google } from '@ai-sdk/google';
 import { embed, embedMany } from 'ai';
 import { checkFeatureEntitlement } from '@/lib/entitlements';
-// @ts-ignore
-import pdf from 'pdf-parse/lib/pdf-parse';
+import { PDFParse } from 'pdf-parse';
 
 async function createSupabaseClient() {
   const cookieStore = await cookies();
@@ -85,8 +84,13 @@ export async function POST(request: Request) {
     let textContent = '';
 
     if (file.type === 'application/pdf' || file.name.endsWith('.pdf')) {
-      const data = await pdf(buffer);
-      textContent = data.text;
+      const parser = new PDFParse({ data: buffer });
+      try {
+        const result = await parser.getText();
+        textContent = result.text;
+      } finally {
+        await parser.destroy();
+      }
     } else if (file.type === 'text/plain' || file.name.endsWith('.txt')) {
       textContent = buffer.toString('utf-8');
     } else {
