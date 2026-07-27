@@ -24,6 +24,10 @@ export interface Conversation {
   chatbot_id: string;
   user_session_id: string;
   created_at: string;
+  is_voice_call?: boolean;
+  resulted_in_booking?: boolean;
+  recording_url?: string;
+  transcript?: string;
 }
 
 export interface Message {

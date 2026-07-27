@@ -18,8 +18,9 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Missing call object' }, { status: 400 });
     }
 
-    // Extract tenant_id from metadata we pass when starting the call
+    // Extract tenant_id and session_id from metadata we pass when starting the call
     const tenantId = call.metadata?.tenant_id || call.assistantOverrides?.variableValues?.tenant_id;
+    const sessionId = call.metadata?.session_id || call.id;
     if (!tenantId) {
       console.warn('[Vapi Webhook] No tenant_id found in call metadata, skipping metering.');
       return NextResponse.json({ success: true, ignored: true });
@@ -68,6 +69,52 @@ export async function POST(request: Request) {
     }
 
     console.log(`[Vapi Webhook] Successfully metered ${durationMinutes} minutes for tenant ${tenantId}`);
+
+    // 3. Update Conversation record with Voice Data
+    if (tenantId && sessionId) {
+      const recordingUrl = call.recordingUrl || null;
+      const transcript = call.transcript || '';
+      
+      // Determine if a booking was made
+      // Heuristic: internal calendar uses [BOOK_MEETING:], external might direct to a booking URL
+      let resultedInBooking = transcript.includes('[BOOK_MEETING:');
+      if (!resultedInBooking) {
+        const { data: tenant } = await supabaseAdmin.from('tenants').select('booking_url').eq('id', tenantId).single();
+        if (tenant?.booking_url && transcript.includes(tenant.booking_url)) {
+          resultedInBooking = true;
+        }
+      }
+
+      const { data: existingConv } = await supabaseAdmin
+        .from('conversations')
+        .select('id')
+        .eq('tenant_id', tenantId)
+        .eq('user_session_id', sessionId)
+        .maybeSingle();
+
+      if (existingConv) {
+        await supabaseAdmin.from('conversations').update({
+          is_voice_call: true,
+          resulted_in_booking: resultedInBooking,
+          recording_url: recordingUrl,
+          transcript: transcript,
+        }).eq('id', existingConv.id);
+      } else {
+        const { data: chatbot } = await supabaseAdmin.from('chatbots').select('id').eq('tenant_id', tenantId).limit(1).single();
+        if (chatbot) {
+          await supabaseAdmin.from('conversations').insert({
+            tenant_id: tenantId,
+            chatbot_id: chatbot.id,
+            user_session_id: sessionId,
+            is_voice_call: true,
+            resulted_in_booking: resultedInBooking,
+            recording_url: recordingUrl,
+            transcript: transcript,
+          });
+        }
+      }
+    }
+
     return NextResponse.json({ success: true });
 
   } catch (err: any) {

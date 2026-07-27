@@ -374,3 +374,29 @@ This runbook documents the key fixes and architecture enhancements implemented d
 - **2026-07-22 (Later):** Resolved an issue where only two features were appearing in the Dynamic Tier Entitlements UI. The root cause was that the migration script dropped the legacy tier_entitlements mapping table but only re-seeded two example features. I ran a script to re-populate the database with all 27 platform features and their correct numeric tier caps, restoring the full UI.
 
 - **2026-07-22 (Drag and Drop):** Added drag-and-drop feature reordering to the SuperAdminEntitlementsView component using HTML5 native drag and drop. Created a new PATCH endpoint at /api/superadmin/features/reorder to sync the order changes sequentially with the display_order column in the features table.
+
+- **2026-07-22 (Pricing & New Features):** Added a new 'Create Feature' inline form at the bottom of the SuperAdmin Entitlements view, connected to a new POST /api/superadmin/features endpoint that automatically seeds entitlements. Also added Monthly and Yearly pricing fields directly to the tier column headers, mapped to new monthly_price and yearly_price database columns via a PATCH /api/superadmin/tiers endpoint. (SQL migration created).
+
+## Recent Updates
+
+### Voice & Chat Widget Integration (July 2026)
+
+**Context (from chat):**
+The user requested that the chatbot integration on the EmDash-generated websites should convey a dual-mode message: if a customer has a voice option in their tier package, the activation icon must allow the user to either call or chat. If the user chooses to call, the system must act like a telephone and initiate a ringtone while the agent is connecting to the Vapi/11labs integration (which shows as a microphone).
+
+**Changes Made:**
+- Migrated the Chatbot Trigger logic completely into the centralized Vanilla TypeScript widget (src/widget/index.ts).
+- Added a \oiceMenu\ overlay that toggles between "Text Chat" and "Voice Call".
+- Added a CSS keyframe animation (styleflo-ringing) to visually pulse the button in red when a call is initiated.
+- Utilized HTML5 \Audio\ to play a standard ringing sound during the connection sequence.
+- Added logic to automatically trigger the hidden Vapi microphone button (\#styleflo-vapi-btn\) after 3.5 seconds of simulated ringing.
+
+### Session Chat History Log
+
+- **2026-07-23 (Voice Call Transcripts & Status in Conversation Explorer):** Updated Supabase schema, `Vapi` webhook, widget initialization, and `InboxView` to record and visually indicate voice calls (`is_voice_call`), their booking status (`resulted_in_booking`), and to provide playback (`recording_url`) and script rendering (`transcript`) inside the dashboard explorer.
+
+ 
+ # #   S e s s i o n   C h a t   H i s t o r y   L o g 
+ * * D a t e * * :   2 0 2 6 - 0 7 - 2 6 
+ * * S u m m a r y * * :   A d d e d   a n   o p t i o n   t o   e m b e d   t h e   c h a t b o t   i n t o   a   w e b p a g e   ( i n s t e a d   o f   a   p o p u p   w i d g e t ) .   C r e a t e d   \ s r c / w i d g e t / e m b e d . t s \   w h i c h   d u p l i c a t e s   t h e   p o p u p   l o g i c   b u t   r e n d e r s   i n l i n e .   U p d a t e d   \ s c r i p t s / b u i l d - w i d g e t . j s \   t o   o u t p u t   b o t h   \ w i d g e t . j s \   a n d   \ e m b e d . j s \ .   C u s t o m e r s   c a n   n o w   i n c l u d e   \ e m b e d . j s \   a n d   o p t i o n a l l y   p r o v i d e   \ d a t a - c o n t a i n e r - i d \   t o   s p e c i f y   w h e r e   t h e   c h a t b o t   s h o u l d   b e   r e n d e r e d .  
+ 

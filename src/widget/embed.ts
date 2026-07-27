@@ -26,13 +26,13 @@ import Vapi from '@vapi-ai/web';
     localStorage.setItem(sessionKey, sessionId);
   }
 
-  // 3. Create the Shadow Host container in body
+  // 3. Create the Shadow Host container
   const host = document.createElement('div');
-  host.id = 'styleflo-chat-widget';
-  host.style.position = 'fixed';
-  host.style.bottom = '0';
-  host.style.right = '0';
-  host.style.zIndex = '999999';
+  host.id = 'styleflo-chat-embed';
+  host.style.position = 'relative';
+  host.style.width = '100%';
+  host.style.height = '100%';
+  host.style.minHeight = '400px';
 
   // Inject Hidden AI Guardrails into the host for Web Scrapers / LLM Crawlers
   const aiGuardrails = document.createElement('div');
@@ -55,7 +55,13 @@ import Vapi from '@vapi-ai/web';
   `;
   host.appendChild(aiGuardrails);
 
-  document.body.appendChild(host);
+  const containerId = currentScript.getAttribute('data-container-id');
+  const container = containerId ? document.getElementById(containerId) : currentScript.parentElement;
+  if (container) {
+    container.appendChild(host);
+  } else {
+    document.body.appendChild(host);
+  }
 
   const shadowRoot = host.attachShadow({ mode: 'open' });
 
@@ -100,19 +106,9 @@ import Vapi from '@vapi-ai/web';
 
     /* Custom sizing since Tailwind v2 CDN doesn't support arbitrary values */
     .styleflo-chat-window {
-      width: calc(100vw - 40px);
-      height: 550px;
-      max-height: calc(100vh - 100px);
-    }
-    @supports (max-height: 100dvh) {
-      .styleflo-chat-window {
-        max-height: calc(100dvh - 100px);
-      }
-    }
-    @media (min-width: 640px) {
-      .styleflo-chat-window {
-        width: 380px;
-      }
+      width: 100%;
+      height: 100%;
+      min-height: 400px;
     }
     .styleflo-text-17 { font-size: 17px; }
     .styleflo-text-15 { font-size: 15px; }
@@ -195,21 +191,9 @@ import Vapi from '@vapi-ai/web';
   function initializeWidget() {
     const finalAvatarSrc = agentAvatarUrl.startsWith('http') ? agentAvatarUrl : `${apiHost}${agentAvatarUrl}`;
 
-    // Floating Chat Bubble
-    const bubble = document.createElement('button');
-    bubble.className = 'fixed bottom-5 right-5 w-14 h-14 rounded-full shadow-2xl flex items-center justify-center cursor-pointer transition-all duration-300 hover:scale-110 focus:outline-none z-50';
-    bubble.style.backgroundColor = primaryColor;
-    bubble.innerHTML = `
-      <!-- Chat Icon -->
-      <svg id="styleflo-icon-chat" class="w-6 h-6 text-white transition-all duration-300 transform scale-100" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"></path>
-      </svg>
-      <!-- Close Icon (Initially hidden) -->
-      <svg id="styleflo-icon-close" class="w-6 h-6 text-white absolute transition-all duration-300 transform scale-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M6 18L18 6M6 6l12 12"></path>
-      </svg>
-    `;
-    widgetContainer.appendChild(bubble);
+    // No floating chat bubble for embed
+    const bubble = document.createElement('div'); // Dummy element to satisfy TS references
+    bubble.style.display = 'none';
 
     // --- Voice Menu ---
     const voiceMenu = document.createElement('div');
@@ -231,7 +215,7 @@ import Vapi from '@vapi-ai/web';
 
     // Chat Window
     const chatWindow = document.createElement('div');
-    chatWindow.className = 'fixed z-50 flex flex-col bg-white overflow-hidden transition-all duration-300 transform scale-90 opacity-0 pointer-events-none origin-bottom-right bottom-20 right-5 rounded-2xl border border-gray-100 shadow-2xl styleflo-chat-window';
+    chatWindow.className = 'w-full h-full flex flex-col bg-white overflow-hidden rounded-2xl border border-gray-100 shadow-xl styleflo-chat-window';
     chatWindow.innerHTML = `
       <!-- Header -->
       <div class="p-4 text-white flex items-center justify-between shadow-md shrink-0 z-10" style="background-color: ${primaryColor};">
@@ -242,7 +226,7 @@ import Vapi from '@vapi-ai/web';
             <p class="styleflo-text-11 opacity-75 mt-0.5">${agentRole}</p>
           </div>
         </div>
-        <button id="styleflo-close-btn" class="text-white opacity-80 hover:opacity-100 focus:outline-none transition-opacity">
+        <button id="styleflo-close-btn" class="hidden text-white opacity-80 hover:opacity-100 focus:outline-none transition-opacity">
           <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M6 18L18 6M6 6l12 12"></path>
           </svg>

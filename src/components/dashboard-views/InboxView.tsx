@@ -84,6 +84,8 @@ export default function InboxView() {
     fetchMessages();
   }, [selectedConversation, supabase, tenantId]);
 
+  const selectedConvObj = conversations.find(c => c.id === selectedConversation);
+
   return (
     <>
             <div className="space-y-6">
@@ -136,8 +138,20 @@ export default function InboxView() {
                                 {new Date(conv.created_at).toLocaleDateString()}
                               </span>
                             </div>
-                            <div className="font-mono text-[10px] truncate w-full text-gray-500">
-                              ID: {conv.user_session_id}
+                            <div className="flex justify-between items-center w-full mt-1">
+                              <div className="font-mono text-[10px] truncate text-gray-500">
+                                ID: {conv.user_session_id}
+                              </div>
+                              <div className="flex gap-1 shrink-0">
+                                {conv.is_voice_call ? (
+                                  <span className="px-1.5 py-0.5 bg-blue-900/50 text-blue-300 rounded text-[9px] font-bold">📞 Voice</span>
+                                ) : (
+                                  <span className="px-1.5 py-0.5 bg-gray-800 text-gray-400 rounded text-[9px] font-bold">💬 Text</span>
+                                )}
+                                {conv.resulted_in_booking && (
+                                  <span className="px-1.5 py-0.5 bg-green-900/50 text-green-300 rounded text-[9px] font-bold">📅 Booked</span>
+                                )}
+                              </div>
                             </div>
                           </button>
                         );
@@ -154,7 +168,26 @@ export default function InboxView() {
                         Loading message history...
                       </div>
                     ) : selectedConversation ? (
-                      conversationMessages.length === 0 ? (
+                      selectedConvObj?.is_voice_call ? (
+                        <div className="space-y-4">
+                          {selectedConvObj.recording_url && (
+                            <div className="bg-gray-900 border border-gray-800 p-4 rounded-xl">
+                              <h5 className="text-sm font-bold text-white mb-2">Voice Recording</h5>
+                              <audio controls src={selectedConvObj.recording_url} className="w-full h-10" />
+                            </div>
+                          )}
+                          <div className="bg-gray-900 border border-gray-800 p-4 rounded-xl">
+                            <h5 className="text-sm font-bold text-white mb-2">Transcript</h5>
+                            {selectedConvObj.transcript ? (
+                              <div className="text-sm text-gray-300 whitespace-pre-wrap leading-relaxed">
+                                {selectedConvObj.transcript}
+                              </div>
+                            ) : (
+                              <div className="text-xs text-gray-500 italic">No transcript available.</div>
+                            )}
+                          </div>
+                        </div>
+                      ) : conversationMessages.length === 0 ? (
                         <div className="h-full flex items-center justify-center text-xs text-gray-500 italic">
                           Empty conversation logs.
                         </div>
