@@ -33,6 +33,7 @@ import Vapi from '@vapi-ai/web';
   host.style.width = '100%';
   host.style.height = '100%';
   host.style.minHeight = '400px';
+  host.style.zIndex = '100';
 
   // Inject Hidden AI Guardrails into the host for Web Scrapers / LLM Crawlers
   const aiGuardrails = document.createElement('div');
