@@ -7,6 +7,15 @@ export default function KnowledgeBaseView() {
   const planTier = billingData?.planTier || 'basic';
   const [crawlBotId, setCrawlBotId] = useState(chatbots.filter(b => b.id !== '00000000-0000-0000-0000-000000000000')[0]?.id || '');
   const [crawlUrl, setCrawlUrl] = useState('');
+  const [ingestMode, setIngestMode] = useState<'url' | 'text' | 'file'>('url');
+  
+  // Text state
+  const [rawTextSource, setRawTextSource] = useState('');
+  const [rawTextContent, setRawTextContent] = useState('');
+  
+  // File state
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
+
   const [isCrawling, setIsCrawling] = useState(false);
   const [crawlLogs, setCrawlLogs] = useState<string[]>([]);
   const [crawlResult, setCrawlResult] = useState<{ success: boolean; message: string } | null>(null);
@@ -267,6 +276,86 @@ export default function KnowledgeBaseView() {
       });
     }
 
+    setIsCrawling(false);
+  };
+
+
+  const handleTriggerText = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!rawTextContent.trim() || !rawTextSource.trim() || !crawlBotId) return;
+
+    setIsCrawling(true);
+    setCrawlResult(null);
+    setCrawlLogs([`[System] Initializing text ingestion...`]);
+
+    try {
+      const response = await fetch('/api/ingest/text', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          text: rawTextContent,
+          sourceName: rawTextSource,
+          chatbotId: crawlBotId,
+        }),
+      });
+
+      const data = await response.json();
+      if (response.ok) {
+        setCrawlLogs((prev) => [...prev, `[Success] Ingested ${data.chunksCount} chunks from text.`]);
+        setCrawlResult({ success: true, message: data.message });
+        setMetrics(prev => ({ ...prev, chunksCount: prev.chunksCount + data.chunksCount }));
+        setRawTextContent('');
+        setRawTextSource('');
+        loadIngestedUrls(crawlBotId);
+      } else {
+        setCrawlLogs((prev) => [...prev, `[Error] ${data.error}`]);
+        setCrawlResult({ success: false, message: data.error });
+      }
+    } catch (err: any) {
+      setCrawlLogs((prev) => [...prev, `[Error] ${err.message}`]);
+      setCrawlResult({ success: false, message: err.message });
+    }
+    setIsCrawling(false);
+  };
+
+  const handleTriggerFile = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!selectedFile || !crawlBotId) return;
+
+    if (selectedFile.size > 5 * 1024 * 1024) {
+      alert('File exceeds the 5MB limit. Please upload a smaller file.');
+      return;
+    }
+
+    setIsCrawling(true);
+    setCrawlResult(null);
+    setCrawlLogs([`[System] Initializing file upload for ${selectedFile.name}...`]);
+
+    try {
+      const formData = new FormData();
+      formData.append('file', selectedFile);
+      formData.append('chatbotId', crawlBotId);
+
+      const response = await fetch('/api/ingest/file', {
+        method: 'POST',
+        body: formData,
+      });
+
+      const data = await response.json();
+      if (response.ok) {
+        setCrawlLogs((prev) => [...prev, `[Success] Ingested ${data.chunksCount} chunks from file.`]);
+        setCrawlResult({ success: true, message: data.message });
+        setMetrics(prev => ({ ...prev, chunksCount: prev.chunksCount + data.chunksCount }));
+        setSelectedFile(null);
+        loadIngestedUrls(crawlBotId);
+      } else {
+        setCrawlLogs((prev) => [...prev, `[Error] ${data.error}`]);
+        setCrawlResult({ success: false, message: data.error });
+      }
+    } catch (err: any) {
+      setCrawlLogs((prev) => [...prev, `[Error] ${err.message}`]);
+      setCrawlResult({ success: false, message: err.message });
+    }
     setIsCrawling(false);
   };
 
