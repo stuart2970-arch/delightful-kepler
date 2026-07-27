@@ -655,14 +655,25 @@ export default function ChatbotManagerView() {
 
                     {/* Embed Code Section */}
                     {testWidgetBotId === bot.id && (
-                      <div className="pt-2 text-left space-y-2 border-t border-gray-800 mt-2">
-                        <label className="block text-[10px] font-semibold text-gray-400">Host Injection Snippet:</label>
-                        <pre className="p-2.5 bg-gray-950 border border-gray-800 text-[10px] rounded-xl overflow-x-auto text-gray-300 font-mono leading-relaxed select-all">
-                          {`<!-- StyleFlo Widget Injection -->\n<script\n  src="${window.location.origin}/widget.js"\n  data-api-host="${window.location.origin}"\n  data-bot-id="${bot.id}">\n</script>`}
-                        </pre>
-                        <p className="text-[9px] text-gray-400">
-                          Paste this tag inside any website's <code>&lt;body&gt;</code> container to inject the floating chatbot.
-                        </p>
+                      <div className="pt-2 text-left space-y-4 border-t border-gray-800 mt-2">
+                        <div>
+                          <label className="block text-[10px] font-semibold text-gray-400 mb-1">Popup Widget Snippet:</label>
+                          <pre className="p-2.5 bg-gray-950 border border-gray-800 text-[10px] rounded-xl overflow-x-auto text-gray-300 font-mono leading-relaxed select-all">
+                            {`<!-- StyleFlo Widget Injection -->\n<script\n  src="${window.location.origin}/widget.js"\n  data-api-host="${window.location.origin}"\n  data-bot-id="${bot.id}">\n</script>`}
+                          </pre>
+                          <p className="text-[9px] text-gray-400 mt-1">
+                            Paste this tag inside any website's <code>&lt;body&gt;</code> container to inject the floating chatbot.
+                          </p>
+                        </div>
+                        <div>
+                          <label className="block text-[10px] font-semibold text-gray-400 mb-1">Inline Embed Snippet:</label>
+                          <pre className="p-2.5 bg-gray-950 border border-gray-800 text-[10px] rounded-xl overflow-x-auto text-gray-300 font-mono leading-relaxed select-all">
+                            {`<!-- StyleFlo Inline Embed -->\n<div id="styleflo-chatbot-container" style="width: 100%; height: 500px;"></div>\n<script\n  src="${window.location.origin}/embed.js"\n  data-api-host="${window.location.origin}"\n  data-bot-id="${bot.id}"\n  data-container-id="styleflo-chatbot-container">\n</script>`}
+                          </pre>
+                          <p className="text-[9px] text-gray-400 mt-1">
+                            Paste this tag where you want the chatbot to appear on your page.
+                          </p>
+                        </div>
                       </div>
                     )}
                   </div>
