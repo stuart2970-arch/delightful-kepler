@@ -17,7 +17,7 @@ export async function OPTIONS() {
 
 // Initialize Supabase Admin Client using service role key
 function getSupabaseAdmin() {
-  const supabaseUrl = process.env['NEXT_PUBLIC_' + 'SUPABASE_URL'];
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
   if (!supabaseUrl || !serviceRoleKey) {
@@ -185,7 +185,7 @@ export async function PATCH(
     const { name, primary_color, configuration_json, voice_enabled } = body;
 
     const cookieStore = await cookies();
-    const supabaseUrl = process.env['NEXT_PUBLIC_' + 'SUPABASE_URL']!;
+    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
     const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
 
     const supabase = createServerClient(supabaseUrl, anonKey, {
@@ -246,7 +246,7 @@ export async function DELETE(
     }
 
     const cookieStore = await cookies();
-    const supabaseUrl = process.env['NEXT_PUBLIC_' + 'SUPABASE_URL']!;
+    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
     const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
 
     const supabase = createServerClient(supabaseUrl, anonKey, {
