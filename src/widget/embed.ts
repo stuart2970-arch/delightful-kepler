@@ -144,7 +144,7 @@ import Vapi from '@vapi-ai/web';
 
   // 5. Setup Widget HTML layout template
   const widgetContainer = document.createElement('div');
-  widgetContainer.className = 'font-sans';
+  widgetContainer.className = 'font-sans w-full h-full';
   shadowRoot.appendChild(widgetContainer);
 
   let primaryColor = '#4F46E5'; // Default Indigo-600
