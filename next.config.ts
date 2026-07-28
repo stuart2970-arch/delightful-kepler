@@ -13,7 +13,7 @@ const nextConfig: any = {
         headers: [
           {
             key: 'Content-Security-Policy',
-            value: "frame-ancestors 'self' https://*.styleflo.ai http://styleflo.test:* http://styleflo.test http://*.styleflo.test:*"
+            value: "frame-ancestors 'self' https://styleflo.ai https://*.styleflo.ai http://styleflo.test:* http://styleflo.test http://*.styleflo.test:*"
           }
         ],
       },
