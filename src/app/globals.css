@@ -1,26 +1,127 @@
 @import "tailwindcss";
 
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  /* WordPress Avada Theme Color Palette */
+  --awb-color1: #ffffff; /* Color 1: Surface / Card / Container Background */
+  --awb-color2: #f9f9fb; /* Color 2: Secondary Light Fill / Alt Background */
+  --awb-color3: #f2f3f5; /* Color 3: Light Border / Separators */
+  --awb-color4: #65bd7d; /* Color 4: Active Accent / Focus Border / Checklist */
+  --awb-color5: #198fd9; /* Color 5: Interactive Action Blue / Buttons / Links Hover */
+  --awb-color6: #434549; /* Color 6: Subtitle / Muted Text / Secondary Labels */
+  --awb-color7: #212326; /* Color 7: Dark Charcoal / Body Text / H2-H5 */
+  --awb-color8: #260475; /* Color 8: Deep Navy/Purple / H1 / Primary Header Branding */
+
+  --primary-color: #6b21a8;
+
+  --background: var(--awb-color1);
+  --foreground: var(--awb-color7);
+
+  /* Layout bounds from Avada Export */
+  --site-width: 1200px;
+  --main-padding-top: 60px;
+  --main-padding-bottom: 60px;
+  --hundredp-padding: 30px;
+
+  /* Form & Control Specs */
+  --form-input-height: 50px;
+  --form-text-size: 16px;
+  --form-border-radius: 6px;
+  --button-padding-top: 13px;
+  --button-padding-right: 29px;
+  --button-padding-bottom: 13px;
+  --button-padding-left: 29px;
+  --button-border-radius: 4px;
 }
 
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+  --font-sans: var(--font-poppins, 'Poppins', sans-serif);
+  --font-inter: var(--font-inter, 'Inter', sans-serif);
 }
 
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  background: var(--awb-color3);
+  color: var(--awb-color7);
+  font-family: var(--font-poppins), 'Poppins', 'Inter', system-ui, -apple-system, sans-serif;
+  font-size: 16px;
+  line-height: 1.72;
+  letter-spacing: 0.015em;
 }
+
+h1, .h1 {
+  font-family: var(--font-poppins), 'Poppins', sans-serif;
+  font-weight: 400;
+  color: var(--awb-color8);
+}
+
+h2, h3, h4, h5 {
+  font-family: var(--font-poppins), 'Poppins', sans-serif;
+  font-weight: 400;
+  color: var(--awb-color7);
+}
+
+h6 {
+  font-family: var(--font-poppins), 'Poppins', sans-serif;
+  font-weight: 400;
+  color: var(--awb-color6);
+}
+
+a {
+  color: var(--awb-color8);
+  transition: color 0.2s ease-in-out;
+}
+
+a:hover {
+  color: var(--awb-color5);
+}
+
+/* WordPress Avada Theme Input Styles */
+input[type="text"],
+input[type="email"],
+input[type="password"],
+input[type="tel"],
+input[type="number"],
+select,
+textarea {
+  background-color: var(--awb-color1);
+  color: var(--awb-color8);
+  border: 1px solid var(--awb-color3);
+  border-radius: var(--form-border-radius);
+  font-size: var(--form-text-size);
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+input[type="text"]:focus,
+input[type="email"]:focus,
+input[type="password"]:focus,
+input[type="tel"]:focus,
+input[type="number"]:focus,
+select:focus,
+textarea:focus {
+  border-color: var(--awb-color4);
+  outline: none;
+  box-shadow: 0 0 0 3px rgba(101, 189, 125, 0.15);
+}
+
+/* WordPress Avada Theme Button Styles */
+.awb-btn,
+button.btn-primary {
+  background-color: var(--awb-color5);
+  color: var(--awb-color1);
+  padding: var(--button-padding-top) var(--button-padding-right) var(--button-padding-bottom) var(--button-padding-left);
+  border-radius: var(--button-border-radius);
+  font-family: var(--font-inter), 'Inter', sans-serif;
+  font-weight: 600;
+  font-size: 16px;
+  line-height: 1.2;
+  border: none;
+  cursor: pointer;
+  transition: background-color 0.2s ease, transform 0.1s ease;
+}
+
+.awb-btn:hover,
+button.btn-primary:hover {
+  background-color: #157ab9;
+}
+

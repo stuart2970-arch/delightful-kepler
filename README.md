@@ -434,3 +434,16 @@ ame, irstMessage, and 	ranscriber) rather than relying on ssistantOverrides de
 - **Discovery**: Vapi spoke 'Server error 404' when attempting to connect to the Gemini Custom LLM endpoint.
 - **Root Cause**: The \url\ field in \modelOverrides\ had a trailing slash (\/api/voice/\/\). Because Vapi automatically appends \/chat/completions\ to the \url\, it was attempting to POST to \/api/voice/\//chat/completions\ (with double slashes \//\), causing Next.js router to return HTTP 404.
 - **Fix**: Removed the trailing slash from \url\ in \src/app/api/webhooks/vapi/assistant/route.ts\.
+
+**Update (Telephony Deprovisioning & Number Release System):**
+- **Deprovision API**: Added `/api/telephony/deprovision` to permanently release numbers from Twilio (`client.incomingPhoneNumbers(sid).remove()`), delete entries from Vapi (`DELETE https://api.vapi.ai/phone-number/{id}`), and set `tenants.twilio_shadow_number = null` in Supabase.
+- **Interactive Downgrade Confirmation Modal**: Added explicit warning modal in `TelephonyView.tsx` for downgrades and number releases informing users that releasing a number is permanent and cannot be undone.
+
+### Session 8 (August 1, 2026) - WordPress Avada Theme Redesign & Embedded Alignment
+- **User Directive**: "redesign - this is the export from the wordpress website we will be using. as the app is embeded on a page within this site, we must redesign the app to 'fit in' [Avada WordPress Export JSON]"
+- **Changes & Enhancements**:
+  - **Avada Theme Design System Integration**: Extracted the Avada WordPress theme color tokens (`--awb-color1` through `--awb-color8`), fonts (`Poppins`, `Inter`), typography specs (`64px` H1, `16px` body font, `1.72` line-height), form control sizing (`50px` input height, `6px` border-radius), button padding (`13px 29px`, `4px` border-radius), and container width (`1200px` max-width, `30px` padding).
+  - **Global CSS & Font Loaders (`layout.tsx` & `globals.css`)**: Configured Google Fonts `Poppins` and `Inter` in Next.js [layout.tsx](file:///c:/Users/Stuar/.gemini/antigravity/scratch/delightful-kepler/src/app/layout.tsx), defined root CSS custom properties in [globals.css](file:///c:/Users/Stuar/.gemini/antigravity/scratch/delightful-kepler/src/app/globals.css), and added global button/input style classes.
+  - **Embedded Container Alignment (`page.tsx`)**: Updated top-level container styles in [page.tsx](file:///c:/Users/Stuar/.gemini/antigravity/scratch/delightful-kepler/src/app/page.tsx) so the embedded application sits within a `max-w-[1200px]` container with `30px` padding and matching theme colors.
+  - **Widget Shadow DOM Redesign (`embed.ts` & `index.ts`)**: Injected Google Fonts and Avada CSS variables into the Shadow DOM in [embed.ts](file:///c:/Users/Stuar/.gemini/antigravity/scratch/delightful-kepler/src/widget/embed.ts) and [index.ts](file:///c:/Users/Stuar/.gemini/antigravity/scratch/delightful-kepler/src/widget/index.ts). Updated input heights (`50px`), button styling (`13px 29px`, `#198fd9`), and default primary colors (`#260475`).
+  - **Build Verification**: Recompiled widget scripts (`npm run build:widget`) to produce updated `public/widget.js` and `public/embed.js`.

@@ -66,7 +66,12 @@ import Vapi from '@vapi-ai/web';
 
   const shadowRoot = host.attachShadow({ mode: 'open' });
 
-  // 4. Inject Tailwind Stylesheet & Custom CSS inside the Shadow Root
+  // 4. Inject Google Fonts, Tailwind Stylesheet & Custom CSS inside the Shadow Root
+  const fontLink = document.createElement('link');
+  fontLink.rel = 'stylesheet';
+  fontLink.href = 'https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Poppins:wght@400;500;600;700&display=swap';
+  shadowRoot.appendChild(fontLink);
+
   const tailwindLink = document.createElement('link');
   tailwindLink.rel = 'stylesheet';
   tailwindLink.href = 'https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css';
@@ -74,6 +79,18 @@ import Vapi from '@vapi-ai/web';
 
   const styleTag = document.createElement('style');
   styleTag.textContent = `
+    :host {
+      --awb-color1: #ffffff;
+      --awb-color2: #f9f9fb;
+      --awb-color3: #f2f3f5;
+      --awb-color4: #65bd7d;
+      --awb-color5: #198fd9;
+      --awb-color6: #434549;
+      --awb-color7: #212326;
+      --awb-color8: #260475;
+      font-family: 'Poppins', 'Inter', sans-serif;
+    }
+
     @keyframes styleflo-bounce {
       0%, 100% { transform: translateY(0); }
       50% { transform: translateY(-4px); }
@@ -82,7 +99,7 @@ import Vapi from '@vapi-ai/web';
       display: inline-block;
       width: 6px;
       height: 6px;
-      background-color: #9CA3AF;
+      background-color: var(--awb-color6);
       border-radius: 50%;
       animation: styleflo-bounce 1.4s infinite ease-in-out;
     }
@@ -97,25 +114,57 @@ import Vapi from '@vapi-ai/web';
       background: transparent;
     }
     .styleflo-scrollbar::-webkit-scrollbar-thumb {
-      background-color: #D1D5DB;
+      background-color: var(--awb-color3);
       border-radius: 2px;
     }
     .styleflo-scrollbar {
       scrollbar-width: thin;
-      scrollbar-color: #D1D5DB transparent;
+      scrollbar-color: var(--awb-color3) transparent;
     }
 
-    /* Custom sizing since Tailwind v2 CDN doesn't support arbitrary values */
+    /* Custom sizing and Avada Form Control overrides */
     .styleflo-chat-window {
       width: 100%;
       height: 100%;
       min-height: 400px;
+      font-family: 'Poppins', 'Inter', sans-serif;
+      color: var(--awb-color7);
     }
     .styleflo-text-17 { font-size: 17px; }
     .styleflo-text-15 { font-size: 15px; }
     .styleflo-text-11 { font-size: 11px; }
     .styleflo-mw-85 { max-width: 85%; width: fit-content; }
     .styleflo-mw-75 { max-width: 75%; width: fit-content; }
+
+    .styleflo-input-field {
+      height: 50px;
+      font-size: 16px;
+      border-radius: 6px;
+      border: 1px solid var(--awb-color3);
+      background-color: var(--awb-color1);
+      color: var(--awb-color8);
+      transition: border-color 0.2s ease;
+    }
+    .styleflo-input-field:focus {
+      border-color: var(--awb-color4) !important;
+      outline: none;
+    }
+
+    .styleflo-btn-primary {
+      padding: 13px 29px;
+      border-radius: 4px;
+      font-family: 'Inter', sans-serif;
+      font-weight: 600;
+      font-size: 16px;
+      background-color: var(--awb-color5);
+      color: var(--awb-color1);
+      border: none;
+      cursor: pointer;
+      transition: background-color 0.2s ease;
+    }
+    .styleflo-btn-primary:hover {
+      background-color: #157ab9;
+    }
 
     @keyframes styleflo-pulse {
       0%, 100% { opacity: 1; }
@@ -147,7 +196,7 @@ import Vapi from '@vapi-ai/web';
   widgetContainer.className = 'font-sans w-full h-full';
   shadowRoot.appendChild(widgetContainer);
 
-  let primaryColor = '#4F46E5'; // Default Indigo-600
+  let primaryColor = '#260475'; // Default Avada Theme Deep Purple/Navy (#260475)
   let botName = 'AI Assistant';
   let agentName = 'AI Assistant';
   let agentRole = 'AI Support Agent';
