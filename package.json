@@ -4,7 +4,7 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
-    "build": "next build --no-lint && npm run build:widget",
+    "build": "next build && npm run build:widget",
     "start": "next start",
     "lint": "eslint",
     "build:widget": "node scripts/build-widget.js",
