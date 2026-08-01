@@ -10,6 +10,7 @@ import KnowledgeBaseView from './dashboard-views/KnowledgeBaseView';
 import InboxView from './dashboard-views/InboxView';
 import SchedulingView from './dashboard-views/SchedulingView';
 import IntegrationsView from './dashboard-views/IntegrationsView';
+import TelephonyView from './dashboard-views/TelephonyView';
 import SuperAdminVoiceManagerView from './dashboard-views/SuperAdminVoiceManagerView';
 import { useDashboardStore } from '../lib/store';
 
@@ -82,6 +83,7 @@ interface DashboardClientProps {
   initialBusinessAddress?: string;
   initialPostcode?: string;
   initialGoogleConnectedEmail?: string | null;
+  initialTwilioShadowNumber?: string | null;
 }
 
 export default function DashboardClient({
@@ -111,6 +113,7 @@ export default function DashboardClient({
   isImpersonating,
   initialBusinessAddress,
   initialPostcode,
+  initialTwilioShadowNumber,
 }: DashboardClientProps) {
   const storeInitialized = React.useRef(false);
   if (!storeInitialized.current) {
@@ -136,6 +139,7 @@ export default function DashboardClient({
       googleConnectedEmail: initialGoogleConnectedEmail || null,
       businessAddress: initialBusinessAddress || '',
       postcode: initialPostcode || '',
+      twilioShadowNumber: initialTwilioShadowNumber || null,
     });
     storeInitialized.current = true;
   }
@@ -148,6 +152,7 @@ export default function DashboardClient({
     isMobileMenuOpen, setIsMobileMenuOpen,
     domain, setDomain,
     rwgConfig, setRwgConfig,
+    twilioShadowNumber, setTwilioShadowNumber,
     services, setServices,
     staff, setStaff
   } = useDashboardStore();
@@ -521,6 +526,7 @@ const globalBotId = '00000000-0000-0000-0000-000000000000';
                 { id: 'conversations', label: 'Inbox & Logs', icon: <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z" />, count: conversations.length },
                 { id: 'crawler', label: 'Knowledge Base', icon: <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" /> },
                 { id: 'integrations', label: 'Integrations', icon: <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 10V3L4 14h7v7l9-11h-7z" /> },
+                { id: 'telephony', label: 'Voice Receptionist', icon: <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" /> },
                 { id: 'billing', label: 'Billing & Usage', icon: <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z" /> },
                 { id: 'account', label: 'Account Settings', icon: <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" /> },
                 ...(isSuperAdmin && !isImpersonating ? [
@@ -804,8 +810,7 @@ const globalBotId = '00000000-0000-0000-0000-000000000000';
 
 {/* Integrations Tab */}
           {activeTab === 'integrations' && <IntegrationsView />}
-
-          {/* Scheduling Tab */}
+          {activeTab === 'telephony' && <TelephonyView />}
           {activeTab === 'scheduling' && <SchedulingView />}
             </div>
         </div>

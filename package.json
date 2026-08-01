@@ -3,7 +3,7 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "dev": "next dev --experimental-https",
+    "dev": "next dev",
     "build": "next build && npm run build:widget",
     "start": "next start",
     "lint": "eslint",
@@ -33,6 +33,7 @@
     "pdf-parse": "^2.4.5",
     "react": "19.2.4",
     "react-dom": "19.2.4",
+    "twilio": "^6.0.2",
     "zod": "^4.4.3",
     "zustand": "^5.0.14"
   },

@@ -400,3 +400,37 @@ The user requested that the chatbot integration on the EmDash-generated websites
  * * D a t e * * :   2 0 2 6 - 0 7 - 2 6 
  * * S u m m a r y * * :   A d d e d   a n   o p t i o n   t o   e m b e d   t h e   c h a t b o t   i n t o   a   w e b p a g e   ( i n s t e a d   o f   a   p o p u p   w i d g e t ) .   C r e a t e d   \ s r c / w i d g e t / e m b e d . t s \   w h i c h   d u p l i c a t e s   t h e   p o p u p   l o g i c   b u t   r e n d e r s   i n l i n e .   U p d a t e d   \ s c r i p t s / b u i l d - w i d g e t . j s \   t o   o u t p u t   b o t h   \ w i d g e t . j s \   a n d   \ e m b e d . j s \ .   C u s t o m e r s   c a n   n o w   i n c l u d e   \ e m b e d . j s \   a n d   o p t i o n a l l y   p r o v i d e   \ d a t a - c o n t a i n e r - i d \   t o   s p e c i f y   w h e r e   t h e   c h a t b o t   s h o u l d   b e   r e n d e r e d .  
  
+**Update (Voice Connection Debugging 6):**
+- **Discovery**: Vapi webhook voice override via ssistantOverrides failed to apply ElevenLabs voice.
+- **Root Cause**: Two issues. 1) Vapi schema requires provider string to be '11labs' exactly, not 'elevenlabs'. 2) ssistantOverrides merging logic rejects the voice property when overriding a native Vapi voice from the dashboard.
+- **Fix**: Refactored src/app/api/webhooks/vapi/assistant/route.ts to return a fully constructed dynamic ssistant schema from scratch (including 
+ame, irstMessage, and 	ranscriber) rather than relying on ssistantOverrides deep-merging. Temporarily routed LLM to OpenAI to bypass Vapi's broken Gemini API Key dashboard validation logic.
+
+**Update (Voice Connection Debugging 7):**
+- **Discovery**: The user asked why the same Voice ID works on the web widget but fails on the phone call. This proved the ElevenLabs API Key and Voice ID are valid.
+- **Root Cause**: Investigating the Vapi Assistant schema revealed that \ariableValues\ is NOT a valid property on the root \ssistant\ object. Because the webhook was returning an \ssistant\ object containing \ariableValues: { tenant_id... }\, Vapi's webhook schema validator was entirely rejecting the payload and falling back to the dashboard master configuration.
+- **Fix**: Replaced \ariableValues\ with \metadata\ (which is valid on the assistant schema) and added \model: 'eleven_turbo_v2_5'\ to the voice block to perfectly mirror the web widget payload.
+
+**Update (Voice Connection Debugging 8):**
+- **Discovery**: Found the exact root cause why the phone call was always using the Vapi default voice despite working on the web widget.
+- **Root Cause**: The webhook had a fragile check: \if (!call.phoneNumber.number) return NextResponse.json({ assistantOverrides: {} });\. Depending on how Vapi routes inbound phone calls, \call.phoneNumber\ is often a string or passed via \call.to.phoneNumber\. Because \call.phoneNumber.number\ evaluated to \undefined\, the webhook was exiting early on line 16 on EVERY single call and returning empty overrides \{}\, forcing Vapi to fall back to its dashboard master assistant defaults.
+- **Fix**: Upgraded phone number parsing to extract numbers from all possible Vapi payload properties (\call.phoneNumber\, \call.to.phoneNumber\, \call.phone_number\). Added a DB fallback mechanism so if the phone number lookup fails, it defaults to the primary tenant/chatbot rather than returning an empty object.
+
+**Update (Voice Connection Debugging 9):**
+- **Discovery**: The user provided the exact terminal log from Next.js server when the phone call came in.
+- **Root Cause**: The fallback code queried tenants with limit(1), which fetched Tenant 8cf694cf-3ef9-4309-ac7c-3edf20635559. However, this specific tenant had NO chatbot configured in the database! When the webhook found no chatbot for that tenant, it returned empty overrides {}, forcing Vapi to revert to the default Vapi voice.
+- **Fix**: Re-engineered the fallback logic in route.ts to query active chatbots directly. It now correctly resolves the active chatbot ('StyleFlo Support'), maps its voice_id to ElevenLabs Voice ID 'dqTe8OSrj3PERbkXF8Kx', and returns the full custom assistant payload.
+
+**Update (Voice Connection Debugging 10 - FINAL BREAKTHROUGH):**
+- **Discovery**: The JSON payload provided by the user showed that Vapi places the called phone number in \message.phoneNumber.number\ (\+18126787862\), while \call.phoneNumber\ was undefined.
+- **Root Cause**: The previous extraction logic checked \call.phoneNumberId\ (\16ff43ea-...\) before checking \message.phoneNumber.number\. Because the phone number became a UUID, the DB lookup failed and triggered the fallback query. The fallback query selected Chatbot \ 0000000-0000-0000-0000-000000000000\ (the Global Settings bot), which was hardcoded with the default Vapi voice \IHbv24MWmeRgasZH58o\.
+- **Fix**: Re-ordered extraction to prioritize \message.phoneNumber.number\ (\+18126787862\), which matches Tenant \7b0f485d...\ (StyleFlo) and Chatbot \9825855e...\. Excluded the Global Settings chatbot (\ 0000000...\) from client fallbacks. This guarantees that \dqTe8OSrj3PERbkXF8Kx\ is resolved and delivered to Vapi.
+
+**Update (Gemini 1.5 Flash Re-integration):**
+- **Action**: Switched model provider in src/app/api/webhooks/vapi/assistant/route.ts from OpenAI (gpt-4o-mini) back to Custom LLM (custom-llm).
+- **Model Selection**: Configured the model to use gemini-1.5-flash in both oute.ts and src/app/api/voice/[chatbotId]/chat/completions/route.ts for maximum speed and cost efficiency.
+
+**Update (Fix 404 Custom LLM URL):**
+- **Discovery**: Vapi spoke 'Server error 404' when attempting to connect to the Gemini Custom LLM endpoint.
+- **Root Cause**: The \url\ field in \modelOverrides\ had a trailing slash (\/api/voice/\/\). Because Vapi automatically appends \/chat/completions\ to the \url\, it was attempting to POST to \/api/voice/\//chat/completions\ (with double slashes \//\), causing Next.js router to return HTTP 404.
+- **Fix**: Removed the trailing slash from \url\ in \src/app/api/webhooks/vapi/assistant/route.ts\.

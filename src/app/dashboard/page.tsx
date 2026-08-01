@@ -65,6 +65,7 @@ export default async function DashboardPage(props: { searchParams?: Promise<{ [k
   
   let initialGoogleConnected = false;
   let initialGoogleConnectedEmail = null;
+  let initialTwilioShadowNumber = null;
   
   let chatbots: any[] = [];
   let conversations: any[] = [];
@@ -107,7 +108,7 @@ export default async function DashboardPage(props: { searchParams?: Promise<{ [k
       
       const { data: tenant } = await supabase
         .from('tenants')
-        .select('company_name, domain, business_address, postcode, plan_tier, is_rwg_enabled, rwg_business_name, rwg_street_address, rwg_city, rwg_postcode, rwg_phone, is_registered_business_address, booking_mode, booking_url, general_operating_hours, operating_hours_overrides, holiday_settings')
+        .select('company_name, domain, business_address, postcode, plan_tier, is_rwg_enabled, rwg_business_name, rwg_street_address, rwg_city, rwg_postcode, rwg_phone, is_registered_business_address, booking_mode, booking_url, general_operating_hours, operating_hours_overrides, holiday_settings, twilio_shadow_number')
         .eq('id', tenantId)
         .single();
       
@@ -130,6 +131,7 @@ export default async function DashboardPage(props: { searchParams?: Promise<{ [k
         generalOperatingHours = tenant.general_operating_hours || {};
         operatingHoursOverrides = tenant.operating_hours_overrides || [];
         holidaySettings = tenant.holiday_settings || {};
+        initialTwilioShadowNumber = tenant.twilio_shadow_number || null;
       }
 
       // Check Google Connection Status
@@ -317,6 +319,7 @@ export default async function DashboardPage(props: { searchParams?: Promise<{ [k
         initialDomain={domain}
         initialBusinessAddress={businessAddress}
         initialPostcode={postcode}
+        initialTwilioShadowNumber={initialTwilioShadowNumber}
         initialRwgConfig={rwgConfig}
         initialBookingMode={bookingMode}
         initialBookingUrl={bookingUrl}

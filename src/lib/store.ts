@@ -77,7 +77,7 @@ export type BusinessWeeklySchedule = {
   sunday: BusinessDailySchedule;
 };
 
-export type ActiveTab = 'chatbots' | 'crawler' | 'conversations' | 'scheduling' | 'integrations' | 'settings' | 'billing';
+export type ActiveTab = 'chatbots' | 'crawler' | 'conversations' | 'scheduling' | 'integrations' | 'telephony' | 'settings' | 'billing' | 'account' | 'superadmin_voices';
 
 export interface DashboardState {
   // User/Tenant Data
@@ -120,6 +120,8 @@ export interface DashboardState {
   setBusinessAddress: (address: string) => void;
   postcode: string;
   setPostcode: (postcode: string) => void;
+  twilioShadowNumber: string | null;
+  setTwilioShadowNumber: (number: string | null) => void;
 
   // RWG & Scheduling Context
   rwgConfig: any;
@@ -176,6 +178,8 @@ export const useDashboardStore = create<DashboardState>((set) => ({
 
   domain: '',
   setDomain: (domain) => set({ domain }),
+  twilioShadowNumber: null,
+  setTwilioShadowNumber: (number) => set({ twilioShadowNumber: number }),
   rwgConfig: {},
   setRwgConfig: (rwgConfig) => set({ rwgConfig }),
   bookingMode: 'single_calendar',

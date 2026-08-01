@@ -128,7 +128,7 @@ export async function POST(
     
     if (!isStream) {
       const { text } = await generateText({
-        model: google('gemini-3.5-flash'),
+        model: google('gemini-1.5-flash'),
         messages: enhancedMessages,
         temperature: 0.7,
       });
@@ -136,7 +136,7 @@ export async function POST(
         id: 'chatcmpl-vapi',
         object: 'chat.completion',
         created: Math.floor(Date.now() / 1000),
-        model: 'gemini-3.5-flash',
+        model: 'gemini-1.5-flash',
         choices: [
           {
             message: { role: 'assistant', content: text },
@@ -148,7 +148,7 @@ export async function POST(
     }
 
     const result = streamText({
-      model: google('gemini-3.5-flash'),
+      model: google('gemini-1.5-flash'),
       messages: enhancedMessages,
       temperature: 0.7,
     });
@@ -165,7 +165,7 @@ export async function POST(
                 id: 'chatcmpl-vapi',
                 object: 'chat.completion.chunk',
                 created: Math.floor(Date.now() / 1000),
-                model: 'gemini-3.5-flash',
+                model: 'gemini-1.5-flash',
                 choices: [{ delta: { role: 'assistant' }, index: 0, finish_reason: null }]
               };
               controller.enqueue(encoder.encode(`data: ${JSON.stringify(roleChunk)}\n\n`));
