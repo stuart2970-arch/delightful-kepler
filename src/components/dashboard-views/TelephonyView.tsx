@@ -29,6 +29,31 @@ export default function TelephonyView() {
     }
   };
 
+  const [isDeprovisioning, setIsDeprovisioning] = useState(false);
+  const [showConfirmModal, setShowConfirmModal] = useState(false);
+
+  const handleDeprovision = async () => {
+    setIsDeprovisioning(true);
+    setError(null);
+    try {
+      const res = await fetch('/api/telephony/deprovision', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ tenant_id: tenantId, confirmed_downgrade: true }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data.error || 'Failed to release number');
+      }
+      setTwilioShadowNumber(null);
+      setShowConfirmModal(false);
+    } catch (err: any) {
+      setError(err.message);
+    } finally {
+      setIsDeprovisioning(false);
+    }
+  };
+
   return (
     <div className="space-y-8 max-w-4xl">
       <div className="flex justify-between items-end">
@@ -75,13 +100,21 @@ export default function TelephonyView() {
           </div>
         ) : (
           <div className="space-y-6">
-            <div>
-              <h3 className="text-lg font-medium text-white mb-2">Your Dedicated Number</h3>
-              <div className="flex items-center space-x-4">
-                <div className="bg-indigo-500/10 border border-indigo-500/30 text-indigo-300 px-6 py-4 rounded-xl text-3xl font-mono tracking-wider shadow-inner">
-                  {twilioShadowNumber}
+            <div className="flex items-center justify-between">
+              <div>
+                <h3 className="text-lg font-medium text-white mb-2">Your Dedicated Number</h3>
+                <div className="flex items-center space-x-4">
+                  <div className="bg-indigo-500/10 border border-indigo-500/30 text-indigo-300 px-6 py-4 rounded-xl text-3xl font-mono tracking-wider shadow-inner">
+                    {twilioShadowNumber}
+                  </div>
                 </div>
               </div>
+              <button
+                onClick={() => setShowConfirmModal(true)}
+                className="bg-red-500/10 hover:bg-red-500/20 text-red-400 border border-red-500/30 px-4 py-2.5 rounded-xl text-sm font-medium transition-all"
+              >
+                Release Number
+              </button>
             </div>
 
             <div className="bg-amber-500/10 border border-amber-500/20 rounded-xl p-6">
@@ -101,6 +134,50 @@ export default function TelephonyView() {
           </div>
         )}
       </div>
+
+      {/* Downgrade & Release Confirmation Modal */}
+      {showConfirmModal && (
+        <div className="fixed inset-0 bg-black/70 backdrop-blur-md flex items-center justify-center p-4 z-50">
+          <div className="bg-gray-900 border border-white/10 rounded-2xl p-6 max-w-md w-full shadow-2xl space-y-4">
+            <div className="w-12 h-12 bg-red-500/20 rounded-full flex items-center justify-center text-red-400">
+              <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+              </svg>
+            </div>
+            <h3 className="text-xl font-bold text-white">Permanently Release Phone Number?</h3>
+            <p className="text-gray-300 text-sm leading-relaxed">
+              Releasing your dedicated number <strong className="text-white font-mono">{twilioShadowNumber}</strong> is <strong>permanent and cannot be undone</strong>.
+            </p>
+            <p className="text-gray-400 text-xs leading-relaxed">
+              If you downgrade your plan or release this number, it will be immediately returned to Twilio and removed from Vapi. You will not be able to re-claim this exact number in the future.
+            </p>
+            {error && (
+              <div className="bg-red-500/10 border border-red-500/20 text-red-400 px-3 py-2 rounded-lg text-xs">
+                {error}
+              </div>
+            )}
+            <div className="flex space-x-3 pt-2">
+              <button
+                onClick={() => setShowConfirmModal(false)}
+                className="flex-1 bg-white/10 hover:bg-white/20 text-white font-medium py-2.5 px-4 rounded-xl text-sm transition-all"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleDeprovision}
+                disabled={isDeprovisioning}
+                className="flex-1 bg-red-600 hover:bg-red-500 text-white font-semibold py-2.5 px-4 rounded-xl text-sm transition-all flex items-center justify-center space-x-2"
+              >
+                {isDeprovisioning ? (
+                  <span>Releasing...</span>
+                ) : (
+                  <span>Yes, Release Number</span>
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
