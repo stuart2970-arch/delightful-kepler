@@ -127,7 +127,7 @@ export async function POST(request: Request) {
     }
 
     // Custom LLM model provider pointing to Gemini 1.5 Flash endpoint
-    const appUrl = (process.env.NEXT_PUBLIC_APP_URL || 'https://overcrowd-alkaline-obsolete.ngrok-free.dev').replace(/\/$/, '');
+    const appUrl = (process.env.NEXT_PUBLIC_APP_URL || 'https://app.styleflo.ai').replace(/\/$/, '');
     const modelOverrides: any = {
       provider: 'custom-llm',
       url: `${appUrl}/api/voice/${chatbot.id}`,
