@@ -19,8 +19,8 @@ COPY --from=deps /app/node_modules ./node_modules
 COPY . .
 
 # Set build-time environment variables
-ENV NEXT_TELEMETRY_DISABLED 1
-ENV NODE_ENV production
+ENV NEXT_TELEMETRY_DISABLED=1
+ENV NODE_ENV=production
 
 # Accept Supabase public credentials from docker build --build-arg (with safe build-time fallbacks)
 ARG NEXT_PUBLIC_SUPABASE_URL=https://tkoasyjvrgaglofpzduq.supabase.co
@@ -38,9 +38,9 @@ RUN npm run build
 FROM node:20-alpine AS runner
 WORKDIR /app
 
-ENV NODE_ENV production
-ENV NEXT_TELEMETRY_DISABLED 1
-ENV HOSTNAME "0.0.0.0"
+ENV NODE_ENV=production
+ENV NEXT_TELEMETRY_DISABLED=1
+ENV HOSTNAME="0.0.0.0"
 
 # Create a non-root system user and group for runtime security (GDPR compliance best practice)
 RUN addgroup --system --gid 1001 nodejs
