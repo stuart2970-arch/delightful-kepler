@@ -92,7 +92,7 @@ export default function SuperAdminVoiceManagerView() {
   return (
     <div className="p-6">
       <div className="flex items-center justify-between mb-6">
-        <h2 className="text-xl font-bold text-white">Voice Personas Mapping</h2>
+        <h2 className="text-xl font-bold text-[var(--awb-color8)]">Voice Personas Mapping</h2>
         <button
           onClick={() => {
             setEditingId(null);
@@ -106,7 +106,7 @@ export default function SuperAdminVoiceManagerView() {
               provider: '11labs'
             });
           }}
-          className="bg-indigo-600 hover:bg-indigo-500 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors"
+          className="bg-[var(--awb-color5)] text-[var(--awb-color8)] hover:bg-[var(--awb-color5)] text-[var(--awb-color8)] text-[var(--awb-color8)] px-4 py-2 rounded-lg text-sm font-medium transition-colors"
         >
           Clear Form
         </button>
@@ -114,59 +114,59 @@ export default function SuperAdminVoiceManagerView() {
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Form Panel */}
-        <div className="bg-gray-900 border border-gray-800 rounded-xl p-5 h-fit">
-          <h3 className="text-sm font-bold text-gray-300 mb-4">{editingId ? 'Edit Persona' : 'Add New Persona'}</h3>
+        <div className="bg-[var(--awb-color1)] border border-[var(--awb-color3)] rounded-xl p-5 h-fit">
+          <h3 className="text-sm font-bold text-[var(--awb-color7)] mb-4">{editingId ? 'Edit Persona' : 'Add New Persona'}</h3>
           <form onSubmit={handleSave} className="space-y-4">
             <div>
-              <label className="block text-xs font-semibold text-gray-400 mb-1">Display Name</label>
-              <input required type="text" value={formData.name} onChange={e => setFormData({...formData, name: e.target.value})} className="w-full bg-gray-950 border border-gray-800 rounded-lg p-2.5 text-sm text-white" placeholder="e.g. British Female - Crisp" />
+              <label className="block text-xs font-semibold text-[var(--awb-color6)] mb-1">Display Name</label>
+              <input required type="text" value={formData.name} onChange={e => setFormData({...formData, name: e.target.value})} className="w-full bg-[var(--awb-color1)] text-[var(--awb-color8)] border-[var(--awb-color3)] border border-[var(--awb-color3)] rounded-lg p-2.5 text-sm text-[var(--awb-color8)]" placeholder="e.g. British Female - Crisp" />
             </div>
             <div>
-              <label className="block text-xs font-semibold text-gray-400 mb-1">External Voice ID (ElevenLabs / PlayHT)</label>
-              <input required type="text" value={formData.external_voice_id} onChange={e => setFormData({...formData, external_voice_id: e.target.value})} className="w-full bg-gray-950 border border-gray-800 rounded-lg p-2.5 text-sm text-white" placeholder="e.g. zrHiDhphv9ZnVBTiNxbM" />
+              <label className="block text-xs font-semibold text-[var(--awb-color6)] mb-1">External Voice ID (ElevenLabs / PlayHT)</label>
+              <input required type="text" value={formData.external_voice_id} onChange={e => setFormData({...formData, external_voice_id: e.target.value})} className="w-full bg-[var(--awb-color1)] text-[var(--awb-color8)] border-[var(--awb-color3)] border border-[var(--awb-color3)] rounded-lg p-2.5 text-sm text-[var(--awb-color8)]" placeholder="e.g. zrHiDhphv9ZnVBTiNxbM" />
             </div>
             <div className="grid grid-cols-2 gap-4">
               <div>
-                <label className="block text-xs font-semibold text-gray-400 mb-1">Gender</label>
-                <select value={formData.gender} onChange={e => setFormData({...formData, gender: e.target.value})} className="w-full bg-gray-950 border border-gray-800 rounded-lg p-2.5 text-sm text-white">
+                <label className="block text-xs font-semibold text-[var(--awb-color6)] mb-1">Gender</label>
+                <select value={formData.gender} onChange={e => setFormData({...formData, gender: e.target.value})} className="w-full bg-[var(--awb-color1)] text-[var(--awb-color8)] border-[var(--awb-color3)] border border-[var(--awb-color3)] rounded-lg p-2.5 text-sm text-[var(--awb-color8)]">
                   <option value="Female">Female</option>
                   <option value="Male">Male</option>
                 </select>
               </div>
               <div>
-                <label className="block text-xs font-semibold text-gray-400 mb-1">Provider</label>
-                <select value={formData.provider} onChange={e => setFormData({...formData, provider: e.target.value})} className="w-full bg-gray-950 border border-gray-800 rounded-lg p-2.5 text-sm text-white">
+                <label className="block text-xs font-semibold text-[var(--awb-color6)] mb-1">Provider</label>
+                <select value={formData.provider} onChange={e => setFormData({...formData, provider: e.target.value})} className="w-full bg-[var(--awb-color1)] text-[var(--awb-color8)] border-[var(--awb-color3)] border border-[var(--awb-color3)] rounded-lg p-2.5 text-sm text-[var(--awb-color8)]">
                   <option value="11labs">ElevenLabs</option>
                   <option value="playht">PlayHT</option>
                 </select>
               </div>
             </div>
             <div>
-              <label className="block text-xs font-semibold text-gray-400 mb-1">Role / Vibe</label>
-              <input type="text" value={formData.role} onChange={e => setFormData({...formData, role: e.target.value})} className="w-full bg-gray-950 border border-gray-800 rounded-lg p-2.5 text-sm text-white" placeholder="e.g. Corporate, Executive" />
+              <label className="block text-xs font-semibold text-[var(--awb-color6)] mb-1">Role / Vibe</label>
+              <input type="text" value={formData.role} onChange={e => setFormData({...formData, role: e.target.value})} className="w-full bg-[var(--awb-color1)] text-[var(--awb-color8)] border-[var(--awb-color3)] border border-[var(--awb-color3)] rounded-lg p-2.5 text-sm text-[var(--awb-color8)]" placeholder="e.g. Corporate, Executive" />
             </div>
             <div>
-              <label className="block text-xs font-semibold text-gray-400 mb-1">Nationality</label>
-              <input type="text" value={formData.nationality} onChange={e => setFormData({...formData, nationality: e.target.value})} className="w-full bg-gray-950 border border-gray-800 rounded-lg p-2.5 text-sm text-white" placeholder="e.g. British" />
+              <label className="block text-xs font-semibold text-[var(--awb-color6)] mb-1">Nationality</label>
+              <input type="text" value={formData.nationality} onChange={e => setFormData({...formData, nationality: e.target.value})} className="w-full bg-[var(--awb-color1)] text-[var(--awb-color8)] border-[var(--awb-color3)] border border-[var(--awb-color3)] rounded-lg p-2.5 text-sm text-[var(--awb-color8)]" placeholder="e.g. British" />
             </div>
             <div>
-              <label className="block text-xs font-semibold text-gray-400 mb-1">Preview Audio URL</label>
-              <input type="text" value={formData.preview_url} onChange={e => setFormData({...formData, preview_url: e.target.value})} className="w-full bg-gray-950 border border-gray-800 rounded-lg p-2.5 text-sm text-white" placeholder="/audio/sample.mp3" />
+              <label className="block text-xs font-semibold text-[var(--awb-color6)] mb-1">Preview Audio URL</label>
+              <input type="text" value={formData.preview_url} onChange={e => setFormData({...formData, preview_url: e.target.value})} className="w-full bg-[var(--awb-color1)] text-[var(--awb-color8)] border-[var(--awb-color3)] border border-[var(--awb-color3)] rounded-lg p-2.5 text-sm text-[var(--awb-color8)]" placeholder="/audio/sample.mp3" />
             </div>
-            <button type="submit" className="w-full bg-indigo-600 hover:bg-indigo-500 text-white font-semibold py-2.5 rounded-lg text-sm transition-colors mt-2">
+            <button type="submit" className="w-full bg-[var(--awb-color5)] text-[var(--awb-color8)] hover:bg-[var(--awb-color5)] text-[var(--awb-color8)] text-[var(--awb-color8)] font-semibold py-2.5 rounded-lg text-sm transition-colors mt-2">
               {editingId ? 'Update Persona' : 'Create Persona'}
             </button>
           </form>
         </div>
 
         {/* List Panel */}
-        <div className="lg:col-span-2 bg-gray-900 border border-gray-800 rounded-xl overflow-hidden">
+        <div className="lg:col-span-2 bg-[var(--awb-color1)] border border-[var(--awb-color3)] rounded-xl overflow-hidden">
           {loading ? (
-            <div className="p-10 text-center text-gray-500">Loading personas...</div>
+            <div className="p-10 text-center text-[var(--awb-color6)]">Loading personas...</div>
           ) : (
             <div className="overflow-x-auto">
-              <table className="w-full text-left text-sm text-gray-300">
-                <thead className="bg-gray-950/50 text-xs uppercase text-gray-500">
+              <table className="w-full text-left text-sm text-[var(--awb-color7)]">
+                <thead className="bg-[var(--awb-color2)] text-xs uppercase text-[var(--awb-color6)]">
                   <tr>
                     <th className="px-4 py-3">Display Name</th>
                     <th className="px-4 py-3">External ID</th>
@@ -176,9 +176,9 @@ export default function SuperAdminVoiceManagerView() {
                 </thead>
                 <tbody className="divide-y divide-gray-800">
                   {personas.map((p: any) => (
-                    <tr key={p.id} className="hover:bg-gray-800/30">
-                      <td className="px-4 py-3 font-medium text-white">{p.name}</td>
-                      <td className="px-4 py-3 font-mono text-xs text-indigo-300">{p.external_voice_id}</td>
+                    <tr key={p.id} className="hover:bg-[var(--awb-color2)]">
+                      <td className="px-4 py-3 font-medium text-[var(--awb-color8)]">{p.name}</td>
+                      <td className="px-4 py-3 font-mono text-xs text-[var(--awb-color5)]">{p.external_voice_id}</td>
                       <td className="px-4 py-3">{p.provider}</td>
                       <td className="px-4 py-3 text-right space-x-2">
                         <button onClick={() => {
@@ -199,7 +199,7 @@ export default function SuperAdminVoiceManagerView() {
                   ))}
                   {personas.length === 0 && (
                     <tr>
-                      <td colSpan={4} className="px-4 py-8 text-center text-gray-500">No voice personas found.</td>
+                      <td colSpan={4} className="px-4 py-8 text-center text-[var(--awb-color6)]">No voice personas found.</td>
                     </tr>
                   )}
                 </tbody>

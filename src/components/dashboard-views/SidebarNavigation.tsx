@@ -44,14 +44,14 @@ export default function SidebarNavigation() {
       )}
 
       {/* Sidebar Navigation */}
-      <aside className={`${isMobileMenuOpen ? 'translate-x-0' : '-translate-x-full'} md:translate-x-0 fixed md:relative z-50 transition-transform duration-300 w-64 h-full flex-shrink-0 border-r border-white/5 bg-[#09090b] md:bg-black/40 backdrop-blur-2xl flex flex-col justify-between`}>
+      <aside className={`${isMobileMenuOpen ? 'translate-x-0' : '-translate-x-full'} md:translate-x-0 fixed md:relative z-50 transition-transform duration-300 w-64 h-full flex-shrink-0 border-r border-[var(--awb-color3)] bg-[var(--awb-color2)] flex flex-col justify-between`}>
          <div className="p-6">
             <div className="flex items-center justify-between mb-10 pl-2">
                <div className="flex items-center gap-3">
-                 <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-indigo-500 to-purple-600 shadow-lg shadow-indigo-500/20"></div>
-                 <span className="font-extrabold text-xl tracking-tight text-white">StyleFlo</span>
+                 <div className="w-8 h-8 rounded-xl bg-[var(--awb-color8)] text-[var(--awb-color8)] font-extrabold flex items-center justify-center text-sm shadow-md">SF</div>
+                 <span className="font-extrabold text-xl tracking-tight text-[var(--awb-color8)]">StyleFlo</span>
                </div>
-               <button className="md:hidden p-2 -mr-2 text-gray-400 hover:text-white" onClick={() => setIsMobileMenuOpen(false)}>
+               <button className="md:hidden p-2 -mr-2 text-[var(--awb-color6)] hover:text-[var(--awb-color7)]" onClick={() => setIsMobileMenuOpen(false)}>
                  <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12"></path></svg>
                </button>
             </div>
@@ -65,13 +65,13 @@ export default function SidebarNavigation() {
                 { id: 'billing', label: 'Billing & Usage', icon: <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z" /> },
 
               ].map(tab => (
-                 <button key={tab.id} onClick={() => { setActiveTab(tab.id as ActiveTab); setIsMobileMenuOpen(false); }} className={`w-full flex items-center justify-between px-3 py-3 rounded-xl text-sm font-semibold transition-all duration-300 border border-transparent ${activeTab === tab.id ? 'bg-indigo-500/10 text-indigo-400 border-indigo-500/20 shadow-sm shadow-indigo-500/5' : 'text-gray-400 hover:text-gray-200 hover:bg-white/5 hover:border-white/5'}`}>
+                 <button key={tab.id} onClick={() => { setActiveTab(tab.id as ActiveTab); setIsMobileMenuOpen(false); }} className={`w-full flex items-center justify-between px-3 py-3 rounded-xl text-sm font-semibold transition-all duration-200 border ${activeTab === tab.id ? 'bg-[var(--awb-color1)] text-[var(--awb-color8)] border-[var(--awb-color3)] shadow-sm' : 'text-[var(--awb-color6)] hover:text-[var(--awb-color7)] hover:bg-[var(--awb-color1)]/60 border-transparent'}`}>
                     <div className="flex items-center gap-3">
-                       <svg className="w-5 h-5 opacity-80" fill="none" stroke="currentColor" viewBox="0 0 24 24">{tab.icon}</svg>
+                       <svg className={`w-5 h-5 ${activeTab === tab.id ? 'text-[var(--awb-color5)]' : 'opacity-70'}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">{tab.icon}</svg>
                        {tab.label}
                     </div>
                     {tab.count !== undefined && (
-                      <span className={`text-[10px] px-2 py-0.5 rounded-full font-mono font-bold ${activeTab === tab.id ? 'bg-indigo-500/20 text-indigo-300' : 'bg-gray-800 text-gray-500'}`}>
+                      <span className={`text-[10px] px-2 py-0.5 rounded-full font-mono font-bold ${activeTab === tab.id ? 'bg-[var(--awb-color5)] text-[var(--awb-color8)]' : 'bg-[var(--awb-color3)] text-[var(--awb-color6)]'}`}>
                         {tab.count}
                       </span>
                     )}
@@ -79,18 +79,18 @@ export default function SidebarNavigation() {
               ))}
             </nav>
          </div>
-         <div className="p-4 border-t border-white/5">
-            <div className="flex items-center justify-between p-3 rounded-xl hover:bg-white/5 transition-colors group cursor-pointer border border-transparent hover:border-white/5" onClick={handleSignOut} title="Sign Out">
+         <div className="p-4 border-t border-[var(--awb-color3)]">
+            <div className="flex items-center justify-between p-3 rounded-xl hover:bg-[var(--awb-color1)] transition-colors group cursor-pointer border border-transparent hover:border-[var(--awb-color3)]" onClick={handleSignOut} title="Sign Out">
                <div className="flex items-center gap-3">
-                  <div className="w-8 h-8 rounded-full bg-gradient-to-tr from-indigo-500 to-purple-500 text-white flex items-center justify-center font-bold text-sm shadow-lg">
+                  <div className="w-8 h-8 rounded-full bg-[var(--awb-color8)] text-[var(--awb-color8)] flex items-center justify-center font-bold text-sm shadow">
                     {userName?.[0] || 'U'}
                   </div>
                   <div className="flex flex-col text-left">
-                     <span className="text-sm font-bold text-gray-200 group-hover:text-white transition-colors">{userName}</span>
-                     <span className="text-xs text-gray-500 truncate max-w-[120px]">{userEmail}</span>
+                     <span className="text-sm font-bold text-[var(--awb-color7)] group-hover:text-[var(--awb-color8)] transition-colors">{userName}</span>
+                     <span className="text-xs text-[var(--awb-color6)] truncate max-w-[120px]">{userEmail}</span>
                   </div>
                </div>
-               <svg className="w-5 h-5 text-gray-600 group-hover:text-indigo-400 transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"></path></svg>
+               <svg className="w-5 h-5 text-[var(--awb-color6)] group-hover:text-[var(--awb-color5)] transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"></path></svg>
             </div>
          </div>
       </aside>

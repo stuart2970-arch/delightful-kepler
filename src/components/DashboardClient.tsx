@@ -747,51 +747,51 @@ const globalBotId = '00000000-0000-0000-0000-000000000000';
 
             {/* Account Settings Tab */}
             {activeTab === 'account' && (
-              <div className="bg-gray-900/30 border border-gray-900 p-6 rounded-2xl shadow-xl space-y-6">
+              <div className="bg-[var(--awb-color1)] border border-[var(--awb-color3)] p-6 rounded-2xl shadow-sm space-y-6">
                 <div>
-                  <h3 className="text-lg font-bold text-white">Account Settings</h3>
-                  <p className="text-xs text-gray-400 mt-0.5">Manage your workspace account preferences.</p>
+                  <h3 className="text-lg font-bold text-[var(--awb-color8)]">Account Settings</h3>
+                  <p className="text-xs text-[var(--awb-color6)] mt-0.5">Manage your workspace account preferences.</p>
                 </div>
 
                 <form onSubmit={handleSaveAccountSettings} className="space-y-4">
                   <div>
-                    <label className="block text-xs font-semibold text-gray-400 mb-1.5">Custom Domain</label>
+                    <label className="block text-xs font-semibold text-[var(--awb-color7)] mb-1.5">Custom Domain</label>
                     <input
                       type="text"
                       value={domain}
                       onChange={(e) => setDomain(e.target.value)}
-                      className="w-full bg-gray-950 border border-gray-800 rounded-xl px-3.5 py-2 text-sm text-white focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                      className="w-full h-[50px] bg-[var(--awb-color1)] border border-[var(--awb-color3)] rounded-[6px] px-3.5 py-2 text-sm text-[var(--awb-color8)] focus:outline-none focus:border-[var(--awb-color4)]"
                       placeholder="e.g. www.mycompany.com"
                     />
-                    <p className="text-[10px] text-gray-500 mt-1">Point this domain to the webpage we are creating for you.</p>
+                    <p className="text-[10px] text-[var(--awb-color6)] mt-1">Point this domain to the webpage we are creating for you.</p>
                   </div>
                   <div>
-                    <label className="block text-xs font-semibold text-gray-400 mb-1.5">Business Address</label>
+                    <label className="block text-xs font-semibold text-[var(--awb-color7)] mb-1.5">Business Address</label>
                     <input
                       type="text"
                       value={rwgConfig?.rwg_street_address || ''}
                       onChange={(e) => setRwgConfig({ ...rwgConfig, rwg_street_address: e.target.value })}
-                      className="w-full bg-gray-950 border border-gray-800 rounded-xl px-3.5 py-2 text-sm text-white focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                      className="w-full h-[50px] bg-[var(--awb-color1)] border border-[var(--awb-color3)] rounded-[6px] px-3.5 py-2 text-sm text-[var(--awb-color8)] focus:outline-none focus:border-[var(--awb-color4)]"
                       placeholder="e.g. 123 Business Road"
                     />
                   </div>
                   <div>
-                    <label className="block text-xs font-semibold text-gray-400 mb-1.5">City</label>
+                    <label className="block text-xs font-semibold text-[var(--awb-color7)] mb-1.5">City</label>
                     <input
                       type="text"
                       value={rwgConfig?.rwg_city || ''}
                       onChange={(e) => setRwgConfig({ ...rwgConfig, rwg_city: e.target.value })}
-                      className="w-full bg-gray-950 border border-gray-800 rounded-xl px-3.5 py-2 text-sm text-white focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                      className="w-full h-[50px] bg-[var(--awb-color1)] border border-[var(--awb-color3)] rounded-[6px] px-3.5 py-2 text-sm text-[var(--awb-color8)] focus:outline-none focus:border-[var(--awb-color4)]"
                       placeholder="e.g. London"
                     />
                   </div>
                   <div>
-                    <label className="block text-xs font-semibold text-gray-400 mb-1.5">Postcode</label>
+                    <label className="block text-xs font-semibold text-[var(--awb-color7)] mb-1.5">Postcode</label>
                     <input
                       type="text"
                       value={rwgConfig?.rwg_postcode || ''}
                       onChange={(e) => setRwgConfig({ ...rwgConfig, rwg_postcode: e.target.value })}
-                      className="w-full bg-gray-950 border border-gray-800 rounded-xl px-3.5 py-2 text-sm text-white focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                      className="w-full h-[50px] bg-[var(--awb-color1)] border border-[var(--awb-color3)] rounded-[6px] px-3.5 py-2 text-sm text-[var(--awb-color8)] focus:outline-none focus:border-[var(--awb-color4)]"
                       placeholder="e.g. AB12 3CD"
                     />
                   </div>
@@ -799,7 +799,7 @@ const globalBotId = '00000000-0000-0000-0000-000000000000';
                     <button
                       type="submit"
                       disabled={isSavingAccountSettings}
-                      className="bg-indigo-600 hover:bg-indigo-500 text-white text-sm font-semibold py-2 px-5 rounded-xl shadow-lg shadow-indigo-500/10 transition-colors disabled:opacity-50"
+                      className="awb-btn shadow-md disabled:opacity-50"
                     >
                       {isSavingAccountSettings ? 'Saving Settings...' : 'Save Account Settings'}
                     </button>

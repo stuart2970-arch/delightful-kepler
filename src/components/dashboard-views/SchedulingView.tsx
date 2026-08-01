@@ -288,13 +288,13 @@ export default function SchedulingView() {
 
               <BusinessOperatingHours />
 
-              <div className="bg-gray-900/30 border border-gray-900 p-6 rounded-2xl shadow-xl space-y-4">
+              <div className="bg-[var(--awb-color1)] border border-[var(--awb-color3)] p-6 rounded-2xl shadow-xl space-y-4">
                 <div>
-                  <h3 className="text-lg font-bold text-white">Scheduling & Calendar</h3>
-                  <p className="text-xs text-gray-400 mt-1">Configure your booking mode and manage external calendar connections.</p>
+                  <h3 className="text-lg font-bold text-[var(--awb-color8)]">Scheduling & Calendar</h3>
+                  <p className="text-xs text-[var(--awb-color6)] mt-1">Configure your booking mode and manage external calendar connections.</p>
                 </div>
 
-                <div className="bg-gray-950 border border-gray-800 p-4 rounded-xl">
+                <div className="bg-[var(--awb-color1)] text-[var(--awb-color8)] border-[var(--awb-color3)] border border-[var(--awb-color3)] p-4 rounded-xl">
                   <h4 className="text-sm font-bold text-gray-200 mb-3">Operating Booking Mode</h4>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mb-4">
                     {[
@@ -304,34 +304,34 @@ export default function SchedulingView() {
                       { id: 'external_platform', label: 'External Booking Link', desc: 'Use an existing system like Vagaro or Fresha.' }
                     ].map(mode => (
                       <label key={mode.id} className={`flex flex-col p-3 rounded-xl border cursor-pointer transition-colors ${
-                        bookingMode === mode.id ? 'bg-indigo-950/30 border-indigo-500/50' : 'bg-gray-900/50 border-gray-800 hover:border-gray-700'
+                        bookingMode === mode.id ? 'bg-indigo-950/30 border-indigo-500/50' : 'bg-[var(--awb-color1)] border-[var(--awb-color3)] hover:border-[var(--awb-color3)]'
                       }`}>
                         <div className="flex items-center gap-2 mb-1">
-                          <input type="radio" name="bookingMode" value={mode.id} checked={bookingMode === mode.id} onChange={(e) => setBookingMode(e.target.value)} className="text-indigo-600 bg-gray-900 border-gray-700 focus:ring-indigo-600 focus:ring-offset-gray-900" />
+                          <input type="radio" name="bookingMode" value={mode.id} checked={bookingMode === mode.id} onChange={(e) => setBookingMode(e.target.value)} className="text-indigo-600 bg-[var(--awb-color1)] border-[var(--awb-color3)] focus:ring-indigo-600 focus:ring-offset-gray-900" />
                           <span className="text-sm font-bold text-gray-200">{mode.label}</span>
                         </div>
-                        <span className="text-[10px] text-gray-400 pl-6">{mode.desc}</span>
+                        <span className="text-[10px] text-[var(--awb-color6)] pl-6">{mode.desc}</span>
                       </label>
                     ))}
                   </div>
                   
                   {bookingMode === 'external_platform' && (
                     <div className="mb-4 pl-1">
-                      <label className="block text-xs font-semibold text-gray-400 mb-1">External Booking URL</label>
-                      <input type="url" value={bookingUrl} onChange={(e) => setBookingUrl(e.target.value)} className="w-full bg-gray-900 border border-gray-700 rounded-lg px-3 py-2 text-sm text-white focus:border-indigo-500 outline-none" placeholder="https://www.fresha.com/a/your-salon" />
+                      <label className="block text-xs font-semibold text-[var(--awb-color6)] mb-1">External Booking URL</label>
+                      <input type="url" value={bookingUrl} onChange={(e) => setBookingUrl(e.target.value)} className="w-full bg-[var(--awb-color1)] border border-[var(--awb-color3)] rounded-lg px-3 py-2 text-sm text-[var(--awb-color8)] focus:border-indigo-500 outline-none" placeholder="https://www.fresha.com/a/your-salon" />
                     </div>
                   )}
                   
-                  <button onClick={handleSaveBookingMode} disabled={isSavingBookingMode} className="bg-indigo-600 hover:bg-indigo-500 text-white text-xs px-4 py-2 rounded-lg font-semibold transition-colors disabled:opacity-50">
+                  <button onClick={handleSaveBookingMode} disabled={isSavingBookingMode} className="bg-[var(--awb-color5)] text-[var(--awb-color8)] hover:bg-[var(--awb-color5)] text-[var(--awb-color8)] text-[var(--awb-color8)] text-xs px-4 py-2 rounded-lg font-semibold transition-colors disabled:opacity-50">
                     {isSavingBookingMode ? 'Saving...' : 'Save Booking Mode'}
                   </button>
                 </div>
 
                 {bookingMode !== 'walk_in_only' && bookingMode !== 'external_platform' && (
-                  <div className="bg-gray-950 border border-gray-800 p-4 rounded-xl flex items-center justify-between">
+                  <div className="bg-[var(--awb-color1)] text-[var(--awb-color8)] border-[var(--awb-color3)] border border-[var(--awb-color3)] p-4 rounded-xl flex items-center justify-between">
                     <div>
                       <h4 className="text-sm font-bold text-gray-200">Google Calendar Status</h4>
-                      <p className="text-xs text-gray-400 mt-0.5">Authorize the primary workspace calendar to push and pull appointments.</p>
+                      <p className="text-xs text-[var(--awb-color6)] mt-0.5">Authorize the primary workspace calendar to push and pull appointments.</p>
                       {isGoogleConnected && (
                         <div className="inline-flex items-center gap-1.5 mt-2 bg-emerald-950/40 text-emerald-400 text-[10px] px-2 py-1 rounded-full border border-emerald-500/20 font-semibold">
                           <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
@@ -343,7 +343,7 @@ export default function SchedulingView() {
                       {isGoogleConnected ? (
                         <div className="flex flex-col items-end gap-2">
                           {useDashboardStore.getState().googleConnectedEmail && (
-                            <span className="text-xs text-gray-400">Connected to: <strong className="text-gray-300">{useDashboardStore.getState().googleConnectedEmail}</strong></span>
+                            <span className="text-xs text-[var(--awb-color6)]">Connected to: <strong className="text-[var(--awb-color7)]">{useDashboardStore.getState().googleConnectedEmail}</strong></span>
                           )}
                           <button onClick={handleDisconnectCalendar} className="text-xs text-red-400 hover:text-red-300 font-semibold transition-colors">
                             Disconnect
@@ -352,7 +352,7 @@ export default function SchedulingView() {
                       ) : (
                         <button
                           onClick={() => window.location.href = `/api/integrations/google/authorize?tenantId=${tenantId}`}
-                          className="bg-indigo-600 hover:bg-indigo-500 text-white px-5 py-2.5 rounded-xl font-bold shadow-lg transition-colors flex items-center gap-2"
+                          className="bg-[var(--awb-color5)] text-[var(--awb-color8)] hover:bg-[var(--awb-color5)] text-[var(--awb-color8)] text-[var(--awb-color8)] px-5 py-2.5 rounded-xl font-bold shadow-lg transition-colors flex items-center gap-2"
                         >
                           <svg className="w-5 h-5" viewBox="0 0 24 24" fill="currentColor">
                             <path d="M12.24 10.285V14.4h6.806c-.275 1.765-2.056 5.174-6.806 5.174-4.095 0-7.439-3.389-7.439-7.574s3.345-7.574 7.439-7.574c2.33 0 3.891.989 4.785 1.849l3.254-3.138C18.189 1.186 15.479 0 12.24 0c-6.635 0-12 5.365-12 12s5.365 12 12 12c6.926 0 11.52-4.869 11.52-11.726 0-.788-.085-1.39-.189-1.989H12.24z"/>
@@ -366,12 +366,12 @@ export default function SchedulingView() {
               </div>
 
               {bookingMode !== 'walk_in_only' && bookingMode !== 'external_platform' && (
-                <div className="bg-gray-950 border border-gray-800 p-4 rounded-xl">
-                  <label className="block text-xs font-semibold text-gray-400 mb-1.5">Target Chatbot for Scheduling</label>
+                <div className="bg-[var(--awb-color1)] text-[var(--awb-color8)] border-[var(--awb-color3)] border border-[var(--awb-color3)] p-4 rounded-xl">
+                  <label className="block text-xs font-semibold text-[var(--awb-color6)] mb-1.5">Target Chatbot for Scheduling</label>
                   <select
                     value={targetChatbotId}
                     onChange={(e) => setTargetChatbotId(e.target.value)}
-                    className="w-full md:w-1/3 bg-gray-900 border border-gray-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                    className="w-full md:w-1/3 bg-[var(--awb-color1)] border border-[var(--awb-color3)] rounded-lg px-3 py-2 text-sm text-[var(--awb-color8)] focus:outline-none focus:ring-1 focus:ring-indigo-500"
                     required
                   >
                     <option value="" disabled>Select chatbot...</option>
@@ -396,47 +396,47 @@ export default function SchedulingView() {
                   />
 
                   {/* Staff List */}
-                  <div className="bg-gray-900/30 border border-gray-900 p-6 rounded-2xl shadow-xl flex flex-col h-[500px] relative lg:col-span-2">
+                  <div className="bg-[var(--awb-color1)] border border-[var(--awb-color3)] p-6 rounded-2xl shadow-xl flex flex-col h-[500px] relative lg:col-span-2">
                     {showStaffModal ? (
-                      <div className="absolute inset-0 bg-gray-950 p-6 rounded-2xl z-10 flex flex-col overflow-y-auto styleflo-scrollbar">
-                        <h3 className="text-lg font-bold text-white mb-4">
+                      <div className="absolute inset-0 bg-[var(--awb-color1)] text-[var(--awb-color8)] border-[var(--awb-color3)] p-6 rounded-2xl z-10 flex flex-col overflow-y-auto styleflo-scrollbar">
+                        <h3 className="text-lg font-bold text-[var(--awb-color8)] mb-4">
                           {editingStaffId ? 'Edit Staff Member' : 'Add Staff Member'}
                         </h3>
                         <form onSubmit={handleSaveStaff} className="flex-1 flex flex-col gap-6">
                           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                             <div>
-                              <label className="block text-xs font-semibold text-gray-400 mb-1">Name</label>
-                              <input required type="text" value={newStaffName} onChange={e => setNewStaffName(e.target.value)} className="w-full bg-gray-900 border border-gray-800 rounded-lg px-3 py-2 text-sm text-white" placeholder="e.g. John Doe" />
+                              <label className="block text-xs font-semibold text-[var(--awb-color6)] mb-1">Name</label>
+                              <input required type="text" value={newStaffName} onChange={e => setNewStaffName(e.target.value)} className="w-full bg-[var(--awb-color1)] border border-[var(--awb-color3)] rounded-lg px-3 py-2 text-sm text-[var(--awb-color8)]" placeholder="e.g. John Doe" />
                             </div>
                             <div>
-                              <label className="block text-xs font-semibold text-gray-400 mb-1">Email</label>
-                              <input required type="email" value={newStaffEmail} onChange={e => setNewStaffEmail(e.target.value)} className="w-full bg-gray-900 border border-gray-800 rounded-lg px-3 py-2 text-sm text-white" placeholder="john@example.com" />
+                              <label className="block text-xs font-semibold text-[var(--awb-color6)] mb-1">Email</label>
+                              <input required type="email" value={newStaffEmail} onChange={e => setNewStaffEmail(e.target.value)} className="w-full bg-[var(--awb-color1)] border border-[var(--awb-color3)] rounded-lg px-3 py-2 text-sm text-[var(--awb-color8)]" placeholder="john@example.com" />
                             </div>
                             {bookingMode === 'multi_calendar' && (
                               <div>
-                                <label className="block text-xs font-semibold text-gray-400 mb-1">Google Calendar ID</label>
-                                <input type="text" value={newStaffCalId} onChange={e => setNewStaffCalId(e.target.value)} className="w-full bg-gray-900 border border-gray-800 rounded-lg px-3 py-2 text-sm text-white" placeholder="Defaults to 'primary'" />
+                                <label className="block text-xs font-semibold text-[var(--awb-color6)] mb-1">Google Calendar ID</label>
+                                <input type="text" value={newStaffCalId} onChange={e => setNewStaffCalId(e.target.value)} className="w-full bg-[var(--awb-color1)] border border-[var(--awb-color3)] rounded-lg px-3 py-2 text-sm text-[var(--awb-color8)]" placeholder="Defaults to 'primary'" />
                               </div>
                             )}
                           </div>
 
                         {/* Schedule Spreadsheet Grid */}
-                        <div className="bg-gray-900 rounded-xl border border-gray-800 overflow-hidden flex flex-col">
+                        <div className="bg-[var(--awb-color1)] rounded-xl border border-[var(--awb-color3)] overflow-hidden flex flex-col">
                           {/* Week Tabs */}
-                          <div className="flex border-b border-gray-800">
+                          <div className="flex border-b border-[var(--awb-color3)]">
                             {[0, 1, 2, 3].map(weekIdx => (
                               <button
                                 key={weekIdx}
                                 type="button"
                                 onClick={() => setActiveWeekIndex(weekIdx)}
-                                className={`flex-1 py-2 text-xs font-bold transition-colors ${activeWeekIndex === weekIdx ? 'bg-indigo-600 text-white' : 'bg-gray-800/50 text-gray-400 hover:bg-gray-800 hover:text-gray-200'}`}
+                                className={`flex-1 py-2 text-xs font-bold transition-colors ${activeWeekIndex === weekIdx ? 'bg-[var(--awb-color5)] text-[var(--awb-color8)] text-[var(--awb-color8)]' : 'bg-[var(--awb-color2)] text-[var(--awb-color6)] hover:bg-[var(--awb-color2)] text-[var(--awb-color8)] hover:text-gray-200'}`}
                               >
                                 Week {weekIdx + 1}
                               </button>
                             ))}
                           </div>
                           
-                          <div className="flex items-center justify-between bg-gray-800/30 px-4 py-3 border-b border-gray-800">
+                          <div className="flex items-center justify-between bg-[var(--awb-color2)] px-4 py-3 border-b border-[var(--awb-color3)]">
                             <div className="flex items-center gap-3">
                               <span className="text-sm font-bold text-gray-200">Week Commencing (Monday)</span>
                               <input 
@@ -444,18 +444,18 @@ export default function SchedulingView() {
                                 required
                                 value={newStaffSchedule.weeks[activeWeekIndex].weekCommencingDate}
                                 onChange={e => handleDateChange(e.target.value)}
-                                className="bg-gray-950 border border-gray-700 rounded px-3 py-1.5 text-xs text-white focus:border-indigo-500 outline-none"
+                                className="bg-[var(--awb-color1)] text-[var(--awb-color8)] border-[var(--awb-color3)] border border-[var(--awb-color3)] rounded px-3 py-1.5 text-xs text-[var(--awb-color8)] focus:border-indigo-500 outline-none"
                               />
                             </div>
                           </div>
                           
                           <table className="w-full text-left border-collapse">
                             <thead>
-                              <tr className="bg-gray-900 text-[10px] text-gray-400 uppercase tracking-wider border-b border-gray-800">
+                              <tr className="bg-[var(--awb-color1)] text-[10px] text-[var(--awb-color6)] uppercase tracking-wider border-b border-[var(--awb-color3)]">
                                 <th className="p-3 font-semibold w-24">Day</th>
-                                <th className="p-3 font-semibold text-center border-l border-gray-800 w-16">N/A</th>
-                                <th className="p-3 font-semibold border-l border-gray-800 text-center" colSpan={2}>AM Shift</th>
-                                <th className="p-3 font-semibold border-l border-gray-800 text-center" colSpan={2}>PM Shift</th>
+                                <th className="p-3 font-semibold text-center border-l border-[var(--awb-color3)] w-16">N/A</th>
+                                <th className="p-3 font-semibold border-l border-[var(--awb-color3)] text-center" colSpan={2}>AM Shift</th>
+                                <th className="p-3 font-semibold border-l border-[var(--awb-color3)] text-center" colSpan={2}>PM Shift</th>
                               </tr>
                             </thead>
                             <tbody className="divide-y divide-gray-800">
@@ -473,60 +473,60 @@ export default function SchedulingView() {
                                 const isDisabled = isUnavail || isPast;
 
                                 return (
-                                  <tr key={day} className={`transition-colors ${isUnavail || isPast ? 'bg-gray-900/50' : 'hover:bg-gray-800/30'}`}>
-                                    <td className="p-3 text-sm font-medium text-gray-300 capitalize">
+                                  <tr key={day} className={`transition-colors ${isUnavail || isPast ? 'bg-[var(--awb-color1)]' : 'hover:bg-[var(--awb-color2)]'}`}>
+                                    <td className="p-3 text-sm font-medium text-[var(--awb-color7)] capitalize">
                                       {day.substring(0, 3)}
                                       {isPast && <span className="block text-[9px] text-red-400 mt-0.5">Past</span>}
                                     </td>
                                     
-                                    <td className="p-3 text-center border-l border-gray-800">
+                                    <td className="p-3 text-center border-l border-[var(--awb-color3)]">
                                       <input 
                                         type="checkbox" 
                                         disabled={isPast}
                                         checked={isUnavail}
                                         onChange={e => handleUnavailableChange(day, e.target.checked)}
-                                        className="w-4 h-4 rounded bg-gray-900 border-gray-700 text-indigo-600 focus:ring-indigo-600 focus:ring-offset-gray-900 disabled:opacity-30"
+                                        className="w-4 h-4 rounded bg-[var(--awb-color1)] border-[var(--awb-color3)] text-indigo-600 focus:ring-indigo-600 focus:ring-offset-gray-900 disabled:opacity-30"
                                       />
                                     </td>
                                     
                                     {/* AM Shift */}
-                                    <td className="p-2 border-l border-gray-800 text-center">
-                                      <input type="time" disabled={isDisabled} value={currentDayData.am?.start || ''} onChange={e => handleScheduleChange(day, 'am', 'start', e.target.value)} className="bg-gray-950 disabled:opacity-30 border border-gray-700 rounded px-2 py-1 text-xs text-white w-24 focus:border-indigo-500 outline-none" />
+                                    <td className="p-2 border-l border-[var(--awb-color3)] text-center">
+                                      <input type="time" disabled={isDisabled} value={currentDayData.am?.start || ''} onChange={e => handleScheduleChange(day, 'am', 'start', e.target.value)} className="bg-[var(--awb-color1)] text-[var(--awb-color8)] border-[var(--awb-color3)] disabled:opacity-30 border border-[var(--awb-color3)] rounded px-2 py-1 text-xs text-[var(--awb-color8)] w-24 focus:border-indigo-500 outline-none" />
                                     </td>
                                     <td className="p-2 text-center">
-                                      <input type="time" disabled={isDisabled} value={currentDayData.am?.end || ''} onChange={e => handleScheduleChange(day, 'am', 'end', e.target.value)} className="bg-gray-950 disabled:opacity-30 border border-gray-700 rounded px-2 py-1 text-xs text-white w-24 focus:border-indigo-500 outline-none" />
+                                      <input type="time" disabled={isDisabled} value={currentDayData.am?.end || ''} onChange={e => handleScheduleChange(day, 'am', 'end', e.target.value)} className="bg-[var(--awb-color1)] text-[var(--awb-color8)] border-[var(--awb-color3)] disabled:opacity-30 border border-[var(--awb-color3)] rounded px-2 py-1 text-xs text-[var(--awb-color8)] w-24 focus:border-indigo-500 outline-none" />
                                     </td>
                                     
                                     {/* PM Shift */}
-                                    <td className="p-2 border-l border-gray-800 text-center">
-                                      <input type="time" disabled={isDisabled} value={currentDayData.pm?.start || ''} onChange={e => handleScheduleChange(day, 'pm', 'start', e.target.value)} className="bg-gray-950 disabled:opacity-30 border border-gray-700 rounded px-2 py-1 text-xs text-white w-24 focus:border-indigo-500 outline-none" />
+                                    <td className="p-2 border-l border-[var(--awb-color3)] text-center">
+                                      <input type="time" disabled={isDisabled} value={currentDayData.pm?.start || ''} onChange={e => handleScheduleChange(day, 'pm', 'start', e.target.value)} className="bg-[var(--awb-color1)] text-[var(--awb-color8)] border-[var(--awb-color3)] disabled:opacity-30 border border-[var(--awb-color3)] rounded px-2 py-1 text-xs text-[var(--awb-color8)] w-24 focus:border-indigo-500 outline-none" />
                                     </td>
                                     <td className="p-2 text-center">
-                                      <input type="time" disabled={isDisabled} value={currentDayData.pm?.end || ''} onChange={e => handleScheduleChange(day, 'pm', 'end', e.target.value)} className="bg-gray-950 disabled:opacity-30 border border-gray-700 rounded px-2 py-1 text-xs text-white w-24 focus:border-indigo-500 outline-none" />
+                                      <input type="time" disabled={isDisabled} value={currentDayData.pm?.end || ''} onChange={e => handleScheduleChange(day, 'pm', 'end', e.target.value)} className="bg-[var(--awb-color1)] text-[var(--awb-color8)] border-[var(--awb-color3)] disabled:opacity-30 border border-[var(--awb-color3)] rounded px-2 py-1 text-xs text-[var(--awb-color8)] w-24 focus:border-indigo-500 outline-none" />
                                     </td>
                                   </tr>
                                 );
                               })}
                             </tbody>
                           </table>
-                          <div className="bg-gray-900 p-3 border-t border-gray-800 flex justify-center">
+                          <div className="bg-[var(--awb-color1)] p-3 border-t border-[var(--awb-color3)] flex justify-center">
                             <button 
                               type="button" 
                               onClick={copyToNextWeek}
                               disabled={activeWeekIndex >= 3}
-                              className="text-xs text-indigo-400 hover:text-indigo-300 font-semibold bg-indigo-500/10 px-4 py-2 rounded disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                              className="text-xs text-[var(--awb-color5)] hover:text-[var(--awb-color5)] font-semibold bg-[var(--awb-color5)] text-[var(--awb-color8)]/10 px-4 py-2 rounded disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
                             >
                               Copy this rota to next week →
                             </button>
                           </div>
                         </div>
 
-                        <div className="mt-auto flex justify-end gap-3 pt-4 border-t border-gray-800">
+                        <div className="mt-auto flex justify-end gap-3 pt-4 border-t border-[var(--awb-color3)]">
                           <button type="button" onClick={() => {
                             setShowStaffModal(false);
                             setEditingStaffId(null);
-                          }} className="px-4 py-2 text-sm text-gray-400 hover:text-white transition-colors">Cancel</button>
-                          <button type="submit" className="px-5 py-2 text-sm bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg font-bold shadow-lg transition-transform active:scale-95">
+                          }} className="px-4 py-2 text-sm text-[var(--awb-color6)] hover:text-[var(--awb-color8)] transition-colors">Cancel</button>
+                          <button type="submit" className="px-5 py-2 text-sm bg-[var(--awb-color5)] text-[var(--awb-color8)] hover:bg-[var(--awb-color5)] text-[var(--awb-color8)] text-[var(--awb-color8)] rounded-lg font-bold shadow-lg transition-transform active:scale-95">
                             {editingStaffId ? 'Update Staff Member' : 'Save Staff Member'}
                           </button>
                         </div>
@@ -535,7 +535,7 @@ export default function SchedulingView() {
                   ) : null}
 
                   <div className="flex items-center justify-between mb-4">
-                    <h3 className="text-lg font-bold text-white">Staff Schedule</h3>
+                    <h3 className="text-lg font-bold text-[var(--awb-color8)]">Staff Schedule</h3>
                     <button onClick={() => {
                       setEditingStaffId(null);
                       setNewStaffName('');
@@ -546,22 +546,22 @@ export default function SchedulingView() {
                       });
                       setActiveWeekIndex(0);
                       setShowStaffModal(true);
-                    }} className="bg-gray-800 hover:bg-gray-700 text-white text-xs px-3 py-1.5 rounded-lg font-semibold transition-colors">
+                    }} className="bg-[var(--awb-color2)] text-[var(--awb-color8)] hover:bg-gray-700 text-[var(--awb-color8)] text-xs px-3 py-1.5 rounded-lg font-semibold transition-colors">
                       + Add Staff
                     </button>
                   </div>
                   <div className="flex-1 overflow-y-auto space-y-3 styleflo-scrollbar pr-2">
                     {filteredStaff.length === 0 ? (
-                      <div className="text-sm text-gray-500 italic text-center mt-10">No staff configured yet.</div>
+                      <div className="text-sm text-[var(--awb-color6)] italic text-center mt-10">No staff configured yet.</div>
                     ) : filteredStaff.map(stf => (
-                      <div key={stf.id} className="bg-gray-950 border border-gray-800 p-4 rounded-xl flex flex-col gap-2 group hover:border-gray-700 transition-colors">
+                      <div key={stf.id} className="bg-[var(--awb-color1)] text-[var(--awb-color8)] border-[var(--awb-color3)] border border-[var(--awb-color3)] p-4 rounded-xl flex flex-col gap-2 group hover:border-[var(--awb-color3)] transition-colors">
                         <div className="flex items-center justify-between">
                           <div>
                             <div className="font-bold text-gray-200 text-sm">{stf.name}</div>
-                            <div className="text-[10px] text-gray-500 font-mono mt-0.5">{stf.email}</div>
+                            <div className="text-[10px] text-[var(--awb-color6)] font-mono mt-0.5">{stf.email}</div>
                           </div>
                           <div className="flex items-center gap-2">
-                            <button onClick={() => openEditStaff(stf)} className="text-gray-600 hover:text-indigo-400 opacity-0 group-hover:opacity-100 transition-opacity">
+                            <button onClick={() => openEditStaff(stf)} className="text-gray-600 hover:text-[var(--awb-color5)] opacity-0 group-hover:opacity-100 transition-opacity">
                               <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"></path></svg>
                             </button>
                             <button onClick={() => handleDeleteStaff(stf.id)} className="text-gray-600 hover:text-red-400 opacity-0 group-hover:opacity-100 transition-opacity">
@@ -570,8 +570,8 @@ export default function SchedulingView() {
                           </div>
                         </div>
                         {bookingMode === 'multi_calendar' && (
-                          <div className="text-[11px] text-gray-400 bg-gray-900 p-2 rounded-lg">
-                            Cal ID: <span className="text-indigo-400 break-all">{stf.google_calendar_id}</span>
+                          <div className="text-[11px] text-[var(--awb-color6)] bg-[var(--awb-color1)] p-2 rounded-lg">
+                            Cal ID: <span className="text-[var(--awb-color5)] break-all">{stf.google_calendar_id}</span>
                           </div>
                         )}
                       </div>

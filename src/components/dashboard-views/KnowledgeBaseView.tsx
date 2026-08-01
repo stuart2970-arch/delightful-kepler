@@ -413,21 +413,21 @@ export default function KnowledgeBaseView() {
   return (
     <>
           
-            <div className="bg-gray-900/30 border border-gray-900 p-6 rounded-2xl shadow-xl space-y-6">
+            <div className="bg-[var(--awb-color1)] border border-[var(--awb-color3)] p-6 rounded-2xl shadow-xl space-y-6">
               <div>
-                <h3 className="text-lg font-bold text-white">Ingest Website Content</h3>
-                <p className="text-xs text-gray-400 mt-0.5">Scrapes client sites, chunks content, generates embeddings, and saves vectors to the chatbot.</p>
+                <h3 className="text-lg font-bold text-[var(--awb-color8)]">Ingest Website Content</h3>
+                <p className="text-xs text-[var(--awb-color6)] mt-0.5">Scrapes client sites, chunks content, generates embeddings, and saves vectors to the chatbot.</p>
               </div>
 
               {!isShopifyPreflight ? (
               <form onSubmit={ingestMode === 'url' ? handleTriggerCrawl : ingestMode === 'text' ? handleTriggerText : handleTriggerFile} className="space-y-4">
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                   <div className="md:col-span-1">
-                    <label className="block text-xs font-semibold text-gray-400 mb-1.5">Target Chatbot</label>
+                    <label className="block text-xs font-semibold text-[var(--awb-color6)] mb-1.5">Target Chatbot</label>
                     <select
                       value={crawlBotId}
                       onChange={(e) => setCrawlBotId(e.target.value)}
-                      className="w-full bg-gray-950 border border-gray-800 rounded-xl px-3.5 py-2.5 text-sm text-white focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                      className="w-full bg-[var(--awb-color1)] text-[var(--awb-color8)] border-[var(--awb-color3)] border border-[var(--awb-color3)] rounded-xl px-3.5 py-2.5 text-sm text-[var(--awb-color8)] focus:outline-none focus:ring-1 focus:ring-indigo-500"
                       required
                     >
                       <option value="" disabled>Select chatbot...</option>
@@ -439,12 +439,12 @@ export default function KnowledgeBaseView() {
                     </select>
                   </div>
                   <div className="md:col-span-1">
-                    <label className="block text-xs font-semibold text-gray-400 mb-1.5">Rescan Frequency</label>
+                    <label className="block text-xs font-semibold text-[var(--awb-color6)] mb-1.5">Rescan Frequency</label>
                     <select
                       value={crawlSchedule}
                       onChange={(e) => handleSaveSchedule(e.target.value)}
                       disabled={isSavingSchedule}
-                      className="w-full bg-gray-950 border border-gray-800 rounded-xl px-3.5 py-2.5 text-sm text-white focus:outline-none focus:ring-1 focus:ring-indigo-500 disabled:opacity-50"
+                      className="w-full bg-[var(--awb-color1)] text-[var(--awb-color8)] border-[var(--awb-color3)] border border-[var(--awb-color3)] rounded-xl px-3.5 py-2.5 text-sm text-[var(--awb-color8)] focus:outline-none focus:ring-1 focus:ring-indigo-500 disabled:opacity-50"
                     >
                       <option value="none">Never (Manual Only)</option>
                       <option value="daily">Daily</option>
@@ -453,23 +453,23 @@ export default function KnowledgeBaseView() {
                     </select>
                   </div>
                   <div className="md:col-span-1">
-                    <label className="block text-xs font-semibold text-gray-400 mb-1.5">Source Type</label>
-                    <div className="flex bg-gray-950 rounded-xl border border-gray-800 overflow-hidden">
-                      <button type="button" onClick={() => setIngestMode('url')} className={`flex-1 py-2.5 text-xs font-semibold ${ingestMode === 'url' ? 'bg-indigo-600/20 text-indigo-400' : 'text-gray-400 hover:bg-white/5'}`}>URL</button>
-                      <button type="button" onClick={() => setIngestMode('text')} className={`flex-1 py-2.5 text-xs font-semibold border-l border-gray-800 ${ingestMode === 'text' ? 'bg-indigo-600/20 text-indigo-400' : 'text-gray-400 hover:bg-white/5'}`}>Text</button>
-                      <button type="button" onClick={() => setIngestMode('file')} className={`flex-1 py-2.5 text-xs font-semibold border-l border-gray-800 ${ingestMode === 'file' ? 'bg-indigo-600/20 text-indigo-400' : 'text-gray-400 hover:bg-white/5'}`}>File</button>
+                    <label className="block text-xs font-semibold text-[var(--awb-color6)] mb-1.5">Source Type</label>
+                    <div className="flex bg-[var(--awb-color1)] text-[var(--awb-color8)] border-[var(--awb-color3)] rounded-xl border border-[var(--awb-color3)] overflow-hidden">
+                      <button type="button" onClick={() => setIngestMode('url')} className={`flex-1 py-2.5 text-xs font-semibold ${ingestMode === 'url' ? 'bg-[var(--awb-color5)] text-[var(--awb-color8)]/20 text-[var(--awb-color5)]' : 'text-[var(--awb-color6)] hover:bg-white/5'}`}>URL</button>
+                      <button type="button" onClick={() => setIngestMode('text')} className={`flex-1 py-2.5 text-xs font-semibold border-l border-[var(--awb-color3)] ${ingestMode === 'text' ? 'bg-[var(--awb-color5)] text-[var(--awb-color8)]/20 text-[var(--awb-color5)]' : 'text-[var(--awb-color6)] hover:bg-white/5'}`}>Text</button>
+                      <button type="button" onClick={() => setIngestMode('file')} className={`flex-1 py-2.5 text-xs font-semibold border-l border-[var(--awb-color3)] ${ingestMode === 'file' ? 'bg-[var(--awb-color5)] text-[var(--awb-color8)]/20 text-[var(--awb-color5)]' : 'text-[var(--awb-color6)] hover:bg-white/5'}`}>File</button>
                     </div>
                   </div>
                   
                   {ingestMode === 'url' && (
                     <div className="md:col-span-3">
                       <div className="flex justify-between items-end mb-1.5">
-                        <label className="block text-xs font-semibold text-gray-400">Website URLs to Scrape (comma or space separated)</label>
+                        <label className="block text-xs font-semibold text-[var(--awb-color6)]">Website URLs to Scrape (comma or space separated)</label>
                         <button 
                           type="button" 
                           onClick={handleDiscoverSitemap}
                           disabled={isDiscoveringSitemap || !crawlUrl.trim()}
-                          className="text-xs text-indigo-400 hover:text-indigo-300 font-medium disabled:opacity-50"
+                          className="text-xs text-[var(--awb-color5)] hover:text-[var(--awb-color5)] font-medium disabled:opacity-50"
                         >
                           {isDiscoveringSitemap ? 'Searching...' : '🔍 Discover Sitemap'}
                         </button>
@@ -478,7 +478,7 @@ export default function KnowledgeBaseView() {
                         placeholder="https://example.com/about, https://example.com/pricing"
                         value={crawlUrl}
                         onChange={(e) => setCrawlUrl(e.target.value)}
-                        className="w-full bg-gray-950 border border-gray-800 rounded-xl px-3.5 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-indigo-500 text-white min-h-[42px] resize-y"
+                        className="w-full bg-[var(--awb-color1)] text-[var(--awb-color8)] border-[var(--awb-color3)] border border-[var(--awb-color3)] rounded-xl px-3.5 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-indigo-500 text-[var(--awb-color8)] min-h-[42px] resize-y"
                         required
                         rows={2}
                       />
@@ -487,7 +487,7 @@ export default function KnowledgeBaseView() {
                         <div className={`mt-2 p-2 rounded text-xs font-medium ${
                           sitemapMessage.type === 'success' ? 'bg-emerald-500/10 text-emerald-400' :
                           sitemapMessage.type === 'error' ? 'bg-red-500/10 text-red-400' :
-                          'bg-indigo-500/10 text-indigo-400'
+                          'bg-[var(--awb-color5)] text-[var(--awb-color8)]/10 text-[var(--awb-color5)]'
                         }`}>
                           {sitemapMessage.text}
                         </div>
@@ -498,23 +498,23 @@ export default function KnowledgeBaseView() {
                   {ingestMode === 'text' && (
                     <div className="md:col-span-3 space-y-4">
                       <div>
-                        <label className="block text-xs font-semibold text-gray-400 mb-1.5">Source Name / Title</label>
+                        <label className="block text-xs font-semibold text-[var(--awb-color6)] mb-1.5">Source Name / Title</label>
                         <input
                           type="text"
                           value={rawTextSource}
                           onChange={(e) => setRawTextSource(e.target.value)}
                           placeholder="e.g. Employee Handbook"
-                          className="w-full bg-gray-950 border border-gray-800 rounded-xl px-3.5 py-2.5 text-sm focus:outline-none focus:ring-1 focus:ring-indigo-500 text-white"
+                          className="w-full bg-[var(--awb-color1)] text-[var(--awb-color8)] border-[var(--awb-color3)] border border-[var(--awb-color3)] rounded-xl px-3.5 py-2.5 text-sm focus:outline-none focus:ring-1 focus:ring-indigo-500 text-[var(--awb-color8)]"
                           required
                         />
                       </div>
                       <div>
-                        <label className="block text-xs font-semibold text-gray-400 mb-1.5">Raw Text Content</label>
+                        <label className="block text-xs font-semibold text-[var(--awb-color6)] mb-1.5">Raw Text Content</label>
                         <textarea
                           value={rawTextContent}
                           onChange={(e) => setRawTextContent(e.target.value)}
                           placeholder="Paste your text content here..."
-                          className="w-full bg-gray-950 border border-gray-800 rounded-xl px-3.5 py-2.5 text-sm focus:outline-none focus:ring-1 focus:ring-indigo-500 text-white min-h-[150px] resize-y styleflo-scrollbar"
+                          className="w-full bg-[var(--awb-color1)] text-[var(--awb-color8)] border-[var(--awb-color3)] border border-[var(--awb-color3)] rounded-xl px-3.5 py-2.5 text-sm focus:outline-none focus:ring-1 focus:ring-indigo-500 text-[var(--awb-color8)] min-h-[150px] resize-y styleflo-scrollbar"
                           required
                         />
                       </div>
@@ -523,18 +523,18 @@ export default function KnowledgeBaseView() {
 
                   {ingestMode === 'file' && (
                     <div className="md:col-span-3">
-                      <label className="block text-xs font-semibold text-gray-400 mb-1.5">Upload File (PDF or TXT, max 5MB)</label>
+                      <label className="block text-xs font-semibold text-[var(--awb-color6)] mb-1.5">Upload File (PDF or TXT, max 5MB)</label>
                       <div className="flex items-center gap-4">
-                        <label className="flex-1 max-w-sm flex items-center justify-center px-4 py-6 bg-gray-950 border-2 border-dashed border-gray-800 rounded-xl cursor-pointer hover:border-indigo-500/50 hover:bg-indigo-500/5 transition-colors">
+                        <label className="flex-1 max-w-sm flex items-center justify-center px-4 py-6 bg-[var(--awb-color1)] text-[var(--awb-color8)] border-[var(--awb-color3)] border-2 border-dashed border-[var(--awb-color3)] rounded-xl cursor-pointer hover:border-indigo-500/50 hover:bg-[var(--awb-color5)] text-[var(--awb-color8)]/5 transition-colors">
                           <div className="space-y-1 text-center">
-                            <svg className="mx-auto h-8 w-8 text-gray-500" stroke="currentColor" fill="none" viewBox="0 0 48 48" aria-hidden="true">
+                            <svg className="mx-auto h-8 w-8 text-[var(--awb-color6)]" stroke="currentColor" fill="none" viewBox="0 0 48 48" aria-hidden="true">
                               <path d="M28 8H12a4 4 0 00-4 4v20m32-12v8m0 0v8a4 4 0 01-4 4H12a4 4 0 01-4-4v-4m32-4l-3.172-3.172a4 4 0 00-5.656 0L28 28M8 32l9.172-9.172a4 4 0 015.656 0L28 28m0 0l4 4m4-24h8m-4-4v8m-12 4h.02" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
                             </svg>
-                            <div className="text-sm text-gray-400">
-                              <span className="text-indigo-400 font-semibold focus-within:outline-none focus-within:ring-2 focus-within:ring-indigo-500 focus-within:ring-offset-2 hover:text-indigo-300">Upload a file</span>
+                            <div className="text-sm text-[var(--awb-color6)]">
+                              <span className="text-[var(--awb-color5)] font-semibold focus-within:outline-none focus-within:ring-2 focus-within:ring-indigo-500 focus-within:ring-offset-2 hover:text-[var(--awb-color5)]">Upload a file</span>
                               <p className="pl-1 text-xs">or drag and drop</p>
                             </div>
-                            <p className="text-xs text-gray-500">PDF, TXT up to 5MB</p>
+                            <p className="text-xs text-[var(--awb-color6)]">PDF, TXT up to 5MB</p>
                           </div>
                           <input 
                             type="file" 
@@ -553,12 +553,12 @@ export default function KnowledgeBaseView() {
                           />
                         </label>
                         {selectedFile && (
-                          <div className="flex-1 bg-gray-950 border border-emerald-500/30 p-3 rounded-xl flex items-center justify-between">
+                          <div className="flex-1 bg-[var(--awb-color1)] text-[var(--awb-color8)] border-[var(--awb-color3)] border border-emerald-500/30 p-3 rounded-xl flex items-center justify-between">
                             <div className="flex flex-col min-w-0">
                               <span className="text-sm font-semibold text-emerald-400 truncate">{selectedFile.name}</span>
-                              <span className="text-xs text-gray-500">{(selectedFile.size / 1024).toFixed(1)} KB</span>
+                              <span className="text-xs text-[var(--awb-color6)]">{(selectedFile.size / 1024).toFixed(1)} KB</span>
                             </div>
-                            <button type="button" onClick={() => setSelectedFile(null)} className="text-gray-400 hover:text-red-400 p-1">
+                            <button type="button" onClick={() => setSelectedFile(null)} className="text-[var(--awb-color6)] hover:text-red-400 p-1">
                               <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12"></path></svg>
                             </button>
                           </div>
@@ -570,14 +570,14 @@ export default function KnowledgeBaseView() {
 
                 {/* Sitemap Selection UI */}
                 {discoveredSitemapUrls.length > 0 && (
-                  <div className="mt-4 p-4 border border-indigo-500/30 bg-indigo-500/5 rounded-xl space-y-4">
+                  <div className="mt-4 p-4 border border-indigo-500/30 bg-[var(--awb-color5)] text-[var(--awb-color8)]/5 rounded-xl space-y-4">
                     <div className="flex items-center justify-between">
-                      <h4 className="text-sm font-semibold text-white">Select Pages to Ingest</h4>
+                      <h4 className="text-sm font-semibold text-[var(--awb-color8)]">Select Pages to Ingest</h4>
                       <div className="flex gap-2">
                         <button
                           type="button"
                           onClick={handleSelectAllSitemap}
-                          className="text-xs px-3 py-1.5 bg-gray-800 hover:bg-gray-700 text-gray-200 rounded-lg transition-colors"
+                          className="text-xs px-3 py-1.5 bg-[var(--awb-color2)] text-[var(--awb-color8)] hover:bg-gray-700 text-gray-200 rounded-lg transition-colors"
                         >
                           Select Up To 20
                         </button>
@@ -585,7 +585,7 @@ export default function KnowledgeBaseView() {
                           type="button"
                           onClick={handleIngestSelectedSitemap}
                           disabled={selectedSitemapUrls.size === 0}
-                          className="text-xs px-3 py-1.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg transition-colors disabled:opacity-50"
+                          className="text-xs px-3 py-1.5 bg-[var(--awb-color5)] text-[var(--awb-color8)] hover:bg-[var(--awb-color5)] text-[var(--awb-color8)] text-[var(--awb-color8)] rounded-lg transition-colors disabled:opacity-50"
                         >
                           Add Selected to Queue ({selectedSitemapUrls.size})
                         </button>
@@ -599,9 +599,9 @@ export default function KnowledgeBaseView() {
                             type="checkbox" 
                             checked={selectedSitemapUrls.has(url)}
                             onChange={() => handleToggleSitemapUrl(url)}
-                            className="mt-0.5 rounded border-gray-600 text-indigo-500 focus:ring-indigo-500 bg-gray-900 w-4 h-4"
+                            className="mt-0.5 rounded border-gray-600 text-indigo-500 focus:ring-indigo-500 bg-[var(--awb-color1)] w-4 h-4"
                           />
-                          <span className="text-sm text-gray-300 break-all group-hover:text-white transition-colors">{url}</span>
+                          <span className="text-sm text-[var(--awb-color7)] break-all group-hover:text-[var(--awb-color8)] transition-colors">{url}</span>
                         </label>
                       ))}
                     </div>
@@ -610,19 +610,19 @@ export default function KnowledgeBaseView() {
                 <button
                   type="submit"
                   disabled={isCrawling || !crawlBotId || (ingestMode === 'url' ? !crawlUrl : ingestMode === 'text' ? (!rawTextContent || !rawTextSource) : !selectedFile)}
-                  className="bg-indigo-600 hover:bg-indigo-500 text-white text-sm font-semibold py-2 px-5 rounded-xl shadow-lg shadow-indigo-500/10 transition-colors disabled:opacity-50"
+                  className="bg-[var(--awb-color5)] text-[var(--awb-color8)] hover:bg-[var(--awb-color5)] text-[var(--awb-color8)] text-[var(--awb-color8)] text-sm font-semibold py-2 px-5 rounded-xl shadow-lg shadow-indigo-500/10 transition-colors disabled:opacity-50"
                 >
                   {isCrawling || isShopifyExecuting ? 'Processing...' : ingestMode === 'url' ? 'Trigger Crawler Pipeline' : ingestMode === 'text' ? 'Ingest Text Content' : 'Upload File'}
                 </button>
               </form>
               ) : (
-                <div className="bg-gray-950 p-6 rounded-2xl border border-gray-800 space-y-4">
-                  <h4 className="text-sm font-bold text-white">🛍️ Shopify Store Detected</h4>
-                  <p className="text-sm text-gray-400 leading-relaxed">
+                <div className="bg-[var(--awb-color1)] text-[var(--awb-color8)] border-[var(--awb-color3)] p-6 rounded-2xl border border-[var(--awb-color3)] space-y-4">
+                  <h4 className="text-sm font-bold text-[var(--awb-color8)]">🛍️ Shopify Store Detected</h4>
+                  <p className="text-sm text-[var(--awb-color6)] leading-relaxed">
                     We found a structured Shopify catalog at <strong className="text-gray-200">{shopifyAnalysis?.storeUrl}</strong>.
                     <br/>
-                    Total Products: <span className="text-white font-mono">{shopifyAnalysis?.totalProducts}</span> <br/>
-                    Estimated Data Chunks Required: <span className="text-white font-mono">{shopifyAnalysis?.estimatedChunks}</span>
+                    Total Products: <span className="text-[var(--awb-color8)] font-mono">{shopifyAnalysis?.totalProducts}</span> <br/>
+                    Estimated Data Chunks Required: <span className="text-[var(--awb-color8)] font-mono">{shopifyAnalysis?.estimatedChunks}</span>
                   </p>
                   
                   {shopifyAnalysis?.willHitLimit && (
@@ -638,14 +638,14 @@ export default function KnowledgeBaseView() {
                     <button
                       type="button"
                       onClick={() => setIsShopifyPreflight(false)}
-                      className="px-4 py-2 text-xs font-semibold text-gray-300 hover:text-white transition-colors"
+                      className="px-4 py-2 text-xs font-semibold text-[var(--awb-color7)] hover:text-[var(--awb-color8)] transition-colors"
                     >
                       Cancel
                     </button>
                     <button
                       type="button"
                       onClick={handleExecuteShopify}
-                      className="px-5 py-2 bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-semibold rounded-xl shadow-lg shadow-indigo-500/20 transition-colors"
+                      className="px-5 py-2 bg-[var(--awb-color5)] text-[var(--awb-color8)] hover:bg-[var(--awb-color5)] text-[var(--awb-color8)] text-[var(--awb-color8)] text-xs font-semibold rounded-xl shadow-lg shadow-indigo-500/20 transition-colors"
                     >
                       {shopifyAnalysis?.willHitLimit ? 'Proceed with Reduced Data' : 'Start Shopify Ingestion'}
                     </button>
@@ -656,13 +656,13 @@ export default function KnowledgeBaseView() {
               {/* Crawler Log Screen */}
               {crawlLogs.length > 0 && (
                 <div className="space-y-2 mt-6">
-                  <label className="block text-xs font-semibold text-gray-400">Scraper Console Output:</label>
-                  <div className="p-4 bg-gray-950 border border-gray-900 rounded-2xl font-mono text-xs text-gray-300 h-48 overflow-y-auto space-y-1.5 styleflo-scrollbar">
+                  <label className="block text-xs font-semibold text-[var(--awb-color6)]">Scraper Console Output:</label>
+                  <div className="p-4 bg-[var(--awb-color1)] text-[var(--awb-color8)] border-[var(--awb-color3)] border border-[var(--awb-color3)] rounded-2xl font-mono text-xs text-[var(--awb-color7)] h-48 overflow-y-auto space-y-1.5 styleflo-scrollbar">
                     {crawlLogs.map((log, i) => (
                       <div key={i} className={
                         log.startsWith('[Error]') ? 'text-red-400' :
                         log.startsWith('[Success]') ? 'text-emerald-400 font-semibold' :
-                        log.startsWith('[System]') ? 'text-indigo-400' : 'text-gray-300'
+                        log.startsWith('[System]') ? 'text-[var(--awb-color5)]' : 'text-[var(--awb-color7)]'
                       }>
                         {log}
                       </div>
@@ -684,29 +684,29 @@ export default function KnowledgeBaseView() {
             </div>
 
             {/* Ingested URLs List */}
-            <div className="bg-gray-900/30 border border-gray-900 p-6 rounded-2xl shadow-xl space-y-4">
+            <div className="bg-[var(--awb-color1)] border border-[var(--awb-color3)] p-6 rounded-2xl shadow-xl space-y-4">
               <div>
-                <h3 className="text-lg font-bold text-white">Ingested Sources</h3>
-                <p className="text-xs text-gray-400 mt-0.5">Manage the websites and content already loaded into this chatbot's knowledge base.</p>
+                <h3 className="text-lg font-bold text-[var(--awb-color8)]">Ingested Sources</h3>
+                <p className="text-xs text-[var(--awb-color6)] mt-0.5">Manage the websites and content already loaded into this chatbot's knowledge base.</p>
               </div>
 
               {isLoadingUrls ? (
-                <div className="text-sm text-gray-400 py-4">Loading sources...</div>
+                <div className="text-sm text-[var(--awb-color6)] py-4">Loading sources...</div>
               ) : ingestedUrls.length === 0 ? (
-                <div className="text-sm text-gray-500 py-4">No sources ingested yet for this chatbot.</div>
+                <div className="text-sm text-[var(--awb-color6)] py-4">No sources ingested yet for this chatbot.</div>
               ) : (
                 <div className="space-y-2">
                   {ingestedUrls.map((item, idx) => (
-                    <div key={idx} className="flex items-center justify-between p-3 bg-gray-950 border border-gray-800 rounded-xl">
+                    <div key={idx} className="flex items-center justify-between p-3 bg-[var(--awb-color1)] text-[var(--awb-color8)] border-[var(--awb-color3)] border border-[var(--awb-color3)] rounded-xl">
                       <div className="flex-1 min-w-0 pr-4">
                         <p className="text-sm font-medium text-gray-200 truncate" title={item.url}>{item.url}</p>
-                        <p className="text-xs text-gray-500 mt-0.5">
+                        <p className="text-xs text-[var(--awb-color6)] mt-0.5">
                           {item.chunkCount} {item.chunkCount === 1 ? 'chunk' : 'chunks'} &bull; Last updated {new Date(item.latestDate).toLocaleDateString()}
                         </p>
                       </div>
                       <button
                         onClick={() => handleDeleteUrl(item.url)}
-                        className="p-1.5 text-gray-400 hover:text-red-400 hover:bg-white/5 rounded-lg transition-colors shrink-0"
+                        className="p-1.5 text-[var(--awb-color6)] hover:text-red-400 hover:bg-white/5 rounded-lg transition-colors shrink-0"
                         title="Delete source"
                       >
                         <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">

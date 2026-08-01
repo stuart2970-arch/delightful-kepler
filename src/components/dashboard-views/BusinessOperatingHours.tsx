@@ -188,37 +188,37 @@ export default function BusinessOperatingHours() {
 
   const renderScheduleGrid = (schedule: BusinessWeeklySchedule, isGeneral: boolean) => {
     return (
-      <div className="bg-gray-900 rounded-xl border border-gray-800 overflow-hidden flex flex-col">
+      <div className="bg-[var(--awb-color1)] rounded-xl border border-[var(--awb-color3)] overflow-hidden flex flex-col">
         {!isGeneral && (
           <>
-            <div className="flex border-b border-gray-800">
+            <div className="flex border-b border-[var(--awb-color3)]">
               {[0, 1, 2, 3].map(weekIdx => (
                 <button
                   key={weekIdx}
                   type="button"
                   onClick={() => setActiveWeekIndex(weekIdx)}
-                  className={`flex-1 py-2 text-xs font-bold transition-colors ${activeWeekIndex === weekIdx ? 'bg-indigo-600 text-white' : 'bg-gray-800/50 text-gray-400 hover:bg-gray-800 hover:text-gray-200'}`}
+                  className={`flex-1 py-2 text-xs font-bold transition-colors ${activeWeekIndex === weekIdx ? 'bg-[var(--awb-color5)] text-[var(--awb-color8)] text-[var(--awb-color8)]' : 'bg-[var(--awb-color2)] text-[var(--awb-color6)] hover:bg-[var(--awb-color2)] text-[var(--awb-color8)] hover:text-gray-200'}`}
                 >
                   Week {weekIdx + 1}
                 </button>
               ))}
             </div>
             
-              <div className="flex items-center justify-between bg-gray-800/30 px-4 py-3 border-b border-gray-800">
+              <div className="flex items-center justify-between bg-[var(--awb-color2)] px-4 py-3 border-b border-[var(--awb-color3)]">
                 <div className="flex items-center gap-3">
                   <span className="text-sm font-bold text-gray-200">Week Commencing (Monday)</span>
                   <input 
                     type="date" 
                     value={schedule.weekCommencingDate}
                     onChange={e => handleDateChange(e.target.value)}
-                    className="bg-gray-950 border border-gray-700 rounded px-3 py-1.5 text-xs text-white focus:border-indigo-500 outline-none"
+                    className="bg-[var(--awb-color1)] text-[var(--awb-color8)] border-[var(--awb-color3)] border border-[var(--awb-color3)] rounded px-3 py-1.5 text-xs text-[var(--awb-color8)] focus:border-indigo-500 outline-none"
                   />
                 </div>
                 {activeWeekIndex > 0 && (
                   <button 
                     type="button"
                     onClick={copyWeekOne}
-                    className="text-xs font-bold bg-indigo-600/20 text-indigo-400 px-3 py-1.5 rounded-lg hover:bg-indigo-600 hover:text-white transition-colors"
+                    className="text-xs font-bold bg-[var(--awb-color5)] text-[var(--awb-color8)]/20 text-[var(--awb-color5)] px-3 py-1.5 rounded-lg hover:bg-[var(--awb-color5)] text-[var(--awb-color8)] hover:text-[var(--awb-color8)] transition-colors"
                   >
                     Copy Week 1
                   </button>
@@ -229,10 +229,10 @@ export default function BusinessOperatingHours() {
 
         <table className="w-full text-left border-collapse">
           <thead>
-            <tr className="bg-gray-900 text-[10px] text-gray-400 uppercase tracking-wider border-b border-gray-800">
+            <tr className="bg-[var(--awb-color1)] text-[10px] text-[var(--awb-color6)] uppercase tracking-wider border-b border-[var(--awb-color3)]">
               <th className="p-3 font-semibold w-32">Day</th>
-              <th className="p-3 font-semibold text-center border-l border-gray-800 w-20">Closed</th>
-              <th className="p-3 font-semibold border-l border-gray-800 text-center" colSpan={2}>Operating Hours</th>
+              <th className="p-3 font-semibold text-center border-l border-[var(--awb-color3)] w-20">Closed</th>
+              <th className="p-3 font-semibold border-l border-[var(--awb-color3)] text-center" colSpan={2}>Operating Hours</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-gray-800">
@@ -252,32 +252,32 @@ export default function BusinessOperatingHours() {
               const isDisabled = isUnavail || isPast;
 
               return (
-                <tr key={day} className={`transition-colors ${isUnavail || isPast ? 'bg-gray-900/50' : 'hover:bg-gray-800/30'}`}>
-                  <td className="p-3 text-sm font-medium text-gray-300 capitalize">
+                <tr key={day} className={`transition-colors ${isUnavail || isPast ? 'bg-[var(--awb-color1)]' : 'hover:bg-[var(--awb-color2)]'}`}>
+                  <td className="p-3 text-sm font-medium text-[var(--awb-color7)] capitalize">
                     {day.substring(0, 3)}
                     {isPast && <span className="block text-[9px] text-red-400 mt-0.5">Past</span>}
                   </td>
                   
-                  <td className="p-3 text-center border-l border-gray-800">
+                  <td className="p-3 text-center border-l border-[var(--awb-color3)]">
                     <input 
                       type="checkbox" 
                       disabled={isPast}
                       checked={isUnavail}
                       onChange={e => updateUnavailable(isGeneral, day, e.target.checked)}
-                      className="w-4 h-4 rounded bg-gray-900 border-gray-700 text-indigo-600 focus:ring-indigo-600 focus:ring-offset-gray-900 disabled:opacity-30"
+                      className="w-4 h-4 rounded bg-[var(--awb-color1)] border-[var(--awb-color3)] text-indigo-600 focus:ring-indigo-600 focus:ring-offset-gray-900 disabled:opacity-30"
                     />
                   </td>
                   
-                  <td className="p-2 border-l border-gray-800 text-center">
+                  <td className="p-2 border-l border-[var(--awb-color3)] text-center">
                     <div className="flex items-center justify-center gap-2">
-                      <span className="text-xs text-gray-500 font-medium">Open:</span>
-                      <input type="time" disabled={isDisabled} value={currentDayData.hours?.start || ''} onChange={e => updateSchedule(isGeneral, day, 'start', e.target.value)} className="bg-gray-950 disabled:opacity-30 border border-gray-700 rounded px-2 py-1 text-xs text-white w-24 focus:border-indigo-500 outline-none" />
+                      <span className="text-xs text-[var(--awb-color6)] font-medium">Open:</span>
+                      <input type="time" disabled={isDisabled} value={currentDayData.hours?.start || ''} onChange={e => updateSchedule(isGeneral, day, 'start', e.target.value)} className="bg-[var(--awb-color1)] text-[var(--awb-color8)] border-[var(--awb-color3)] disabled:opacity-30 border border-[var(--awb-color3)] rounded px-2 py-1 text-xs text-[var(--awb-color8)] w-24 focus:border-indigo-500 outline-none" />
                     </div>
                   </td>
                   <td className="p-2 text-center">
                     <div className="flex items-center justify-center gap-2">
-                      <span className="text-xs text-gray-500 font-medium">Close:</span>
-                      <input type="time" disabled={isDisabled} value={currentDayData.hours?.end || ''} onChange={e => updateSchedule(isGeneral, day, 'end', e.target.value)} className="bg-gray-950 disabled:opacity-30 border border-gray-700 rounded px-2 py-1 text-xs text-white w-24 focus:border-indigo-500 outline-none" />
+                      <span className="text-xs text-[var(--awb-color6)] font-medium">Close:</span>
+                      <input type="time" disabled={isDisabled} value={currentDayData.hours?.end || ''} onChange={e => updateSchedule(isGeneral, day, 'end', e.target.value)} className="bg-[var(--awb-color1)] text-[var(--awb-color8)] border-[var(--awb-color3)] disabled:opacity-30 border border-[var(--awb-color3)] rounded px-2 py-1 text-xs text-[var(--awb-color8)] w-24 focus:border-indigo-500 outline-none" />
                     </div>
                   </td>
                 </tr>
@@ -290,22 +290,22 @@ export default function BusinessOperatingHours() {
   };
 
   return (
-    <div className="bg-gray-900/30 border border-gray-900 p-6 rounded-2xl shadow-xl space-y-4 mb-6">
+    <div className="bg-[var(--awb-color1)] border border-[var(--awb-color3)] p-6 rounded-2xl shadow-xl space-y-4 mb-6">
       <div className="flex items-center justify-between">
         <div>
-          <h3 className="text-lg font-bold text-white">Business Operating Hours</h3>
-          <p className="text-xs text-gray-400 mt-1">Define your general opening times or set specific week overrides (min 4 weeks in advance).</p>
+          <h3 className="text-lg font-bold text-[var(--awb-color8)]">Business Operating Hours</h3>
+          <p className="text-xs text-[var(--awb-color6)] mt-1">Define your general opening times or set specific week overrides (min 4 weeks in advance).</p>
         </div>
-        <div className="flex bg-gray-950 p-1 rounded-lg border border-gray-800">
+        <div className="flex bg-[var(--awb-color1)] text-[var(--awb-color8)] border-[var(--awb-color3)] p-1 rounded-lg border border-[var(--awb-color3)]">
           <button 
             onClick={() => setActiveTab('general')} 
-            className={`px-4 py-1.5 text-xs font-bold rounded-md transition-colors ${activeTab === 'general' ? 'bg-indigo-600 text-white' : 'text-gray-400 hover:text-gray-200'}`}
+            className={`px-4 py-1.5 text-xs font-bold rounded-md transition-colors ${activeTab === 'general' ? 'bg-[var(--awb-color5)] text-[var(--awb-color8)] text-[var(--awb-color8)]' : 'text-[var(--awb-color6)] hover:text-gray-200'}`}
           >
             General Opening Times
           </button>
           <button 
             onClick={() => setActiveTab('overrides')} 
-            className={`px-4 py-1.5 text-xs font-bold rounded-md transition-colors ${activeTab === 'overrides' ? 'bg-indigo-600 text-white' : 'text-gray-400 hover:text-gray-200'}`}
+            className={`px-4 py-1.5 text-xs font-bold rounded-md transition-colors ${activeTab === 'overrides' ? 'bg-[var(--awb-color5)] text-[var(--awb-color8)] text-[var(--awb-color8)]' : 'text-[var(--awb-color6)] hover:text-gray-200'}`}
           >
             Specific Overrides (Rota)
           </button>
@@ -316,15 +316,15 @@ export default function BusinessOperatingHours() {
         {activeTab === 'general' ? renderScheduleGrid(localGeneral, true) : renderScheduleGrid(localOverrides.weeks[activeWeekIndex], false)}
       </div>
 
-      <div className="bg-gray-950 border border-gray-800 p-4 rounded-xl mt-4">
+      <div className="bg-[var(--awb-color1)] text-[var(--awb-color8)] border-[var(--awb-color3)] border border-[var(--awb-color3)] p-4 rounded-xl mt-4">
         <h4 className="text-sm font-bold text-gray-200 mb-2">Public & Bank Holidays</h4>
-        <p className="text-xs text-gray-400 mb-3">
+        <p className="text-xs text-[var(--awb-color6)] mb-3">
           We have {globalHolidays.length} upcoming public holidays tracked in our system. How would you like your chatbots to handle bookings on these days?
         </p>
         <select 
           value={localHolidaySetting}
           onChange={(e) => setLocalHolidaySetting(e.target.value)}
-          className="w-full md:w-1/2 bg-gray-900 border border-gray-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:ring-1 focus:ring-indigo-500"
+          className="w-full md:w-1/2 bg-[var(--awb-color1)] border border-[var(--awb-color3)] rounded-lg px-3 py-2 text-sm text-[var(--awb-color8)] focus:outline-none focus:ring-1 focus:ring-indigo-500"
         >
           <option value="closed">Automatically Close Business</option>
           <option value="follow_general">Follow General Opening Times</option>
@@ -333,7 +333,7 @@ export default function BusinessOperatingHours() {
       </div>
 
       <div className="flex justify-end pt-2">
-        <button onClick={handleSave} disabled={isSaving} className="bg-indigo-600 hover:bg-indigo-500 text-white text-sm px-6 py-2 rounded-lg font-bold transition-colors disabled:opacity-50">
+        <button onClick={handleSave} disabled={isSaving} className="bg-[var(--awb-color5)] text-[var(--awb-color8)] hover:bg-[var(--awb-color5)] text-[var(--awb-color8)] text-[var(--awb-color8)] text-sm px-6 py-2 rounded-lg font-bold transition-colors disabled:opacity-50">
           {isSaving ? 'Saving...' : 'Save Operating Hours'}
         </button>
       </div>

@@ -107,39 +107,39 @@ export default function ServiceEditor({ tenantId, chatbotId, services, setServic
   };
 
   return (
-    <div className="bg-gray-900/30 border border-gray-900 p-6 rounded-2xl shadow-xl flex flex-col h-[600px] relative">
+    <div className="bg-[var(--awb-color1)] border border-[var(--awb-color3)] p-6 rounded-2xl shadow-xl flex flex-col h-[600px] relative">
       {showAddService ? (
-        <div className="absolute inset-0 bg-gray-950 p-6 rounded-2xl z-20 flex flex-col overflow-y-auto styleflo-scrollbar">
-          <h3 className="text-lg font-bold text-white mb-4">{editingServiceId ? 'Edit Service' : 'Add New Service'}</h3>
+        <div className="absolute inset-0 bg-[var(--awb-color1)] text-[var(--awb-color8)] border-[var(--awb-color3)] p-6 rounded-2xl z-20 flex flex-col overflow-y-auto styleflo-scrollbar">
+          <h3 className="text-lg font-bold text-[var(--awb-color8)] mb-4">{editingServiceId ? 'Edit Service' : 'Add New Service'}</h3>
           <form onSubmit={handleSaveService} className="flex-1 flex flex-col gap-4">
             <div>
-              <label className="block text-xs font-semibold text-gray-400 mb-1">Service Name</label>
-              <input required type="text" value={newServiceName} onChange={e => setNewServiceName(e.target.value)} className="w-full bg-gray-900 border border-gray-800 rounded-lg px-3 py-2 text-sm text-white" placeholder="e.g. Consultation" />
+              <label className="block text-xs font-semibold text-[var(--awb-color6)] mb-1">Service Name</label>
+              <input required type="text" value={newServiceName} onChange={e => setNewServiceName(e.target.value)} className="w-full bg-[var(--awb-color1)] border border-[var(--awb-color3)] rounded-lg px-3 py-2 text-sm text-[var(--awb-color8)]" placeholder="e.g. Consultation" />
             </div>
 
             <div>
-              <label className="block text-xs font-semibold text-gray-400 mb-1">Brief Description</label>
-              <textarea maxLength={255} value={newServiceDescription} onChange={e => setNewServiceDescription(e.target.value)} className="w-full bg-gray-900 border border-gray-800 rounded-lg px-3 py-2 text-sm text-white resize-none h-20" placeholder="Optional brief description of this service (max 255 chars)" />
-              <div className="text-right text-[10px] text-gray-500 mt-1">{newServiceDescription.length}/255</div>
+              <label className="block text-xs font-semibold text-[var(--awb-color6)] mb-1">Brief Description</label>
+              <textarea maxLength={255} value={newServiceDescription} onChange={e => setNewServiceDescription(e.target.value)} className="w-full bg-[var(--awb-color1)] border border-[var(--awb-color3)] rounded-lg px-3 py-2 text-sm text-[var(--awb-color8)] resize-none h-20" placeholder="Optional brief description of this service (max 255 chars)" />
+              <div className="text-right text-[10px] text-[var(--awb-color6)] mt-1">{newServiceDescription.length}/255</div>
             </div>
             
             <div className="grid grid-cols-3 gap-4">
               <div>
-                <label className="block text-xs font-semibold text-gray-400 mb-1">Duration (mins)</label>
-                <input required type="number" min="5" step="5" value={newServiceDuration} onChange={e => setNewServiceDuration(parseInt(e.target.value))} className="w-full bg-gray-900 border border-gray-800 rounded-lg px-3 py-2 text-sm text-white" />
+                <label className="block text-xs font-semibold text-[var(--awb-color6)] mb-1">Duration (mins)</label>
+                <input required type="number" min="5" step="5" value={newServiceDuration} onChange={e => setNewServiceDuration(parseInt(e.target.value))} className="w-full bg-[var(--awb-color1)] border border-[var(--awb-color3)] rounded-lg px-3 py-2 text-sm text-[var(--awb-color8)]" />
               </div>
               <div>
-                <label className="block text-xs font-semibold text-gray-400 mb-1">Buffer (mins)</label>
-                <input required type="number" min="0" step="5" value={newServiceBuffer} onChange={e => setNewServiceBuffer(parseInt(e.target.value))} className="w-full bg-gray-900 border border-gray-800 rounded-lg px-3 py-2 text-sm text-white" />
+                <label className="block text-xs font-semibold text-[var(--awb-color6)] mb-1">Buffer (mins)</label>
+                <input required type="number" min="0" step="5" value={newServiceBuffer} onChange={e => setNewServiceBuffer(parseInt(e.target.value))} className="w-full bg-[var(--awb-color1)] border border-[var(--awb-color3)] rounded-lg px-3 py-2 text-sm text-[var(--awb-color8)]" />
               </div>
               <div>
-                <label className="block text-xs font-semibold text-gray-400 mb-1">Base Price ($)</label>
-                <input type="number" min="0" step="1" value={newServicePrice} onChange={e => setNewServicePrice(parseInt(e.target.value))} className="w-full bg-gray-900 border border-gray-800 rounded-lg px-3 py-2 text-sm text-white" />
+                <label className="block text-xs font-semibold text-[var(--awb-color6)] mb-1">Base Price ($)</label>
+                <input type="number" min="0" step="1" value={newServicePrice} onChange={e => setNewServicePrice(parseInt(e.target.value))} className="w-full bg-[var(--awb-color1)] border border-[var(--awb-color3)] rounded-lg px-3 py-2 text-sm text-[var(--awb-color8)]" />
               </div>
             </div>
 
-            <div className="mt-4 border-t border-gray-800 pt-4">
-              <label className="block text-xs font-semibold text-gray-400 mb-2">Assigned Staff & Specializations</label>
+            <div className="mt-4 border-t border-[var(--awb-color3)] pt-4">
+              <label className="block text-xs font-semibold text-[var(--awb-color6)] mb-2">Assigned Staff & Specializations</label>
               {staff.length === 0 ? (
                 <div className="text-sm text-gray-600 italic">No staff added yet. Add staff first to assign them.</div>
               ) : (
@@ -147,23 +147,23 @@ export default function ServiceEditor({ tenantId, chatbotId, services, setServic
                   {staff.map((st: any) => {
                     const isAssigned = newServiceStaff.find(s => s.staff_id === st.id);
                     return (
-                      <div key={st.id} className="p-3 bg-gray-900 border border-gray-800 rounded-lg">
+                      <div key={st.id} className="p-3 bg-[var(--awb-color1)] border border-[var(--awb-color3)] rounded-lg">
                         <label className="flex items-center gap-3 cursor-pointer">
-                          <input type="checkbox" className="rounded border-gray-700 bg-gray-800 text-indigo-500 focus:ring-indigo-500" 
+                          <input type="checkbox" className="rounded border-[var(--awb-color3)] bg-[var(--awb-color2)] text-[var(--awb-color8)] text-indigo-500 focus:ring-indigo-500" 
                             checked={!!isAssigned} 
                             onChange={() => handleToggleStaff(st.id)} 
                           />
-                          <span className="text-sm text-white font-medium">{st.name}</span>
+                          <span className="text-sm text-[var(--awb-color8)] font-medium">{st.name}</span>
                         </label>
                         {isAssigned && (
                           <div className="mt-3 pl-7 grid grid-cols-2 gap-3">
                             <div>
-                              <label className="block text-[10px] text-gray-500 mb-1">Override Price ($)</label>
-                              <input type="number" placeholder="Default" value={isAssigned.custom_price || ''} onChange={e => handleUpdateStaffMapping(st.id, 'custom_price', e.target.value)} className="w-full bg-gray-950 border border-gray-800 rounded px-2 py-1.5 text-xs text-white" />
+                              <label className="block text-[10px] text-[var(--awb-color6)] mb-1">Override Price ($)</label>
+                              <input type="number" placeholder="Default" value={isAssigned.custom_price || ''} onChange={e => handleUpdateStaffMapping(st.id, 'custom_price', e.target.value)} className="w-full bg-[var(--awb-color1)] text-[var(--awb-color8)] border-[var(--awb-color3)] border border-[var(--awb-color3)] rounded px-2 py-1.5 text-xs text-[var(--awb-color8)]" />
                             </div>
                             <div>
-                              <label className="block text-[10px] text-gray-500 mb-1">Override Duration (m)</label>
-                              <input type="number" placeholder="Default" value={isAssigned.custom_duration || ''} onChange={e => handleUpdateStaffMapping(st.id, 'custom_duration', e.target.value)} className="w-full bg-gray-950 border border-gray-800 rounded px-2 py-1.5 text-xs text-white" />
+                              <label className="block text-[10px] text-[var(--awb-color6)] mb-1">Override Duration (m)</label>
+                              <input type="number" placeholder="Default" value={isAssigned.custom_duration || ''} onChange={e => handleUpdateStaffMapping(st.id, 'custom_duration', e.target.value)} className="w-full bg-[var(--awb-color1)] text-[var(--awb-color8)] border-[var(--awb-color3)] border border-[var(--awb-color3)] rounded px-2 py-1.5 text-xs text-[var(--awb-color8)]" />
                             </div>
                           </div>
                         )}
@@ -175,30 +175,30 @@ export default function ServiceEditor({ tenantId, chatbotId, services, setServic
             </div>
 
             <div className="mt-auto flex justify-end gap-3 pt-4">
-              <button type="button" onClick={() => setShowAddService(false)} className="px-4 py-2 text-sm text-gray-400 hover:text-white">Cancel</button>
-              <button type="submit" className="px-4 py-2 text-sm bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg font-bold">Save Service</button>
+              <button type="button" onClick={() => setShowAddService(false)} className="px-4 py-2 text-sm text-[var(--awb-color6)] hover:text-[var(--awb-color8)]">Cancel</button>
+              <button type="submit" className="px-4 py-2 text-sm bg-indigo-600 hover:bg-indigo-500 text-[var(--awb-color8)] rounded-lg font-bold">Save Service</button>
             </div>
           </form>
         </div>
       ) : null}
 
       <div className="flex items-center justify-between mb-4">
-        <h3 className="text-lg font-bold text-white">Services</h3>
-        <button onClick={handleAddClick} className="bg-gray-800 hover:bg-gray-700 text-white text-xs px-3 py-1.5 rounded-lg font-semibold transition-colors">
+        <h3 className="text-lg font-bold text-[var(--awb-color8)]">Services</h3>
+        <button onClick={handleAddClick} className="bg-[var(--awb-color2)] text-[var(--awb-color8)] hover:bg-gray-700 text-[var(--awb-color8)] text-xs px-3 py-1.5 rounded-lg font-semibold transition-colors">
           + Add Service
         </button>
       </div>
       <div className="flex-1 overflow-y-auto space-y-3 styleflo-scrollbar pr-2">
         {services.length === 0 ? (
-          <div className="text-sm text-gray-500 italic text-center mt-10">No services configured yet.</div>
+          <div className="text-sm text-[var(--awb-color6)] italic text-center mt-10">No services configured yet.</div>
         ) : services.map((srv: any) => (
-          <div key={srv.id} onClick={() => handleEditClick(srv)} className="bg-gray-950 border border-gray-800 p-4 rounded-xl flex items-center justify-between group hover:border-indigo-500/50 hover:bg-indigo-900/10 cursor-pointer transition-all">
+          <div key={srv.id} onClick={() => handleEditClick(srv)} className="bg-[var(--awb-color1)] text-[var(--awb-color8)] border-[var(--awb-color3)] border border-[var(--awb-color3)] p-4 rounded-xl flex items-center justify-between group hover:border-indigo-500/50 hover:bg-indigo-900/10 cursor-pointer transition-all">
             <div>
               <div className="font-bold text-gray-200 text-sm">{srv.name}</div>
               {srv.description && (
-                <div className="text-xs text-gray-400 mt-0.5 line-clamp-1">{srv.description}</div>
+                <div className="text-xs text-[var(--awb-color6)] mt-0.5 line-clamp-1">{srv.description}</div>
               )}
-              <div className="text-xs text-gray-500 mt-0.5">{srv.duration_minutes}m duration • ${srv.price || 0}</div>
+              <div className="text-xs text-[var(--awb-color6)] mt-0.5">{srv.duration_minutes}m duration • ${srv.price || 0}</div>
               {srv.staff_services && srv.staff_services.length > 0 && (
                 <div className="text-xs text-indigo-400 mt-1">
                   Assigned to {srv.staff_services.length} staff
