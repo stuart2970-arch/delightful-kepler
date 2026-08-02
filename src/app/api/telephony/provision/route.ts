@@ -69,40 +69,54 @@ export async function POST(request: Request) {
 
     const client = twilio(accountSid, authToken);
 
-    // 1. Search for a number
-    // We default to 'US' because 'GB' (UK) local numbers strictly require a Regulatory Bundle to be approved by Twilio.
-    const countryCode = process.env.TWILIO_PHONE_COUNTRY || 'US';
-    
-    // Fallback to mobile if GB, else local
-    const availableNumbers = countryCode === 'GB' 
-      ? await client.availablePhoneNumbers(countryCode).mobile.list({ limit: 1 })
-      : await client.availablePhoneNumbers(countryCode).local.list({ limit: 1 });
-    
-    if (!availableNumbers || availableNumbers.length === 0) {
-      return NextResponse.json({ error: 'No phone numbers available at the moment' }, { status: 500 });
-    }
-
-    const numberToBuy = availableNumbers[0].phoneNumber;
-
-    // 2. Buy the number and configure the webhook
+    // 1. Search and purchase phone number
+    const primaryCountry = process.env.TWILIO_PHONE_COUNTRY || 'US';
     const appBaseUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://app.styleflo.ai';
     const addressSid = process.env.TWILIO_ADDRESS_SID;
     const bundleSid = process.env.TWILIO_BUNDLE_SID;
-    
-    const purchaseParams: any = {
-      phoneNumber: numberToBuy,
-      voiceUrl: `${appBaseUrl}/api/telephony/inbound`,
-      voiceMethod: 'POST',
-    };
 
-    if (addressSid) {
-      purchaseParams.addressSid = addressSid;
-    }
-    if (bundleSid) {
-      purchaseParams.bundleSid = bundleSid;
+    let purchasedNumber: any = null;
+
+    async function tryPurchaseNumber(country: string) {
+      const isGB = country === 'GB';
+      const available = isGB 
+        ? await client.availablePhoneNumbers(country).mobile.list({ limit: 1 })
+        : await client.availablePhoneNumbers(country).local.list({ limit: 1 });
+
+      if (!available || available.length === 0) {
+        throw new Error(`No phone numbers available for country: ${country}`);
+      }
+
+      const purchaseParams: any = {
+        phoneNumber: available[0].phoneNumber,
+        voiceUrl: `${appBaseUrl}/api/telephony/inbound`,
+        voiceMethod: 'POST',
+      };
+
+      if (addressSid) purchaseParams.addressSid = addressSid;
+      if (bundleSid) purchaseParams.bundleSid = bundleSid;
+
+      return await client.incomingPhoneNumbers.create(purchaseParams);
     }
 
-    const purchasedNumber = await client.incomingPhoneNumbers.create(purchaseParams);
+    try {
+      // Attempt primary country purchase (e.g. GB)
+      purchasedNumber = await tryPurchaseNumber(primaryCountry);
+    } catch (primaryErr: any) {
+      console.warn(`[Telephony Provisioning] Failed to purchase ${primaryCountry} number:`, primaryErr.message);
+
+      // If UK regulatory bundle is missing, automatically fall back to US instant setup
+      if (primaryCountry === 'GB') {
+        console.log('[Telephony Provisioning] Falling back to US number setup...');
+        try {
+          purchasedNumber = await tryPurchaseNumber('US');
+        } catch (fallbackErr: any) {
+          throw new Error('UK numbers require an approved Regulatory Bundle in Twilio (TWILIO_BUNDLE_SID). US fallback purchase also failed: ' + fallbackErr.message);
+        }
+      } else {
+        throw primaryErr;
+      }
+    }
 
     // 2.5. Automatically import and link this number to Vapi!
     // Since Vapi no longer supports direct TwiML WebSocket streams from Twilio, we must register the number in Vapi.
