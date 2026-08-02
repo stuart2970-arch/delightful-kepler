@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import { streamText, generateText } from 'ai';
-import { google } from '@ai-sdk/google';
+import { createGoogleGenerativeAI } from '@ai-sdk/google';
 
 export const maxDuration = 300;
 
@@ -27,10 +27,8 @@ export async function POST(
       return NextResponse.json({ error: 'Missing chatbotId in path' }, { status: 400, headers: corsHeaders });
     }
 
-    // Map GEMINI_API_KEY to GOOGLE_GENERATIVE_AI_API_KEY for the @ai-sdk/google provider and embeddings fetch
-    if (process.env.GEMINI_API_KEY && !process.env.GOOGLE_GENERATIVE_AI_API_KEY) {
-      process.env.GOOGLE_GENERATIVE_AI_API_KEY = process.env.GEMINI_API_KEY;
-    }
+    const apiKey = process.env.GOOGLE_GENERATIVE_AI_API_KEY || process.env.GEMINI_API_KEY || '';
+    const googleProvider = createGoogleGenerativeAI({ apiKey });
 
     const body = await req.json();
     const { messages } = body; // standard OpenAI messages array payload from Vapi
@@ -75,13 +73,22 @@ export async function POST(
     // 3. Extract the latest user message for RAG embedding
     const latestUserMessage = messages.slice().reverse().find((m: any) => m.role === 'user');
     let ragContext = '';
+    let queryText = '';
 
-    if (latestUserMessage && typeof latestUserMessage.content === 'string') {
+    if (latestUserMessage) {
+      if (typeof latestUserMessage.content === 'string') {
+        queryText = latestUserMessage.content;
+      } else if (Array.isArray(latestUserMessage.content)) {
+        queryText = latestUserMessage.content
+          .map((part: any) => (typeof part === 'string' ? part : part?.text || ''))
+          .join(' ');
+      }
+    }
+
+    if (queryText && apiKey) {
       try {
-        const queryText = latestUserMessage.content;
-        
         // Convert to embedding using google's text-embedding-004
-        const embeddingRes = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/text-embedding-004:embedContent?key=${process.env.GOOGLE_GENERATIVE_AI_API_KEY}`, {
+        const embeddingRes = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/text-embedding-004:embedContent?key=${apiKey}`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
@@ -90,21 +97,23 @@ export async function POST(
           })
         });
 
-        const embedData = await embeddingRes.json();
-        const embedding = embedData.embedding?.values;
+        if (embeddingRes.ok) {
+          const embedData = await embeddingRes.json();
+          const embedding = embedData.embedding?.values;
 
-        if (embedding) {
-          // Localized RAG match_documents
-          const { data: matchedChunks, error: matchError } = await supabaseAdmin.rpc('match_documents', {
-            query_embedding: embedding,
-            match_threshold: 0.7,
-            match_count: 5,
-            targeting_tenant_id: chatbot.tenant_id,
-            targeting_chatbot_id: chatbotId
-          });
+          if (embedding) {
+            // Localized RAG match_documents
+            const { data: matchedChunks, error: matchError } = await supabaseAdmin.rpc('match_documents', {
+              query_embedding: embedding,
+              match_threshold: 0.7,
+              match_count: 5,
+              targeting_tenant_id: chatbot.tenant_id,
+              targeting_chatbot_id: chatbotId
+            });
 
-          if (!matchError && matchedChunks && matchedChunks.length > 0) {
-            ragContext = matchedChunks.map((chunk: any) => chunk.content).join('\n\n');
+            if (!matchError && matchedChunks && matchedChunks.length > 0) {
+              ragContext = matchedChunks.map((chunk: any) => chunk.content).join('\n\n');
+            }
           }
         }
       } catch (e) {
@@ -114,13 +123,23 @@ export async function POST(
 
     // 4. Construct System Persona Prompt
     const enhancedMessages = messages.map((msg: any) => {
+      let contentStr = '';
+      if (typeof msg.content === 'string') {
+        contentStr = msg.content;
+      } else if (Array.isArray(msg.content)) {
+        contentStr = msg.content.map((p: any) => (typeof p === 'string' ? p : p?.text || '')).join(' ');
+      }
+
       if (msg.role === 'system') {
         return {
           role: 'system',
-          content: `${msg.content}\n\nIMPORTANT INSTRUCTION: You are speaking through a Text-to-Speech engine. DO NOT use any markdown formatting, asterisks, bullet points, or special characters. Speak naturally in plain text.\n\nBUSINESS KNOWLEDGE:\n${ragContext}\n\nREGULATORY DISCLAIMER:\n${globalDisclaimer}`
+          content: `${contentStr}\n\nIMPORTANT INSTRUCTION: You are speaking through a Text-to-Speech engine. DO NOT use any markdown formatting, asterisks, bullet points, or special characters. Speak naturally in plain text.\n\nBUSINESS KNOWLEDGE:\n${ragContext}\n\nREGULATORY DISCLAIMER:\n${globalDisclaimer}`
         };
       }
-      return msg;
+      return {
+        role: msg.role,
+        content: contentStr
+      };
     });
 
     // 5. LLM Generation
@@ -128,7 +147,7 @@ export async function POST(
     
     if (!isStream) {
       const { text } = await generateText({
-        model: google('gemini-1.5-flash'),
+        model: googleProvider('gemini-1.5-flash'),
         messages: enhancedMessages,
         temperature: 0.7,
       });
@@ -148,7 +167,7 @@ export async function POST(
     }
 
     const result = streamText({
-      model: google('gemini-1.5-flash'),
+      model: googleProvider('gemini-1.5-flash'),
       messages: enhancedMessages,
       temperature: 0.7,
     });
@@ -166,7 +185,7 @@ export async function POST(
                 object: 'chat.completion.chunk',
                 created: Math.floor(Date.now() / 1000),
                 model: 'gemini-1.5-flash',
-                choices: [{ delta: { role: 'assistant' }, index: 0, finish_reason: null }]
+                choices: [{ delta: { role: 'assistant', content: '' }, index: 0, finish_reason: null }]
               };
               controller.enqueue(encoder.encode(`data: ${JSON.stringify(roleChunk)}\n\n`));
               isFirst = false;
@@ -177,7 +196,7 @@ export async function POST(
                 id: 'chatcmpl-vapi',
                 object: 'chat.completion.chunk',
                 created: Math.floor(Date.now() / 1000),
-                model: 'gemini-3.5-flash',
+                model: 'gemini-1.5-flash',
                 choices: [
                   {
                     delta: { content: textDelta },
@@ -190,11 +209,23 @@ export async function POST(
             }
           }
           
+          if (isFirst) {
+            // If textStream produced nothing, send an initial chunk anyway so stream is valid
+            const roleChunk = {
+              id: 'chatcmpl-vapi',
+              object: 'chat.completion.chunk',
+              created: Math.floor(Date.now() / 1000),
+              model: 'gemini-1.5-flash',
+              choices: [{ delta: { role: 'assistant', content: '' }, index: 0, finish_reason: null }]
+            };
+            controller.enqueue(encoder.encode(`data: ${JSON.stringify(roleChunk)}\n\n`));
+          }
+
           const finishChunk = {
             id: 'chatcmpl-vapi',
             object: 'chat.completion.chunk',
             created: Math.floor(Date.now() / 1000),
-            model: 'gemini-3.5-flash',
+            model: 'gemini-1.5-flash',
             choices: [
               {
                 delta: {},
