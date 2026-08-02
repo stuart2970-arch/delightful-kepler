@@ -452,5 +452,9 @@ ame, irstMessage, and 	ranscriber) rather than relying on ssistantOverrides de
 
 **Update (Fix Custom LLM Voice Input & Stream Response Bugs):**
 - **User Audio Message Parsing**: Fixed \latestUserMessage.content\ extraction in \/api/voice/[chatbotId]/chat/completions/route.ts\ to handle both string and array content structures sent by Vapi transcript events.
-- **Explicit Google AI Key Binding**: Bound \piKey\ directly in \createGoogleGenerativeAI({ apiKey })\ so Gemini 1.5 Flash stream generation never fails due to missing environment variable mappings.
+- **Explicit Google AI Key Binding**: Bound \ piKey\ directly in \createGoogleGenerativeAI({ apiKey })\ so Gemini 1.5 Flash stream generation never fails due to missing environment variable mappings.
 - **Vapi SSE Stream Contract**: Added initial delta chunk \{ delta: { role: 'assistant', content: '' } }\ and fixed model string names across all Server-Sent Event stream chunks so Vapi immediately processes caller speech.
+
+**Update (Fix Outer Dashboard Page & Client Container Background):**
+- **Root Cause**: Located hardcoded `bg-gray-950` in [src/app/dashboard/page.tsx](file:///c:/Users/Stuar/.gemini/antigravity/scratch/delightful-kepler/src/app/dashboard/page.tsx) `<main>` element and `bg-[#09090b]` in [src/components/DashboardClient.tsx](file:///c:/Users/Stuar/.gemini/antigravity/scratch/delightful-kepler/src/components/DashboardClient.tsx) root container div. These dark wrapper elements overrode child component styles and forced a pitch-black outer background on the entire dashboard.
+- **Fix**: Updated `page.tsx` main container to `bg-[var(--awb-color3)]` with `max-w-[1200px]` centering, and `DashboardClient.tsx` wrapper div to `bg-[var(--awb-color1)] shadow-sm rounded-2xl border border-[var(--awb-color3)]`. Recompiled production build and pushed commit `b819f6e` to `origin/main`.
