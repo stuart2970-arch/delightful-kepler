@@ -103,19 +103,11 @@ export async function POST(request: Request) {
       // Attempt primary country purchase (e.g. GB)
       purchasedNumber = await tryPurchaseNumber(primaryCountry);
     } catch (primaryErr: any) {
-      console.warn(`[Telephony Provisioning] Failed to purchase ${primaryCountry} number:`, primaryErr.message);
-
-      // If UK regulatory bundle is missing, automatically fall back to US instant setup
-      if (primaryCountry === 'GB') {
-        console.log('[Telephony Provisioning] Falling back to US number setup...');
-        try {
-          purchasedNumber = await tryPurchaseNumber('US');
-        } catch (fallbackErr: any) {
-          throw new Error('UK numbers require an approved Regulatory Bundle in Twilio (TWILIO_BUNDLE_SID). US fallback purchase also failed: ' + fallbackErr.message);
-        }
-      } else {
-        throw primaryErr;
-      }
+      console.error(`[Telephony Provisioning] Failed to purchase ${primaryCountry} number:`, primaryErr.message);
+      // Return exact error message so user can see why Twilio rejected the UK bundle or credentials
+      return NextResponse.json({
+        error: `Failed to purchase ${primaryCountry} number: ${primaryErr.message}. (Ensure TWILIO_BUNDLE_SID is set in Google Cloud Run env vars).`
+      }, { status: 400 });
     }
 
     // 2.5. Automatically import and link this number to Vapi!
