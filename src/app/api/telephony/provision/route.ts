@@ -70,7 +70,7 @@ export async function POST(request: Request) {
     const client = twilio(accountSid, authToken);
 
     // 1. Search and purchase phone number
-    const primaryCountry = process.env.TWILIO_PHONE_COUNTRY || 'US';
+    const primaryCountry = process.env.TWILIO_PHONE_COUNTRY || 'GB';
     const appBaseUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://app.styleflo.ai';
     const addressSid = process.env.TWILIO_ADDRESS_SID;
     const bundleSid = process.env.TWILIO_BUNDLE_SID;
