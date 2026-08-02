@@ -294,7 +294,7 @@ export default function SchedulingView() {
                   <p className="text-xs text-[var(--awb-color6)] mt-1">Configure your booking mode and manage external calendar connections.</p>
                 </div>
 
-                <div className="bg-[var(--awb-color1)] text-[var(--awb-color8)] border-[var(--awb-color3)] border border-[var(--awb-color3)] p-4 rounded-xl">
+                <div className="bg-white border border-[#f2f3f5] p-4 rounded-xl">
                   <h4 className="text-sm font-bold text-gray-200 mb-3">Operating Booking Mode</h4>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mb-4">
                     {[
@@ -304,7 +304,7 @@ export default function SchedulingView() {
                       { id: 'external_platform', label: 'External Booking Link', desc: 'Use an existing system like Vagaro or Fresha.' }
                     ].map(mode => (
                       <label key={mode.id} className={`flex flex-col p-3 rounded-xl border cursor-pointer transition-colors ${
-                        bookingMode === mode.id ? 'bg-indigo-950/30 border-indigo-500/50' : 'bg-[var(--awb-color1)] border-[var(--awb-color3)] hover:border-[var(--awb-color3)]'
+                        bookingMode === mode.id ? 'bg-blue-50 border border-blue-200 border-indigo-500/50' : 'bg-[var(--awb-color1)] border-[var(--awb-color3)] hover:border-[var(--awb-color3)]'
                       }`}>
                         <div className="flex items-center gap-2 mb-1">
                           <input type="radio" name="bookingMode" value={mode.id} checked={bookingMode === mode.id} onChange={(e) => setBookingMode(e.target.value)} className="text-indigo-600 bg-[var(--awb-color1)] border-[var(--awb-color3)] focus:ring-indigo-600 focus:ring-offset-gray-900" />
@@ -322,18 +322,18 @@ export default function SchedulingView() {
                     </div>
                   )}
                   
-                  <button onClick={handleSaveBookingMode} disabled={isSavingBookingMode} className="bg-[var(--awb-color5)] text-[var(--awb-color8)] hover:bg-[var(--awb-color5)] text-[var(--awb-color8)] text-[var(--awb-color8)] text-xs px-4 py-2 rounded-lg font-semibold transition-colors disabled:opacity-50">
+                  <button onClick={handleSaveBookingMode} disabled={isSavingBookingMode} className="bg-[#198fd9] text-white font-semibold rounded-[4px] px-[29px] py-[13px] hover:bg-[#198fd9] text-white font-semibold rounded-[4px] px-[29px] py-[13px] text-[var(--awb-color8)] text-xs px-4 py-2 rounded-lg font-semibold transition-colors disabled:opacity-50">
                     {isSavingBookingMode ? 'Saving...' : 'Save Booking Mode'}
                   </button>
                 </div>
 
                 {bookingMode !== 'walk_in_only' && bookingMode !== 'external_platform' && (
-                  <div className="bg-[var(--awb-color1)] text-[var(--awb-color8)] border-[var(--awb-color3)] border border-[var(--awb-color3)] p-4 rounded-xl flex items-center justify-between">
+                  <div className="bg-white border border-[#f2f3f5] p-4 rounded-xl flex items-center justify-between">
                     <div>
                       <h4 className="text-sm font-bold text-gray-200">Google Calendar Status</h4>
                       <p className="text-xs text-[var(--awb-color6)] mt-0.5">Authorize the primary workspace calendar to push and pull appointments.</p>
                       {isGoogleConnected && (
-                        <div className="inline-flex items-center gap-1.5 mt-2 bg-emerald-950/40 text-emerald-400 text-[10px] px-2 py-1 rounded-full border border-emerald-500/20 font-semibold">
+                        <div className="inline-flex items-center gap-1.5 mt-2 bg-emerald-50 border-emerald-300 text-emerald-900/40 text-emerald-800 text-[10px] px-2 py-1 rounded-full border border-emerald-500/20 font-semibold">
                           <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
                           Connected & Syncing
                         </div>
@@ -352,7 +352,7 @@ export default function SchedulingView() {
                       ) : (
                         <button
                           onClick={() => window.location.href = `/api/integrations/google/authorize?tenantId=${tenantId}`}
-                          className="bg-[var(--awb-color5)] text-[var(--awb-color8)] hover:bg-[var(--awb-color5)] text-[var(--awb-color8)] text-[var(--awb-color8)] px-5 py-2.5 rounded-xl font-bold shadow-lg transition-colors flex items-center gap-2"
+                          className="bg-[#198fd9] text-white font-semibold rounded-[4px] px-[29px] py-[13px] hover:bg-[#198fd9] text-white font-semibold rounded-[4px] px-[29px] py-[13px] text-[var(--awb-color8)] px-5 py-2.5 rounded-xl font-bold shadow-lg transition-colors flex items-center gap-2"
                         >
                           <svg className="w-5 h-5" viewBox="0 0 24 24" fill="currentColor">
                             <path d="M12.24 10.285V14.4h6.806c-.275 1.765-2.056 5.174-6.806 5.174-4.095 0-7.439-3.389-7.439-7.574s3.345-7.574 7.439-7.574c2.33 0 3.891.989 4.785 1.849l3.254-3.138C18.189 1.186 15.479 0 12.24 0c-6.635 0-12 5.365-12 12s5.365 12 12 12c6.926 0 11.52-4.869 11.52-11.726 0-.788-.085-1.39-.189-1.989H12.24z"/>
@@ -366,7 +366,7 @@ export default function SchedulingView() {
               </div>
 
               {bookingMode !== 'walk_in_only' && bookingMode !== 'external_platform' && (
-                <div className="bg-[var(--awb-color1)] text-[var(--awb-color8)] border-[var(--awb-color3)] border border-[var(--awb-color3)] p-4 rounded-xl">
+                <div className="bg-white border border-[#f2f3f5] p-4 rounded-xl">
                   <label className="block text-xs font-semibold text-[var(--awb-color6)] mb-1.5">Target Chatbot for Scheduling</label>
                   <select
                     value={targetChatbotId}
@@ -429,7 +429,7 @@ export default function SchedulingView() {
                                 key={weekIdx}
                                 type="button"
                                 onClick={() => setActiveWeekIndex(weekIdx)}
-                                className={`flex-1 py-2 text-xs font-bold transition-colors ${activeWeekIndex === weekIdx ? 'bg-[var(--awb-color5)] text-[var(--awb-color8)] text-[var(--awb-color8)]' : 'bg-[var(--awb-color2)] text-[var(--awb-color6)] hover:bg-[var(--awb-color2)] text-[var(--awb-color8)] hover:text-gray-200'}`}
+                                className={`flex-1 py-2 text-xs font-bold transition-colors ${activeWeekIndex === weekIdx ? 'bg-[#198fd9] text-white font-semibold rounded-[4px] px-[29px] py-[13px] text-[var(--awb-color8)]' : 'bg-[var(--awb-color2)] text-[var(--awb-color6)] hover:bg-[var(--awb-color2)] text-[var(--awb-color8)] hover:text-gray-200'}`}
                               >
                                 Week {weekIdx + 1}
                               </button>
@@ -444,7 +444,7 @@ export default function SchedulingView() {
                                 required
                                 value={newStaffSchedule.weeks[activeWeekIndex].weekCommencingDate}
                                 onChange={e => handleDateChange(e.target.value)}
-                                className="bg-[var(--awb-color1)] text-[var(--awb-color8)] border-[var(--awb-color3)] border border-[var(--awb-color3)] rounded px-3 py-1.5 text-xs text-[var(--awb-color8)] focus:border-indigo-500 outline-none"
+                                className="bg-white border border-[#f2f3f5] rounded px-3 py-1.5 text-xs text-[var(--awb-color8)] focus:border-indigo-500 outline-none"
                               />
                             </div>
                           </div>
@@ -514,7 +514,7 @@ export default function SchedulingView() {
                               type="button" 
                               onClick={copyToNextWeek}
                               disabled={activeWeekIndex >= 3}
-                              className="text-xs text-[var(--awb-color5)] hover:text-[var(--awb-color5)] font-semibold bg-[var(--awb-color5)] text-[var(--awb-color8)]/10 px-4 py-2 rounded disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                              className="text-xs text-[var(--awb-color5)] hover:text-[var(--awb-color5)] font-semibold bg-[#198fd9] text-white font-semibold rounded-[4px] px-[29px] py-[13px]/10 px-4 py-2 rounded disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
                             >
                               Copy this rota to next week →
                             </button>
@@ -526,7 +526,7 @@ export default function SchedulingView() {
                             setShowStaffModal(false);
                             setEditingStaffId(null);
                           }} className="px-4 py-2 text-sm text-[var(--awb-color6)] hover:text-[var(--awb-color8)] transition-colors">Cancel</button>
-                          <button type="submit" className="px-5 py-2 text-sm bg-[var(--awb-color5)] text-[var(--awb-color8)] hover:bg-[var(--awb-color5)] text-[var(--awb-color8)] text-[var(--awb-color8)] rounded-lg font-bold shadow-lg transition-transform active:scale-95">
+                          <button type="submit" className="px-5 py-2 text-sm bg-[#198fd9] text-white font-semibold rounded-[4px] px-[29px] py-[13px] hover:bg-[#198fd9] text-white font-semibold rounded-[4px] px-[29px] py-[13px] text-[var(--awb-color8)] rounded-lg font-bold shadow-lg transition-transform active:scale-95">
                             {editingStaffId ? 'Update Staff Member' : 'Save Staff Member'}
                           </button>
                         </div>
@@ -554,7 +554,7 @@ export default function SchedulingView() {
                     {filteredStaff.length === 0 ? (
                       <div className="text-sm text-[var(--awb-color6)] italic text-center mt-10">No staff configured yet.</div>
                     ) : filteredStaff.map(stf => (
-                      <div key={stf.id} className="bg-[var(--awb-color1)] text-[var(--awb-color8)] border-[var(--awb-color3)] border border-[var(--awb-color3)] p-4 rounded-xl flex flex-col gap-2 group hover:border-[var(--awb-color3)] transition-colors">
+                      <div key={stf.id} className="bg-white border border-[#f2f3f5] p-4 rounded-xl flex flex-col gap-2 group hover:border-[var(--awb-color3)] transition-colors">
                         <div className="flex items-center justify-between">
                           <div>
                             <div className="font-bold text-gray-200 text-sm">{stf.name}</div>

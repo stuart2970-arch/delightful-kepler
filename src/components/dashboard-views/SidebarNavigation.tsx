@@ -71,7 +71,7 @@ export default function SidebarNavigation() {
                        {tab.label}
                     </div>
                     {tab.count !== undefined && (
-                      <span className={`text-[10px] px-2 py-0.5 rounded-full font-mono font-bold ${activeTab === tab.id ? 'bg-[var(--awb-color5)] text-[var(--awb-color8)]' : 'bg-[var(--awb-color3)] text-[var(--awb-color6)]'}`}>
+                      <span className={`text-[10px] px-2 py-0.5 rounded-full font-mono font-bold ${activeTab === tab.id ? 'bg-[#198fd9] text-white font-semibold rounded-[4px] px-[29px] py-[13px]' : 'bg-[var(--awb-color3)] text-[var(--awb-color6)]'}`}>
                         {tab.count}
                       </span>
                     )}

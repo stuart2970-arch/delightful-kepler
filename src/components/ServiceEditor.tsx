@@ -159,11 +159,11 @@ export default function ServiceEditor({ tenantId, chatbotId, services, setServic
                           <div className="mt-3 pl-7 grid grid-cols-2 gap-3">
                             <div>
                               <label className="block text-[10px] text-[var(--awb-color6)] mb-1">Override Price ($)</label>
-                              <input type="number" placeholder="Default" value={isAssigned.custom_price || ''} onChange={e => handleUpdateStaffMapping(st.id, 'custom_price', e.target.value)} className="w-full bg-[var(--awb-color1)] text-[var(--awb-color8)] border-[var(--awb-color3)] border border-[var(--awb-color3)] rounded px-2 py-1.5 text-xs text-[var(--awb-color8)]" />
+                              <input type="number" placeholder="Default" value={isAssigned.custom_price || ''} onChange={e => handleUpdateStaffMapping(st.id, 'custom_price', e.target.value)} className="w-full bg-white border border-[#f2f3f5] rounded px-2 py-1.5 text-xs text-[var(--awb-color8)]" />
                             </div>
                             <div>
                               <label className="block text-[10px] text-[var(--awb-color6)] mb-1">Override Duration (m)</label>
-                              <input type="number" placeholder="Default" value={isAssigned.custom_duration || ''} onChange={e => handleUpdateStaffMapping(st.id, 'custom_duration', e.target.value)} className="w-full bg-[var(--awb-color1)] text-[var(--awb-color8)] border-[var(--awb-color3)] border border-[var(--awb-color3)] rounded px-2 py-1.5 text-xs text-[var(--awb-color8)]" />
+                              <input type="number" placeholder="Default" value={isAssigned.custom_duration || ''} onChange={e => handleUpdateStaffMapping(st.id, 'custom_duration', e.target.value)} className="w-full bg-white border border-[#f2f3f5] rounded px-2 py-1.5 text-xs text-[var(--awb-color8)]" />
                             </div>
                           </div>
                         )}
@@ -192,7 +192,7 @@ export default function ServiceEditor({ tenantId, chatbotId, services, setServic
         {services.length === 0 ? (
           <div className="text-sm text-[var(--awb-color6)] italic text-center mt-10">No services configured yet.</div>
         ) : services.map((srv: any) => (
-          <div key={srv.id} onClick={() => handleEditClick(srv)} className="bg-[var(--awb-color1)] text-[var(--awb-color8)] border-[var(--awb-color3)] border border-[var(--awb-color3)] p-4 rounded-xl flex items-center justify-between group hover:border-indigo-500/50 hover:bg-indigo-900/10 cursor-pointer transition-all">
+          <div key={srv.id} onClick={() => handleEditClick(srv)} className="bg-white border border-[#f2f3f5] p-4 rounded-xl flex items-center justify-between group hover:border-indigo-500/50 hover:bg-indigo-900/10 cursor-pointer transition-all">
             <div>
               <div className="font-bold text-gray-200 text-sm">{srv.name}</div>
               {srv.description && (

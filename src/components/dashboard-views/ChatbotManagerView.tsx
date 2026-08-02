@@ -319,7 +319,7 @@ export default function ChatbotManagerView() {
                       ].map((s) => (
                         <div key={s.step} className="flex flex-col items-center gap-2">
                           <div className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold transition-all duration-300 ${
-                            wizardStep >= s.step ? 'bg-[var(--awb-color5)] text-[var(--awb-color8)] shadow-md' : 'bg-[var(--awb-color1)] border-2 border-[var(--awb-color3)] text-[var(--awb-color6)]'
+                            wizardStep >= s.step ? 'bg-[#198fd9] text-white font-semibold rounded-[4px] px-[29px] py-[13px] shadow-md' : 'bg-[var(--awb-color1)] border-2 border-[var(--awb-color3)] text-[var(--awb-color6)]'
                           }`}>
                             {wizardStep > s.step ? '✓' : s.step}
                           </div>
@@ -473,7 +473,7 @@ export default function ChatbotManagerView() {
                   {(editingBotId || wizardStep === 4) && (
                     <div className="space-y-4 animate-in fade-in slide-in-from-right-4 duration-300">
                       <div className="flex items-center justify-between bg-[var(--awb-color2)] p-4 rounded-xl border border-[var(--awb-color3)]">
-                        <div className={`w-10 h-10 rounded-xl flex items-center justify-center transition-colors ${newVoiceEnabled ? 'bg-[var(--awb-color5)]' : 'bg-[var(--awb-color3)]'}`}>
+                        <div className={`w-10 h-10 rounded-xl flex items-center justify-center transition-colors ${newVoiceEnabled ? 'bg-[#198fd9] text-white' : 'bg-[var(--awb-color3)]'}`}>
                           <svg className={`w-5 h-5 ${newVoiceEnabled ? 'text-[var(--awb-color8)]' : 'text-[var(--awb-color6)]'}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z" />
                           </svg>
@@ -485,7 +485,7 @@ export default function ChatbotManagerView() {
                         <button
                           type="button"
                           onClick={() => setNewVoiceEnabled(!newVoiceEnabled)}
-                          className={`relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out ${newVoiceEnabled ? 'bg-[var(--awb-color5)]' : 'bg-[var(--awb-color3)]'}`}
+                          className={`relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out ${newVoiceEnabled ? 'bg-[#198fd9] text-white' : 'bg-[var(--awb-color3)]'}`}
                         >
                           <span className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${newVoiceEnabled ? 'translate-x-5' : 'translate-x-0'}`} />
                         </button>
@@ -498,7 +498,7 @@ export default function ChatbotManagerView() {
                             {voicePersonas.map((voice) => (
                               <div key={voice.id} className={`flex items-center justify-between p-3 transition-colors ${newVoiceId === voice.id ? 'bg-[var(--awb-color2)]' : 'hover:bg-[var(--awb-color2)]/50'}`}>
                                 <div className="flex items-center gap-3 flex-1 cursor-pointer" onClick={() => setNewVoiceId(voice.id)}>
-                                  <div className={`w-4 h-4 rounded-full border flex items-center justify-center flex-shrink-0 ${newVoiceId === voice.id ? 'border-[var(--awb-color5)] bg-[var(--awb-color5)]' : 'border-[var(--awb-color3)]'}`}>
+                                  <div className={`w-4 h-4 rounded-full border flex items-center justify-center flex-shrink-0 ${newVoiceId === voice.id ? 'border-[var(--awb-color5)] bg-[#198fd9] text-white' : 'border-[var(--awb-color3)]'}`}>
                                     {newVoiceId === voice.id && <div className="w-1.5 h-1.5 bg-white rounded-full"></div>}
                                   </div>
                                   <div>
@@ -512,7 +512,7 @@ export default function ChatbotManagerView() {
                                 <button
                                   type="button"
                                   onClick={() => handlePlayPreview(voice.previewUrl)}
-                                  className={`ml-3 p-2 rounded-full flex-shrink-0 transition-colors ${playingAudio === voice.previewUrl ? 'bg-[var(--awb-color5)] text-[var(--awb-color8)] shadow-md' : 'bg-[var(--awb-color3)] text-[var(--awb-color7)]'}`}
+                                  className={`ml-3 p-2 rounded-full flex-shrink-0 transition-colors ${playingAudio === voice.previewUrl ? 'bg-[#198fd9] text-white font-semibold rounded-[4px] px-[29px] py-[13px] shadow-md' : 'bg-[var(--awb-color3)] text-[var(--awb-color7)]'}`}
                                 >
                                   {playingAudio === voice.previewUrl ? (
                                     <svg className="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 24 24"><rect x="6" y="4" width="4" height="16" rx="1"/><rect x="14" y="4" width="4" height="16" rx="1"/></svg>
@@ -641,7 +641,7 @@ export default function ChatbotManagerView() {
                           // Scroll form into view
                           window.scrollTo({ top: 0, behavior: 'smooth' });
                         }}
-                        className="flex-1 bg-[var(--awb-color5)]/10 hover:bg-[var(--awb-color5)]/20 text-[var(--awb-color5)] border border-[var(--awb-color5)]/30 py-1.5 px-3 rounded-xl text-xs font-semibold transition-colors"
+                        className="flex-1 bg-[#198fd9] text-white/10 hover:bg-[#198fd9] text-white/20 text-[var(--awb-color5)] border border-[var(--awb-color5)]/30 py-1.5 px-3 rounded-xl text-xs font-semibold transition-colors"
                       >
                         Edit Persona
                       </button>

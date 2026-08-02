@@ -191,56 +191,57 @@ export default function IntegrationsView() {
     }
   };
 
+
   return (
     <>
           {true && (
-            <div className="bg-[var(--awb-color1)] border border-[var(--awb-color3)] p-6 rounded-2xl shadow-xl space-y-6">
+            <div className="bg-white border border-[#f2f3f5] p-6 rounded-2xl shadow-sm space-y-6">
               {/* Reserve with Google Integration */}
               <div>
                 <div className="flex items-center justify-between mb-4">
                   <div>
-                    <h3 className="text-lg font-bold text-[var(--awb-color8)]">Reserve with Google (Actions Center)</h3>
-                    <p className="text-xs text-[var(--awb-color6)] mt-0.5">Enable native "Book Online" functionality directly on your Google Maps and Search profile.</p>
+                    <h3 className="text-lg font-bold text-[#260475]">Reserve with Google (Actions Center)</h3>
+                    <p className="text-xs text-[#434549] mt-0.5">Enable native "Book Online" functionality directly on your Google Maps and Search profile.</p>
                   </div>
-                  <div className={`px-3 py-1 rounded-full text-xs font-bold border ${
-                    rwgStatus === 'Active on Google' ? 'bg-emerald-950 border-emerald-500/50 text-emerald-400' :
-                    rwgStatus === 'Pending Verification' ? 'bg-yellow-950 border-yellow-500/50 text-yellow-400' :
-                    'bg-[var(--awb-color2)] text-[var(--awb-color8)] border-[var(--awb-color3)] text-[var(--awb-color6)]'
+                  <div className={`px-3.5 py-1.5 rounded-full text-xs font-bold border shadow-sm ${
+                    rwgStatus === 'Active on Google' ? 'bg-emerald-50 border-emerald-300 text-emerald-800' :
+                    rwgStatus === 'Pending Verification' ? 'bg-amber-50 border-amber-300 text-amber-900' :
+                    'bg-[#f9f9fb] border-[#f2f3f5] text-[#434549]'
                   }`}>
                     Status: {rwgStatus}
                   </div>
                 </div>
 
-                <div className="bg-[var(--awb-color1)] text-[var(--awb-color8)] border-[var(--awb-color3)] border border-[var(--awb-color3)] p-5 rounded-xl space-y-4">
-                  <div className="flex items-center gap-3 bg-indigo-950/20 border border-indigo-500/30 p-4 rounded-xl">
+                <div className="bg-[#f9f9fb] border border-[#f2f3f5] p-5 rounded-xl space-y-4">
+                  <div className="flex items-center gap-3 bg-white border border-[#f2f3f5] p-4 rounded-xl shadow-sm">
                     <input
                       type="checkbox"
                       id="rwg-enable-toggle"
                       checked={isRwgEnabled}
                       onChange={(e) => setIsRwgEnabled(e.target.checked)}
-                      className="w-5 h-5 rounded bg-[var(--awb-color1)] border-[var(--awb-color3)] text-indigo-600 focus:ring-indigo-600 focus:ring-offset-gray-900"
+                      className="w-5 h-5 rounded bg-white border-[#f2f3f5] text-[#198fd9] focus:ring-[#65bd7d]"
                     />
                     <div>
-                      <label htmlFor="rwg-enable-toggle" className="text-sm font-bold text-[var(--awb-color8)] cursor-pointer select-none">Authorize Google Integration</label>
-                      <p className="text-[10px] text-indigo-200">Checking this box will start generating dynamic JSON feeds for your business and expose realtime webhook APIs for Google's servers.</p>
+                      <label htmlFor="rwg-enable-toggle" className="text-sm font-bold text-[#260475] cursor-pointer select-none">Authorize Google Integration</label>
+                      <p className="text-xs text-[#434549] mt-0.5">Checking this box will start generating dynamic JSON feeds for your business and expose realtime webhook APIs for Google's servers.</p>
                     </div>
                   </div>
 
                   {isRwgEnabled && (
                     <div className="space-y-4 pt-2">
-                      <div className="bg-amber-950/30 border border-amber-500/30 p-3 rounded-xl">
-                        <p className="text-xs text-amber-200 font-semibold">⚠️ Important Mapping Requirement</p>
-                        <p className="text-[10px] text-amber-300/80 mt-1">These fields must mirror your exact Google Business Profile inputs word-for-word, or mapping alignment will fail.</p>
+                      <div className="bg-amber-50 border border-amber-200 p-3.5 rounded-xl">
+                        <p className="text-xs text-amber-900 font-bold flex items-center gap-1">⚠️ Important Mapping Requirement</p>
+                        <p className="text-xs text-amber-800 mt-1">These fields must mirror your exact Google Business Profile inputs word-for-word, or mapping alignment will fail.</p>
                       </div>
 
                       <div className="flex flex-col md:flex-row gap-3">
                         <div className="flex-1">
-                          <label className="block text-xs font-semibold text-[var(--awb-color6)] mb-1.5">Google Business Profile URL</label>
+                          <label className="block text-xs font-semibold text-[#212326] mb-1.5">Google Business Profile URL</label>
                           <input 
                             type="text" 
                             value={rwgGoogleUrl} 
                             onChange={(e) => setRwgGoogleUrl(e.target.value)} 
-                            className="w-full bg-[var(--awb-color1)] border border-[var(--awb-color3)] rounded-xl px-3.5 py-2 text-sm text-[var(--awb-color8)] focus:outline-none focus:ring-1 focus:ring-indigo-500" 
+                            className="w-full h-[50px] bg-white border border-[#f2f3f5] rounded-[6px] px-3.5 py-2 text-sm text-[#212326] focus:outline-none focus:border-[#65bd7d] placeholder-gray-400" 
                             placeholder="https://maps.google.com/?cid=..." 
                           />
                         </div>
@@ -280,7 +281,7 @@ export default function IntegrationsView() {
                                 setIsSavingRwg(false);
                               }
                             }}
-                            className="px-4 py-2 bg-[var(--awb-color5)] text-[var(--awb-color8)] hover:bg-[var(--awb-color5)] text-[var(--awb-color8)] text-[var(--awb-color8)] rounded-xl text-sm font-semibold transition-colors flex items-center gap-2 whitespace-nowrap disabled:opacity-50"
+                            className="awb-btn h-[50px] flex items-center gap-2 whitespace-nowrap shadow-sm disabled:opacity-50"
                           >
                             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"></path></svg>
                             {isSavingRwg ? 'Importing...' : 'IMPORT from Google Business'}
@@ -288,26 +289,26 @@ export default function IntegrationsView() {
                         </div>
                       </div>
 
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-2 border-t border-[var(--awb-color3)]">
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-2 border-t border-[#f2f3f5]">
                         <div>
-                          <label className="block text-xs font-semibold text-[var(--awb-color6)] mb-1.5">Business Name</label>
-                          <input type="text" value={rwgBusinessName} onChange={(e) => setRwgBusinessName(e.target.value)} className="w-full bg-[var(--awb-color1)] border border-[var(--awb-color3)] rounded-xl px-3.5 py-2 text-sm text-[var(--awb-color8)] focus:outline-none focus:ring-1 focus:ring-indigo-500" placeholder="e.g. Styleflo Salon" />
+                          <label className="block text-xs font-semibold text-[#212326] mb-1.5">Business Name</label>
+                          <input type="text" value={rwgBusinessName} onChange={(e) => setRwgBusinessName(e.target.value)} className="w-full h-[50px] bg-white border border-[#f2f3f5] rounded-[6px] px-3.5 py-2 text-sm text-[#212326] focus:outline-none focus:border-[#65bd7d] placeholder-gray-400" placeholder="e.g. Styleflo Salon" />
                         </div>
                         <div>
-                          <label className="block text-xs font-semibold text-[var(--awb-color6)] mb-1.5">Phone Number</label>
-                          <input type="text" value={rwgPhone} onChange={(e) => setRwgPhone(e.target.value)} className="w-full bg-[var(--awb-color1)] border border-[var(--awb-color3)] rounded-xl px-3.5 py-2 text-sm text-[var(--awb-color8)] focus:outline-none focus:ring-1 focus:ring-indigo-500" placeholder="+44 123 456 7890" />
+                          <label className="block text-xs font-semibold text-[#212326] mb-1.5">Phone Number</label>
+                          <input type="text" value={rwgPhone} onChange={(e) => setRwgPhone(e.target.value)} className="w-full h-[50px] bg-white border border-[#f2f3f5] rounded-[6px] px-3.5 py-2 text-sm text-[#212326] focus:outline-none focus:border-[#65bd7d] placeholder-gray-400" placeholder="+44 123 456 7890" />
                         </div>
                         <div className="md:col-span-2">
-                          <label className="block text-xs font-semibold text-[var(--awb-color6)] mb-1.5">Street Address</label>
-                          <input type="text" value={rwgStreetAddress} onChange={(e) => setRwgStreetAddress(e.target.value)} className="w-full bg-[var(--awb-color1)] border border-[var(--awb-color3)] rounded-xl px-3.5 py-2 text-sm text-[var(--awb-color8)] focus:outline-none focus:ring-1 focus:ring-indigo-500" placeholder="123 Salon Street" />
+                          <label className="block text-xs font-semibold text-[#212326] mb-1.5">Street Address</label>
+                          <input type="text" value={rwgStreetAddress} onChange={(e) => setRwgStreetAddress(e.target.value)} className="w-full h-[50px] bg-white border border-[#f2f3f5] rounded-[6px] px-3.5 py-2 text-sm text-[#212326] focus:outline-none focus:border-[#65bd7d] placeholder-gray-400" placeholder="123 Salon Street" />
                         </div>
                         <div>
-                          <label className="block text-xs font-semibold text-[var(--awb-color6)] mb-1.5">City</label>
-                          <input type="text" value={rwgCity} onChange={(e) => setRwgCity(e.target.value)} className="w-full bg-[var(--awb-color1)] border border-[var(--awb-color3)] rounded-xl px-3.5 py-2 text-sm text-[var(--awb-color8)] focus:outline-none focus:ring-1 focus:ring-indigo-500" placeholder="London" />
+                          <label className="block text-xs font-semibold text-[#212326] mb-1.5">City</label>
+                          <input type="text" value={rwgCity} onChange={(e) => setRwgCity(e.target.value)} className="w-full h-[50px] bg-white border border-[#f2f3f5] rounded-[6px] px-3.5 py-2 text-sm text-[#212326] focus:outline-none focus:border-[#65bd7d] placeholder-gray-400" placeholder="London" />
                         </div>
                         <div>
-                          <label className="block text-xs font-semibold text-[var(--awb-color6)] mb-1.5">Postcode</label>
-                          <input type="text" value={rwgPostcode} onChange={(e) => setRwgPostcode(e.target.value)} className="w-full bg-[var(--awb-color1)] border border-[var(--awb-color3)] rounded-xl px-3.5 py-2 text-sm text-[var(--awb-color8)] focus:outline-none focus:ring-1 focus:ring-indigo-500" placeholder="SW1A 1AA" />
+                          <label className="block text-xs font-semibold text-[#212326] mb-1.5">Postcode</label>
+                          <input type="text" value={rwgPostcode} onChange={(e) => setRwgPostcode(e.target.value)} className="w-full h-[50px] bg-white border border-[#f2f3f5] rounded-[6px] px-3.5 py-2 text-sm text-[#212326] focus:outline-none focus:border-[#65bd7d] placeholder-gray-400" placeholder="SW1A 1AA" />
                         </div>
                       </div>
 
@@ -317,9 +318,9 @@ export default function IntegrationsView() {
                             type="checkbox" 
                             checked={isRegisteredBusinessAddress}
                             onChange={(e) => setIsRegisteredBusinessAddress(e.target.checked)}
-                            className="w-4 h-4 text-indigo-600 bg-[var(--awb-color1)] border-[var(--awb-color3)] rounded focus:ring-indigo-500 focus:ring-2"
+                            className="w-4 h-4 text-[#198fd9] bg-white border-[#f2f3f5] rounded focus:ring-[#65bd7d]"
                           />
-                          <span className="text-sm font-medium text-[var(--awb-color7)]">
+                          <span className="text-sm font-medium text-[#212326]">
                             Confirm this is also the registered business address
                           </span>
                         </label>
@@ -330,7 +331,7 @@ export default function IntegrationsView() {
                           type="button"
                           onClick={handleSaveRwgSettings}
                           disabled={isSavingRwg}
-                          className="bg-[var(--awb-color5)] text-[var(--awb-color8)] hover:bg-[var(--awb-color5)] text-[var(--awb-color8)] text-[var(--awb-color8)] text-xs font-semibold py-2 px-4 rounded-lg shadow-lg shadow-indigo-500/10 transition-colors disabled:opacity-50"
+                          className="awb-btn text-sm shadow-sm disabled:opacity-50"
                         >
                           {isSavingRwg ? 'Saving...' : 'Save Configuration'}
                         </button>
@@ -338,20 +339,20 @@ export default function IntegrationsView() {
                           type="button"
                           onClick={handleRunRwgIntegrityCheck}
                           disabled={isCheckingRwgIntegrity}
-                          className="bg-[var(--awb-color2)] text-[var(--awb-color8)] hover:bg-gray-700 text-[var(--awb-color7)] text-xs font-semibold py-2 px-4 rounded-lg transition-colors border border-[var(--awb-color3)] disabled:opacity-50"
+                          className="bg-white text-[#212326] hover:bg-[#f9f9fb] text-xs font-semibold px-[29px] py-[13px] rounded-[4px] border border-[#f2f3f5] disabled:opacity-50 transition-colors shadow-sm"
                         >
                           {isCheckingRwgIntegrity ? 'Running...' : 'Run Integrity Check'}
                         </button>
                       </div>
 
                       {rwgIntegrityLogs.length > 0 && (
-                        <div className="mt-4 p-4 bg-black border border-[var(--awb-color3)] rounded-xl font-mono text-[10px] text-[var(--awb-color7)] h-32 overflow-y-auto space-y-1.5 styleflo-scrollbar">
+                        <div className="mt-4 p-4 bg-[#212326] border border-[#f2f3f5] rounded-xl font-mono text-[11px] text-white h-36 overflow-y-auto space-y-1.5 styleflo-scrollbar">
                           {rwgIntegrityLogs.map((log, i) => (
                             <div key={i} className={
-                              log.startsWith('[Error]') ? 'text-red-400' :
-                              log.startsWith('[Success]') ? 'text-emerald-400 font-semibold' :
-                              log.startsWith('[Warning]') ? 'text-amber-400' :
-                              log.startsWith('[System]') ? 'text-[var(--awb-color5)]' : 'text-[var(--awb-color7)]'
+                              log.startsWith('[Error]') ? 'text-red-400 font-bold' :
+                              log.startsWith('[Success]') ? 'text-emerald-800 font-bold' :
+                              log.startsWith('[Warning]') ? 'text-amber-300 font-semibold' :
+                              log.startsWith('[System]') ? 'text-blue-300 font-semibold' : 'text-gray-200'
                             }>
                               {log}
                             </div>
@@ -368,4 +369,3 @@ export default function IntegrationsView() {
     </>
   );
 }
-

@@ -540,7 +540,7 @@ const globalBotId = '00000000-0000-0000-0000-000000000000';
                        {tab.label}
                     </div>
                     {tab.count !== undefined && (
-                      <span className={`text-[10px] px-2 py-0.5 rounded-full font-mono font-bold ${activeTab === tab.id ? 'bg-[var(--awb-color5)] text-white' : 'bg-[var(--awb-color3)] text-[var(--awb-color6)]'}`}>
+                      <span className={`text-[10px] px-2 py-0.5 rounded-full font-mono font-bold ${activeTab === tab.id ? 'bg-[#198fd9] text-white text-white' : 'bg-[var(--awb-color3)] text-[var(--awb-color6)]'}`}>
                         {tab.count}
                       </span>
                     )}
@@ -570,11 +570,11 @@ const globalBotId = '00000000-0000-0000-0000-000000000000';
         <div className="flex-1 overflow-y-auto styleflo-scrollbar p-4 md:p-8 lg:p-12 z-10 space-y-6 md:space-y-8">
            <header className="flex flex-col md:flex-row items-start md:items-center justify-between mb-6 md:mb-8 gap-4">
               <div className="flex items-center gap-3 w-full">
-                 <button className="md:hidden p-2 -ml-2 text-gray-300 hover:text-white" onClick={() => setIsMobileMenuOpen(true)}>
+                 <button className="md:hidden p-2 -ml-2 text-[var(--awb-color6)] hover:text-[var(--awb-color7)]" onClick={() => setIsMobileMenuOpen(true)}>
                     <svg className="w-7 h-7" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 6h16M4 12h16M4 18h16"></path></svg>
                  </button>
                  <div className="flex-1">
-                    <h1 className="text-2xl md:text-3xl font-extrabold text-transparent bg-clip-text bg-gradient-to-r from-white to-gray-400 capitalize truncate">
+                    <h1 className="text-2xl md:text-3xl font-extrabold text-[#260475] capitalize truncate">
                    {activeTab === 'chatbots' ? 'Chatbots Manager' : 
                     activeTab === 'scheduling' ? 'Scheduling & Staff' :
                     activeTab === 'conversations' ? 'Inbox & Logs' :
@@ -583,13 +583,13 @@ const globalBotId = '00000000-0000-0000-0000-000000000000';
                     activeTab === 'superadmin_voices' ? 'Voice Personas Management' :
                     activeTab.replace('_', ' ')}
                  </h1>
-                 <p className="text-sm text-gray-400 mt-1">Workspace: <span className="text-indigo-400 font-semibold">{tenantName}</span></p>
+                 <p className="text-sm text-[#434549] mt-1">Workspace: <span className="text-[#198fd9] font-semibold">{tenantName}</span></p>
                  </div>
               </div>
               {isDev && (
-                 <div className="bg-indigo-500/10 border border-indigo-500/20 px-3 py-1.5 rounded-full flex items-center gap-2 shadow-lg shadow-indigo-500/10">
-                    <span className="w-2 h-2 rounded-full bg-indigo-500 animate-pulse"></span>
-                    <span className="text-[10px] tracking-wider uppercase text-indigo-300 font-bold">Dev Mode Active</span>
+                 <div className="bg-indigo-50 border border-indigo-200 px-3 py-1.5 rounded-full flex items-center gap-2 shadow-sm">
+                    <span className="w-2 h-2 rounded-full bg-[#198fd9] animate-pulse"></span>
+                    <span className="text-[10px] tracking-wider uppercase text-[#198fd9] font-bold">Dev Mode Active</span>
                  </div>
               )}
            </header>

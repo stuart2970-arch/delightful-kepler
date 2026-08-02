@@ -128,7 +128,7 @@ export default function InboxView() {
                             onClick={() => setSelectedConversation(conv.id)}
                             className={`w-full text-left p-3 rounded-xl border text-xs transition-all flex flex-col gap-1.5 ${
                               selectedConversation === conv.id
-                                ? 'bg-indigo-950/40 border-indigo-500/40 text-[var(--awb-color8)] shadow-md'
+                                ? 'bg-blue-50 border border-blue-200 border-indigo-500/40 text-[var(--awb-color8)] shadow-md'
                                 : 'bg-[var(--awb-color2)] border-[var(--awb-color3)] hover:bg-[var(--awb-color2)] text-[var(--awb-color6)] hover:text-[var(--awb-color7)]'
                             }`}
                           >
@@ -162,7 +162,7 @@ export default function InboxView() {
 
                 <div className="bg-[var(--awb-color1)] border border-[var(--awb-color3)] p-6 rounded-2xl shadow-xl h-[700px] flex flex-col">
                   <h4 className="text-base font-bold text-[var(--awb-color8)] mb-4">Transcript Viewer</h4>
-                  <div className="flex-1 overflow-y-auto p-4 bg-[var(--awb-color1)] text-[var(--awb-color8)] border-[var(--awb-color3)] border border-[var(--awb-color3)] rounded-xl space-y-4 styleflo-scrollbar">
+                  <div className="flex-1 overflow-y-auto p-4 bg-white border border-[#f2f3f5] rounded-xl space-y-4 styleflo-scrollbar">
                     {isFetchingMessages ? (
                       <div className="h-full flex items-center justify-center text-xs text-[var(--awb-color6)]">
                         Loading message history...
@@ -196,7 +196,7 @@ export default function InboxView() {
                           <div key={msg.id || i} className={`flex ${msg.sender_type === 'user' ? 'justify-end' : 'justify-start'}`}>
                             <div className={`p-4 rounded-xl text-sm max-w-[90%] leading-relaxed whitespace-pre-wrap shadow-sm ${
                               msg.sender_type === 'user'
-                                ? 'bg-[var(--awb-color5)] text-[var(--awb-color8)] text-[var(--awb-color8)] rounded-tr-none'
+                                ? 'bg-[#198fd9] text-white font-semibold rounded-[4px] px-[29px] py-[13px] text-[var(--awb-color8)] rounded-tr-none'
                                 : 'bg-[var(--awb-color1)] text-[var(--awb-color7)] rounded-tl-none border border-[var(--awb-color3)]'
                             }`}>
                               {msg.text_content}

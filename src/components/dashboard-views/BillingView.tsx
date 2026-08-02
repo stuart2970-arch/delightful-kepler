@@ -51,7 +51,7 @@ export default function BillingView() {
     <div className="space-y-6">
       <div className="bg-[var(--awb-color1)] border border-[var(--awb-color3)] rounded-2xl p-6 shadow-xl relative overflow-hidden">
         {/* Background Accent */}
-        <div className="absolute top-0 right-0 w-64 h-64 bg-[var(--awb-color5)] text-[var(--awb-color8)]/5 rounded-full blur-3xl -mr-20 -mt-20 pointer-events-none"></div>
+        <div className="absolute top-0 right-0 w-64 h-64 bg-[#198fd9] text-white font-semibold rounded-[4px] px-[29px] py-[13px]/5 rounded-full blur-3xl -mr-20 -mt-20 pointer-events-none"></div>
         
         <div className="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-6">
           <div>
@@ -63,7 +63,7 @@ export default function BillingView() {
           
           <button 
             onClick={handleUpgrade}
-            className="bg-[var(--awb-color5)] text-[var(--awb-color8)] hover:bg-[var(--awb-color5)] text-[var(--awb-color8)] text-[var(--awb-color8)] font-bold py-2.5 px-6 rounded-xl shadow-lg transition-colors flex items-center gap-2 whitespace-nowrap"
+            className="bg-[#198fd9] text-white font-semibold rounded-[4px] px-[29px] py-[13px] hover:bg-[#198fd9] text-white font-semibold rounded-[4px] px-[29px] py-[13px] text-[var(--awb-color8)] font-bold py-2.5 px-6 rounded-xl shadow-lg transition-colors flex items-center gap-2 whitespace-nowrap"
           >
             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6" />
@@ -74,7 +74,7 @@ export default function BillingView() {
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        <div className="bg-[var(--awb-color1)] text-[var(--awb-color8)] border-[var(--awb-color3)] border border-[var(--awb-color3)] rounded-2xl p-6">
+        <div className="bg-white border border-[#f2f3f5] rounded-2xl p-6">
           <h3 className="text-sm font-bold text-[var(--awb-color7)] mb-4">API Usage (This Month)</h3>
           
           <div className="space-y-4">
@@ -84,7 +84,7 @@ export default function BillingView() {
                 <span className="text-[var(--awb-color8)] font-mono">{messagesUsed.toLocaleString()}</span>
               </div>
               <div className="w-full bg-[var(--awb-color1)] rounded-full h-1.5 overflow-hidden">
-                <div className="bg-[var(--awb-color5)] text-[var(--awb-color8)] h-1.5 rounded-full" style={{ width: `${Math.min((messagesUsed / 100000) * 100, 100)}%` }}></div>
+                <div className="bg-[#198fd9] text-white font-semibold rounded-[4px] px-[29px] py-[13px] h-1.5 rounded-full" style={{ width: `${Math.min((messagesUsed / 100000) * 100, 100)}%` }}></div>
               </div>
             </div>
 
@@ -101,7 +101,7 @@ export default function BillingView() {
         </div>
         
         {isSuperAdmin && (
-          <div className="bg-indigo-950/20 border border-indigo-900/30 rounded-2xl p-6">
+          <div className="bg-blue-50 border border-blue-200 border border-indigo-900/30 rounded-2xl p-6">
             <h3 className="text-sm font-bold text-[var(--awb-color5)] mb-2">Superadmin Overrides</h3>
             <p className="text-xs text-[var(--awb-color5)]/80 mb-4">
               You are viewing this as a superadmin. Normally, billing modifications are disabled here.
@@ -140,7 +140,7 @@ export default function BillingView() {
                 placeholder="Search by Business Name or Chatbot Name..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                className="w-full bg-[var(--awb-color1)] text-[var(--awb-color8)] border-[var(--awb-color3)] border border-[var(--awb-color3)] rounded-xl px-4 py-3 text-[var(--awb-color8)] focus:outline-none focus:border-amber-500 transition-colors"
+                className="w-full bg-white border border-[#f2f3f5] rounded-xl px-4 py-3 text-[var(--awb-color8)] focus:outline-none focus:border-amber-500 transition-colors"
                 autoFocus
               />
             </div>
@@ -150,7 +150,7 @@ export default function BillingView() {
                 <div className="text-center py-8 text-[var(--awb-color6)] text-sm">Searching...</div>
               ) : searchResults.length > 0 ? (
                 searchResults.map(res => (
-                  <div key={res.tenant_id} className="bg-[var(--awb-color1)] text-[var(--awb-color8)] border-[var(--awb-color3)] border border-[var(--awb-color3)] rounded-xl p-4 flex items-center justify-between hover:border-[var(--awb-color3)] transition-colors group">
+                  <div key={res.tenant_id} className="bg-white border border-[#f2f3f5] rounded-xl p-4 flex items-center justify-between hover:border-[var(--awb-color3)] transition-colors group">
                     <div>
                       <div className="text-[var(--awb-color8)] font-bold">{res.company_name || 'Unnamed Business'}</div>
                       <div className="text-xs text-[var(--awb-color6)] mt-1">ID: <span className="font-mono text-[var(--awb-color6)]">{res.tenant_id}</span></div>

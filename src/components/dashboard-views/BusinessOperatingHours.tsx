@@ -197,7 +197,7 @@ export default function BusinessOperatingHours() {
                   key={weekIdx}
                   type="button"
                   onClick={() => setActiveWeekIndex(weekIdx)}
-                  className={`flex-1 py-2 text-xs font-bold transition-colors ${activeWeekIndex === weekIdx ? 'bg-[var(--awb-color5)] text-[var(--awb-color8)] text-[var(--awb-color8)]' : 'bg-[var(--awb-color2)] text-[var(--awb-color6)] hover:bg-[var(--awb-color2)] text-[var(--awb-color8)] hover:text-gray-200'}`}
+                  className={`flex-1 py-2 text-xs font-bold transition-colors ${activeWeekIndex === weekIdx ? 'bg-[#198fd9] text-white font-semibold rounded-[4px] px-[29px] py-[13px] text-[var(--awb-color8)]' : 'bg-[var(--awb-color2)] text-[var(--awb-color6)] hover:bg-[var(--awb-color2)] text-[var(--awb-color8)] hover:text-gray-200'}`}
                 >
                   Week {weekIdx + 1}
                 </button>
@@ -211,14 +211,14 @@ export default function BusinessOperatingHours() {
                     type="date" 
                     value={schedule.weekCommencingDate}
                     onChange={e => handleDateChange(e.target.value)}
-                    className="bg-[var(--awb-color1)] text-[var(--awb-color8)] border-[var(--awb-color3)] border border-[var(--awb-color3)] rounded px-3 py-1.5 text-xs text-[var(--awb-color8)] focus:border-indigo-500 outline-none"
+                    className="bg-white border border-[#f2f3f5] rounded px-3 py-1.5 text-xs text-[var(--awb-color8)] focus:border-indigo-500 outline-none"
                   />
                 </div>
                 {activeWeekIndex > 0 && (
                   <button 
                     type="button"
                     onClick={copyWeekOne}
-                    className="text-xs font-bold bg-[var(--awb-color5)] text-[var(--awb-color8)]/20 text-[var(--awb-color5)] px-3 py-1.5 rounded-lg hover:bg-[var(--awb-color5)] text-[var(--awb-color8)] hover:text-[var(--awb-color8)] transition-colors"
+                    className="text-xs font-bold bg-[#198fd9] text-white font-semibold rounded-[4px] px-[29px] py-[13px]/20 text-[var(--awb-color5)] px-3 py-1.5 rounded-lg hover:bg-[#198fd9] text-white font-semibold rounded-[4px] px-[29px] py-[13px] hover:text-[var(--awb-color8)] transition-colors"
                   >
                     Copy Week 1
                   </button>
@@ -299,13 +299,13 @@ export default function BusinessOperatingHours() {
         <div className="flex bg-[var(--awb-color1)] text-[var(--awb-color8)] border-[var(--awb-color3)] p-1 rounded-lg border border-[var(--awb-color3)]">
           <button 
             onClick={() => setActiveTab('general')} 
-            className={`px-4 py-1.5 text-xs font-bold rounded-md transition-colors ${activeTab === 'general' ? 'bg-[var(--awb-color5)] text-[var(--awb-color8)] text-[var(--awb-color8)]' : 'text-[var(--awb-color6)] hover:text-gray-200'}`}
+            className={`px-4 py-1.5 text-xs font-bold rounded-md transition-colors ${activeTab === 'general' ? 'bg-[#198fd9] text-white font-semibold rounded-[4px] px-[29px] py-[13px] text-[var(--awb-color8)]' : 'text-[var(--awb-color6)] hover:text-gray-200'}`}
           >
             General Opening Times
           </button>
           <button 
             onClick={() => setActiveTab('overrides')} 
-            className={`px-4 py-1.5 text-xs font-bold rounded-md transition-colors ${activeTab === 'overrides' ? 'bg-[var(--awb-color5)] text-[var(--awb-color8)] text-[var(--awb-color8)]' : 'text-[var(--awb-color6)] hover:text-gray-200'}`}
+            className={`px-4 py-1.5 text-xs font-bold rounded-md transition-colors ${activeTab === 'overrides' ? 'bg-[#198fd9] text-white font-semibold rounded-[4px] px-[29px] py-[13px] text-[var(--awb-color8)]' : 'text-[var(--awb-color6)] hover:text-gray-200'}`}
           >
             Specific Overrides (Rota)
           </button>
@@ -316,7 +316,7 @@ export default function BusinessOperatingHours() {
         {activeTab === 'general' ? renderScheduleGrid(localGeneral, true) : renderScheduleGrid(localOverrides.weeks[activeWeekIndex], false)}
       </div>
 
-      <div className="bg-[var(--awb-color1)] text-[var(--awb-color8)] border-[var(--awb-color3)] border border-[var(--awb-color3)] p-4 rounded-xl mt-4">
+      <div className="bg-white border border-[#f2f3f5] p-4 rounded-xl mt-4">
         <h4 className="text-sm font-bold text-gray-200 mb-2">Public & Bank Holidays</h4>
         <p className="text-xs text-[var(--awb-color6)] mb-3">
           We have {globalHolidays.length} upcoming public holidays tracked in our system. How would you like your chatbots to handle bookings on these days?
@@ -333,7 +333,7 @@ export default function BusinessOperatingHours() {
       </div>
 
       <div className="flex justify-end pt-2">
-        <button onClick={handleSave} disabled={isSaving} className="bg-[var(--awb-color5)] text-[var(--awb-color8)] hover:bg-[var(--awb-color5)] text-[var(--awb-color8)] text-[var(--awb-color8)] text-sm px-6 py-2 rounded-lg font-bold transition-colors disabled:opacity-50">
+        <button onClick={handleSave} disabled={isSaving} className="bg-[#198fd9] text-white font-semibold rounded-[4px] px-[29px] py-[13px] hover:bg-[#198fd9] text-white font-semibold rounded-[4px] px-[29px] py-[13px] text-[var(--awb-color8)] text-sm px-6 py-2 rounded-lg font-bold transition-colors disabled:opacity-50">
           {isSaving ? 'Saving...' : 'Save Operating Hours'}
         </button>
       </div>

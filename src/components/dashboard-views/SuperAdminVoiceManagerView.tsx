@@ -106,7 +106,7 @@ export default function SuperAdminVoiceManagerView() {
               provider: '11labs'
             });
           }}
-          className="bg-[var(--awb-color5)] text-[var(--awb-color8)] hover:bg-[var(--awb-color5)] text-[var(--awb-color8)] text-[var(--awb-color8)] px-4 py-2 rounded-lg text-sm font-medium transition-colors"
+          className="bg-[#198fd9] text-white font-semibold rounded-[4px] px-[29px] py-[13px] hover:bg-[#198fd9] text-white font-semibold rounded-[4px] px-[29px] py-[13px] text-[var(--awb-color8)] px-4 py-2 rounded-lg text-sm font-medium transition-colors"
         >
           Clear Form
         </button>
@@ -119,23 +119,23 @@ export default function SuperAdminVoiceManagerView() {
           <form onSubmit={handleSave} className="space-y-4">
             <div>
               <label className="block text-xs font-semibold text-[var(--awb-color6)] mb-1">Display Name</label>
-              <input required type="text" value={formData.name} onChange={e => setFormData({...formData, name: e.target.value})} className="w-full bg-[var(--awb-color1)] text-[var(--awb-color8)] border-[var(--awb-color3)] border border-[var(--awb-color3)] rounded-lg p-2.5 text-sm text-[var(--awb-color8)]" placeholder="e.g. British Female - Crisp" />
+              <input required type="text" value={formData.name} onChange={e => setFormData({...formData, name: e.target.value})} className="w-full bg-white border border-[#f2f3f5] rounded-lg p-2.5 text-sm text-[var(--awb-color8)]" placeholder="e.g. British Female - Crisp" />
             </div>
             <div>
               <label className="block text-xs font-semibold text-[var(--awb-color6)] mb-1">External Voice ID (ElevenLabs / PlayHT)</label>
-              <input required type="text" value={formData.external_voice_id} onChange={e => setFormData({...formData, external_voice_id: e.target.value})} className="w-full bg-[var(--awb-color1)] text-[var(--awb-color8)] border-[var(--awb-color3)] border border-[var(--awb-color3)] rounded-lg p-2.5 text-sm text-[var(--awb-color8)]" placeholder="e.g. zrHiDhphv9ZnVBTiNxbM" />
+              <input required type="text" value={formData.external_voice_id} onChange={e => setFormData({...formData, external_voice_id: e.target.value})} className="w-full bg-white border border-[#f2f3f5] rounded-lg p-2.5 text-sm text-[var(--awb-color8)]" placeholder="e.g. zrHiDhphv9ZnVBTiNxbM" />
             </div>
             <div className="grid grid-cols-2 gap-4">
               <div>
                 <label className="block text-xs font-semibold text-[var(--awb-color6)] mb-1">Gender</label>
-                <select value={formData.gender} onChange={e => setFormData({...formData, gender: e.target.value})} className="w-full bg-[var(--awb-color1)] text-[var(--awb-color8)] border-[var(--awb-color3)] border border-[var(--awb-color3)] rounded-lg p-2.5 text-sm text-[var(--awb-color8)]">
+                <select value={formData.gender} onChange={e => setFormData({...formData, gender: e.target.value})} className="w-full bg-white border border-[#f2f3f5] rounded-lg p-2.5 text-sm text-[var(--awb-color8)]">
                   <option value="Female">Female</option>
                   <option value="Male">Male</option>
                 </select>
               </div>
               <div>
                 <label className="block text-xs font-semibold text-[var(--awb-color6)] mb-1">Provider</label>
-                <select value={formData.provider} onChange={e => setFormData({...formData, provider: e.target.value})} className="w-full bg-[var(--awb-color1)] text-[var(--awb-color8)] border-[var(--awb-color3)] border border-[var(--awb-color3)] rounded-lg p-2.5 text-sm text-[var(--awb-color8)]">
+                <select value={formData.provider} onChange={e => setFormData({...formData, provider: e.target.value})} className="w-full bg-white border border-[#f2f3f5] rounded-lg p-2.5 text-sm text-[var(--awb-color8)]">
                   <option value="11labs">ElevenLabs</option>
                   <option value="playht">PlayHT</option>
                 </select>
@@ -143,17 +143,17 @@ export default function SuperAdminVoiceManagerView() {
             </div>
             <div>
               <label className="block text-xs font-semibold text-[var(--awb-color6)] mb-1">Role / Vibe</label>
-              <input type="text" value={formData.role} onChange={e => setFormData({...formData, role: e.target.value})} className="w-full bg-[var(--awb-color1)] text-[var(--awb-color8)] border-[var(--awb-color3)] border border-[var(--awb-color3)] rounded-lg p-2.5 text-sm text-[var(--awb-color8)]" placeholder="e.g. Corporate, Executive" />
+              <input type="text" value={formData.role} onChange={e => setFormData({...formData, role: e.target.value})} className="w-full bg-white border border-[#f2f3f5] rounded-lg p-2.5 text-sm text-[var(--awb-color8)]" placeholder="e.g. Corporate, Executive" />
             </div>
             <div>
               <label className="block text-xs font-semibold text-[var(--awb-color6)] mb-1">Nationality</label>
-              <input type="text" value={formData.nationality} onChange={e => setFormData({...formData, nationality: e.target.value})} className="w-full bg-[var(--awb-color1)] text-[var(--awb-color8)] border-[var(--awb-color3)] border border-[var(--awb-color3)] rounded-lg p-2.5 text-sm text-[var(--awb-color8)]" placeholder="e.g. British" />
+              <input type="text" value={formData.nationality} onChange={e => setFormData({...formData, nationality: e.target.value})} className="w-full bg-white border border-[#f2f3f5] rounded-lg p-2.5 text-sm text-[var(--awb-color8)]" placeholder="e.g. British" />
             </div>
             <div>
               <label className="block text-xs font-semibold text-[var(--awb-color6)] mb-1">Preview Audio URL</label>
-              <input type="text" value={formData.preview_url} onChange={e => setFormData({...formData, preview_url: e.target.value})} className="w-full bg-[var(--awb-color1)] text-[var(--awb-color8)] border-[var(--awb-color3)] border border-[var(--awb-color3)] rounded-lg p-2.5 text-sm text-[var(--awb-color8)]" placeholder="/audio/sample.mp3" />
+              <input type="text" value={formData.preview_url} onChange={e => setFormData({...formData, preview_url: e.target.value})} className="w-full bg-white border border-[#f2f3f5] rounded-lg p-2.5 text-sm text-[var(--awb-color8)]" placeholder="/audio/sample.mp3" />
             </div>
-            <button type="submit" className="w-full bg-[var(--awb-color5)] text-[var(--awb-color8)] hover:bg-[var(--awb-color5)] text-[var(--awb-color8)] text-[var(--awb-color8)] font-semibold py-2.5 rounded-lg text-sm transition-colors mt-2">
+            <button type="submit" className="w-full bg-[#198fd9] text-white font-semibold rounded-[4px] px-[29px] py-[13px] hover:bg-[#198fd9] text-white font-semibold rounded-[4px] px-[29px] py-[13px] text-[var(--awb-color8)] font-semibold py-2.5 rounded-lg text-sm transition-colors mt-2">
               {editingId ? 'Update Persona' : 'Create Persona'}
             </button>
           </form>
