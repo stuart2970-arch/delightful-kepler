@@ -75,10 +75,8 @@ export async function GET(
     
     const eligibleVoiceTiers = ['starter', 'premium', 'ultimate'];
     let voiceProvider = 'none';
-    if (planTier === 'premium' || planTier === 'ultimate') {
+    if (eligibleVoiceTiers.includes(planTier)) {
       voiceProvider = '11labs';
-    } else if (planTier === 'starter') {
-      voiceProvider = 'playht';
     }
 
     // Check Voice Entitlement

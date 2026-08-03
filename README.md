@@ -471,8 +471,9 @@ ame, irstMessage, and 	ranscriber) rather than relying on ssistantOverrides de
   3. **Backend Ingestion Routes (`/api/ingest/crawl`, `/api/ingest/text`, `/api/ingest/file`)**: Refactored tenant resolution for superadmins. When `is_super_admin` is true, the routes resolve the `tenant_id` directly from `chatbotId` using `supabaseAdmin` instead of enforcing `profile.tenant_id` matching, allowing superadmins to crawl website URLs, raw text, and documents into impersonated chatbots.
   4. **Chatbot CRUD API Routes (`/api/chatbots`, `/api/chatbots/[id]`)**: Updated `POST`, `PATCH`, and `DELETE` endpoints to detect superadmin status and use `supabaseAdmin` to create, update, and delete chatbots under impersonated tenant accounts without hitting RLS restrictions.
 
-* **User**: "my bad, i miss wrote that message should read starter, premium and ultimate"
-* **Fix**: Updated voice entitlement evaluation in `src/app/api/chatbots/[id]/route.ts`. `voiceEnabled: true` is strictly restricted to accounts on `starter`, `premium`, and `ultimate` plan tiers. Tier `starter` is mapped to PlayHT voice synthesis (`voiceProvider: 'playht'`), while `premium` and `ultimate` are mapped to ElevenLabs (`voiceProvider: '11labs'`). Accounts on `basic` or non-eligible tiers default to `voiceEnabled: false` and `voiceProvider: 'none'`.
+* **User**: "okay, i do not have a playht account setup so we should use 11labs for now"
+* **Fix**: Updated `src/app/api/chatbots/[id]/route.ts` to set **ElevenLabs** (`voiceProvider: '11labs'`) as the voice provider across all voice-enabled account tiers (`starter`, `premium`, `ultimate`).
+
 
 
 
