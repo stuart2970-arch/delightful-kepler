@@ -147,7 +147,7 @@ export async function POST(
     
     if (!isStream) {
       const { text } = await generateText({
-        model: googleProvider('gemini-1.5-flash'),
+        model: googleProvider('gemini-3.5-flash'),
         messages: enhancedMessages,
         temperature: 0.7,
       });
@@ -155,7 +155,7 @@ export async function POST(
         id: 'chatcmpl-vapi',
         object: 'chat.completion',
         created: Math.floor(Date.now() / 1000),
-        model: 'gemini-1.5-flash',
+        model: 'gemini-3.5-flash',
         choices: [
           {
             message: { role: 'assistant', content: text },
@@ -167,7 +167,7 @@ export async function POST(
     }
 
     const result = streamText({
-      model: googleProvider('gemini-1.5-flash'),
+      model: googleProvider('gemini-3.5-flash'),
       messages: enhancedMessages,
       temperature: 0.7,
     });

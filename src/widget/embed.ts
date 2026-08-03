@@ -631,7 +631,7 @@ import Vapi from '@vapi-ai/web';
                 model: {
                   provider: "custom-llm",
                   url: `${apiHost}/api/voice/${chatbotId}`,
-                  model: "gemini-1.5-flash",
+                  model: "gemini-3.5-flash",
                   messages: [
                     {
                       role: "system",
