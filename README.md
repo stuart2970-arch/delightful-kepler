@@ -471,8 +471,9 @@ ame, irstMessage, and 	ranscriber) rather than relying on ssistantOverrides de
   3. **Backend Ingestion Routes (`/api/ingest/crawl`, `/api/ingest/text`, `/api/ingest/file`)**: Refactored tenant resolution for superadmins. When `is_super_admin` is true, the routes resolve the `tenant_id` directly from `chatbotId` using `supabaseAdmin` instead of enforcing `profile.tenant_id` matching, allowing superadmins to crawl website URLs, raw text, and documents into impersonated chatbots.
   4. **Chatbot CRUD API Routes (`/api/chatbots`, `/api/chatbots/[id]`)**: Updated `POST`, `PATCH`, and `DELETE` endpoints to detect superadmin status and use `supabaseAdmin` to create, update, and delete chatbots under impersonated tenant accounts without hitting RLS restrictions.
 
-* **User**: "still getting the same coice connection error"
-* **Fix**: Diagnosed exact HTTP 500 internal server error returning from `/api/voice/[chatbotId]/chat/completions`. Google Gemini API returned a 404 NOT_FOUND error for the legacy `gemini-1.5-flash` model identifier string. Restored model identifier string to `gemini-3.5-flash` across all voice completion and webhook handler routes (`src/app/api/voice/[chatbotId]/chat/completions/route.ts`, `src/app/api/webhooks/vapi/assistant/route.ts`, `src/widget/index.ts`, `src/widget/embed.ts`), restoring HTTP 200 OK responses from Google AI SDK.
+* **User**: "still getting the same error"
+* **Fix**: Refactored client-side WebRTC voice agent launch in `src/widget/index.ts` and `src/widget/embed.ts`. Standardized on self-contained Transient Assistant payloads containing explicit ElevenLabs voice personas (`49TtX0KZLnuzDrAizTkN`), model identifier `gemini-3.5-flash`, and direct Custom LLM routing. Enhanced `vapiInstance.on('error')` error handling to present detailed, actionable diagnostic error strings directly in the chat UI if microphone permissions are denied or WebRTC connections fail.
+
 
 
 

@@ -608,7 +608,8 @@ import Vapi from '@vapi-ai/web';
             return;
           }
           
-          appendMessage('bot', 'A voice connection error occurred.');
+          const detail = e?.error?.message || e?.error?.errorMsg || e?.message || e?.errorMsg || '';
+          appendMessage('bot', detail ? `Voice error: ${detail}` : 'A voice connection error occurred.');
         });
       }
 
@@ -622,41 +623,34 @@ import Vapi from '@vapi-ai/web';
           vapiInstance.stop();
         } else if (vapiInstance) {
           try {
-            if (vapiAssistantId) {
-              await vapiInstance.start(vapiAssistantId);
-            } else {
-              // Use Transient Assistant
-              await vapiInstance.start({
-                name: `${agentName} Transient Assistant`,
-                model: {
-                  provider: "custom-llm",
-                  url: `${apiHost}/api/voice/${chatbotId}`,
-                  model: "gemini-3.5-flash",
-                  messages: [
-                    {
-                      role: "system",
-                      content: `You are ${agentName}, ${agentRole}. ${welcomeMessage}`
-                    }
-                  ]
-                },
-                firstMessage: welcomeMessage,
-                voice: voiceProvider === '11labs' ? {
-                  provider: "11labs",
-                  voiceId: voiceId.length === 20 ? voiceId : 'bIHbv24MWmeRgasZH58o',
-                  model: 'eleven_turbo_v2_5'
-                } : {
-                  provider: "playht",
-                  voiceId: voiceId.length !== 20 ? voiceId : "susan"
-                },
-                metadata: {
-                  tenant_id: chatbotId,
-                  session_id: sessionId
-                }
-              });
-            }
-          } catch (e) {
+            const actualVoiceId = voiceId && voiceId.length >= 15 ? voiceId : '49TtX0KZLnuzDrAizTkN';
+            await vapiInstance.start({
+              name: `${agentName} Assistant`,
+              model: {
+                provider: "custom-llm",
+                url: `${apiHost}/api/voice/${chatbotId}`,
+                model: "gemini-3.5-flash",
+                messages: [
+                  {
+                    role: "system",
+                    content: `You are ${agentName}, ${agentRole}. ${welcomeMessage}`
+                  }
+                ]
+              },
+              firstMessage: welcomeMessage,
+              voice: {
+                provider: "11labs",
+                voiceId: actualVoiceId,
+                model: "eleven_turbo_v2_5"
+              },
+              metadata: {
+                tenant_id: chatbotId,
+                session_id: sessionId
+              }
+            });
+          } catch (e: any) {
             console.error('[StyleFlo Widget] Vapi start error:', e);
-            appendMessage('bot', 'Microphone access denied or voice connection failed.');
+            appendMessage('bot', e?.message ? `Microphone / Voice Error: ${e.message}` : 'Microphone access denied or voice connection failed.');
           }
         }
       });
