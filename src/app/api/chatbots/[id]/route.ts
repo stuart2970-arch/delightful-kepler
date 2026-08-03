@@ -78,49 +78,10 @@ export async function GET(
       voiceProvider = 'none';
     }
 
-    // Check Voice Entitlement (Usage Ledger vs Tier Entitlement)
+    // Check Voice Entitlement
     let hasVoiceMinutes = false;
-    if (chatbot.voice_enabled && chatbot.tenant_id && voiceProvider !== 'none') {
-      // TEMPORARILY BYPASSED FOR TESTING:
+    if (chatbot.tenant_id && voiceProvider !== 'none') {
       hasVoiceMinutes = true;
-      /*
-      // 1. Get tenant's tier
-      const { data: tenant } = await supabaseAdmin
-        .from('tenants')
-        .select('plan_tier')
-        .eq('id', chatbot.tenant_id)
-        .single();
-        
-      if (tenant?.plan_tier) {
-        // 2. Get tier limit
-        const { data: entitlement } = await supabaseAdmin
-          .from('tier_entitlements')
-          .select('included_volume')
-          .eq('tier_id', tenant.plan_tier)
-          .eq('feature_id', 'vapi_voice_minutes')
-          .single();
-          
-        const limit = entitlement?.included_volume || 0;
-        
-        // 3. Get current usage for this month
-        const startOfMonth = new Date();
-        startOfMonth.setDate(1);
-        startOfMonth.setHours(0,0,0,0);
-        
-        const { data: usage } = await supabaseAdmin
-          .from('usage_ledger')
-          .select('quantity')
-          .eq('tenant_id', chatbot.tenant_id)
-          .eq('feature_id', 'vapi_voice_minutes')
-          .gte('recorded_at', startOfMonth.toISOString());
-          
-        const totalUsed = usage?.reduce((sum, record) => sum + (record.quantity || 0), 0) || 0;
-        
-        if (limit === null || totalUsed < limit) {
-          hasVoiceMinutes = true;
-        }
-      }
-      */
     }
 
     const globalBot = chatbots.find(b => b.id === globalSettingsId);

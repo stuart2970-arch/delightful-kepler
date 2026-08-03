@@ -471,4 +471,8 @@ ame, irstMessage, and 	ranscriber) rather than relying on ssistantOverrides de
   3. **Backend Ingestion Routes (`/api/ingest/crawl`, `/api/ingest/text`, `/api/ingest/file`)**: Refactored tenant resolution for superadmins. When `is_super_admin` is true, the routes resolve the `tenant_id` directly from `chatbotId` using `supabaseAdmin` instead of enforcing `profile.tenant_id` matching, allowing superadmins to crawl website URLs, raw text, and documents into impersonated chatbots.
   4. **Chatbot CRUD API Routes (`/api/chatbots`, `/api/chatbots/[id]`)**: Updated `POST`, `PATCH`, and `DELETE` endpoints to detect superadmin status and use `supabaseAdmin` to create, update, and delete chatbots under impersonated tenant accounts without hitting RLS restrictions.
 
+* **User**: "I also upgraded an account from basic to ultimate, and it did ask me if i wanteed to add voice, but the microphone is not showing in the chatbot"
+* **Fix**: Updated `/api/chatbots/[id]/route.ts` voice entitlement resolution. When an account is upgraded to a voice-enabled plan tier (`starter`, `pro`, `premium`, `ultimate`), `hasVoiceMinutes` evaluates to `true` by default so existing chatbots created prior to the tier upgrade instantly enable and render the microphone button (`#styleflo-vapi-btn`) in the chatbot widget.
+
+
 
