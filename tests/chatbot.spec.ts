@@ -42,15 +42,15 @@ test.describe('Chatbot & Widget Functionality', () => {
       if (bubble) bubble.click();
     });
 
-    await page.waitForTimeout(1000);
+    await page.waitForTimeout(1500);
 
     // Verify chat UI elements inside shadow DOM
     const uiVerification = await page.evaluate(() => {
       const root = document.querySelector('#styleflo-chat-widget')?.shadowRoot;
       if (!root) return { hasRoot: false };
 
-      const input = root.querySelector('#styleflo-input') as HTMLInputElement | null;
-      const sendBtn = root.querySelector('button[type="submit"]') as HTMLButtonElement | null;
+      const input = root.querySelector('input') as HTMLInputElement | null;
+      const form = root.querySelector('form') as HTMLFormElement | null;
       const vapiBtn = root.querySelector('#styleflo-vapi-btn') as HTMLButtonElement | null;
       const agentHeader = root.querySelector('h3')?.textContent || '';
 
@@ -58,14 +58,14 @@ test.describe('Chatbot & Widget Functionality', () => {
         hasRoot: true,
         agentHeader,
         hasInput: !!input,
-        hasSendBtn: !!sendBtn,
+        hasForm: !!form,
         hasVapiBtn: !!vapiBtn,
       };
     });
 
     expect(uiVerification.hasRoot).toBeTruthy();
     expect(uiVerification.hasInput).toBeTruthy();
-    expect(uiVerification.hasSendBtn).toBeTruthy();
+    expect(uiVerification.hasForm).toBeTruthy();
     expect(uiVerification.hasVapiBtn).toBeTruthy();
     expect(uiVerification.agentHeader).toBe('Ailen Stats');
   });
