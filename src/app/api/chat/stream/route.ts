@@ -516,7 +516,7 @@ User identity context: ${clientName ? 'Client Name: ' + clientName : 'Anonymous'
             ];
             
             const result2 = await streamText({
-              model: google('gemini-3.5-flash'),
+              model: google('gemini-1.5-flash'),
               system: systemPrompt,
               messages: pass2Messages as any,
               onFinish: async (event2) => {

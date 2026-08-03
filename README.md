@@ -471,8 +471,11 @@ ame, irstMessage, and 	ranscriber) rather than relying on ssistantOverrides de
   3. **Backend Ingestion Routes (`/api/ingest/crawl`, `/api/ingest/text`, `/api/ingest/file`)**: Refactored tenant resolution for superadmins. When `is_super_admin` is true, the routes resolve the `tenant_id` directly from `chatbotId` using `supabaseAdmin` instead of enforcing `profile.tenant_id` matching, allowing superadmins to crawl website URLs, raw text, and documents into impersonated chatbots.
   4. **Chatbot CRUD API Routes (`/api/chatbots`, `/api/chatbots/[id]`)**: Updated `POST`, `PATCH`, and `DELETE` endpoints to detect superadmin status and use `supabaseAdmin` to create, update, and delete chatbots under impersonated tenant accounts without hitting RLS restrictions.
 
-* **User**: "apears to be 2 x betfred accounts, which i did create but as the first one did not recieve a confirmation email i created a second directly in supabase as a test account also this text is difficult to read, can you resolve the colours"
-* **Fix**: Removed the empty duplicate test tenant (`b0aeeb82-81b9-4d8b-9d98-2456a6aa48cc`) from Supabase, leaving single active tenant (`44c24cb5-4e20-4d2b-8be3-265633d3fa79`) with the `Ask Betfred` / `Ailen Stats` chatbot on Ultimate tier. Overhauled `Superadmin Control Center` styling in `src/components/DashboardClient.tsx` to match the Avada Light Theme (`#260475` Navy headings, `#212326` dark text, `#198fd9` primary buttons, high-contrast plan badges, white table dropdowns), resolving low-contrast text readability.
+* **User**: "A voice connection error occurred."
+* **Fix**: Fixed two issues causing Vapi WebRTC voice connection failures:
+  1. **Invalid Model Identifier**: Corrected model string from invalid `gemini-3.5-flash` to `gemini-1.5-flash` across `src/widget/index.ts`, `src/widget/embed.ts`, `src/app/api/voice/chat/completions/route.ts`, and `src/app/api/chat/stream/route.ts`.
+  2. **URL Double Slashes**: Removed trailing slash from transient assistant custom LLM endpoint URL (`${apiHost}/api/voice/${chatbotId}`) in `src/widget/index.ts` and `src/widget/embed.ts`. Prevents double slash HTTP 404 router errors when Vapi appends `/chat/completions`.
+
 
 
 
