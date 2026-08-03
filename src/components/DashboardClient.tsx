@@ -676,42 +676,44 @@ const globalBotId = '00000000-0000-0000-0000-000000000000';
 
               {/* Superadmin Overview */}
               {isSuperAdmin && superadminData && (
-                <div className="bg-gray-900/30 border border-gray-900 p-6 rounded-2xl shadow-xl mt-8">
-                  <h3 className="text-lg font-bold text-white mb-2">Superadmin Control Center</h3>
-                  <p className="text-xs text-gray-400 mb-6">Manage all tenant billing plans and monitor platform aggregate usage.</p>
+                <div className="bg-[var(--awb-color1)] border border-[var(--awb-color3)] p-6 rounded-2xl shadow-sm space-y-6 mt-8">
+                  <div>
+                    <h3 className="text-xl font-bold text-[var(--awb-color8)]">Superadmin Control Center</h3>
+                    <p className="text-xs text-[var(--awb-color6)] mt-0.5">Manage all tenant billing plans and monitor platform aggregate usage.</p>
+                  </div>
                   
                   {/* Aggregate Summary */}
                   <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
-                    <div className="bg-gray-950 p-4 rounded-xl border border-gray-800 text-center">
-                      <p className="text-xs text-gray-500 uppercase tracking-wider mb-1">Total Tenants</p>
-                      <p className="text-xl font-bold text-white">{superadminData.tenants?.length || 0}</p>
+                    <div className="bg-[var(--awb-color2)] border border-[var(--awb-color3)] p-4 rounded-xl text-center shadow-sm">
+                      <p className="text-xs text-[var(--awb-color7)] font-bold uppercase tracking-wider mb-1">Total Tenants</p>
+                      <p className="text-2xl font-extrabold text-[var(--awb-color8)]">{superadminData.tenants?.length || 0}</p>
                     </div>
-                    <div className="bg-gray-950 p-4 rounded-xl border border-gray-800 text-center">
-                      <p className="text-xs text-gray-500 uppercase tracking-wider mb-1">Total Platform Messages</p>
-                      <p className="text-xl font-bold text-indigo-400">
+                    <div className="bg-[var(--awb-color2)] border border-[var(--awb-color3)] p-4 rounded-xl text-center shadow-sm">
+                      <p className="text-xs text-[var(--awb-color7)] font-bold uppercase tracking-wider mb-1">Total Platform Messages</p>
+                      <p className="text-2xl font-extrabold text-[#198fd9]">
                         {superadminData.usage?.filter((u: any) => u.feature_id === 'message_allowance')?.reduce((sum: number, u: any) => sum + u.quantity, 0) || 0}
                       </p>
                     </div>
                   </div>
 
                   {/* Tenant Override Table */}
-                  <div className="overflow-x-auto">
-                    <table className="w-full text-left text-sm text-gray-300">
-                      <thead className="bg-gray-950/50 text-xs uppercase text-gray-500 border-b border-gray-800">
+                  <div className="overflow-x-auto border border-[var(--awb-color3)] rounded-xl">
+                    <table className="w-full text-left text-sm text-[var(--awb-color8)]">
+                      <thead className="bg-[var(--awb-color2)] text-xs uppercase font-bold text-[var(--awb-color8)] border-b border-[var(--awb-color3)]">
                         <tr>
-                          <th className="px-4 py-3">Tenant Name</th>
-                          <th className="px-4 py-3">Tenant ID</th>
-                          <th className="px-4 py-3">Active Plan</th>
-                          <th className="px-4 py-3">Action</th>
+                          <th className="px-4 py-3 text-[var(--awb-color8)]">Tenant Name</th>
+                          <th className="px-4 py-3 text-[var(--awb-color8)]">Tenant ID</th>
+                          <th className="px-4 py-3 text-[var(--awb-color8)]">Active Plan</th>
+                          <th className="px-4 py-3 text-[var(--awb-color8)]">Action</th>
                         </tr>
                       </thead>
-                      <tbody className="divide-y divide-gray-800">
+                      <tbody className="divide-y divide-[var(--awb-color3)]">
                         {superadminData.tenants?.map((t: any) => (
-                          <tr key={t.id} className="hover:bg-white/5 transition-colors">
-                            <td className="px-4 py-3 font-semibold">{t.company_name}</td>
-                            <td className="px-4 py-3 font-mono text-xs text-gray-500">{t.id}</td>
+                          <tr key={t.id} className="hover:bg-[var(--awb-color2)]/50 transition-colors">
+                            <td className="px-4 py-3 font-bold text-[var(--awb-color8)]">{t.company_name}</td>
+                            <td className="px-4 py-3 font-mono text-xs text-[var(--awb-color6)]">{t.id}</td>
                             <td className="px-4 py-3">
-                              <span className="px-2 py-1 rounded text-[10px] font-bold uppercase tracking-wider bg-gray-800 text-gray-300">
+                              <span className="px-2.5 py-1 rounded text-[10px] font-extrabold uppercase tracking-wider bg-[#260475] text-white shadow-sm">
                                 {t.plan_tier}
                               </span>
                             </td>
@@ -721,37 +723,37 @@ const globalBotId = '00000000-0000-0000-0000-000000000000';
                                   onClick={() => {
                                     window.location.href = `/dashboard?tenant_id=${t.id}`;
                                   }}
-                                  className="bg-amber-600/20 hover:bg-amber-600/40 border border-amber-600/50 text-amber-300 text-[10px] font-bold px-2 py-1 rounded transition-colors"
+                                  className="bg-[#198fd9] hover:bg-[#157ab9] text-white text-xs font-semibold px-3 py-1.5 rounded-[4px] shadow-sm transition-colors"
                                 >
                                   Impersonate
                                 </button>
                                 <select 
-                                  className="bg-gray-950 border border-gray-700 text-white text-xs rounded px-2 py-1 outline-none focus:ring-1 focus:ring-indigo-500"
-                                value={t.plan_tier}
-                                onChange={async (e) => {
-                                  const newTier = e.target.value;
-                                  if(confirm(`Override ${t.company_name} to ${newTier.toUpperCase()}?`)) {
-                                    try {
-                                      const res = await fetch('/api/billing/override', {
-                                        method: 'POST',
-                                        headers: { 'Content-Type': 'application/json' },
-                                        body: JSON.stringify({ targetTenantId: t.id, newTier })
-                                      });
-                                      if(res.ok) {
-                                        alert('Plan overridden successfully. Refresh to see changes.');
-                                      } else {
-                                        alert('Override failed.');
+                                  className="bg-white border border-[var(--awb-color3)] text-[var(--awb-color8)] font-semibold text-xs rounded-lg px-2.5 py-1.5 outline-none focus:border-[#198fd9]"
+                                  value={t.plan_tier}
+                                  onChange={async (e) => {
+                                    const newTier = e.target.value;
+                                    if(confirm(`Override ${t.company_name} to ${newTier.toUpperCase()}?`)) {
+                                      try {
+                                        const res = await fetch('/api/billing/override', {
+                                          method: 'POST',
+                                          headers: { 'Content-Type': 'application/json' },
+                                          body: JSON.stringify({ targetTenantId: t.id, newTier })
+                                        });
+                                        if(res.ok) {
+                                          alert('Plan overridden successfully. Refresh to see changes.');
+                                        } else {
+                                          alert('Override failed.');
+                                        }
+                                      } catch(err) {
+                                        alert('Error overriding plan.');
                                       }
-                                    } catch(err) {
-                                      alert('Error overriding plan.');
                                     }
-                                  }
-                                }}
-                              >
-                                <option value="basic">Basic</option>
-                                <option value="starter">Starter</option>
-                                <option value="premium">Premium</option>
-                                <option value="ultimate">Ultimate</option>
+                                  }}
+                                >
+                                  <option value="basic">Basic</option>
+                                  <option value="starter">Starter</option>
+                                  <option value="premium">Premium</option>
+                                  <option value="ultimate">Ultimate</option>
                                 </select>
                               </div>
                             </td>
