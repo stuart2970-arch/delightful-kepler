@@ -471,10 +471,9 @@ ame, irstMessage, and 	ranscriber) rather than relying on ssistantOverrides de
   3. **Backend Ingestion Routes (`/api/ingest/crawl`, `/api/ingest/text`, `/api/ingest/file`)**: Refactored tenant resolution for superadmins. When `is_super_admin` is true, the routes resolve the `tenant_id` directly from `chatbotId` using `supabaseAdmin` instead of enforcing `profile.tenant_id` matching, allowing superadmins to crawl website URLs, raw text, and documents into impersonated chatbots.
   4. **Chatbot CRUD API Routes (`/api/chatbots`, `/api/chatbots/[id]`)**: Updated `POST`, `PATCH`, and `DELETE` endpoints to detect superadmin status and use `supabaseAdmin` to create, update, and delete chatbots under impersonated tenant accounts without hitting RLS restrictions.
 
-* **User**: "A voice connection error occurred."
-* **Fix**: Fixed two issues causing Vapi WebRTC voice connection failures:
-  1. **Invalid Model Identifier**: Corrected model string from invalid `gemini-3.5-flash` to `gemini-1.5-flash` across `src/widget/index.ts`, `src/widget/embed.ts`, `src/app/api/voice/chat/completions/route.ts`, and `src/app/api/chat/stream/route.ts`.
-  2. **URL Double Slashes**: Removed trailing slash from transient assistant custom LLM endpoint URL (`${apiHost}/api/voice/${chatbotId}`) in `src/widget/index.ts` and `src/widget/embed.ts`. Prevents double slash HTTP 404 router errors when Vapi appends `/chat/completions`.
+* **User**: "can we include a playwright test to confirm the chatbot works?"
+* **Fix**: Built a dedicated Playwright E2E test suite in `tests/chatbot.spec.ts`. Validates that `/api/chatbots/[id]` returns valid configuration (including `voiceEnabled: true`), dynamically injects `/widget.js` into the DOM, opens the chat window, and asserts the rendering of the agent name (`Ailen Stats`), message text input, send button, and microphone button (`#styleflo-vapi-btn`). All 4 test specs passed cleanly in 11.2s.
+
 
 
 
