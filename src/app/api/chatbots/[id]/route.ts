@@ -73,14 +73,17 @@ export async function GET(
       planTier = tenantData?.plan_tier || 'basic';
     }
     
-    let voiceProvider = (planTier === 'premium' || planTier === 'ultimate') ? '11labs' : 'playht';
-    if (planTier === 'basic') {
-      voiceProvider = 'none';
+    const eligibleVoiceTiers = ['starter', 'premium', 'ultimate'];
+    let voiceProvider = 'none';
+    if (planTier === 'premium' || planTier === 'ultimate') {
+      voiceProvider = '11labs';
+    } else if (planTier === 'starter') {
+      voiceProvider = 'playht';
     }
 
     // Check Voice Entitlement
     let hasVoiceMinutes = false;
-    if (chatbot.tenant_id && voiceProvider !== 'none') {
+    if (chatbot.tenant_id && eligibleVoiceTiers.includes(planTier)) {
       hasVoiceMinutes = true;
     }
 
