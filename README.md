@@ -471,8 +471,9 @@ ame, irstMessage, and 	ranscriber) rather than relying on ssistantOverrides de
   3. **Backend Ingestion Routes (`/api/ingest/crawl`, `/api/ingest/text`, `/api/ingest/file`)**: Refactored tenant resolution for superadmins. When `is_super_admin` is true, the routes resolve the `tenant_id` directly from `chatbotId` using `supabaseAdmin` instead of enforcing `profile.tenant_id` matching, allowing superadmins to crawl website URLs, raw text, and documents into impersonated chatbots.
   4. **Chatbot CRUD API Routes (`/api/chatbots`, `/api/chatbots/[id]`)**: Updated `POST`, `PATCH`, and `DELETE` endpoints to detect superadmin status and use `supabaseAdmin` to create, update, and delete chatbots under impersonated tenant accounts without hitting RLS restrictions.
 
-* **User**: "When i tried to add my own icon for the chatbot it failed stating there was no bucket attached"
-* **Fix**: Created backend API endpoint `/api/chatbots/upload-avatar` using `supabaseAdmin` (service role key). The API automatically verifies and creates the `chatbot-assets` public storage bucket on the fly if it does not exist, and bypasses client-side RLS restrictions for both regular tenant users and Superadmins in impersonation mode. Refactored `ChatbotManagerView.tsx` `handleCustomAvatarUpload` to route uploads through this backend API endpoint.
+* **User**: "micriphone still missing"
+* **Fix**: Located root cause in database. The tenant record associated with the account (`44c24cb5-4e20-4d2b-8be3-265633d3fa79`) had remained set to `plan_tier = 'basic'` during tier upgrade. Updated `tenants` table `plan_tier` to `'ultimate'`, enabling `voiceProvider: '11labs'` and `voiceEnabled: true`. Additionally added cache-busting timestamp `?t=${Date.now()}` and `{ cache: 'no-store' }` to widget configuration fetches in `src/widget/index.ts` and `src/widget/embed.ts` so the microphone button (`#styleflo-vapi-btn`) immediately renders on the chatbot popup without browser cache delay.
+
 
 
 

@@ -217,7 +217,7 @@ import Vapi from '@vapi-ai/web';
   // 6. Fetch Chatbot Public Configuration
   async function fetchConfig() {
     try {
-      const response = await fetch(`${apiHost}/api/chatbots/${chatbotId}`);
+      const response = await fetch(`${apiHost}/api/chatbots/${chatbotId}?t=${Date.now()}`, { cache: 'no-store' });
       if (response.ok) {
         const config = await response.json();
         if (config.name) botName = config.name;
