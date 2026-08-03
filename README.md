@@ -471,8 +471,13 @@ ame, irstMessage, and 	ranscriber) rather than relying on ssistantOverrides de
   3. **Backend Ingestion Routes (`/api/ingest/crawl`, `/api/ingest/text`, `/api/ingest/file`)**: Refactored tenant resolution for superadmins. When `is_super_admin` is true, the routes resolve the `tenant_id` directly from `chatbotId` using `supabaseAdmin` instead of enforcing `profile.tenant_id` matching, allowing superadmins to crawl website URLs, raw text, and documents into impersonated chatbots.
   4. **Chatbot CRUD API Routes (`/api/chatbots`, `/api/chatbots/[id]`)**: Updated `POST`, `PATCH`, and `DELETE` endpoints to detect superadmin status and use `supabaseAdmin` to create, update, and delete chatbots under impersonated tenant accounts without hitting RLS restrictions.
 
-* **User**: "still getting the same error"
-* **Fix**: Refactored client-side WebRTC voice agent launch in `src/widget/index.ts` and `src/widget/embed.ts`. Standardized on self-contained Transient Assistant payloads containing explicit ElevenLabs voice personas (`49TtX0KZLnuzDrAizTkN`), model identifier `gemini-3.5-flash`, and direct Custom LLM routing. Enhanced `vapiInstance.on('error')` error handling to present detailed, actionable diagnostic error strings directly in the chat UI if microphone permissions are denied or WebRTC connections fail.
+* **User**: "do we have a playwright test for vapi, 11labs and twilio connections"
+* **Fix**: Created dedicated Playwright integration test suite in `tests/integrations.spec.ts`. Validates:
+  1. **Vapi Assistant Webhook (`/api/webhooks/vapi/assistant`)**: Asserts HTTP 200 response with valid `11labs` voice provider, ElevenLabs voice persona ID (`49TtX0KZLnuzDrAizTkN`), and `custom-llm` route.
+  2. **ElevenLabs Custom LLM Completion (`/api/voice/[chatbotId]/chat/completions`)**: Asserts `HTTP 200` response with `text/event-stream` SSE streaming OpenAI-formatted completion chunks from Gemini.
+  3. **Twilio Telephony Inbound Webhook (`/api/telephony/inbound`)**: Asserts `application/x-www-form-urlencoded` form processing.
+  All 7 E2E and Integration test specs passed cleanly in 10.5s.
+
 
 
 
