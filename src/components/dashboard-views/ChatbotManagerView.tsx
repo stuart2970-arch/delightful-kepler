@@ -80,7 +80,7 @@ export default function ChatbotManagerView() {
 
   const handleCustomAvatarUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
-    if (!file || !supabase) return;
+    if (!file) return;
 
     if (!file.type.startsWith('image/')) {
       alert('Please upload an image file.');
@@ -94,25 +94,22 @@ export default function ChatbotManagerView() {
 
     setIsUploadingAvatar(true);
     try {
-      const fileExt = file.name.split('.').pop();
-      const fileName = `${tenantId}/${crypto.randomUUID()}.${fileExt}`;
-      
-      const arrayBuffer = await file.arrayBuffer();
-      
-      const { error: uploadError, data } = await supabase.storage
-        .from('chatbot-assets')
-        .upload(fileName, arrayBuffer, { 
-          upsert: true,
-          contentType: file.type
-        });
+      const formData = new FormData();
+      formData.append('file', file);
+      formData.append('tenantId', tenantId);
 
-      if (uploadError) throw uploadError;
+      const response = await fetch('/api/chatbots/upload-avatar', {
+        method: 'POST',
+        body: formData,
+      });
 
-      const { data: publicUrlData } = supabase.storage
-        .from('chatbot-assets')
-        .getPublicUrl(fileName);
+      if (!response.ok) {
+        const errData = await response.json();
+        throw new Error(errData.error || response.statusText);
+      }
 
-      setNewAgentAvatar(publicUrlData.publicUrl);
+      const { url } = await response.json();
+      setNewAgentAvatar(url);
     } catch (err: any) {
       console.error('Error uploading avatar:', err);
       alert(`Failed to upload avatar: ${err.message}`);
