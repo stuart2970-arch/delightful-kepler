@@ -169,7 +169,7 @@ export default async function DashboardPage(props: { searchParams?: Promise<{ [k
       // Override tenant mapping to fetch the impersonated tenant's data using the admin client
       const { data: impTenant } = await queryClient
         .from('tenants')
-        .select('company_name, domain, business_address, postcode, plan_tier, is_rwg_enabled, rwg_business_name, rwg_street_address, rwg_city, rwg_postcode, rwg_phone, is_registered_business_address, booking_mode, booking_url, general_operating_hours, operating_hours_overrides, holiday_settings')
+        .select('company_name, domain, business_address, postcode, plan_tier, is_rwg_enabled, rwg_business_name, rwg_street_address, rwg_city, rwg_postcode, rwg_phone, is_registered_business_address, booking_mode, booking_url, general_operating_hours, operating_hours_overrides, holiday_settings, twilio_shadow_number')
         .eq('id', tenantId)
         .single();
         
@@ -192,6 +192,23 @@ export default async function DashboardPage(props: { searchParams?: Promise<{ [k
         generalOperatingHours = impTenant.general_operating_hours || {};
         operatingHoursOverrides = impTenant.operating_hours_overrides || [];
         holidaySettings = impTenant.holiday_settings || {};
+        initialTwilioShadowNumber = impTenant.twilio_shadow_number || null;
+      }
+
+      // Check Google Connection Status for Impersonated Tenant
+      const { data: googleIntegration } = await queryClient
+        .from('tenant_integrations')
+        .select('account_email')
+        .eq('tenant_id', tenantId)
+        .eq('provider', 'google_calendar')
+        .single();
+      
+      if (googleIntegration) {
+        initialGoogleConnected = true;
+        initialGoogleConnectedEmail = googleIntegration.account_email || null;
+      } else {
+        initialGoogleConnected = false;
+        initialGoogleConnectedEmail = null;
       }
     }
 
@@ -211,7 +228,7 @@ export default async function DashboardPage(props: { searchParams?: Promise<{ [k
     if (convs) conversations = convs;
 
     // Services
-    let servicesQuery = queryClient.from('services').select('*').order('created_at', { ascending: false });
+    let servicesQuery = queryClient.from('services').select('*, staff_services(*)').order('created_at', { ascending: false });
     if (queryFilter && queryFilter.value) servicesQuery = servicesQuery.eq(queryFilter.key, queryFilter.value);
     const { data: srvs } = await servicesQuery;
     services = srvs || [];

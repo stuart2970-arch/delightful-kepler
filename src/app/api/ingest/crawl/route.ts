@@ -139,10 +139,10 @@ export async function POST(request: Request) {
     } else {
       console.log(`[Ingest Route][${requestId}] Authenticated user: ${user.id}, chatbot: ${chatbotId}, target URL: ${url}`);
 
-      // 3. Retrieve user's tenant ID
+      // 3. Retrieve user's profile and check for superadmin
       const { data: profile, error: profileError } = await supabase
         .from('profiles')
-        .select('tenant_id')
+        .select('tenant_id, is_super_admin')
         .eq('id', user.id)
         .single();
 
@@ -151,23 +151,42 @@ export async function POST(request: Request) {
         return NextResponse.json({ error: 'User tenant profile not found' }, { status: 403 });
       }
 
-      tenantId = profile.tenant_id;
-      console.log(`[Ingest Route][${requestId}] Extracted Tenant ID: ${tenantId}`);
+      if (profile.is_super_admin) {
+        const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+        if (!serviceRoleKey) {
+          return NextResponse.json({ error: 'Server configuration error' }, { status: 500 });
+        }
+        const adminClient = createClient(supabaseUrl!, serviceRoleKey);
+        dbClient = adminClient;
 
-      // 4. Validate that the chatbot belongs to the user's tenant (RLS will also enforce this, but explicit check is safer)
-      const { data: chatbot, error: chatbotError } = await supabase
-        .from('chatbots')
-        .select('id')
-        .eq('id', chatbotId)
-        .eq('tenant_id', tenantId)
-        .single();
+        const { data: chatbot, error: chatbotError } = await adminClient
+          .from('chatbots')
+          .select('tenant_id')
+          .eq('id', chatbotId)
+          .single();
 
-      if (chatbotError || !chatbot) {
-        console.warn(`[Ingest Route][${requestId}] Chatbot validation failed or unauthorized access to chatbot ${chatbotId}`);
-        return NextResponse.json(
-          { error: 'Chatbot not found or you do not have permission to access it' },
-          { status: 404 }
-        );
+        if (chatbotError || !chatbot) {
+          return NextResponse.json({ error: 'Chatbot not found' }, { status: 404 });
+        }
+        tenantId = chatbot.tenant_id;
+      } else {
+        tenantId = profile.tenant_id;
+
+        // Validate that the chatbot belongs to the user's tenant
+        const { data: chatbot, error: chatbotError } = await supabase
+          .from('chatbots')
+          .select('id')
+          .eq('id', chatbotId)
+          .eq('tenant_id', tenantId)
+          .single();
+
+        if (chatbotError || !chatbot) {
+          console.warn(`[Ingest Route][${requestId}] Chatbot validation failed or unauthorized access to chatbot ${chatbotId}`);
+          return NextResponse.json(
+            { error: 'Chatbot not found or you do not have permission to access it' },
+            { status: 404 }
+          );
+        }
       }
     }
 

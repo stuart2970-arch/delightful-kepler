@@ -115,8 +115,8 @@ export default function DashboardClient({
   initialPostcode,
   initialTwilioShadowNumber,
 }: DashboardClientProps) {
-  const storeInitialized = React.useRef(false);
-  if (!storeInitialized.current) {
+  // Synchronize state with store whenever props or tenantId change
+  useEffect(() => {
     useDashboardStore.setState({
       tenantId,
       tenantName,
@@ -125,6 +125,8 @@ export default function DashboardClient({
       isSuperAdmin,
       chatbots: initialChatbots,
       conversations: initialConversations,
+      services: initialServices,
+      staff: initialStaff,
       metrics: initialMetrics,
       billingData,
       superadminData,
@@ -141,8 +143,32 @@ export default function DashboardClient({
       postcode: initialPostcode || '',
       twilioShadowNumber: initialTwilioShadowNumber || null,
     });
-    storeInitialized.current = true;
-  }
+  }, [
+    tenantId,
+    tenantName,
+    userEmail,
+    userName,
+    isSuperAdmin,
+    initialChatbots,
+    initialConversations,
+    initialServices,
+    initialStaff,
+    initialMetrics,
+    billingData,
+    superadminData,
+    initialDomain,
+    initialRwgConfig,
+    initialBookingMode,
+    initialBookingUrl,
+    initialGeneralOperatingHours,
+    initialOperatingHoursOverrides,
+    initialHolidaySettings,
+    initialGoogleConnected,
+    initialGoogleConnectedEmail,
+    initialBusinessAddress,
+    initialPostcode,
+    initialTwilioShadowNumber,
+  ]);
 
   const { 
     chatbots, setChatbots,
@@ -156,12 +182,6 @@ export default function DashboardClient({
     services, setServices,
     staff, setStaff
   } = useDashboardStore();
-  
-  // Sync initial services/staff into store
-  useEffect(() => {
-    if (initialServices.length > 0 && services.length === 0) setServices(initialServices);
-    if (initialStaff.length > 0 && staff.length === 0) setStaff(initialStaff);
-  }, [initialServices, initialStaff, services.length, staff.length, setServices, setStaff]);
 
   const [isSavingAccountSettings, setIsSavingAccountSettings] = useState(false);
 

@@ -73,12 +73,23 @@ export async function POST(request: Request) {
       if (error || !chatbot) return NextResponse.json({ error: 'Chatbot not found' }, { status: 404 });
       tenantId = chatbot.tenant_id;
     } else {
-      const { data: profile } = await supabase.from('profiles').select('tenant_id').eq('id', user.id).single();
+      const { data: profile } = await supabase.from('profiles').select('tenant_id, is_super_admin').eq('id', user.id).single();
       if (!profile) return NextResponse.json({ error: 'User tenant profile not found' }, { status: 403 });
-      tenantId = profile.tenant_id;
 
-      const { data: chatbot } = await supabase.from('chatbots').select('id').eq('id', chatbotId).eq('tenant_id', tenantId).single();
-      if (!chatbot) return NextResponse.json({ error: 'Chatbot not found or unauthorized' }, { status: 404 });
+      if (profile.is_super_admin) {
+        const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+        if (!serviceRoleKey) return NextResponse.json({ error: 'Server configuration error' }, { status: 500 });
+        const adminClient = createClient(supabaseUrl, serviceRoleKey);
+        dbClient = adminClient;
+
+        const { data: chatbot, error } = await adminClient.from('chatbots').select('tenant_id').eq('id', chatbotId).single();
+        if (error || !chatbot) return NextResponse.json({ error: 'Chatbot not found' }, { status: 404 });
+        tenantId = chatbot.tenant_id;
+      } else {
+        tenantId = profile.tenant_id;
+        const { data: chatbot } = await supabase.from('chatbots').select('id').eq('id', chatbotId).eq('tenant_id', tenantId).single();
+        if (!chatbot) return NextResponse.json({ error: 'Chatbot not found or unauthorized' }, { status: 404 });
+      }
     }
 
     // Clean text

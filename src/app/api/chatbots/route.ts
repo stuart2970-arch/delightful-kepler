@@ -47,8 +47,23 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'id, name, and tenant_id are required' }, { status: 400 });
     }
 
-    // Insert using standard RLS (requires matching tenant_id tied to user's profile)
-    const { data: chatbot, error } = await supabase
+    const { data: profile } = await supabase
+      .from('profiles')
+      .select('is_super_admin')
+      .eq('id', user.id)
+      .single();
+
+    const isSuperAdmin = profile?.is_super_admin === true;
+
+    let dbClient = supabase;
+    if (isSuperAdmin) {
+      const { createClient } = await import('@supabase/supabase-js');
+      const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.SUPABASE_URL!;
+      const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
+      dbClient = createClient(supabaseUrl, serviceRoleKey);
+    }
+
+    const { data: chatbot, error } = await dbClient
       .from('chatbots')
       .insert({
         id,

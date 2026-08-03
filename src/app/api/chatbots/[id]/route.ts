@@ -209,7 +209,15 @@ export async function PATCH(
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const { data: chatbot, error: chatbotError } = await supabase
+    const { data: profile } = await supabase
+      .from('profiles')
+      .select('is_super_admin')
+      .eq('id', user.id)
+      .single();
+
+    const dbClient = profile?.is_super_admin ? getSupabaseAdmin() : supabase;
+
+    const { data: chatbot, error: chatbotError } = await dbClient
       .from('chatbots')
       .update({
         name,
@@ -270,7 +278,15 @@ export async function DELETE(
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const { error: deleteError, count } = await supabase
+    const { data: profile } = await supabase
+      .from('profiles')
+      .select('is_super_admin')
+      .eq('id', user.id)
+      .single();
+
+    const dbClient = profile?.is_super_admin ? getSupabaseAdmin() : supabase;
+
+    const { error: deleteError, count } = await dbClient
       .from('chatbots')
       .delete({ count: 'exact' })
       .eq('id', id);

@@ -463,3 +463,12 @@ ame, irstMessage, and 	ranscriber) rather than relying on ssistantOverrides de
 - **Root Cause**: Dark mode leftover classes (`bg-indigo-950`, `bg-amber-950`, `bg-yellow-950`, `text-indigo-200`, `text-amber-300`) and indiscriminate button color replacement caused low contrast, unreadable white-on-grey text, gold-on-tan warnings, and dark purple text on blue buttons.
 - **Fix**: Overhauled contrast across all dashboard views. Set primary buttons to `bg-[#198fd9] text-white font-semibold rounded-[4px] px-[29px] py-[13px]`, card headings to `#260475` (Deep Navy), body text to `#212326` (Dark Charcoal), description text to `#434549`, input fields to `50px` height with white background, and alert banners to clean high-contrast light backgrounds (`bg-amber-50 text-amber-900 border-amber-300`). Pushed commit `af6041c` to `origin/main`.
 
+### Session 11 (August 3, 2026)
+* **User**: "Bugs - i am logging in as superadmin and impersonating an account, however, i cannot see ant data relating to that account, i can see blank data"
+* **Fix**: Resolved Superadmin Impersonation blank data and API permission blockers across the dashboard:
+  1. **Dashboard Server Page (`src/app/dashboard/page.tsx`)**: Updated impersonation queries to fetch Google Calendar integration status, Twilio shadow numbers, and `staff_services(*)` mappings for the impersonated tenant using `queryClient` (service role key admin client).
+  2. **Dashboard Client Store Sync (`src/components/DashboardClient.tsx`)**: Refactored the `useEffect` store initialization in `DashboardClient` to continuously sync `tenantId`, `chatbots`, `conversations`, `services`, `staff`, `metrics`, `rwgConfig`, `bookingMode`, `bookingUrl`, `businessAddress`, `postcode`, and `twilioShadowNumber` whenever props update, preventing stale empty states.
+  3. **Backend Ingestion Routes (`/api/ingest/crawl`, `/api/ingest/text`, `/api/ingest/file`)**: Refactored tenant resolution for superadmins. When `is_super_admin` is true, the routes resolve the `tenant_id` directly from `chatbotId` using `supabaseAdmin` instead of enforcing `profile.tenant_id` matching, allowing superadmins to crawl website URLs, raw text, and documents into impersonated chatbots.
+  4. **Chatbot CRUD API Routes (`/api/chatbots`, `/api/chatbots/[id]`)**: Updated `POST`, `PATCH`, and `DELETE` endpoints to detect superadmin status and use `supabaseAdmin` to create, update, and delete chatbots under impersonated tenant accounts without hitting RLS restrictions.
+
+
