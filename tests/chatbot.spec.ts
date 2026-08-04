@@ -42,7 +42,11 @@ test.describe('Chatbot & Widget Functionality', () => {
       if (bubble) bubble.click();
     });
 
-    await page.waitForTimeout(1500);
+    // Wait until widget input is rendered inside shadow DOM
+    await page.waitForFunction(() => {
+      const root = document.querySelector('#styleflo-chat-widget')?.shadowRoot;
+      return !!root?.querySelector('input');
+    }, { timeout: 10000 });
 
     // Verify chat UI elements inside shadow DOM
     const uiVerification = await page.evaluate(() => {
