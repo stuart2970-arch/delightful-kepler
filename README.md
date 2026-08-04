@@ -477,16 +477,9 @@ ame, irstMessage, and 	ranscriber) rather than relying on ssistantOverrides de
   2. **ElevenLabs Custom LLM Completion (`/api/voice/[chatbotId]/chat/completions`)**: Asserts `HTTP 200` response with `text/event-stream` SSE streaming OpenAI-formatted completion chunks from Gemini.
   3. **Twilio Telephony Inbound Webhook (`/api/telephony/inbound`)**: Asserts `application/x-www-form-urlencoded` form processing.
   All 7 E2E and Integration test specs passed cleanly in 10.5s.
-
-
-
-
-
-
-
-
-
-
-
-
-
+### Session 12 (August 4, 2026)
+* **User**: "Troubleshooting failed to save global branding & global disclaimer - when i enter taxt in the allocated fields on app.styleflo.ai/superadmin abd click on save for either branding or disclaimer i get the attached response"
+* **Fix**: Resolved Global Branding & Disclaimer saving failures on `/superadmin`:
+  1. **System Tenant Initialization (`/api/superadmin/global-settings`)**: Fixed Postgres Foreign Key constraint (`chatbots_tenant_id_fkey`) failure. Added automatic upsert of system tenant `00000000-0000-0000-0000-000000000000` into `tenants` before saving global settings to `chatbots`.
+  2. **RLS Bypass in Superadmin Page (`src/app/superadmin/page.tsx`)**: Created an `adminSupabase` client (using `SUPABASE_SERVICE_ROLE_KEY`) to fetch `globalBot`, `tenants`, and `usage_logs` without RLS interference.
+  3. **Improved Error Feedback (`src/components/superadmin/SuperadminClient.tsx`)**: Refactored `handleSaveBranding` and `handleSaveDisclaimer` to parse JSON error responses (`data.error`) from the API so specific server errors are displayed instead of duplicating generic fallback messages.

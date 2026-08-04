@@ -64,7 +64,10 @@ export default function SuperadminClient({
           branding_url: globalTrackingUrl,
         }),
       });
-      if (!response.ok) throw new Error('Failed to save global branding');
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        throw new Error(data.error || 'Failed to save global branding');
+      }
       alert('Global branding saved successfully!');
     } catch (err: any) {
       alert('Failed to save global branding: ' + err.message);
@@ -84,7 +87,10 @@ export default function SuperadminClient({
           global_voice_disclaimer: globalVoiceDisclaimer,
         }),
       });
-      if (!response.ok) throw new Error('Failed to save global disclaimer');
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        throw new Error(data.error || 'Failed to save global disclaimer');
+      }
       alert('Global disclaimer saved successfully!');
     } catch (err: any) {
       alert('Failed to save global disclaimer: ' + err.message);

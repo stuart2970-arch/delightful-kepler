@@ -55,12 +55,17 @@ export default async function SuperadminPage() {
     redirect('/dashboard');
   }
 
-  // Fetch global platform settings
-  const { data: globalBot } = await supabase
+  const supabaseUrl = process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL!;
+  const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
+  const { createClient } = await import('@supabase/supabase-js');
+  const adminSupabase = createClient(supabaseUrl, serviceRoleKey);
+
+  // Fetch global platform settings using admin client
+  const { data: globalBot } = await adminSupabase
     .from('chatbots')
     .select('configuration_json')
     .eq('id', '00000000-0000-0000-0000-000000000000')
-    .single();
+    .maybeSingle();
 
   let initialGlobalBrandingHtml = '<span style="opacity: 0.6; font-size: 11px;">⚡ Powered by <strong>StyleFlo</strong></span>';
   let initialGlobalTrackingUrl = 'https://styleflo.ai';
@@ -72,18 +77,18 @@ export default async function SuperadminPage() {
     if (globalBot.configuration_json.global_voice_disclaimer !== undefined) initialGlobalVoiceDisclaimer = globalBot.configuration_json.global_voice_disclaimer;
   }
 
-  // Fetch all tenants
-  const { data: tenants } = await supabase
+  // Fetch all tenants using admin client
+  const { data: tenants } = await adminSupabase
     .from('tenants')
     .select('id, company_name, plan_tier, created_at, owner_id')
     .order('created_at', { ascending: false });
 
-  // Fetch usage logs for current month
+  // Fetch usage logs for current month using admin client
   const firstDay = new Date();
   firstDay.setDate(1);
   firstDay.setHours(0, 0, 0, 0);
 
-  const { data: allUsage } = await supabase
+  const { data: allUsage } = await adminSupabase
     .from('usage_logs')
     .select('amount, feature_id, tenant_id')
     .gte('created_at', firstDay.toISOString());

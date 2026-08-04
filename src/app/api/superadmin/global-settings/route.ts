@@ -41,13 +41,28 @@ export async function POST(req: NextRequest) {
 
     const adminClient = createClient(supabaseUrl, serviceKey);
     const globalBotId = '00000000-0000-0000-0000-000000000000';
+    const globalTenantId = '00000000-0000-0000-0000-000000000000';
 
-    // Fetch existing config
+    // 1. Ensure global system tenant exists in tenants table to satisfy foreign key constraints
+    const { error: tenantError } = await adminClient
+      .from('tenants')
+      .upsert({
+        id: globalTenantId,
+        tenant_id: globalTenantId,
+        company_name: 'GLOBAL_PLATFORM_SYSTEM'
+      }, { onConflict: 'id' });
+
+    if (tenantError) {
+      console.error('[Global Settings API] Error ensuring system tenant:', tenantError);
+      return NextResponse.json({ error: 'Failed to initialize global tenant record: ' + tenantError.message }, { status: 500 });
+    }
+
+    // 2. Fetch existing config
     const { data: existingBot } = await adminClient
       .from('chatbots')
       .select('configuration_json')
       .eq('id', globalBotId)
-      .single();
+      .maybeSingle();
 
     const newConfig = {
       ...(existingBot?.configuration_json || {}),
@@ -56,11 +71,12 @@ export async function POST(req: NextRequest) {
       ...(global_voice_disclaimer !== undefined && { global_voice_disclaimer }),
     };
 
+    // 3. Upsert global chatbot configuration
     const { error } = await adminClient
       .from('chatbots')
       .upsert({
         id: globalBotId,
-        tenant_id: '00000000-0000-0000-0000-000000000000',
+        tenant_id: globalTenantId,
         name: 'GLOBAL_PLATFORM_SETTINGS',
         primary_color: '#000000',
         configuration_json: newConfig
@@ -68,12 +84,13 @@ export async function POST(req: NextRequest) {
 
     if (error) {
       console.error('[Global Settings API] Error updating:', error);
-      return NextResponse.json({ error: 'Failed to update settings' }, { status: 500 });
+      return NextResponse.json({ error: error.message || 'Failed to update settings' }, { status: 500 });
     }
 
-    return NextResponse.json({ success: true });
-  } catch (err) {
+    return NextResponse.json({ success: true, configuration: newConfig });
+  } catch (err: any) {
     console.error('[Global Settings API] Unexpected failure:', err);
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
+    return NextResponse.json({ error: err?.message || 'Internal server error' }, { status: 500 });
   }
 }
+
