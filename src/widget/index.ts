@@ -146,6 +146,56 @@ import Vapi from '@vapi-ai/web';
     .styleflo-mw-85 { max-width: 85%; width: fit-content; }
     .styleflo-mw-75 { max-width: 75%; width: fit-content; }
 
+    /* Custom form layout style rules to ensure display even if external Tailwind CSS fails to load */
+    #styleflo-chat-form {
+      padding: 12px;
+      background-color: #ffffff;
+      border-top: 1px solid #f3f4f6;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      flex-shrink: 0;
+      z-index: 10;
+    }
+    #styleflo-input {
+      flex: 1 1 0%;
+      min-width: 0px;
+      padding: 8px 12px;
+      font-size: 15px;
+      border: 1px solid #e5e7eb;
+      border-radius: 12px;
+      outline: none;
+      transition: all 0.2s ease;
+    }
+    #styleflo-input:focus {
+      border-color: transparent;
+      box-shadow: 0 0 0 2px var(--tw-ring-color, #6b7280);
+    }
+    #styleflo-chat-form button {
+      padding: 8px;
+      border-radius: 12px;
+      color: #ffffff;
+      border: none;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+      transition: opacity 0.2s ease;
+    }
+    #styleflo-chat-form button:hover {
+      opacity: 0.95;
+    }
+    #styleflo-chat-form button svg {
+      width: 16px;
+      height: 16px;
+      display: block;
+    }
+    #styleflo-vapi-btn svg {
+      width: 20px !important;
+      height: 20px !important;
+    }
+
     .styleflo-input-field {
       height: 50px;
       font-size: 16px;
