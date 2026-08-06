@@ -100,10 +100,10 @@ export async function POST(request: Request) {
     const isTxt = file.type === 'text/plain' || file.name.toLowerCase().endsWith('.txt');
 
     if (isPdf) {
-      // Set worker path manually using require.resolve to enable proper Next.js dependency tracing and copying in standalone/serverless builds
+      // Set worker path manually using process.cwd() to target the node_modules location in the standalone production workspace
       try {
         const workerPath = pathToFileURL(
-          require.resolve('pdfjs-dist/legacy/build/pdf.worker.mjs')
+          path.join(process.cwd(), 'node_modules', 'pdfjs-dist', 'legacy', 'build', 'pdf.worker.mjs')
         ).href;
         PDFParse.setWorker(workerPath);
       } catch (err) {
