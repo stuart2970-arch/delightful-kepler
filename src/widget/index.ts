@@ -365,13 +365,13 @@ import Vapi from '@vapi-ai/web';
           id="styleflo-input" 
           type="text" 
           placeholder="Type your message..." 
-          class="flex-1 px-3 py-2 styleflo-text-15 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:border-transparent transition-all"
+          class="flex-1 min-w-0 px-3 py-2 styleflo-text-15 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:border-transparent transition-all"
           style="--tw-ring-color: ${primaryColor};"
           autocomplete="off"
         />
         <button 
           type="submit" 
-          class="p-2 rounded-xl text-white hover:opacity-95 focus:outline-none transition-opacity" 
+          class="p-2 rounded-xl text-white hover:opacity-95 focus:outline-none transition-opacity flex-shrink-0" 
           style="background-color: ${primaryColor};"
         >
           <svg class="w-4 h-4 transform rotate-90" fill="none" stroke="currentColor" viewBox="0 0 24 24">
