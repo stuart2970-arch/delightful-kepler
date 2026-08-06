@@ -2,7 +2,17 @@ import Vapi from '@vapi-ai/web';
 
 (function () {
   // 1. Identify the script element and extract configuration
-  const currentScript = document.currentScript as HTMLScriptElement;
+  let currentScript = document.currentScript as HTMLScriptElement;
+  if (!currentScript) {
+    const scripts = document.getElementsByTagName('script');
+    for (let i = 0; i < scripts.length; i++) {
+      if (scripts[i].getAttribute('data-bot-id') || scripts[i].src.includes('/widget.js') || scripts[i].src.includes('widget.js')) {
+        currentScript = scripts[i];
+        break;
+      }
+    }
+  }
+
   if (!currentScript) {
     console.error('[StyleFlo Widget] Current script context not found.');
     return;
