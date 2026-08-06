@@ -60,6 +60,10 @@ In order to be iterable, non-array objects must have a [Symbol.iterator]() metho
       font-family: 'Poppins', 'Inter', sans-serif;
     }
 
+    *, ::before, ::after {
+      box-sizing: border-box !important;
+    }
+
     @keyframes styleflo-bounce {
       0%, 100% { transform: translateY(0); }
       50% { transform: translateY(-4px); }

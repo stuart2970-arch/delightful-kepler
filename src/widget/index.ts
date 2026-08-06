@@ -84,6 +84,10 @@ import Vapi from '@vapi-ai/web';
       font-family: 'Poppins', 'Inter', sans-serif;
     }
 
+    *, ::before, ::after {
+      box-sizing: border-box !important;
+    }
+
     @keyframes styleflo-bounce {
       0%, 100% { transform: translateY(0); }
       50% { transform: translateY(-4px); }
