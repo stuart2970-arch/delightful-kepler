@@ -507,4 +507,5 @@ ame, irstMessage, and 	ranscriber) rather than relying on ssistantOverrides de
 * **User**: "on mobile, this highlighted section is out of viewport"
 * **Fix**: Resolved floating chatbot widget viewport clipping on mobile:
   1. **Responsive Boundaries (`src/widget/index.ts`)**: Added a mobile media query for the floating chat window (`.styleflo-chat-window`) overriding layout boundaries on screens smaller than 640px to `left: 16px !important; right: 16px !important; width: auto !important;`. This forces standard centered viewport containment on mobile devices and prevents the send message button from clipping off-screen.
-  2. **Script Re-compilation**: Executed `npm run build:widget` to generate the production widget assets inside the public folder.
+  2. **Flexbox Input Sizing**: Configured the `<input>` text box inside the message form with Tailwind `min-w-0` (`min-width: 0px`) and marked the submit button with `flex-shrink-0`. This resolves a standard flexbox bug where `<input>` elements refuse to shrink below their browser default sizes, preventing the input from pushing the send icon out of view on extremely narrow mobile viewports.
+  3. **Script Re-compilation**: Executed `npm run build:widget` to generate the production widget assets inside the public folder.
