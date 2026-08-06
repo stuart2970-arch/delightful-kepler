@@ -1,11 +1,12 @@
 import { NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 
-// Initialize Supabase Admin Client to bypass RLS for dynamic public requests
-const supabaseAdmin = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!
-);
+// Helper function to safely initialize Supabase Admin Client (preventing build-time failures when keys are absent)
+function getSupabaseAdmin() {
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || 'https://dummy.supabase.co';
+  const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY || 'dummy-key';
+  return createClient(supabaseUrl, serviceRoleKey);
+}
 
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
@@ -77,6 +78,7 @@ export async function GET(req: Request, { params }: { params: Promise<{ slug: st
   }
 
   try {
+    const supabaseAdmin = getSupabaseAdmin();
     // 1. Resolve Tenant profile & active chatbot settings
     const { data: tenant, error: tenantError } = await supabaseAdmin
       .from('tenants')
