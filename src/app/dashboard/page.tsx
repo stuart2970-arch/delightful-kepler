@@ -299,7 +299,7 @@ export default async function DashboardPage(props: { searchParams?: Promise<{ [k
       const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
       const adminSupabase = createClient(supabaseUrl, serviceRoleKey);
 
-      const { data: allTenantsList } = await adminSupabase.from('tenants').select('id, company_name, plan_tier');
+      const { data: allTenantsList } = await adminSupabase.from('tenants').select('id, company_name, plan_tier, slug');
       
       const firstDay = new Date();
       firstDay.setDate(1);

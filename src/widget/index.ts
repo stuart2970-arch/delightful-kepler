@@ -128,6 +128,13 @@ import Vapi from '@vapi-ai/web';
         max-height: calc(100dvh - 100px);
       }
     }
+    @media (max-width: 639px) {
+      .styleflo-chat-window {
+        left: 16px !important;
+        right: 16px !important;
+        width: auto !important;
+      }
+    }
     @media (min-width: 640px) {
       .styleflo-chat-window {
         width: 380px;

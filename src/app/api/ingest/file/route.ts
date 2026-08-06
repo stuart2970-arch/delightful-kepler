@@ -7,6 +7,8 @@ import { google } from '@ai-sdk/google';
 import { embed, embedMany } from 'ai';
 import { checkFeatureEntitlement } from '@/lib/entitlements';
 import { PDFParse } from 'pdf-parse';
+import path from 'path';
+import { pathToFileURL } from 'url';
 
 async function createSupabaseClient() {
   const cookieStore = await cookies();
@@ -94,7 +96,20 @@ export async function POST(request: Request) {
     const buffer = Buffer.from(arrayBuffer);
     let textContent = '';
 
-    if (file.type === 'application/pdf' || file.name.endsWith('.pdf')) {
+    const isPdf = file.type === 'application/pdf' || file.name.toLowerCase().endsWith('.pdf');
+    const isTxt = file.type === 'text/plain' || file.name.toLowerCase().endsWith('.txt');
+
+    if (isPdf) {
+      // Set worker path manually using require.resolve to enable proper Next.js dependency tracing and copying in standalone/serverless builds
+      try {
+        const workerPath = pathToFileURL(
+          require.resolve('pdfjs-dist/legacy/build/pdf.worker.mjs')
+        ).href;
+        PDFParse.setWorker(workerPath);
+      } catch (err) {
+        console.warn('[Ingest File] Failed to set pdf-parse worker path:', err);
+      }
+
       const parser = new PDFParse({ data: buffer });
       try {
         const result = await parser.getText();
@@ -102,7 +117,7 @@ export async function POST(request: Request) {
       } finally {
         await parser.destroy();
       }
-    } else if (file.type === 'text/plain' || file.name.endsWith('.txt')) {
+    } else if (isTxt) {
       textContent = buffer.toString('utf-8');
     } else {
       return NextResponse.json({ error: 'Unsupported file type. Only PDF and TXT are supported.' }, { status: 400 });

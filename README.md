@@ -65,6 +65,20 @@ This runbook documents the key fixes and architecture enhancements implemented d
   - Injected an `<a>` tag at the bottom of the widget (`src/widget/index.ts`) pointing to `/api/track?ref=[chatbot_id]&source=[host]`.
   - Created a new tracking endpoint `/api/track/route.ts` that logs the click into a `referral_clicks` Supabase table before issuing a `302 Redirect` to the global tracking URL.
 
+### 6. PDF Ingestion Worker Path Fix
+* **Problem**: Uploading a PDF to the chatbot knowledge base resulted in a `500 Internal Server Error` with `Setting up fake worker failed: "Cannot find module 'C:\...\.next\dev\server\chunks\pdf.worker.mjs'"`. This occurred because the Next.js bundler (Turbopack/Webpack) did not resolve or copy `pdf.worker.mjs` relative to the server-side route chunks.
+* **Solution**:
+  - Configured `PDFParse.setWorker(pathToFileURL(require.resolve('pdfjs-dist/legacy/build/pdf.worker.mjs')).href)` inside `src/app/api/ingest/file/route.ts` prior to PDF parsing.
+  - Using `require.resolve` forces the Next.js bundler (Turbopack/Webpack) to statically trace and copy the `pdf.worker.mjs` asset into the standalone production build / serverless deployment folders, making it accessible at runtime.
+  - Implemented case-insensitive file extension checking to support `.PDF` uploads.
+
+### 7. Widget Mobile Viewport Clipping Fix
+* **Problem**: On narrow mobile viewports, the floating chat widget window extended beyond the right edge of the screen, clipping the send message button. This happened because the window width was configured with `width: calc(100vw - 40px)` coupled with Tailwind `right-5` (`right: 20px`), which does not guarantee centering or viewport boundary containment when ancestor elements have transforms or zoom scale offsets on mobile.
+* **Solution**:
+  - Added a `@media (max-width: 639px)` media query to `.styleflo-chat-window` inside `src/widget/index.ts`.
+  - Configured absolute boundaries on mobile viewports: `left: 16px !important; right: 16px !important; width: auto !important;`.
+  - This guarantees the browser automatically centers the chat window and forces it to strictly fit within the device margins, preventing right-edge truncation.
+
 ---
 
 ### Session Chat History Log
@@ -483,3 +497,13 @@ ame, irstMessage, and 	ranscriber) rather than relying on ssistantOverrides de
   1. **System Tenant Initialization (`/api/superadmin/global-settings`)**: Fixed Postgres Foreign Key constraint (`chatbots_tenant_id_fkey`) failure. Added automatic upsert of system tenant `00000000-0000-0000-0000-000000000000` into `tenants` before saving global settings to `chatbots`.
   2. **RLS Bypass in Superadmin Page (`src/app/superadmin/page.tsx`)**: Created an `adminSupabase` client (using `SUPABASE_SERVICE_ROLE_KEY`) to fetch `globalBot`, `tenants`, and `usage_logs` without RLS interference.
   3. **Improved Error Feedback (`src/components/superadmin/SuperadminClient.tsx`)**: Refactored `handleSaveBranding` and `handleSaveDisclaimer` to parse JSON error responses (`data.error`) from the API so specific server errors are displayed instead of duplicating generic fallback messages.
+
+### Session 13 (August 6, 2026)
+* **User**: "Bug - unable to upload a pdf in the knowledgebase area of the dashboard"
+* **Fix**: Resolved pdf ingestion failures caused by Next.js bundler pathing issues:
+  1. **Worker Path Override (`src/app/api/ingest/file/route.ts`)**: Configured `PDFParse.setWorker()` with the resolved absolute file URL of `pdf.worker.mjs` (via `pathToFileURL(require.resolve(...))`). Using `require.resolve` forces Next.js dependency tracing to copy the worker asset into the production build / standalone package directory, preventing `Cannot find module` runtime failures on deployed environments.
+  2. **Defensive Formatting**: Implemented case-insensitive file extension checks (`.toLowerCase().endsWith(...)`) to safely accept `.PDF` and `.TXT` file formats.
+* **User**: "on mobile, this highlighted section is out of viewport"
+* **Fix**: Resolved floating chatbot widget viewport clipping on mobile:
+  1. **Responsive Boundaries (`src/widget/index.ts`)**: Added a mobile media query for the floating chat window (`.styleflo-chat-window`) overriding layout boundaries on screens smaller than 640px to `left: 16px !important; right: 16px !important; width: auto !important;`. This forces standard centered viewport containment on mobile devices and prevents the send message button from clipping off-screen.
+  2. **Script Re-compilation**: Executed `npm run build:widget` to generate the production widget assets inside the public folder.

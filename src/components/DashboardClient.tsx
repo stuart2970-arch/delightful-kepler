@@ -12,6 +12,7 @@ import SchedulingView from './dashboard-views/SchedulingView';
 import IntegrationsView from './dashboard-views/IntegrationsView';
 import TelephonyView from './dashboard-views/TelephonyView';
 import SuperAdminVoiceManagerView from './dashboard-views/SuperAdminVoiceManagerView';
+import PlatformSettingsView from './dashboard-views/PlatformSettingsView';
 import { useDashboardStore } from '../lib/store';
 
 interface Chatbot {
@@ -627,6 +628,9 @@ const globalBotId = '00000000-0000-0000-0000-000000000000';
 
           {/* Superadmin Voices Tab */}
           {activeTab === 'superadmin_voices' && isSuperAdmin && !isImpersonating && <SuperAdminVoiceManagerView />}
+
+          {/* Platform Settings Tab */}
+          {activeTab === 'settings' && isSuperAdmin && !isImpersonating && <PlatformSettingsView />}
 
           {/* Billing & Usage Tab */}
           {activeTab === 'billing' && (
