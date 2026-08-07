@@ -1,5 +1,5 @@
 // @ts-nocheck
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useDashboardStore } from '../../lib/store';
 
 export default function IntegrationsView() {
@@ -11,12 +11,22 @@ export default function IntegrationsView() {
   
   const [isRwgEnabled, setIsRwgEnabled] = useState(rwgConfig?.is_rwg_enabled || false);
   const [rwgGoogleUrl, setRwgGoogleUrl] = useState('');
-  const [rwgBusinessName, setRwgBusinessName] = useState(rwgConfig?.business_name || '');
-  const [rwgStreetAddress, setRwgStreetAddress] = useState(rwgConfig?.street_address || '');
-  const [rwgCity, setRwgCity] = useState(rwgConfig?.city || '');
-  const [rwgPostcode, setRwgPostcode] = useState(rwgConfig?.postcode || '');
-  const [rwgPhone, setRwgPhone] = useState(rwgConfig?.telephone || '');
+  const [rwgBusinessName, setRwgBusinessName] = useState(rwgConfig?.rwg_business_name || rwgConfig?.business_name || '');
+  const [rwgStreetAddress, setRwgStreetAddress] = useState(rwgConfig?.rwg_street_address || rwgConfig?.street_address || '');
+  const [rwgCity, setRwgCity] = useState(rwgConfig?.rwg_city || rwgConfig?.city || '');
+  const [rwgPostcode, setRwgPostcode] = useState(rwgConfig?.rwg_postcode || rwgConfig?.postcode || '');
+  const [rwgPhone, setRwgPhone] = useState(rwgConfig?.rwg_phone || rwgConfig?.telephone || '');
   const [isRegisteredBusinessAddress, setIsRegisteredBusinessAddress] = useState(rwgConfig?.is_registered_business_address || false);
+
+  useEffect(() => {
+    setIsRwgEnabled(rwgConfig?.is_rwg_enabled || false);
+    setRwgBusinessName(rwgConfig?.rwg_business_name || rwgConfig?.business_name || '');
+    setRwgStreetAddress(rwgConfig?.rwg_street_address || rwgConfig?.street_address || '');
+    setRwgCity(rwgConfig?.rwg_city || rwgConfig?.city || '');
+    setRwgPostcode(rwgConfig?.rwg_postcode || rwgConfig?.postcode || '');
+    setRwgPhone(rwgConfig?.rwg_phone || rwgConfig?.telephone || '');
+    setIsRegisteredBusinessAddress(rwgConfig?.is_registered_business_address || false);
+  }, [rwgConfig]);
 
   const rwgStatus = isRwgEnabled ? (rwgBusinessName && rwgStreetAddress ? 'Active on Google' : 'Pending Verification') : 'Disconnected';
 

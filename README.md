@@ -531,6 +531,12 @@ ame, irstMessage, and 	ranscriber) rather than relying on ssistantOverrides de
 * **User**: "error on creation [Image showing: Failed to fetch on signup for Crew Childwall]"
 * **Fix**: Fixed `Failed to fetch` error on registration page by replacing dummy Supabase URL fallbacks in `src/app/login/page.tsx` with production Supabase client credentials.
 
+* **User**: "on the integrate with google page, the button press saves the addreaa but when you navigate away and back, its not saved"
+* **Fix**: Resolved Reserve with Google (Actions Center) address configuration loading issues when navigating between dashboard tabs:
+  1. **Correct Database-Aligned Keys**: Updated `src/components/dashboard-views/IntegrationsView.tsx` to read the database-aligned properties (`rwg_business_name`, `rwg_street_address`, `rwg_city`, `rwg_postcode`, `rwg_phone`) from `rwgConfig` instead of the incorrect legacy keys (`business_name`, `street_address`, etc.).
+  2. **Reactive Local State Synchronization**: Added a `useEffect` hook in `IntegrationsView.tsx` to dynamically sync local component state variables whenever the global Zustand store's `rwgConfig` state updates.
 
-
-
+* **System Deprecation Warning**: "The 'middleware' file convention is deprecated. Please use 'proxy' instead."
+* **Fix**: Migrated the Next.js `middleware.ts` system configuration to follow the new Next.js 16 `proxy.ts` convention:
+  1. **Proxy Creation**: Created `src/proxy.ts` exporting the `proxy` handler, performing identically to the legacy middleware for SSO token synchronization, path matching, and route-based auth protection.
+  2. **Legacy Cleanup**: Removed the deprecated `src/middleware.ts` file from the repository, resolving build-time and execution-time console warnings.
