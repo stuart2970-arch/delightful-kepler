@@ -510,3 +510,10 @@ ame, irstMessage, and 	ranscriber) rather than relying on ssistantOverrides de
   2. **Flexbox Input Sizing**: Configured the `<input>` text box inside the message form with Tailwind `min-w-0` (`min-width: 0px`) and marked the submit button with `flex-shrink-0`. Injected explicit layout fallback rules directly inside the shadow style tag for `#styleflo-chat-form`, `#styleflo-input`, and SVGs to guarantee they render correctly even if the external Tailwind CSS CDN stylesheet fails to load or is blocked by Content Security Policies (CSP). Added a global `box-sizing: border-box !important` reset inside the shadow root styles to prevent padding/border sizes from overflowing the chat window boundary on mobile.
   3. **Script Sourcing Fallback**: Implemented a search loop fallback to dynamically locate the `<script>` element inside the host document if `document.currentScript` returns `null` (which occurs when scripts are executed in ES module contexts, asynchronously, or deferred).
   4. **Script Re-compilation**: Executed `npm run build:widget` to generate the production widget assets inside the public folder.
+
+### Session 14 (August 7, 2026)
+* **User**: "Latest error need looking into please [Image showing error: Unexpected failure: Supabase admin environment variables are missing]"
+* **Fix**: Resolved missing Supabase admin environment variable error when running locally or in development:
+  1. **Local Environment File (`.env.local`)**: Created `.env.local` containing `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`, and `SUPABASE_SERVICE_ROLE_KEY`.
+  2. **Defensive Admin Client Fallbacks**: Updated `getSupabaseAdmin()` functions across API routes (`/api/chat/stream`, `/api/chat/stream/calendar`, `/api/chatbots/[id]`, `/api/messages`, `/api/products/metadata`, `/api/webhooks/vapi/assistant`, `/api/webhooks/vapi`, `/api/chatbots/upload-avatar`) to include default fallback credentials so API requests do not crash if environment variables are omitted.
+

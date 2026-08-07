@@ -35,8 +35,8 @@ export async function POST(request: Request) {
     }
 
     // Initialize Supabase Admin Client to bypass RLS
-    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-    const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || 'https://tkoasyjvrgaglofpzduq.supabase.co';
+    const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InRrb2FzeWp2cmdhZ2xvZnB6ZHVxIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc4MTU5NTcwNSwiZXhwIjoyMDk3MTcxNzA1fQ.VyWIQX2CFUUsAyDakbIEX805sz35TxHnjcAxBPWxliw';
     if (!supabaseUrl || !serviceRoleKey) {
       throw new Error('Supabase admin environment variables are missing');
     }
