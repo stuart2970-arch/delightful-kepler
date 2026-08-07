@@ -108,15 +108,16 @@ export async function GET(req: Request, { params }: { params: Promise<{ slug: st
 
     const activeBot = tenant.chatbots?.[0];
     let staffList: any[] = [];
+    let servicesList: any[] = [];
 
-    // 2. Fetch associated staff roster
+    // 2. Fetch associated staff roster and services
     if (activeBot) {
-      const { data: staff, error: staffError } = await supabaseAdmin
-        .from('staff')
-        .select('id, name, role, email, working_days')
-        .eq('chatbot_id', activeBot.id);
+      const [{ data: staff }, { data: services }] = await Promise.all([
+        supabaseAdmin.from('staff').select('id, name, role, email, working_days').eq('chatbot_id', activeBot.id),
+        supabaseAdmin.from('services').select('id, name, description, duration_minutes, price').eq('chatbot_id', activeBot.id).order('created_at', { ascending: true })
+      ]);
 
-      if (!staffError && staff) {
+      if (staff) {
         // 3. Inject computed on-shift/break/off-duty statuses
         staffList = staff.map((member: any) => ({
           id: member.id,
@@ -124,6 +125,16 @@ export async function GET(req: Request, { params }: { params: Promise<{ slug: st
           role: member.role || 'Specialist',
           email: member.email,
           status: calculateStaffStatus(member.working_days)
+        }));
+      }
+
+      if (services) {
+        servicesList = services.map((s: any) => ({
+          id: s.id,
+          name: s.name,
+          description: s.description || '',
+          duration_minutes: s.duration_minutes || 60,
+          price: s.price || 0
         }));
       }
     }
@@ -141,7 +152,8 @@ export async function GET(req: Request, { params }: { params: Promise<{ slug: st
         longitude: tenant.longitude,
         primary_color: activeBot?.primary_color || '#7E5FBB',
         chatbot_id: activeBot?.id || null,
-        staff: staffList
+        staff: staffList,
+        services: servicesList
       },
       {
         status: 200,

@@ -527,6 +527,8 @@ ame, irstMessage, and 	ranscriber) rather than relying on ssistantOverrides de
 * **User**: "can we widen this to be aplicable for all chatbots 'you are representing [business name]'"
 * **Fix**: Implemented dynamic brand representation and strict competitor isolation across all chatbots:
   1. **Dynamic Business Name Resolution**: Updated `/api/chat/stream` to dynamically resolve `businessName` from chatbot config (`configData.businessName`), tenant account (`tenantRes.data.name`), or chatbot name (`chatbot.name`).
-  2. **Strict Brand Protection Guardrail**: Injected `STRICT BRAND PROTECTION RULE: You strictly represent "${businessName}". You are strictly forbidden from recommending, mentioning, or providing information about competitor businesses, competitor brands, or third-party alternatives under any circumstances.` into the global system prompt.
+* **User**: "what is the shortcode for services? services should display max 10 at a time with next and prev"
+* **Fix**: Added dynamic services roster to `/api/tenants/[slug]/metadata` and created paginated `[styleflo-services]` shortcode with Next/Prev navigation buttons.
+
 
 
