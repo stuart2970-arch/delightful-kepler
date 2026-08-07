@@ -330,12 +330,12 @@ import Vapi from '@vapi-ai/web';
         <button 
           type="button" 
           id="styleflo-vapi-btn"
-          class="p-2 rounded-xl text-white focus:outline-none transition-all flex-shrink-0" 
-          style="background-color: #6B7280; width: 36px; height: 36px;"
+          class="rounded-xl text-white focus:outline-none transition-all flex-shrink-0 flex items-center justify-center" 
+          style="background-color: #6B7280; width: 36px; height: 36px; min-width: 36px; min-height: 36px; padding: 0; flex-shrink: 0; display: flex; align-items: center; justify-content: center;"
           title="Talk to Bot"
         >
-          <svg class="w-5 h-5 mx-auto" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z"></path>
+          <svg style="width: 20px; height: 20px; min-width: 20px; min-height: 20px; display: block; fill: none; stroke: #ffffff; stroke-width: 2.5; stroke-linecap: round; stroke-linejoin: round;" viewBox="0 0 24 24">
+            <path d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z"></path>
           </svg>
         </button>
         ` : ''}
@@ -343,17 +343,19 @@ import Vapi from '@vapi-ai/web';
           id="styleflo-input" 
           type="text" 
           placeholder="Type your message..." 
-          class="flex-1 px-3 py-2 styleflo-text-15 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:border-transparent transition-all"
+          class="flex-1 min-w-0 px-3 py-2 styleflo-text-15 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:border-transparent transition-all"
           style="--tw-ring-color: ${primaryColor};"
           autocomplete="off"
         />
         <button 
           type="submit" 
-          class="p-2 rounded-xl text-white hover:opacity-95 focus:outline-none transition-opacity" 
-          style="background-color: ${primaryColor};"
+          id="styleflo-send-btn"
+          class="rounded-xl text-white hover:opacity-95 focus:outline-none transition-opacity flex-shrink-0 flex items-center justify-center" 
+          style="background-color: ${primaryColor}; width: 36px; height: 36px; min-width: 36px; min-height: 36px; padding: 0; flex-shrink: 0; display: flex; align-items: center; justify-content: center;"
+          title="Send Message"
         >
-          <svg class="w-4 h-4 transform rotate-90" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8"></path>
+          <svg style="width: 18px; height: 18px; min-width: 18px; min-height: 18px; display: block; fill: none; stroke: #ffffff; stroke-width: 2.5; stroke-linecap: round; stroke-linejoin: round; transform: rotate(90deg);" viewBox="0 0 24 24">
+            <path d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8"></path>
           </svg>
         </button>
       </form>
@@ -416,7 +418,7 @@ import Vapi from '@vapi-ai/web';
         }
         storedName = name;
         onboardingContainer.style.display = 'none';
-        messagesContainer.style.display = 'block';
+        messagesContainer.style.display = 'flex';
         chatForm.style.display = 'flex';
         inputField.focus();
       }

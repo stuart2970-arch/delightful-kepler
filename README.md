@@ -520,4 +520,9 @@ ame, irstMessage, and 	ranscriber) rather than relying on ssistantOverrides de
 * **Fix**: Resolved PDF upload failures and unhandled 500 JSON parse errors:
   1. **PDF Worker Removal**: Removed fragile `PDFParse.setWorker()` call that attempted to path to standalone worker files that do not exist at runtime in Next.js builds. `pdf-parse` now runs natively without worker dependencies.
   2. **Defensive API Credentials & Impersonation Scoping**: Added default Supabase credentials fallbacks in `/api/ingest/file` and updated profile resolution so Superadmin Impersonation mode routes database insertions using the admin client directly.
-  3. **Robust Dashboard Error Parsing**: Refactored `KnowledgeBaseView.tsx` file handler to parse non-200 server responses safely without throwing JSON parse syntax errors.
+* **User**: "this icon is not displaying on a mobile browser one you have entered your name [Image showing mic and send button icons]"
+* **Fix**: Resolved mobile browser icon display and layout clipping issues:
+  1. **Flexbox Layout Preservation**: Fixed `messagesContainer.style.display` in `index.ts` and `embed.ts` onboarding submit handlers from `block` to `flex`. Setting `block` previously broke the chat window flexbox layout, causing the bottom form controls to overflow and hide off-screen on mobile devices once name onboarding completed.
+  2. **Explicit Inline SVG & Button Dimensions**: Added explicit `width: 36px`, `height: 36px`, `min-width: 36px`, `min-height: 36px`, `padding: 0`, and `display: flex` styles to `#styleflo-vapi-btn` and `#styleflo-send-btn`. Injected explicit inline SVG attributes (`fill: none`, `stroke: #ffffff`, `stroke-width: 2.5`, `display: block`) so mobile WebKit/Safari/Chrome render the microphone and send arrow icons consistently inside Shadow DOM.
+  3. **Widget Re-compilation**: Re-compiled production widget scripts (`public/widget.js` & `public/embed.js`).
+
