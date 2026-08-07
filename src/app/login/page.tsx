@@ -19,8 +19,8 @@ export default function LoginPage() {
   // Initialize Supabase client
   const [supabase] = useState(() =>
     createBrowserClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL || 'https://dummy.supabase.co',
-      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || 'dummy-anon-key'
+      process.env.NEXT_PUBLIC_SUPABASE_URL || 'https://tkoasyjvrgaglofpzduq.supabase.co',
+      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InRrb2FzeWp2cmdhZ2xvZnB6ZHVxIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODE1OTU3MDUsImV4cCI6MjA5NzE3MTcwNX0.C9tspXZGG59xO9WAN12zU5twpDpHFP95Z9udKe06_JM'
     )
   );
 

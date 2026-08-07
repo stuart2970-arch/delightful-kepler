@@ -528,7 +528,9 @@ ame, irstMessage, and 	ranscriber) rather than relying on ssistantOverrides de
 * **Fix**: Implemented dynamic brand representation and strict competitor isolation across all chatbots:
   1. **Dynamic Business Name Resolution**: Updated `/api/chat/stream` to dynamically resolve `businessName` from chatbot config (`configData.businessName`), tenant account (`tenantRes.data.name`), or chatbot name (`chatbot.name`).
 * **User**: "what is the shortcode for services? services should display max 10 at a time with next and prev"
-* **Fix**: Added dynamic services roster to `/api/tenants/[slug]/metadata` and created paginated `[styleflo-services]` shortcode with Next/Prev navigation buttons.
+* **User**: "error on creation [Image showing: Failed to fetch on signup for Crew Childwall]"
+* **Fix**: Fixed `Failed to fetch` error on registration page by replacing dummy Supabase URL fallbacks in `src/app/login/page.tsx` with production Supabase client credentials.
+
 
 
 
