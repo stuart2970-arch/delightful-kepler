@@ -347,16 +347,24 @@ export default function KnowledgeBaseView() {
         body: formData,
       });
 
-      const data = await response.json();
-      if (response.ok) {
+      let data;
+      try {
+        data = await response.json();
+      } catch (e) {
+        const rawText = await response.text().catch(() => '');
+        data = { error: `Server error (${response.status} ${response.statusText}): ${rawText.slice(0, 100) || 'Internal server error'}` };
+      }
+
+      if (response.ok && data.success) {
         setCrawlLogs((prev) => [...prev, `[Success] Ingested ${data.chunksCount} chunks from file.`]);
         setCrawlResult({ success: true, message: data.message });
         setMetrics(prev => ({ ...prev, chunksCount: prev.chunksCount + data.chunksCount }));
         setSelectedFile(null);
         loadIngestedUrls(crawlBotId);
       } else {
-        setCrawlLogs((prev) => [...prev, `[Error] ${data.error}`]);
-        setCrawlResult({ success: false, message: data.error });
+        const errorMsg = data.error || 'File ingestion failed';
+        setCrawlLogs((prev) => [...prev, `[Error] ${errorMsg}`]);
+        setCrawlResult({ success: false, message: errorMsg });
       }
     } catch (err: any) {
       setCrawlLogs((prev) => [...prev, `[Error] ${err.message}`]);

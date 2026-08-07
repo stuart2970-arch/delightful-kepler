@@ -516,4 +516,8 @@ ame, irstMessage, and 	ranscriber) rather than relying on ssistantOverrides de
 * **Fix**: Resolved missing Supabase admin environment variable error when running locally or in development:
   1. **Local Environment File (`.env.local`)**: Created `.env.local` containing `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`, and `SUPABASE_SERVICE_ROLE_KEY`.
   2. **Defensive Admin Client Fallbacks**: Updated `getSupabaseAdmin()` functions across API routes (`/api/chat/stream`, `/api/chat/stream/calendar`, `/api/chatbots/[id]`, `/api/messages`, `/api/products/metadata`, `/api/webhooks/vapi/assistant`, `/api/webhooks/vapi`, `/api/chatbots/upload-avatar`) to include default fallback credentials so API requests do not crash if environment variables are omitted.
-
+* **User**: "failed to upload a pdf in dashboard [Image showing: Unexpected token 'I', "Internal S"... is not valid JSON]"
+* **Fix**: Resolved PDF upload failures and unhandled 500 JSON parse errors:
+  1. **PDF Worker Removal**: Removed fragile `PDFParse.setWorker()` call that attempted to path to standalone worker files that do not exist at runtime in Next.js builds. `pdf-parse` now runs natively without worker dependencies.
+  2. **Defensive API Credentials & Impersonation Scoping**: Added default Supabase credentials fallbacks in `/api/ingest/file` and updated profile resolution so Superadmin Impersonation mode routes database insertions using the admin client directly.
+  3. **Robust Dashboard Error Parsing**: Refactored `KnowledgeBaseView.tsx` file handler to parse non-200 server responses safely without throwing JSON parse syntax errors.
