@@ -142,14 +142,15 @@ export async function POST(request: Request) {
     const [servicesRes, staffRes, tenantRes] = await Promise.all([
       supabaseAdmin.from('services').select('id, name, duration_minutes, buffer_minutes, price, staff_services(staff_id, custom_price, custom_duration)').eq('tenant_id', tenantId).eq('chatbot_id', chatbotId),
       supabaseAdmin.from('staff').select('id, name').eq('tenant_id', tenantId).eq('chatbot_id', chatbotId),
-      supabaseAdmin.from('tenants').select('booking_mode, booking_url').eq('id', tenantId).single()
+      supabaseAdmin.from('tenants').select('name, booking_mode, booking_url').eq('id', tenantId).single()
     ]);
     const servicesContext = servicesRes.data ? JSON.stringify(servicesRes.data, null, 2) : '[]';
     const staffContext = staffRes.data ? JSON.stringify(staffRes.data, null, 2) : '[]';
     const bookingMode = tenantRes.data?.booking_mode || 'single_calendar';
     const bookingUrl = tenantRes.data?.booking_url || '';
+    const businessName = configData.businessName || tenantRes.data?.name || chatbot.name || 'this business';
 
-    console.log(`[Chat Stream][${requestId}] Retrieved ${matchedDocuments?.length || 0} context documents and calendar config.`);
+    console.log(`[Chat Stream][${requestId}] Retrieved ${matchedDocuments?.length || 0} context documents and calendar config for ${businessName}.`);
 
     // 6. Get or create conversation record
     console.log(`[Chat Stream][${requestId}] Resolving conversation session...`);
@@ -207,9 +208,11 @@ export async function POST(request: Request) {
     }
 
     // 8. Build prompt and historical message messages array
-    const systemPrompt = `You are a friendly, conversational AI customer support assistant representing this company.
-Use ONLY the following context to answer the user's query. 
-If you do not know the answer, politely ask them to drop their email or phone number so a human agent can follow up.
+    const systemPrompt = `You are a friendly, conversational AI customer support assistant representing "${businessName}".
+Use ONLY the following context to answer the user's query about "${businessName}". 
+If you do not know the answer, politely state that you represent "${businessName}" and ask them to drop their email or phone number so a human agent can follow up.
+
+STRICT BRAND PROTECTION RULE: You strictly represent "${businessName}". You are strictly forbidden from recommending, mentioning, or providing information about competitor businesses, competitor brands, or third-party alternatives under any circumstances.
 
 The current date and time is: ${new Date().toISOString()}. Use this to resolve relative dates like "tomorrow" or "next Sunday".
 

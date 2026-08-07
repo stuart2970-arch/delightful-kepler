@@ -524,5 +524,9 @@ ame, irstMessage, and 	ranscriber) rather than relying on ssistantOverrides de
 * **Fix**: Resolved mobile browser icon display and layout clipping issues:
   1. **Flexbox Layout Preservation**: Fixed `messagesContainer.style.display` in `index.ts` and `embed.ts` onboarding submit handlers from `block` to `flex`. Setting `block` previously broke the chat window flexbox layout, causing the bottom form controls to overflow and hide off-screen on mobile devices once name onboarding completed.
   2. **Explicit Inline SVG & Button Dimensions**: Added explicit `width: 36px`, `height: 36px`, `min-width: 36px`, `min-height: 36px`, `padding: 0`, and `display: flex` styles to `#styleflo-vapi-btn` and `#styleflo-send-btn`. Injected explicit inline SVG attributes (`fill: none`, `stroke: #ffffff`, `stroke-width: 2.5`, `display: block`) so mobile WebKit/Safari/Chrome render the microphone and send arrow icons consistently inside Shadow DOM.
-  3. **Widget Re-compilation**: Re-compiled production widget scripts (`public/widget.js` & `public/embed.js`).
+* **User**: "can we widen this to be aplicable for all chatbots 'you are representing [business name]'"
+* **Fix**: Implemented dynamic brand representation and strict competitor isolation across all chatbots:
+  1. **Dynamic Business Name Resolution**: Updated `/api/chat/stream` to dynamically resolve `businessName` from chatbot config (`configData.businessName`), tenant account (`tenantRes.data.name`), or chatbot name (`chatbot.name`).
+  2. **Strict Brand Protection Guardrail**: Injected `STRICT BRAND PROTECTION RULE: You strictly represent "${businessName}". You are strictly forbidden from recommending, mentioning, or providing information about competitor businesses, competitor brands, or third-party alternatives under any circumstances.` into the global system prompt.
+
 
