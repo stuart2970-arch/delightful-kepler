@@ -3,7 +3,22 @@ import React, { useState, useEffect } from 'react';
 import { useDashboardStore } from '../../lib/store';
 
 export default function IntegrationsView() {
-  const { tenantId, isGoogleConnected, setIsGoogleConnected, bookingMode, bookingUrl, rwgConfig, setRwgConfig, services, staff } = useDashboardStore();
+  const { 
+    tenantId, 
+    isGoogleConnected, 
+    setIsGoogleConnected, 
+    bookingMode, 
+    bookingUrl, 
+    rwgConfig, 
+    setRwgConfig, 
+    services, 
+    staff,
+    rwgAddressSameAsTrading,
+    tradingAddressStreet,
+    tradingAddressCity,
+    tradingAddressPostcode,
+    tradingAddressPhone
+  } = useDashboardStore();
 
   const [rwgIntegrityLogs, setRwgIntegrityLogs] = useState<string[]>([]);
   const [isCheckingRwgIntegrity, setIsCheckingRwgIntegrity] = useState(false);
@@ -12,21 +27,21 @@ export default function IntegrationsView() {
   const [isRwgEnabled, setIsRwgEnabled] = useState(rwgConfig?.is_rwg_enabled || false);
   const [rwgGoogleUrl, setRwgGoogleUrl] = useState('');
   const [rwgBusinessName, setRwgBusinessName] = useState(rwgConfig?.rwg_business_name || rwgConfig?.business_name || '');
-  const [rwgStreetAddress, setRwgStreetAddress] = useState(rwgConfig?.rwg_street_address || rwgConfig?.street_address || '');
-  const [rwgCity, setRwgCity] = useState(rwgConfig?.rwg_city || rwgConfig?.city || '');
-  const [rwgPostcode, setRwgPostcode] = useState(rwgConfig?.rwg_postcode || rwgConfig?.postcode || '');
-  const [rwgPhone, setRwgPhone] = useState(rwgConfig?.rwg_phone || rwgConfig?.telephone || '');
+  const [rwgStreetAddress, setRwgStreetAddress] = useState(rwgAddressSameAsTrading ? tradingAddressStreet : (rwgConfig?.rwg_street_address || rwgConfig?.street_address || ''));
+  const [rwgCity, setRwgCity] = useState(rwgAddressSameAsTrading ? tradingAddressCity : (rwgConfig?.rwg_city || rwgConfig?.city || ''));
+  const [rwgPostcode, setRwgPostcode] = useState(rwgAddressSameAsTrading ? tradingAddressPostcode : (rwgConfig?.rwg_postcode || rwgConfig?.postcode || ''));
+  const [rwgPhone, setRwgPhone] = useState(rwgAddressSameAsTrading ? tradingAddressPhone : (rwgConfig?.rwg_phone || rwgConfig?.telephone || ''));
   const [isRegisteredBusinessAddress, setIsRegisteredBusinessAddress] = useState(rwgConfig?.is_registered_business_address || false);
 
   useEffect(() => {
     setIsRwgEnabled(rwgConfig?.is_rwg_enabled || false);
     setRwgBusinessName(rwgConfig?.rwg_business_name || rwgConfig?.business_name || '');
-    setRwgStreetAddress(rwgConfig?.rwg_street_address || rwgConfig?.street_address || '');
-    setRwgCity(rwgConfig?.rwg_city || rwgConfig?.city || '');
-    setRwgPostcode(rwgConfig?.rwg_postcode || rwgConfig?.postcode || '');
-    setRwgPhone(rwgConfig?.rwg_phone || rwgConfig?.telephone || '');
+    setRwgStreetAddress(rwgAddressSameAsTrading ? tradingAddressStreet : (rwgConfig?.rwg_street_address || rwgConfig?.street_address || ''));
+    setRwgCity(rwgAddressSameAsTrading ? tradingAddressCity : (rwgConfig?.rwg_city || rwgConfig?.city || ''));
+    setRwgPostcode(rwgAddressSameAsTrading ? tradingAddressPostcode : (rwgConfig?.rwg_postcode || rwgConfig?.postcode || ''));
+    setRwgPhone(rwgAddressSameAsTrading ? tradingAddressPhone : (rwgConfig?.rwg_phone || rwgConfig?.telephone || ''));
     setIsRegisteredBusinessAddress(rwgConfig?.is_registered_business_address || false);
-  }, [rwgConfig]);
+  }, [rwgConfig, rwgAddressSameAsTrading, tradingAddressStreet, tradingAddressCity, tradingAddressPostcode, tradingAddressPhone]);
 
   const rwgStatus = isRwgEnabled ? (rwgBusinessName && rwgStreetAddress ? 'Active on Google' : 'Pending Verification') : 'Disconnected';
 
@@ -302,25 +317,29 @@ export default function IntegrationsView() {
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-2 border-t border-[#f2f3f5]">
                         <div>
                           <label className="block text-xs font-semibold text-[#212326] mb-1.5">Business Name</label>
-                          <input type="text" value={rwgBusinessName} onChange={(e) => setRwgBusinessName(e.target.value)} className="w-full h-[50px] bg-white border border-[#f2f3f5] rounded-[6px] px-3.5 py-2 text-sm text-[#212326] focus:outline-none focus:border-[#65bd7d] placeholder-gray-400" placeholder="e.g. Styleflo Salon" />
+                          <input type="text" value={rwgBusinessName} onChange={(e) => setRwgBusinessName(e.target.value)} disabled={rwgAddressSameAsTrading} className="w-full h-[50px] bg-white disabled:bg-gray-100 disabled:text-gray-500 disabled:cursor-not-allowed border border-[#f2f3f5] rounded-[6px] px-3.5 py-2 text-sm text-[#212326] focus:outline-none focus:border-[#65bd7d] placeholder-gray-400" placeholder="e.g. Styleflo Salon" />
                         </div>
                         <div>
                           <label className="block text-xs font-semibold text-[#212326] mb-1.5">Phone Number</label>
-                          <input type="text" value={rwgPhone} onChange={(e) => setRwgPhone(e.target.value)} className="w-full h-[50px] bg-white border border-[#f2f3f5] rounded-[6px] px-3.5 py-2 text-sm text-[#212326] focus:outline-none focus:border-[#65bd7d] placeholder-gray-400" placeholder="+44 123 456 7890" />
+                          <input type="text" value={rwgPhone} onChange={(e) => setRwgPhone(e.target.value)} disabled={rwgAddressSameAsTrading} className="w-full h-[50px] bg-white disabled:bg-gray-100 disabled:text-gray-500 disabled:cursor-not-allowed border border-[#f2f3f5] rounded-[6px] px-3.5 py-2 text-sm text-[#212326] focus:outline-none focus:border-[#65bd7d] placeholder-gray-400" placeholder="+44 123 456 7890" />
                         </div>
                         <div className="md:col-span-2">
                           <label className="block text-xs font-semibold text-[#212326] mb-1.5">Street Address</label>
-                          <input type="text" value={rwgStreetAddress} onChange={(e) => setRwgStreetAddress(e.target.value)} className="w-full h-[50px] bg-white border border-[#f2f3f5] rounded-[6px] px-3.5 py-2 text-sm text-[#212326] focus:outline-none focus:border-[#65bd7d] placeholder-gray-400" placeholder="123 Salon Street" />
+                          <input type="text" value={rwgStreetAddress} onChange={(e) => setRwgStreetAddress(e.target.value)} disabled={rwgAddressSameAsTrading} className="w-full h-[50px] bg-white disabled:bg-gray-100 disabled:text-gray-500 disabled:cursor-not-allowed border border-[#f2f3f5] rounded-[6px] px-3.5 py-2 text-sm text-[#212326] focus:outline-none focus:border-[#65bd7d] placeholder-gray-400" placeholder="123 Salon Street" />
                         </div>
                         <div>
                           <label className="block text-xs font-semibold text-[#212326] mb-1.5">City</label>
-                          <input type="text" value={rwgCity} onChange={(e) => setRwgCity(e.target.value)} className="w-full h-[50px] bg-white border border-[#f2f3f5] rounded-[6px] px-3.5 py-2 text-sm text-[#212326] focus:outline-none focus:border-[#65bd7d] placeholder-gray-400" placeholder="London" />
+                          <input type="text" value={rwgCity} onChange={(e) => setRwgCity(e.target.value)} disabled={rwgAddressSameAsTrading} className="w-full h-[50px] bg-white disabled:bg-gray-100 disabled:text-gray-500 disabled:cursor-not-allowed border border-[#f2f3f5] rounded-[6px] px-3.5 py-2 text-sm text-[#212326] focus:outline-none focus:border-[#65bd7d] placeholder-gray-400" placeholder="London" />
                         </div>
                         <div>
                           <label className="block text-xs font-semibold text-[#212326] mb-1.5">Postcode</label>
-                          <input type="text" value={rwgPostcode} onChange={(e) => setRwgPostcode(e.target.value)} className="w-full h-[50px] bg-white border border-[#f2f3f5] rounded-[6px] px-3.5 py-2 text-sm text-[#212326] focus:outline-none focus:border-[#65bd7d] placeholder-gray-400" placeholder="SW1A 1AA" />
+                          <input type="text" value={rwgPostcode} onChange={(e) => setRwgPostcode(e.target.value)} disabled={rwgAddressSameAsTrading} className="w-full h-[50px] bg-white disabled:bg-gray-100 disabled:text-gray-500 disabled:cursor-not-allowed border border-[#f2f3f5] rounded-[6px] px-3.5 py-2 text-sm text-[#212326] focus:outline-none focus:border-[#65bd7d] placeholder-gray-400" placeholder="SW1A 1AA" />
                         </div>
                       </div>
+
+                      {rwgAddressSameAsTrading && (
+                        <p className="text-xs text-[#65bd7d] font-semibold mt-1">✓ Mapped automatically to match your Trading Address.</p>
+                      )}
 
                       <div className="pt-2">
                         <label className="flex items-center gap-2 cursor-pointer">

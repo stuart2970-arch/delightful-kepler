@@ -26,7 +26,20 @@ export async function PATCH(req: NextRequest) {
       bookingUrl,
       general_operating_hours,
       operating_hours_overrides,
-      holiday_settings
+      holiday_settings,
+
+      // New Address Profile Fields
+      trading_address_street, tradingAddressStreet,
+      trading_address_city, tradingAddressCity,
+      trading_address_postcode, tradingAddressPostcode,
+      trading_address_phone, tradingAddressPhone,
+      company_registration_number, companyRegistrationNumber,
+      registered_address_street, registeredAddressStreet,
+      registered_address_city, registeredAddressCity,
+      registered_address_postcode, registeredAddressPostcode,
+      is_registered_company, isRegisteredCompany,
+      registered_address_same_as_trading, registeredAddressSameAsTrading,
+      rwg_address_same_as_trading, rwgAddressSameAsTrading
     } = body;
 
     if (!tenantId) {
@@ -51,6 +64,22 @@ export async function PATCH(req: NextRequest) {
         ...(general_operating_hours !== undefined && { general_operating_hours }),
         ...(operating_hours_overrides !== undefined && { operating_hours_overrides }),
         ...(holiday_settings !== undefined && { holiday_settings }),
+
+        // Add new address fields
+        ...((trading_address_street !== undefined || tradingAddressStreet !== undefined) && { trading_address_street: trading_address_street ?? tradingAddressStreet }),
+        ...((trading_address_city !== undefined || tradingAddressCity !== undefined) && { trading_address_city: trading_address_city ?? tradingAddressCity }),
+        ...((trading_address_postcode !== undefined || tradingAddressPostcode !== undefined) && { trading_address_postcode: trading_address_postcode ?? tradingAddressPostcode }),
+        ...((trading_address_phone !== undefined || tradingAddressPhone !== undefined) && { trading_address_phone: trading_address_phone ?? tradingAddressPhone }),
+        
+        ...((company_registration_number !== undefined || companyRegistrationNumber !== undefined) && { company_registration_number: company_registration_number ?? companyRegistrationNumber }),
+        
+        ...((registered_address_street !== undefined || registeredAddressStreet !== undefined) && { registered_address_street: registered_address_street ?? registeredAddressStreet }),
+        ...((registered_address_city !== undefined || registeredAddressCity !== undefined) && { registered_address_city: registered_address_city ?? registeredAddressCity }),
+        ...((registered_address_postcode !== undefined || registeredAddressPostcode !== undefined) && { registered_address_postcode: registered_address_postcode ?? registeredAddressPostcode }),
+        
+        ...((is_registered_company !== undefined || isRegisteredCompany !== undefined) && { is_registered_company: is_registered_company ?? isRegisteredCompany }),
+        ...((registered_address_same_as_trading !== undefined || registeredAddressSameAsTrading !== undefined) && { registered_address_same_as_trading: registered_address_same_as_trading ?? registeredAddressSameAsTrading }),
+        ...((rwg_address_same_as_trading !== undefined || rwgAddressSameAsTrading !== undefined) && { rwg_address_same_as_trading: rwg_address_same_as_trading ?? rwgAddressSameAsTrading }),
       })
       .eq('id', tenantId)
       .select()

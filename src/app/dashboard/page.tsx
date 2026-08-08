@@ -86,6 +86,17 @@ export default async function DashboardPage(props: { searchParams?: Promise<{ [k
     rwg_phone: '',
     is_registered_business_address: false
   };
+  let tradingAddressStreet = '';
+  let tradingAddressCity = '';
+  let tradingAddressPostcode = '';
+  let tradingAddressPhone = '';
+  let companyRegistrationNumber = '';
+  let registeredAddressStreet = '';
+  let registeredAddressCity = '';
+  let registeredAddressPostcode = '';
+  let isRegisteredCompany = false;
+  let registeredAddressSameAsTrading = true;
+  let rwgAddressSameAsTrading = true;
 
   let billingData: any = { planTier: 'basic', entitlements: [], usage: { chunks: 0, messages: 0 } };
   let superadminData: any = null;
@@ -108,7 +119,7 @@ export default async function DashboardPage(props: { searchParams?: Promise<{ [k
       
       const { data: tenant } = await supabase
         .from('tenants')
-        .select('company_name, domain, business_address, postcode, plan_tier, is_rwg_enabled, rwg_business_name, rwg_street_address, rwg_city, rwg_postcode, rwg_phone, is_registered_business_address, booking_mode, booking_url, general_operating_hours, operating_hours_overrides, holiday_settings, twilio_shadow_number')
+        .select('company_name, domain, business_address, postcode, plan_tier, is_rwg_enabled, rwg_business_name, rwg_street_address, rwg_city, rwg_postcode, rwg_phone, is_registered_business_address, booking_mode, booking_url, general_operating_hours, operating_hours_overrides, holiday_settings, twilio_shadow_number, trading_address_street, trading_address_city, trading_address_postcode, trading_address_phone, company_registration_number, registered_address_street, registered_address_city, registered_address_postcode, is_registered_company, registered_address_same_as_trading, rwg_address_same_as_trading')
         .eq('id', tenantId)
         .single();
       
@@ -128,6 +139,17 @@ export default async function DashboardPage(props: { searchParams?: Promise<{ [k
           rwg_phone: tenant.rwg_phone || '',
           is_registered_business_address: tenant.is_registered_business_address || false,
         };
+        tradingAddressStreet = tenant.trading_address_street || '';
+        tradingAddressCity = tenant.trading_address_city || '';
+        tradingAddressPostcode = tenant.trading_address_postcode || '';
+        tradingAddressPhone = tenant.trading_address_phone || '';
+        companyRegistrationNumber = tenant.company_registration_number || '';
+        registeredAddressStreet = tenant.registered_address_street || '';
+        registeredAddressCity = tenant.registered_address_city || '';
+        registeredAddressPostcode = tenant.registered_address_postcode || '';
+        isRegisteredCompany = tenant.is_registered_company || false;
+        registeredAddressSameAsTrading = tenant.registered_address_same_as_trading !== false;
+        rwgAddressSameAsTrading = tenant.rwg_address_same_as_trading !== false;
         generalOperatingHours = tenant.general_operating_hours || {};
         operatingHoursOverrides = tenant.operating_hours_overrides || [];
         holidaySettings = tenant.holiday_settings || {};
@@ -169,7 +191,7 @@ export default async function DashboardPage(props: { searchParams?: Promise<{ [k
       // Override tenant mapping to fetch the impersonated tenant's data using the admin client
       const { data: impTenant } = await queryClient
         .from('tenants')
-        .select('company_name, domain, business_address, postcode, plan_tier, is_rwg_enabled, rwg_business_name, rwg_street_address, rwg_city, rwg_postcode, rwg_phone, is_registered_business_address, booking_mode, booking_url, general_operating_hours, operating_hours_overrides, holiday_settings, twilio_shadow_number')
+        .select('company_name, domain, business_address, postcode, plan_tier, is_rwg_enabled, rwg_business_name, rwg_street_address, rwg_city, rwg_postcode, rwg_phone, is_registered_business_address, booking_mode, booking_url, general_operating_hours, operating_hours_overrides, holiday_settings, twilio_shadow_number, trading_address_street, trading_address_city, trading_address_postcode, trading_address_phone, company_registration_number, registered_address_street, registered_address_city, registered_address_postcode, is_registered_company, registered_address_same_as_trading, rwg_address_same_as_trading')
         .eq('id', tenantId)
         .single();
         
@@ -189,6 +211,17 @@ export default async function DashboardPage(props: { searchParams?: Promise<{ [k
           rwg_phone: impTenant.rwg_phone || '',
           is_registered_business_address: impTenant.is_registered_business_address || false,
         };
+        tradingAddressStreet = impTenant.trading_address_street || '';
+        tradingAddressCity = impTenant.trading_address_city || '';
+        tradingAddressPostcode = impTenant.trading_address_postcode || '';
+        tradingAddressPhone = impTenant.trading_address_phone || '';
+        companyRegistrationNumber = impTenant.company_registration_number || '';
+        registeredAddressStreet = impTenant.registered_address_street || '';
+        registeredAddressCity = impTenant.registered_address_city || '';
+        registeredAddressPostcode = impTenant.registered_address_postcode || '';
+        isRegisteredCompany = impTenant.is_registered_company || false;
+        registeredAddressSameAsTrading = impTenant.registered_address_same_as_trading !== false;
+        rwgAddressSameAsTrading = impTenant.rwg_address_same_as_trading !== false;
         generalOperatingHours = impTenant.general_operating_hours || {};
         operatingHoursOverrides = impTenant.operating_hours_overrides || [];
         holidaySettings = impTenant.holiday_settings || {};
@@ -336,6 +369,17 @@ export default async function DashboardPage(props: { searchParams?: Promise<{ [k
         initialDomain={domain}
         initialBusinessAddress={businessAddress}
         initialPostcode={postcode}
+        initialTradingAddressStreet={tradingAddressStreet}
+        initialTradingAddressCity={tradingAddressCity}
+        initialTradingAddressPostcode={tradingAddressPostcode}
+        initialTradingAddressPhone={tradingAddressPhone}
+        initialCompanyRegistrationNumber={companyRegistrationNumber}
+        initialRegisteredAddressStreet={registeredAddressStreet}
+        initialRegisteredAddressCity={registeredAddressCity}
+        initialRegisteredAddressPostcode={registeredAddressPostcode}
+        initialIsRegisteredCompany={isRegisteredCompany}
+        initialRegisteredAddressSameAsTrading={registeredAddressSameAsTrading}
+        initialRwgAddressSameAsTrading={rwgAddressSameAsTrading}
         initialTwilioShadowNumber={initialTwilioShadowNumber}
         initialRwgConfig={rwgConfig}
         initialBookingMode={bookingMode}

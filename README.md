@@ -540,3 +540,11 @@ ame, irstMessage, and 	ranscriber) rather than relying on ssistantOverrides de
 * **Fix**: Migrated the Next.js `middleware.ts` system configuration to follow the new Next.js 16 `proxy.ts` convention:
   1. **Proxy Creation**: Created `src/proxy.ts` exporting the `proxy` handler, performing identically to the legacy middleware for SSO token synchronization, path matching, and route-based auth protection.
   2. **Legacy Cleanup**: Removed the deprecated `src/middleware.ts` file from the repository, resolving build-time and execution-time console warnings.
+
+### Session 15 (August 8, 2026)
+* **User**: "proceed, and supply the sql for the database, and i will runthat"
+* **Fix**: Implemented the consolidated Address Management Profiles architecture and expanded database fields:
+  1. **Database SQL Migration**: Created [20260808000000_add_trading_and_registered_addresses.sql](file:///c:/Users/Stuar/.gemini/antigravity/scratch/delightful-kepler/supabase/migrations/20260808000000_add_trading_and_registered_addresses.sql) adding `trading_address_*`, `registered_address_*`, `company_registration_number`, `is_registered_company`, `registered_address_same_as_trading`, and `rwg_address_same_as_trading` columns to the `tenants` table.
+  2. **Zustand State Hydration**: Updated `src/lib/store.ts` to manage these new values at runtime, and updated `src/app/dashboard/page.tsx` to query these fields server-side and pass them to the client-side state.
+  3. **PATCH & GET Settings API Routing**: Updated `src/app/api/tenants/settings/route.ts` to parse and save these new fields, and updated the metadata API at `src/app/api/tenants/[slug]/metadata/route.ts` to return these fields with a backward-compatible mapping of the primary Trading Address as the default `business_address` key.
+  4. **Frontend Forms Redesign**: Re-engineered the Account Settings view inside `src/components/DashboardClient.tsx` to use responsive card layouts containing explanatory info callouts, and automated synchronization check toggles. Updated `src/components/dashboard-views/IntegrationsView.tsx` to read the synchronization state from the store and display locked inputs accordingly.

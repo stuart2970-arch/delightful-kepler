@@ -123,6 +123,32 @@ export interface DashboardState {
   twilioShadowNumber: string | null;
   setTwilioShadowNumber: (number: string | null) => void;
 
+  // New Address Profile Fields
+  tradingAddressStreet: string;
+  setTradingAddressStreet: (street: string) => void;
+  tradingAddressCity: string;
+  setTradingAddressCity: (city: string) => void;
+  tradingAddressPostcode: string;
+  setTradingAddressPostcode: (postcode: string) => void;
+  tradingAddressPhone: string;
+  setTradingAddressPhone: (phone: string) => void;
+
+  companyRegistrationNumber: string;
+  setCompanyRegistrationNumber: (number: string) => void;
+  registeredAddressStreet: string;
+  setRegisteredAddressStreet: (street: string) => void;
+  registeredAddressCity: string;
+  setRegisteredAddressCity: (city: string) => void;
+  registeredAddressPostcode: string;
+  setRegisteredAddressPostcode: (postcode: string) => void;
+
+  isRegisteredCompany: boolean;
+  setIsRegisteredCompany: (isRegistered: boolean) => void;
+  registeredAddressSameAsTrading: boolean;
+  setRegisteredAddressSameAsTrading: (same: boolean) => void;
+  rwgAddressSameAsTrading: boolean;
+  setRwgAddressSameAsTrading: (same: boolean) => void;
+
   // RWG & Scheduling Context
   rwgConfig: any;
   setRwgConfig: (config: any) => void;
@@ -153,6 +179,31 @@ export const useDashboardStore = create<DashboardState>((set) => ({
   postcode: '',
   setPostcode: (postcode) => set({ postcode }),
   
+  tradingAddressStreet: '',
+  setTradingAddressStreet: (tradingAddressStreet) => set({ tradingAddressStreet }),
+  tradingAddressCity: '',
+  setTradingAddressCity: (tradingAddressCity) => set({ tradingAddressCity }),
+  tradingAddressPostcode: '',
+  setTradingAddressPostcode: (tradingAddressPostcode) => set({ tradingAddressPostcode }),
+  tradingAddressPhone: '',
+  setTradingAddressPhone: (tradingAddressPhone) => set({ tradingAddressPhone }),
+
+  companyRegistrationNumber: '',
+  setCompanyRegistrationNumber: (companyRegistrationNumber) => set({ companyRegistrationNumber }),
+  registeredAddressStreet: '',
+  setRegisteredAddressStreet: (registeredAddressStreet) => set({ registeredAddressStreet }),
+  registeredAddressCity: '',
+  setRegisteredAddressCity: (registeredAddressCity) => set({ registeredAddressCity }),
+  registeredAddressPostcode: '',
+  setRegisteredAddressPostcode: (registeredAddressPostcode) => set({ registeredAddressPostcode }),
+
+  isRegisteredCompany: false,
+  setIsRegisteredCompany: (isRegisteredCompany) => set({ isRegisteredCompany }),
+  registeredAddressSameAsTrading: true,
+  setRegisteredAddressSameAsTrading: (registeredAddressSameAsTrading) => set({ registeredAddressSameAsTrading }),
+  rwgAddressSameAsTrading: true,
+  setRwgAddressSameAsTrading: (rwgAddressSameAsTrading) => set({ rwgAddressSameAsTrading }),
+
   activeTab: 'chatbots',
   setActiveTab: (tab) => set({ activeTab: tab }),
   isMobileMenuOpen: false,

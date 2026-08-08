@@ -85,6 +85,18 @@ interface DashboardClientProps {
   initialPostcode?: string;
   initialGoogleConnectedEmail?: string | null;
   initialTwilioShadowNumber?: string | null;
+
+  initialTradingAddressStreet?: string;
+  initialTradingAddressCity?: string;
+  initialTradingAddressPostcode?: string;
+  initialTradingAddressPhone?: string;
+  initialCompanyRegistrationNumber?: string;
+  initialRegisteredAddressStreet?: string;
+  initialRegisteredAddressCity?: string;
+  initialRegisteredAddressPostcode?: string;
+  initialIsRegisteredCompany?: boolean;
+  initialRegisteredAddressSameAsTrading?: boolean;
+  initialRwgAddressSameAsTrading?: boolean;
 }
 
 export default function DashboardClient({
@@ -115,6 +127,18 @@ export default function DashboardClient({
   initialBusinessAddress,
   initialPostcode,
   initialTwilioShadowNumber,
+
+  initialTradingAddressStreet,
+  initialTradingAddressCity,
+  initialTradingAddressPostcode,
+  initialTradingAddressPhone,
+  initialCompanyRegistrationNumber,
+  initialRegisteredAddressStreet,
+  initialRegisteredAddressCity,
+  initialRegisteredAddressPostcode,
+  initialIsRegisteredCompany,
+  initialRegisteredAddressSameAsTrading,
+  initialRwgAddressSameAsTrading,
 }: DashboardClientProps) {
   // Synchronize state with store whenever props or tenantId change
   useEffect(() => {
@@ -143,6 +167,18 @@ export default function DashboardClient({
       businessAddress: initialBusinessAddress || '',
       postcode: initialPostcode || '',
       twilioShadowNumber: initialTwilioShadowNumber || null,
+
+      tradingAddressStreet: initialTradingAddressStreet || '',
+      tradingAddressCity: initialTradingAddressCity || '',
+      tradingAddressPostcode: initialTradingAddressPostcode || '',
+      tradingAddressPhone: initialTradingAddressPhone || '',
+      companyRegistrationNumber: initialCompanyRegistrationNumber || '',
+      registeredAddressStreet: initialRegisteredAddressStreet || '',
+      registeredAddressCity: initialRegisteredAddressCity || '',
+      registeredAddressPostcode: initialRegisteredAddressPostcode || '',
+      isRegisteredCompany: initialIsRegisteredCompany || false,
+      registeredAddressSameAsTrading: initialRegisteredAddressSameAsTrading !== false,
+      rwgAddressSameAsTrading: initialRwgAddressSameAsTrading !== false,
     });
   }, [
     tenantId,
@@ -169,6 +205,18 @@ export default function DashboardClient({
     initialBusinessAddress,
     initialPostcode,
     initialTwilioShadowNumber,
+
+    initialTradingAddressStreet,
+    initialTradingAddressCity,
+    initialTradingAddressPostcode,
+    initialTradingAddressPhone,
+    initialCompanyRegistrationNumber,
+    initialRegisteredAddressStreet,
+    initialRegisteredAddressCity,
+    initialRegisteredAddressPostcode,
+    initialIsRegisteredCompany,
+    initialRegisteredAddressSameAsTrading,
+    initialRwgAddressSameAsTrading,
   ]);
 
   const { 
@@ -181,7 +229,19 @@ export default function DashboardClient({
     rwgConfig, setRwgConfig,
     twilioShadowNumber, setTwilioShadowNumber,
     services, setServices,
-    staff, setStaff
+    staff, setStaff,
+
+    tradingAddressStreet, setTradingAddressStreet,
+    tradingAddressCity, setTradingAddressCity,
+    tradingAddressPostcode, setTradingAddressPostcode,
+    tradingAddressPhone, setTradingAddressPhone,
+    companyRegistrationNumber, setCompanyRegistrationNumber,
+    registeredAddressStreet, setRegisteredAddressStreet,
+    registeredAddressCity, setRegisteredAddressCity,
+    registeredAddressPostcode, setRegisteredAddressPostcode,
+    isRegisteredCompany, setIsRegisteredCompany,
+    registeredAddressSameAsTrading, setRegisteredAddressSameAsTrading,
+    rwgAddressSameAsTrading, setRwgAddressSameAsTrading,
   } = useDashboardStore();
 
   const [isSavingAccountSettings, setIsSavingAccountSettings] = useState(false);
@@ -190,18 +250,63 @@ export default function DashboardClient({
     e.preventDefault();
     setIsSavingAccountSettings(true);
     try {
+      // Build final configurations based on auto-sync checkboxes
+      let finalRwgConfig = { ...rwgConfig };
+      if (rwgAddressSameAsTrading) {
+        finalRwgConfig.rwg_street_address = tradingAddressStreet;
+        finalRwgConfig.rwg_city = tradingAddressCity;
+        finalRwgConfig.rwg_postcode = tradingAddressPostcode;
+        finalRwgConfig.rwg_phone = tradingAddressPhone;
+      }
+      
+      let finalRegisteredAddressStreet = registeredAddressStreet;
+      let finalRegisteredAddressCity = registeredAddressCity;
+      let finalRegisteredAddressPostcode = registeredAddressPostcode;
+      if (registeredAddressSameAsTrading) {
+        finalRegisteredAddressStreet = tradingAddressStreet;
+        finalRegisteredAddressCity = tradingAddressCity;
+        finalRegisteredAddressPostcode = tradingAddressPostcode;
+      }
+
       const response = await fetch('/api/tenants/settings', {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           tenantId,
           domain: domain,
-          rwgConfig: rwgConfig
+          rwgConfig: {
+            ...finalRwgConfig,
+            is_registered_business_address: registeredAddressSameAsTrading // Sync legacy field for compatibility
+          },
+          tradingAddressStreet,
+          tradingAddressCity,
+          tradingAddressPostcode,
+          tradingAddressPhone,
+          companyRegistrationNumber,
+          registeredAddressStreet: finalRegisteredAddressStreet,
+          registeredAddressCity: finalRegisteredAddressCity,
+          registeredAddressPostcode: finalRegisteredAddressPostcode,
+          isRegisteredCompany,
+          registeredAddressSameAsTrading,
+          rwgAddressSameAsTrading
         }),
       });
+
       if (!response.ok) {
         throw new Error('Failed to save account settings');
       }
+
+      // Sync updated settings to the store
+      setRwgConfig({
+        ...finalRwgConfig,
+        is_registered_business_address: registeredAddressSameAsTrading
+      });
+      if (registeredAddressSameAsTrading) {
+        setRegisteredAddressStreet(tradingAddressStreet);
+        setRegisteredAddressCity(tradingAddressCity);
+        setRegisteredAddressPostcode(tradingAddressPostcode);
+      }
+
       alert('Account settings saved successfully!');
     } catch (err: any) {
       alert('Error: ' + err.message);
@@ -779,48 +884,263 @@ const globalBotId = '00000000-0000-0000-0000-000000000000';
                   <p className="text-xs text-[var(--awb-color6)] mt-0.5">Manage your workspace account preferences.</p>
                 </div>
 
-                <form onSubmit={handleSaveAccountSettings} className="space-y-4">
-                  <div>
-                    <label className="block text-xs font-semibold text-[var(--awb-color7)] mb-1.5">Custom Domain</label>
-                    <input
-                      type="text"
-                      value={domain}
-                      onChange={(e) => setDomain(e.target.value)}
-                      className="w-full h-[50px] bg-[var(--awb-color1)] border border-[var(--awb-color3)] rounded-[6px] px-3.5 py-2 text-sm text-[var(--awb-color8)] focus:outline-none focus:border-[var(--awb-color4)]"
-                      placeholder="e.g. www.mycompany.com"
-                    />
-                    <p className="text-[10px] text-[var(--awb-color6)] mt-1">Point this domain to the webpage we are creating for you.</p>
+                <form onSubmit={handleSaveAccountSettings} className="space-y-6">
+                  {/* Custom Domain Card */}
+                  <div className="bg-white border border-[#f2f3f5] p-6 rounded-xl space-y-4">
+                    <h4 className="text-sm font-bold text-[#260475]">General Information</h4>
+                    <div>
+                      <label className="block text-xs font-semibold text-[#212326] mb-1.5">Custom Domain</label>
+                      <input
+                        type="text"
+                        value={domain}
+                        onChange={(e) => setDomain(e.target.value)}
+                        className="w-full h-[50px] bg-white border border-[#f2f3f5] rounded-[6px] px-3.5 py-2 text-sm text-[#212326] focus:outline-none focus:border-[#198fd9]"
+                        placeholder="e.g. www.mycompany.com"
+                      />
+                      <p className="text-[10px] text-[#434549] mt-1">Point this domain to the webpage we are creating for you.</p>
+                    </div>
                   </div>
-                  <div>
-                    <label className="block text-xs font-semibold text-[var(--awb-color7)] mb-1.5">Business Address</label>
-                    <input
-                      type="text"
-                      value={rwgConfig?.rwg_street_address || ''}
-                      onChange={(e) => setRwgConfig({ ...rwgConfig, rwg_street_address: e.target.value })}
-                      className="w-full h-[50px] bg-[var(--awb-color1)] border border-[var(--awb-color3)] rounded-[6px] px-3.5 py-2 text-sm text-[var(--awb-color8)] focus:outline-none focus:border-[var(--awb-color4)]"
-                      placeholder="e.g. 123 Business Road"
-                    />
+
+                  {/* Trading Address Card */}
+                  <div className="bg-white border border-[#f2f3f5] p-6 rounded-xl space-y-4">
+                    <h4 className="text-sm font-bold text-[#260475]">Trading Address</h4>
+                    
+                    <div className="bg-blue-50 border border-blue-200 p-4 rounded-xl space-y-1.5">
+                      <p className="text-xs text-blue-900 flex items-center gap-1.5 font-bold">
+                        ℹ️ About Trading Address
+                      </p>
+                      <p className="text-[11px] text-blue-800 leading-relaxed">
+                        This is the physical storefront or location where your business operates and trades. It is used by your AI assistant to answer questions about your location and provide routing directions.
+                      </p>
+                      <p className="text-[11px] text-amber-900 font-bold border-t border-blue-200/50 pt-1.5 mt-1.5">
+                        ⚠️ If Omitted: Your AI assistant won't be able to provide directions or answers about your store location.
+                      </p>
+                    </div>
+
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div className="md:col-span-2">
+                        <label className="block text-xs font-semibold text-[#212326] mb-1.5">Street Address</label>
+                        <input
+                          type="text"
+                          value={tradingAddressStreet}
+                          onChange={(e) => setTradingAddressStreet(e.target.value)}
+                          className="w-full h-[50px] bg-white border border-[#f2f3f5] rounded-[6px] px-3.5 py-2 text-sm text-[#212326] focus:outline-none focus:border-[#198fd9]"
+                          placeholder="e.g. 123 Salon Street"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-xs font-semibold text-[#212326] mb-1.5">City</label>
+                        <input
+                          type="text"
+                          value={tradingAddressCity}
+                          onChange={(e) => setTradingAddressCity(e.target.value)}
+                          className="w-full h-[50px] bg-white border border-[#f2f3f5] rounded-[6px] px-3.5 py-2 text-sm text-[#212326] focus:outline-none focus:border-[#198fd9]"
+                          placeholder="e.g. London"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-xs font-semibold text-[#212326] mb-1.5">Postcode</label>
+                        <input
+                          type="text"
+                          value={tradingAddressPostcode}
+                          onChange={(e) => setTradingAddressPostcode(e.target.value)}
+                          className="w-full h-[50px] bg-white border border-[#f2f3f5] rounded-[6px] px-3.5 py-2 text-sm text-[#212326] focus:outline-none focus:border-[#198fd9]"
+                          placeholder="e.g. SW1A 1AA"
+                        />
+                      </div>
+                      <div className="md:col-span-2">
+                        <label className="block text-xs font-semibold text-[#212326] mb-1.5">Trading Phone Number</label>
+                        <input
+                          type="text"
+                          value={tradingAddressPhone}
+                          onChange={(e) => setTradingAddressPhone(e.target.value)}
+                          className="w-full h-[50px] bg-white border border-[#f2f3f5] rounded-[6px] px-3.5 py-2 text-sm text-[#212326] focus:outline-none focus:border-[#198fd9]"
+                          placeholder="e.g. +44 123 456 7890"
+                        />
+                      </div>
+                    </div>
                   </div>
-                  <div>
-                    <label className="block text-xs font-semibold text-[var(--awb-color7)] mb-1.5">City</label>
-                    <input
-                      type="text"
-                      value={rwgConfig?.rwg_city || ''}
-                      onChange={(e) => setRwgConfig({ ...rwgConfig, rwg_city: e.target.value })}
-                      className="w-full h-[50px] bg-[var(--awb-color1)] border border-[var(--awb-color3)] rounded-[6px] px-3.5 py-2 text-sm text-[var(--awb-color8)] focus:outline-none focus:border-[var(--awb-color4)]"
-                      placeholder="e.g. London"
-                    />
+
+                  {/* Reserve with Google Mapping Card */}
+                  <div className="bg-white border border-[#f2f3f5] p-6 rounded-xl space-y-4">
+                    <div className="flex items-center justify-between">
+                      <h4 className="text-sm font-bold text-[#260475]">Reserve with Google Mapping</h4>
+                      <label className="flex items-center gap-2 cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={rwgAddressSameAsTrading}
+                          onChange={(e) => setRwgAddressSameAsTrading(e.target.checked)}
+                          className="w-4 h-4 text-[#198fd9] bg-white border-[#f2f3f5] rounded focus:ring-[#198fd9]"
+                        />
+                        <span className="text-xs font-bold text-[#212326]">Same as Trading Address</span>
+                      </label>
+                    </div>
+
+                    <div className="bg-blue-50 border border-blue-200 p-4 rounded-xl space-y-1.5">
+                      <p className="text-xs text-blue-900 flex items-center gap-1.5 font-bold">
+                        ℹ️ About Reserve with Google Address
+                      </p>
+                      <p className="text-[11px] text-blue-800 leading-relaxed">
+                        This must match your Google Business Profile (Google Maps) details exactly, letter-for-letter. Google uses this precise match to authorize the "Book Online" integrations.
+                      </p>
+                      <p className="text-[11px] text-amber-900 font-bold border-t border-blue-200/50 pt-1.5 mt-1.5">
+                        ⚠️ If Omitted: The native "Book Online" button cannot be activated on your Google Maps and Search profiles.
+                      </p>
+                    </div>
+
+                    {!rwgAddressSameAsTrading && (
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div>
+                          <label className="block text-xs font-semibold text-[#212326] mb-1.5">Google Business Name</label>
+                          <input
+                            type="text"
+                            value={rwgConfig?.rwg_business_name || ''}
+                            onChange={(e) => setRwgConfig({ ...rwgConfig, rwg_business_name: e.target.value })}
+                            className="w-full h-[50px] bg-white border border-[#f2f3f5] rounded-[6px] px-3.5 py-2 text-sm text-[#212326] focus:outline-none focus:border-[#198fd9]"
+                            placeholder="e.g. Styleflo Salon"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-xs font-semibold text-[#212326] mb-1.5">Google Phone Number</label>
+                          <input
+                            type="text"
+                            value={rwgConfig?.rwg_phone || ''}
+                            onChange={(e) => setRwgConfig({ ...rwgConfig, rwg_phone: e.target.value })}
+                            className="w-full h-[50px] bg-white border border-[#f2f3f5] rounded-[6px] px-3.5 py-2 text-sm text-[#212326] focus:outline-none focus:border-[#198fd9]"
+                            placeholder="e.g. +44 123 456 7890"
+                          />
+                        </div>
+                        <div className="md:col-span-2">
+                          <label className="block text-xs font-semibold text-[#212326] mb-1.5">Google Street Address</label>
+                          <input
+                            type="text"
+                            value={rwgConfig?.rwg_street_address || ''}
+                            onChange={(e) => setRwgConfig({ ...rwgConfig, rwg_street_address: e.target.value })}
+                            className="w-full h-[50px] bg-white border border-[#f2f3f5] rounded-[6px] px-3.5 py-2 text-sm text-[#212326] focus:outline-none focus:border-[#198fd9]"
+                            placeholder="e.g. 123 Salon Street"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-xs font-semibold text-[#212326] mb-1.5">Google City</label>
+                          <input
+                            type="text"
+                            value={rwgConfig?.rwg_city || ''}
+                            onChange={(e) => setRwgConfig({ ...rwgConfig, rwg_city: e.target.value })}
+                            className="w-full h-[50px] bg-white border border-[#f2f3f5] rounded-[6px] px-3.5 py-2 text-sm text-[#212326] focus:outline-none focus:border-[#198fd9]"
+                            placeholder="e.g. London"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-xs font-semibold text-[#212326] mb-1.5">Google Postcode</label>
+                          <input
+                            type="text"
+                            value={rwgConfig?.rwg_postcode || ''}
+                            onChange={(e) => setRwgConfig({ ...rwgConfig, rwg_postcode: e.target.value })}
+                            className="w-full h-[50px] bg-white border border-[#f2f3f5] rounded-[6px] px-3.5 py-2 text-sm text-[#212326] focus:outline-none focus:border-[#198fd9]"
+                            placeholder="e.g. SW1A 1AA"
+                          />
+                        </div>
+                      </div>
+                    )}
+                    {rwgAddressSameAsTrading && (
+                      <p className="text-xs text-[#65bd7d] font-semibold">✓ Automatically synchronized with your Trading Address.</p>
+                    )}
                   </div>
-                  <div>
-                    <label className="block text-xs font-semibold text-[var(--awb-color7)] mb-1.5">Postcode</label>
-                    <input
-                      type="text"
-                      value={rwgConfig?.rwg_postcode || ''}
-                      onChange={(e) => setRwgConfig({ ...rwgConfig, rwg_postcode: e.target.value })}
-                      className="w-full h-[50px] bg-[var(--awb-color1)] border border-[var(--awb-color3)] rounded-[6px] px-3.5 py-2 text-sm text-[var(--awb-color8)] focus:outline-none focus:border-[var(--awb-color4)]"
-                      placeholder="e.g. AB12 3CD"
-                    />
+
+                  {/* Registered Business Address Card */}
+                  <div className="bg-white border border-[#f2f3f5] p-6 rounded-xl space-y-4">
+                    <div className="flex items-center justify-between">
+                      <h4 className="text-sm font-bold text-[#260475]">Official Registered Address</h4>
+                      <label className="flex items-center gap-2 cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={isRegisteredCompany}
+                          onChange={(e) => setIsRegisteredCompany(e.target.checked)}
+                          className="w-4 h-4 text-[#198fd9] bg-white border-[#f2f3f5] rounded focus:ring-[#198fd9]"
+                        />
+                        <span className="text-xs font-bold text-[#212326]">Business is a registered company</span>
+                      </label>
+                    </div>
+
+                    <div className="bg-blue-50 border border-blue-200 p-4 rounded-xl space-y-1.5">
+                      <p className="text-xs text-blue-900 flex items-center gap-1.5 font-bold">
+                        ℹ️ About Registered Address
+                      </p>
+                      <p className="text-[11px] text-blue-800 leading-relaxed">
+                        This is your official registered office address and company registration number (CRN). Under UK law, registered corporate entities are legally required to display this on their website.
+                      </p>
+                      <p className="text-[11px] text-[#260475] font-bold border-t border-blue-200/50 pt-1.5 mt-1.5">
+                        ⚠️ If Omitted: For registered UK entities, failing to display this on your website violates e-commerce regulations and may result in compliance flags or invoicing limitations.
+                      </p>
+                    </div>
+
+                    {isRegisteredCompany && (
+                      <div className="space-y-4 pt-2">
+                        <div>
+                          <label className="block text-xs font-semibold text-[#212326] mb-1.5">Company Registration Number (CRN)</label>
+                          <input
+                            type="text"
+                            value={companyRegistrationNumber}
+                            onChange={(e) => setCompanyRegistrationNumber(e.target.value)}
+                            className="w-full h-[50px] bg-white border border-[#f2f3f5] rounded-[6px] px-3.5 py-2 text-sm text-[#212326] focus:outline-none focus:border-[#198fd9]"
+                            placeholder="e.g. 12345678"
+                          />
+                        </div>
+
+                        <div className="flex items-center justify-between pt-2 border-t border-[#f2f3f5]">
+                          <span className="text-xs font-bold text-[#212326]">Registered Address matches Trading Address</span>
+                          <label className="flex items-center gap-2 cursor-pointer">
+                            <input
+                              type="checkbox"
+                              checked={registeredAddressSameAsTrading}
+                              onChange={(e) => setRegisteredAddressSameAsTrading(e.target.checked)}
+                              className="w-4 h-4 text-[#198fd9] bg-white border-[#f2f3f5] rounded focus:ring-[#198fd9]"
+                            />
+                            <span className="text-xs font-bold text-[#212326]">Yes, same</span>
+                          </label>
+                        </div>
+
+                        {!registeredAddressSameAsTrading && (
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-2">
+                            <div className="md:col-span-2">
+                              <label className="block text-xs font-semibold text-[#212326] mb-1.5">Registered Street Address</label>
+                              <input
+                                type="text"
+                                value={registeredAddressStreet}
+                                onChange={(e) => setRegisteredAddressStreet(e.target.value)}
+                                className="w-full h-[50px] bg-white border border-[#f2f3f5] rounded-[6px] px-3.5 py-2 text-sm text-[#212326] focus:outline-none focus:border-[#198fd9]"
+                                placeholder="e.g. 456 Corporate Lane"
+                              />
+                            </div>
+                            <div>
+                              <label className="block text-xs font-semibold text-[#212326] mb-1.5">Registered City</label>
+                              <input
+                                type="text"
+                                value={registeredAddressCity}
+                                onChange={(e) => setRegisteredAddressCity(e.target.value)}
+                                className="w-full h-[50px] bg-white border border-[#f2f3f5] rounded-[6px] px-3.5 py-2 text-sm text-[#212326] focus:outline-none focus:border-[#198fd9]"
+                                placeholder="e.g. Edinburgh"
+                              />
+                            </div>
+                            <div>
+                              <label className="block text-xs font-semibold text-[#212326] mb-1.5">Registered Postcode</label>
+                              <input
+                                type="text"
+                                value={registeredAddressPostcode}
+                                onChange={(e) => setRegisteredAddressPostcode(e.target.value)}
+                                className="w-full h-[50px] bg-white border border-[#f2f3f5] rounded-[6px] px-3.5 py-2 text-sm text-[#212326] focus:outline-none focus:border-[#198fd9]"
+                                placeholder="e.g. EH1 1BB"
+                              />
+                            </div>
+                          </div>
+                        )}
+                        {registeredAddressSameAsTrading && (
+                          <p className="text-xs text-[#65bd7d] font-semibold">✓ Automatically synchronized with your Trading Address.</p>
+                        )}
+                      </div>
+                    )}
                   </div>
+
                   <div className="pt-2">
                     <button
                       type="submit"
