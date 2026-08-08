@@ -553,3 +553,6 @@ ame, irstMessage, and 	ranscriber) rather than relying on ssistantOverrides de
   1. **Direct Sync Toggle**: Placed the "Google Profile details match Trading Address" sync checkbox directly inside the Reserve with Google card on `src/components/dashboard-views/IntegrationsView.tsx` so users can instantly toggle it off to customize Google-specific data locally.
   2. **Inter-Tab Navigation**: Added a blue sync alert card containing a direct link button that dynamically switches the dashboard to the "Account Settings" tab where the primary Trading Address fields are configured.
   3. **Google Business Name Independence**: Removed the disabled block from the Google Business Name input so it can be customized even if address synchronization is active.
+* **User**: "i visited account details and added a telephone number, however, this errored with 'failed to save' message"
+* **Fix**: Resolved custom domain database unique constraint violation:
+  1. **Convert Blank Domains to Null**: Updated `src/app/api/tenants/settings/route.ts` to convert blank or empty domain strings to `null` before performing database updates. This prevents duplicate key constraint errors (which occurred because Postgres unique constraints reject multiple empty strings `""` but allow infinite `null` values).
