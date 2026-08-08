@@ -51,11 +51,11 @@ export default function BillingView() {
     <div className="space-y-6">
       <div className="bg-[var(--awb-color1)] border border-[var(--awb-color3)] rounded-2xl p-6 shadow-xl relative overflow-hidden">
         {/* Background Accent */}
-        <div className="absolute top-0 right-0 w-64 h-64 bg-[#198fd9] text-white font-semibold rounded-[4px] px-[29px] py-[13px]/5 rounded-full blur-3xl -mr-20 -mt-20 pointer-events-none"></div>
+        <div className="absolute top-0 right-0 w-64 h-64 bg-[var(--awb-color5)]/5 rounded-full blur-3xl -mr-20 -mt-20 pointer-events-none"></div>
         
         <div className="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-6">
           <div>
-            <h2 className="text-xl font-bold text-[var(--awb-color8)]">Current Plan: <span className="capitalize text-[var(--awb-color5)]">{planTier}</span></h2>
+            <h2 className="text-xl font-bold text-[var(--awb-color8)]">Current Plan: <span className="capitalize text-[var(--awb-color5)] font-bold">{planTier}</span></h2>
             <p className="text-sm text-[var(--awb-color6)] mt-1">
               Your subscription and api quotas are managed via your main account.
             </p>
@@ -63,7 +63,7 @@ export default function BillingView() {
           
           <button 
             onClick={handleUpgrade}
-            className="bg-[#198fd9] text-white font-semibold rounded-[4px] px-[29px] py-[13px] hover:bg-[#198fd9] text-white font-semibold rounded-[4px] px-[29px] py-[13px] text-[var(--awb-color8)] font-bold py-2.5 px-6 rounded-xl shadow-lg transition-colors flex items-center gap-2 whitespace-nowrap"
+            className="bg-[#198fd9] hover:bg-[#157ab9] text-white text-xs font-bold py-2.5 px-5 rounded-[4px] shadow-sm transition-colors whitespace-nowrap flex items-center gap-2"
           >
             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6" />
@@ -74,7 +74,7 @@ export default function BillingView() {
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        <div className="bg-white border border-[#f2f3f5] rounded-2xl p-6">
+        <div className="bg-[var(--awb-color1)] border border-[var(--awb-color3)] rounded-2xl p-6">
           <h3 className="text-sm font-bold text-[var(--awb-color7)] mb-4">API Usage (This Month)</h3>
           
           <div className="space-y-4">
@@ -83,8 +83,8 @@ export default function BillingView() {
                 <span className="text-[var(--awb-color6)] font-semibold">LLM Tokens Generated</span>
                 <span className="text-[var(--awb-color8)] font-mono">{messagesUsed.toLocaleString()}</span>
               </div>
-              <div className="w-full bg-[var(--awb-color1)] rounded-full h-1.5 overflow-hidden">
-                <div className="bg-[#198fd9] text-white font-semibold rounded-[4px] px-[29px] py-[13px] h-1.5 rounded-full" style={{ width: `${Math.min((messagesUsed / 100000) * 100, 100)}%` }}></div>
+              <div className="w-full bg-[var(--awb-color3)] rounded-full h-2.5 overflow-hidden">
+                <div className="bg-[var(--awb-color5)] h-2.5 rounded-full" style={{ width: `${Math.min((messagesUsed / 100000) * 100, 100)}%` }}></div>
               </div>
             </div>
 
@@ -93,26 +93,26 @@ export default function BillingView() {
                 <span className="text-[var(--awb-color6)] font-semibold">Knowledge Base Chunks</span>
                 <span className="text-[var(--awb-color8)] font-mono">{chunksUsed.toLocaleString()}</span>
               </div>
-              <div className="w-full bg-[var(--awb-color1)] rounded-full h-1.5 overflow-hidden">
-                <div className="bg-emerald-500 h-1.5 rounded-full" style={{ width: `${Math.min((chunksUsed / 500) * 100, 100)}%` }}></div>
+              <div className="w-full bg-[var(--awb-color3)] rounded-full h-2.5 overflow-hidden">
+                <div className="bg-[var(--awb-color4)] h-2.5 rounded-full" style={{ width: `${Math.min((chunksUsed / 500) * 100, 100)}%` }}></div>
               </div>
             </div>
           </div>
         </div>
         
         {isSuperAdmin && (
-          <div className="bg-blue-50 border border-blue-200 border border-indigo-900/30 rounded-2xl p-6">
-            <h3 className="text-sm font-bold text-[var(--awb-color5)] mb-2">Superadmin Overrides</h3>
-            <p className="text-xs text-[var(--awb-color5)]/80 mb-4">
+          <div className="bg-amber-50 border border-amber-200 rounded-2xl p-6">
+            <h3 className="text-sm font-bold text-amber-800 mb-2">Superadmin Overrides</h3>
+            <p className="text-xs text-amber-700 mb-4">
               You are viewing this as a superadmin. Normally, billing modifications are disabled here.
             </p>
             <div className="flex gap-2">
-              <button className="bg-indigo-900 hover:bg-indigo-800 text-indigo-100 text-xs font-semibold px-4 py-2 rounded-lg transition-colors">
+              <button className="bg-[#260475] hover:bg-[#1f035e] text-white text-xs font-semibold px-4 py-2 rounded-lg transition-colors">
                 Force Sync Entitlements
               </button>
               <button 
                 onClick={() => setShowImpersonateModal(true)}
-                className="bg-amber-600/20 hover:bg-amber-600/40 border border-amber-600/50 text-amber-300 text-xs font-semibold px-4 py-2 rounded-lg transition-colors"
+                className="bg-amber-600 hover:bg-amber-700 text-white text-xs font-semibold px-4 py-2 rounded-lg transition-colors"
               >
                 Impersonate User
               </button>
@@ -134,13 +134,13 @@ export default function BillingView() {
               </button>
             </div>
 
-            <div className="shrink-0 mb-4">
+             <div className="shrink-0 mb-4">
               <input 
                 type="text" 
                 placeholder="Search by Business Name or Chatbot Name..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                className="w-full bg-white border border-[#f2f3f5] rounded-xl px-4 py-3 text-[var(--awb-color8)] focus:outline-none focus:border-amber-500 transition-colors"
+                className="w-full bg-[var(--awb-color1)] border border-[var(--awb-color3)] rounded-lg px-4 py-3 text-[var(--awb-color8)] focus:outline-none focus:border-amber-500 transition-colors"
                 autoFocus
               />
             </div>
@@ -150,12 +150,12 @@ export default function BillingView() {
                 <div className="text-center py-8 text-[var(--awb-color6)] text-sm">Searching...</div>
               ) : searchResults.length > 0 ? (
                 searchResults.map(res => (
-                  <div key={res.tenant_id} className="bg-white border border-[#f2f3f5] rounded-xl p-4 flex items-center justify-between hover:border-[var(--awb-color3)] transition-colors group">
+                  <div key={res.tenant_id} className="bg-[var(--awb-color2)] border border-[var(--awb-color3)] rounded-xl p-4 flex items-center justify-between hover:border-[var(--awb-color3)] transition-colors group">
                     <div>
                       <div className="text-[var(--awb-color8)] font-bold">{res.company_name || 'Unnamed Business'}</div>
                       <div className="text-xs text-[var(--awb-color6)] mt-1">ID: <span className="font-mono text-[var(--awb-color6)]">{res.tenant_id}</span></div>
                       {res.matched_chatbots && res.matched_chatbots.length > 0 && (
-                        <div className="text-xs text-amber-500/80 mt-1">
+                        <div className="text-xs text-amber-600 font-semibold mt-1">
                           Chatbots: {res.matched_chatbots.join(', ')}
                         </div>
                       )}
@@ -164,7 +164,7 @@ export default function BillingView() {
                       onClick={() => {
                         window.location.href = `/dashboard?tenant_id=${res.tenant_id}`;
                       }}
-                      className="opacity-0 group-hover:opacity-100 bg-amber-600 hover:bg-amber-500 text-[var(--awb-color8)] text-xs font-bold px-4 py-2 rounded-lg transition-all"
+                      className="opacity-0 group-hover:opacity-100 bg-amber-600 hover:bg-amber-700 text-white text-xs font-bold px-4 py-2 rounded-lg transition-all"
                     >
                       Impersonate
                     </button>

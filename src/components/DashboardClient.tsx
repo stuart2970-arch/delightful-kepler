@@ -741,43 +741,43 @@ const globalBotId = '00000000-0000-0000-0000-000000000000';
           {activeTab === 'billing' && (
             <div className="space-y-6">
               {/* Standard Tenant View */}
-              <div className="bg-gray-900/30 border border-gray-900 p-6 rounded-2xl shadow-xl">
+              <div className="bg-[var(--awb-color1)] border border-[var(--awb-color3)] p-6 rounded-2xl shadow-xl">
                 <div className="flex justify-between items-center mb-6">
                   <div>
-                    <h3 className="text-lg font-bold text-white">Current Plan: <span className="text-indigo-400 uppercase tracking-widest">{billingData?.planTier || 'Basic'}</span></h3>
-                    <p className="text-xs text-gray-400 mt-1">Manage your usage limits and active entitlements.</p>
+                    <h3 className="text-lg font-bold text-[var(--awb-color8)]">Current Plan: <span className="text-[var(--awb-color5)] uppercase tracking-wider font-bold">{billingData?.planTier || 'Basic'}</span></h3>
+                    <p className="text-xs text-[var(--awb-color6)] mt-1">Manage your usage limits and active entitlements.</p>
                   </div>
-                  <a href="https://styleflo.ai/pricing" target="_blank" rel="noopener noreferrer" className="bg-indigo-600 hover:bg-indigo-500 text-white text-sm font-semibold py-2 px-5 rounded-xl shadow-lg transition-colors">
+                  <a href="https://styleflo.ai/pricing" target="_blank" rel="noopener noreferrer" className="bg-[#198fd9] hover:bg-[#157ab9] text-white text-xs font-bold py-2.5 px-5 rounded-[4px] shadow-sm transition-colors whitespace-nowrap">
                     Compare & Upgrade Plans
                   </a>
                 </div>
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                   {/* Chunks Progress */}
-                  <div className="bg-gray-950 p-5 rounded-xl border border-gray-800">
-                    <h4 className="text-sm font-bold text-white mb-2">Knowledge Base Data Chunks</h4>
-                    <div className="flex justify-between text-xs text-gray-400 mb-2">
+                  <div className="bg-[var(--awb-color2)] p-5 rounded-xl border border-[var(--awb-color3)]">
+                    <h4 className="text-sm font-bold text-[var(--awb-color7)] mb-2">Knowledge Base Data Chunks</h4>
+                    <div className="flex justify-between text-xs text-[var(--awb-color6)] mb-2">
                       <span>{billingData?.usage?.chunks || 0} used</span>
                       <span>
                         {billingData?.entitlements?.find((e: any) => e.feature_id === 'knowledge_data_chunks')?.included_volume || 0} total
                       </span>
                     </div>
-                    <div className="w-full bg-gray-800 rounded-full h-2.5">
-                      <div className="bg-indigo-500 h-2.5 rounded-full" style={{ width: `${Math.min(100, ((billingData?.usage?.chunks || 0) / (billingData?.entitlements?.find((e: any) => e.feature_id === 'knowledge_data_chunks')?.included_volume || 1)) * 100)}%`}}></div>
+                    <div className="w-full bg-[var(--awb-color3)] rounded-full h-2.5">
+                      <div className="bg-[var(--awb-color4)] h-2.5 rounded-full" style={{ width: `${Math.min(100, ((billingData?.usage?.chunks || 0) / (billingData?.entitlements?.find((e: any) => e.feature_id === 'knowledge_data_chunks')?.included_volume || 1)) * 100)}%`}}></div>
                     </div>
                   </div>
 
                   {/* Message Allowance */}
-                  <div className="bg-gray-950 p-5 rounded-xl border border-gray-800">
-                    <h4 className="text-sm font-bold text-white mb-2">Monthly Message Allowance</h4>
-                    <div className="flex justify-between text-xs text-gray-400 mb-2">
+                  <div className="bg-[var(--awb-color2)] p-5 rounded-xl border border-[var(--awb-color3)]">
+                    <h4 className="text-sm font-bold text-[var(--awb-color7)] mb-2">Monthly Message Allowance</h4>
+                    <div className="flex justify-between text-xs text-[var(--awb-color6)] mb-2">
                       <span>{billingData?.usage?.messages || 0} messages used this month</span>
                       <span>
                         {billingData?.entitlements?.find((e: any) => e.feature_id === 'message_allowance')?.included_volume === -1 ? 'Unlimited' : (billingData?.entitlements?.find((e: any) => e.feature_id === 'message_allowance')?.included_volume || 0) + ' total'}
                       </span>
                     </div>
-                    <div className="w-full bg-gray-800 rounded-full h-2.5">
-                      <div className="bg-emerald-500 h-2.5 rounded-full" style={{ width: `${billingData?.entitlements?.find((e: any) => e.feature_id === 'message_allowance')?.included_volume === -1 ? 100 : Math.min(100, ((billingData?.usage?.messages || 0) / (billingData?.entitlements?.find((e: any) => e.feature_id === 'message_allowance')?.included_volume || 1)) * 100)}%`}}></div>
+                    <div className="w-full bg-[var(--awb-color3)] rounded-full h-2.5">
+                      <div className="bg-[var(--awb-color5)] h-2.5 rounded-full" style={{ width: `${billingData?.entitlements?.find((e: any) => e.feature_id === 'message_allowance')?.included_volume === -1 ? 100 : Math.min(100, ((billingData?.usage?.messages || 0) / (billingData?.entitlements?.find((e: any) => e.feature_id === 'message_allowance')?.included_volume || 1)) * 100)}%`}}></div>
                     </div>
                   </div>
                 </div>

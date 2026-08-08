@@ -561,3 +561,8 @@ ame, irstMessage, and 	ranscriber) rather than relying on ssistantOverrides de
 * **User**: "in crew barbers childwall they have selected 'walkins' from the option list, and i have noticed a couple of things wrong. 1. there is no area for staff, the user should still be able to add this so the colleagues show in the landing page, and the rota times show availability. There are no services available to add"
 * **Fix**: Resolved the staff and services areas invisibility under "Walk-ins Only" booking mode:
   1. **Dashboard Scheduling View**: Modified `src/components/dashboard-views/SchedulingView.tsx` to display the "Target Chatbot for Scheduling" selector, the Services list editor, and the Staff roster manager when the tenant chooses "Walk-ins Only" booking mode. These are now visible for all booking modes except `external_platform`.
+
+* **User**: "now can we sort out the styling in the billing section"
+* **Fix**: Overhauled the billing section styling to match the Avada Light Theme:
+  1. **Dashboard Client**: Converted the inline billing tab container, sub-cards, progress bars, and buttons from dark theme styling to Avada Light Theme design system tokens.
+  2. **Billing View Component**: Updated the corresponding subview file (`BillingView.tsx`) to also use the same design tokens, fixing the Impersonate Modal contrast and layouts.
