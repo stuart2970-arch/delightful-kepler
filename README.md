@@ -572,3 +572,7 @@ ame, irstMessage, and 	ranscriber) rather than relying on ssistantOverrides de
   1. **User Sign-up Database Trigger**: Created SQL migration `20260808212000_fix_signup_trigger_slug.sql` updating `public.handle_new_user()` to pull the `slug` from user sign-up metadata (with an automatic regex fallback) and insert it into `public.tenants`.
   2. **Backfill NULL Slugs**: Appended query to backfill any existing null/empty slugs based on tenant company names.
   3. **Seed Database Script**: Updated `supabase/seed.sql` to include `slug` values for mock tenants.
+
+* **User**: "i need to add this to the business creation workflow so a now page is created in wordpress at the same time"
+* **Fix**: Created automated WordPress tenant creation webhook:
+  1. **Next.js Webhook Handler**: Added `src/app/api/webhooks/tenant-created/route.ts` API route which dispatches the POST payload to `https://styleflo.ai/wp-json/styleflo/v1/create-business` using the custom authorization token.
