@@ -49,7 +49,7 @@ export async function PATCH(req: NextRequest) {
     const { data, error } = await supabase
       .from('tenants')
       .update({
-        ...(domain !== undefined && { domain }),
+        ...(domain !== undefined && { domain: domain ? domain.trim() : null }),
         ...(rwgConfig !== undefined && { 
           is_rwg_enabled: rwgConfig.is_rwg_enabled,
           rwg_business_name: rwgConfig.rwg_business_name,
