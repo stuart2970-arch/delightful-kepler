@@ -365,7 +365,7 @@ export default function SchedulingView() {
                 )}
               </div>
 
-              {bookingMode !== 'walk_in_only' && bookingMode !== 'external_platform' && (
+              {bookingMode !== 'external_platform' && (
                 <div className="bg-white border border-[#f2f3f5] p-4 rounded-xl">
                   <label className="block text-xs font-semibold text-[var(--awb-color6)] mb-1.5">Target Chatbot for Scheduling</label>
                   <select
@@ -384,7 +384,7 @@ export default function SchedulingView() {
                 </div>
               )}
 
-              {bookingMode !== 'walk_in_only' && bookingMode !== 'external_platform' && targetChatbotId && (
+              {bookingMode !== 'external_platform' && targetChatbotId && (
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                   {/* Services List using ServiceEditor */}
                   <ServiceEditor 

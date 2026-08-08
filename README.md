@@ -556,3 +556,8 @@ ame, irstMessage, and 	ranscriber) rather than relying on ssistantOverrides de
 * **User**: "i visited account details and added a telephone number, however, this errored with 'failed to save' message"
 * **Fix**: Resolved custom domain database unique constraint violation:
   1. **Convert Blank Domains to Null**: Updated `src/app/api/tenants/settings/route.ts` to convert blank or empty domain strings to `null` before performing database updates. This prevents duplicate key constraint errors (which occurred because Postgres unique constraints reject multiple empty strings `""` but allow infinite `null` values).
+
+### Session 16 (August 8, 2026)
+* **User**: "in crew barbers childwall they have selected 'walkins' from the option list, and i have noticed a couple of things wrong. 1. there is no area for staff, the user should still be able to add this so the colleagues show in the landing page, and the rota times show availability. There are no services available to add"
+* **Fix**: Resolved the staff and services areas invisibility under "Walk-ins Only" booking mode:
+  1. **Dashboard Scheduling View**: Modified `src/components/dashboard-views/SchedulingView.tsx` to display the "Target Chatbot for Scheduling" selector, the Services list editor, and the Staff roster manager when the tenant chooses "Walk-ins Only" booking mode. These are now visible for all booking modes except `external_platform`.
