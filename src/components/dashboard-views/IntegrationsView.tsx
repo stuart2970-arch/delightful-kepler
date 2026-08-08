@@ -17,7 +17,8 @@ export default function IntegrationsView() {
     tradingAddressStreet,
     tradingAddressCity,
     tradingAddressPostcode,
-    tradingAddressPhone
+    tradingAddressPhone,
+    setActiveTab
   } = useDashboardStore();
 
   const [rwgIntegrityLogs, setRwgIntegrityLogs] = useState<string[]>([]);
@@ -314,10 +315,54 @@ export default function IntegrationsView() {
                         </div>
                       </div>
 
+                      {/* Sync Alert Box */}
+                      {rwgAddressSameAsTrading && (
+                        <div className="bg-blue-50 border border-blue-200 p-4 rounded-xl space-y-1.5 mb-4 mt-2">
+                          <p className="text-xs text-blue-900 flex items-center gap-1.5 font-bold">
+                            ℹ️ Automatic Address Synchronization
+                          </p>
+                          <p className="text-[11px] text-blue-800 leading-relaxed">
+                            Your Reserve with Google mapping is currently set to mirror your **Trading Address** word-for-word. To edit these fields, update your details in the <button type="button" onClick={() => setActiveTab('account')} className="text-[#198fd9] font-bold underline hover:text-[#157ab9]">Account Settings</button> tab.
+                          </p>
+                          <p className="text-[11px] text-blue-800">
+                            Alternatively, you can uncheck the synchronization option below to enter custom Google-specific profile details.
+                          </p>
+                        </div>
+                      )}
+
+                      {/* Same as Trading Toggle */}
+                      <div className="flex items-center justify-between pb-3 border-b border-[#f2f3f5] mb-4 mt-4">
+                        <span className="text-xs text-[#212326] font-bold">Google Profile details match Trading Address</span>
+                        <label className="flex items-center gap-2 cursor-pointer">
+                          <input
+                            type="checkbox"
+                            checked={rwgAddressSameAsTrading}
+                            onChange={async (e) => {
+                              useDashboardStore.setState({ rwgAddressSameAsTrading: e.target.checked });
+                              // Persist immediately to db
+                              try {
+                                await fetch('/api/tenants/settings', {
+                                  method: 'PATCH',
+                                  headers: { 'Content-Type': 'application/json' },
+                                  body: JSON.stringify({
+                                    tenantId,
+                                    rwgAddressSameAsTrading: e.target.checked
+                                  })
+                                });
+                              } catch (err) {
+                                console.error('Failed to update rwgAddressSameAsTrading:', err);
+                              }
+                            }}
+                            className="w-4 h-4 text-[#198fd9] bg-white border-[#f2f3f5] rounded focus:ring-[#198fd9]"
+                          />
+                          <span className="text-xs font-bold text-[#212326]">Yes, same</span>
+                        </label>
+                      </div>
+
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-2 border-t border-[#f2f3f5]">
                         <div>
                           <label className="block text-xs font-semibold text-[#212326] mb-1.5">Business Name</label>
-                          <input type="text" value={rwgBusinessName} onChange={(e) => setRwgBusinessName(e.target.value)} disabled={rwgAddressSameAsTrading} className="w-full h-[50px] bg-white disabled:bg-gray-100 disabled:text-gray-500 disabled:cursor-not-allowed border border-[#f2f3f5] rounded-[6px] px-3.5 py-2 text-sm text-[#212326] focus:outline-none focus:border-[#65bd7d] placeholder-gray-400" placeholder="e.g. Styleflo Salon" />
+                          <input type="text" value={rwgBusinessName} onChange={(e) => setRwgBusinessName(e.target.value)} className="w-full h-[50px] bg-white border border-[#f2f3f5] rounded-[6px] px-3.5 py-2 text-sm text-[#212326] focus:outline-none focus:border-[#65bd7d] placeholder-gray-400" placeholder="e.g. Styleflo Salon" />
                         </div>
                         <div>
                           <label className="block text-xs font-semibold text-[#212326] mb-1.5">Phone Number</label>
