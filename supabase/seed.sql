@@ -15,18 +15,20 @@ END;
 $$ LANGUAGE plpgsql;
 
 -- 2. Seed Tenants
-INSERT INTO public.tenants (id, tenant_id, company_name)
+INSERT INTO public.tenants (id, tenant_id, company_name, slug)
 VALUES (
   '10000000-0000-0000-0000-000000000001',
   '10000000-0000-0000-0000-000000000001',
-  'Acme Corp'
+  'Acme Corp',
+  'acme-corp'
 ) ON CONFLICT (id) DO NOTHING;
 
-INSERT INTO public.tenants (id, tenant_id, company_name)
+INSERT INTO public.tenants (id, tenant_id, company_name, slug)
 VALUES (
   '10000000-0000-0000-0000-000000000002',
   '10000000-0000-0000-0000-000000000002',
-  'Globex Corporation'
+  'Globex Corporation',
+  'globex-corporation'
 ) ON CONFLICT (id) DO NOTHING;
 
 -- 3. Seed auth.users

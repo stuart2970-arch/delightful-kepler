@@ -566,3 +566,9 @@ ame, irstMessage, and 	ranscriber) rather than relying on ssistantOverrides de
 * **Fix**: Overhauled the billing section styling to match the Avada Light Theme:
   1. **Dashboard Client**: Converted the inline billing tab container, sub-cards, progress bars, and buttons from dark theme styling to Avada Light Theme design system tokens.
   2. **Billing View Component**: Updated the corresponding subview file (`BillingView.tsx`) to also use the same design tokens, fixing the Impersonate Modal contrast and layouts.
+
+* **User**: "why are these showing as no-slug, where is the slug created"
+* **Fix**: Resolved tenant slug creation and backfill:
+  1. **User Sign-up Database Trigger**: Created SQL migration `20260808212000_fix_signup_trigger_slug.sql` updating `public.handle_new_user()` to pull the `slug` from user sign-up metadata (with an automatic regex fallback) and insert it into `public.tenants`.
+  2. **Backfill NULL Slugs**: Appended query to backfill any existing null/empty slugs based on tenant company names.
+  3. **Seed Database Script**: Updated `supabase/seed.sql` to include `slug` values for mock tenants.
