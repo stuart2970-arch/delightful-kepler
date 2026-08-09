@@ -576,3 +576,7 @@ ame, irstMessage, and 	ranscriber) rather than relying on ssistantOverrides de
 * **User**: "i need to add this to the business creation workflow so a now page is created in wordpress at the same time"
 * **Fix**: Created automated WordPress tenant creation webhook:
   1. **Next.js Webhook Handler**: Added `src/app/api/webhooks/tenant-created/route.ts` API route which dispatches the POST payload to `https://styleflo.ai/wp-json/styleflo/v1/create-business` using the custom authorization token.
+
+* **User**: [Image showing "Failed to create webhook: Failed to run sql query: ERROR: 3F000: schema \"supabase_functions\" does not exist"]
+* **Fix**: Created database migration to bypass the missing schema error:
+  1. **Postgres pg_net Trigger**: Added `supabase/migrations/20260809113000_manually_add_tenant_created_webhook.sql` to manually enable the `pg_net` extension and bind an async HTTP trigger calling `/api/webhooks/tenant-created` on every tenant insertion.
