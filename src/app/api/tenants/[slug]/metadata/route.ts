@@ -8,6 +8,53 @@ function getSupabaseAdmin() {
   return createClient(supabaseUrl, serviceRoleKey);
 }
 
+async function fetchGoogleReviews(tenant: any, apiKey: string): Promise<any[]> {
+  try {
+    const addressParts = [
+      tenant.rwg_business_name || tenant.company_name,
+      tenant.trading_address_street || tenant.business_address,
+      tenant.trading_address_city,
+      tenant.trading_address_postcode || tenant.postcode
+    ].filter(Boolean);
+
+    if (addressParts.length === 0) return [];
+    const query = addressParts.join(', ');
+
+    const response = await fetch('https://places.googleapis.com/v1/places:searchText', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-Goog-Api-Key': apiKey,
+        'X-Goog-FieldMask': 'places.id,places.displayName,places.reviews',
+        'Referer': 'https://app.styleflo.ai/'
+      },
+      body: JSON.stringify({
+        textQuery: query
+      })
+    });
+
+    if (!response.ok) {
+      console.warn('[Places API Error]', response.status, await response.text());
+      return [];
+    }
+
+    const data = await response.json();
+    const place = data.places?.[0];
+    
+    if (place && place.reviews && Array.isArray(place.reviews)) {
+      return place.reviews.map((r: any) => ({
+        rating: r.rating || 5,
+        text: r.text?.text || r.originalText?.text || '',
+        author_name: r.authorAttribution?.displayName || 'Anonymous'
+      }));
+    }
+    return [];
+  } catch (error) {
+    console.error('Error fetching Google Reviews:', error);
+    return [];
+  }
+}
+
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
 
@@ -117,6 +164,51 @@ export async function GET(req: Request, { params }: { params: Promise<{ slug: st
       return NextResponse.json({ success: false, error: errMsg }, { status: 404, headers: corsHeaders });
     }
 
+    let googleReviews: any[] = [];
+    let cachedReviews: any[] = [];
+    let lastUpdated: string | null = null;
+
+    if (tenant.google_reviews) {
+      if (Array.isArray(tenant.google_reviews)) {
+        cachedReviews = tenant.google_reviews;
+      } else if (typeof tenant.google_reviews === 'object' && tenant.google_reviews !== null) {
+        cachedReviews = (tenant.google_reviews as any).reviews || [];
+        lastUpdated = (tenant.google_reviews as any).last_updated || null;
+      }
+    }
+
+    const apiKey = process.env.GOOGLE_MAPS_API_KEY || process.env.GOOGLE_PLACES_API_KEY;
+    const isCacheExpired = !lastUpdated || (Date.now() - new Date(lastUpdated).getTime() > 24 * 60 * 60 * 1000);
+
+    if (apiKey && (cachedReviews.length === 0 || isCacheExpired)) {
+      try {
+        const freshReviews = await fetchGoogleReviews(tenant, apiKey);
+        if (freshReviews && freshReviews.length > 0) {
+          googleReviews = freshReviews;
+          // Save to database asynchronously to keep response fast
+          supabaseAdmin
+            .from('tenants')
+            .update({
+              google_reviews: {
+                last_updated: new Date().toISOString(),
+                reviews: freshReviews
+              }
+            })
+            .eq('id', tenant.id)
+            .then(({ error }) => {
+              if (error) console.error('Failed to update tenant reviews in DB:', error);
+            });
+        } else {
+          googleReviews = cachedReviews;
+        }
+      } catch (err) {
+        console.error('Failed fetching reviews on page load:', err);
+        googleReviews = cachedReviews;
+      }
+    } else {
+      googleReviews = cachedReviews;
+    }
+
     const activeBot = tenant.chatbots?.[0];
     let staffList: any[] = [];
     let servicesList: any[] = [];
@@ -167,7 +259,7 @@ export async function GET(req: Request, { params }: { params: Promise<{ slug: st
         registered_address_postcode: tenant.registered_address_postcode || '',
         general_operating_hours: tenant.general_operating_hours,
         google_maps_share_url: tenant.google_maps_share_url,
-        google_reviews: tenant.google_reviews,
+        google_reviews: googleReviews,
         latitude: tenant.latitude,
         longitude: tenant.longitude,
         primary_color: activeBot?.primary_color || '#7E5FBB',
