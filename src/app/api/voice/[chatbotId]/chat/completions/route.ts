@@ -105,7 +105,7 @@ export async function POST(
             // Localized RAG match_documents
             const { data: matchedChunks, error: matchError } = await supabaseAdmin.rpc('match_documents', {
               query_embedding: embedding,
-              match_threshold: 0.7,
+              match_threshold: 0.2,
               match_count: 5,
               targeting_tenant_id: chatbot.tenant_id,
               targeting_chatbot_id: chatbotId

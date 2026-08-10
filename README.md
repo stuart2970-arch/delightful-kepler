@@ -598,6 +598,8 @@ ame, irstMessage, and 	ranscriber) rather than relying on ssistantOverrides de
   5. **TypeScript Definitions**: Added the `ordered_service_ids` field to the `Chatbot` model interface in both `store.ts` and `DashboardClient.tsx` to maintain strict compile-time types.
   6. **Currency Labels**: Defaulted base price and override price currency indicator signs from `$` to `£` in `ServiceEditor.tsx`.
   7. **Dynamic Welcome Message Placeholders**: Implemented customer name and chatbot name placeholders (e.g. `[Name]` and `[ChatbotName]`) inside the widget's welcome text greeting. It formats the text dynamically on load or onboarding submission, and updates the Vapi voice parameters accordingly.
+  8. **Voice completions RAG Match Threshold**: Fixed a bug where the voice assistant was hallucinating or looking up other shops by lowering the vector similarity matching threshold (`match_threshold`) from `0.7` to `0.2` in both `/api/voice/chat/completions` and `/api/voice/[chatbotId]/chat/completions` routes. This matches the text chat threshold and ensures business knowledge is correctly retrieved.
+
 
 
 
