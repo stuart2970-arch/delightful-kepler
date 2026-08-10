@@ -322,20 +322,20 @@ export default function ChatbotManagerView() {
               <div className="bg-gradient-to-r from-indigo-900 via-indigo-950 to-purple-950 border border-indigo-500/30 p-6 rounded-2xl shadow-xl flex flex-col md:flex-row justify-between items-start md:items-center gap-4 relative overflow-hidden">
                 <div className="absolute top-0 right-0 w-64 h-64 bg-indigo-500/10 rounded-full blur-3xl pointer-events-none"></div>
                 <div className="space-y-1 z-10">
-                  <span className="text-[10px] tracking-wider uppercase text-indigo-400 font-bold bg-indigo-500/10 px-2.5 py-1 rounded-full border border-indigo-500/20">
+                  <span className="text-[10px] tracking-wider uppercase font-bold bg-indigo-500/10 px-2.5 py-1 rounded-full border border-indigo-500/20" style={{ color: '#a5b4fc' }}>
                     Weekly Performance Overview
                   </span>
-                  <h3 className="text-xl md:text-2xl font-extrabold text-white mt-2">
+                  <h3 className="text-xl md:text-2xl font-extrabold mt-2" style={{ color: '#ffffff' }}>
                     Chatbot Bookings Statistics
                   </h3>
-                  <p className="text-xs text-indigo-200">
+                  <p className="text-xs mt-1" style={{ color: '#c7d2fe' }}>
                     Track automated appointments scheduled for the current week (Monday to Sunday).
                   </p>
                 </div>
                 <div className="flex items-center gap-4 z-10 bg-indigo-950/50 border border-indigo-500/20 p-4 rounded-xl shadow-inner min-w-[200px] justify-between">
                   <div>
-                    <span className="text-xs text-indigo-300 font-medium block">Appointments Booked</span>
-                    <span className="text-2xl md:text-3xl font-black text-white">{getWeeklyAppointmentsCount()}</span>
+                    <span className="text-xs font-medium block" style={{ color: '#a5b4fc' }}>Appointments Booked</span>
+                    <span className="text-2xl md:text-3xl font-black" style={{ color: '#ffffff' }}>{getWeeklyAppointmentsCount()}</span>
                   </div>
                   <div className="w-12 h-12 bg-green-500/10 border border-green-500/30 rounded-xl flex items-center justify-center text-green-400 shadow">
                     <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
