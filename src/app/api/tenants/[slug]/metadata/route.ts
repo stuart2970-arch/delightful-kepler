@@ -8,8 +8,61 @@ function getSupabaseAdmin() {
   return createClient(supabaseUrl, serviceRoleKey);
 }
 
-async function fetchGoogleReviews(tenant: any, apiKey: string): Promise<{ rating: number; userRatingCount: number; placeId: string; reviews: any[] }> {
-  const defaultResult = { rating: 5, userRatingCount: 0, placeId: '', reviews: [] };
+function parseGoogleOpeningHours(googleHours: any) {
+  const daysMap: Record<number, string> = {
+    0: 'sunday',
+    1: 'monday',
+    2: 'tuesday',
+    3: 'wednesday',
+    4: 'thursday',
+    5: 'friday',
+    6: 'saturday'
+  };
+
+  const hoursResult: Record<string, any> = {};
+
+  // Initialize all days as closed
+  Object.values(daysMap).forEach(day => {
+    hoursResult[day] = {
+      hours: { start: '09:00', end: '17:00' },
+      unavailable: true
+    };
+  });
+
+  if (!googleHours || !Array.isArray(googleHours.periods)) {
+    return hoursResult;
+  }
+
+  const pad = (num: number) => String(num).padStart(2, '0');
+
+  for (const period of googleHours.periods) {
+    const dayNum = period.open?.day;
+    if (dayNum === undefined) continue;
+
+    const dayName = daysMap[dayNum];
+    if (!dayName) continue;
+
+    const startHour = period.open?.hour;
+    const startMin = period.open?.minute;
+    const endHour = period.close?.hour;
+    const endMin = period.close?.minute;
+
+    if (startHour !== undefined && startMin !== undefined && endHour !== undefined && endMin !== undefined) {
+      hoursResult[dayName] = {
+        hours: {
+          start: `${pad(startHour)}:${pad(startMin)}`,
+          end: `${pad(endHour)}:${pad(endMin)}`
+        },
+        unavailable: false
+      };
+    }
+  }
+
+  return hoursResult;
+}
+
+async function fetchGoogleReviews(tenant: any, apiKey: string): Promise<{ rating: number; userRatingCount: number; placeId: string; reviews: any[]; regularOpeningHours: any }> {
+  const defaultResult = { rating: 5, userRatingCount: 0, placeId: '', reviews: [], regularOpeningHours: null };
   try {
     const addressParts = [
       tenant.rwg_business_name || tenant.company_name,
@@ -26,7 +79,7 @@ async function fetchGoogleReviews(tenant: any, apiKey: string): Promise<{ rating
       headers: {
         'Content-Type': 'application/json',
         'X-Goog-Api-Key': apiKey,
-        'X-Goog-FieldMask': 'places.id,places.displayName,places.rating,places.userRatingCount,places.reviews',
+        'X-Goog-FieldMask': 'places.id,places.displayName,places.rating,places.userRatingCount,places.reviews,places.regularOpeningHours',
         'Referer': 'https://app.styleflo.ai/'
       },
       body: JSON.stringify({
@@ -49,11 +102,14 @@ async function fetchGoogleReviews(tenant: any, apiKey: string): Promise<{ rating
         author_name: r.authorAttribution?.displayName || 'Anonymous'
       })) : [];
 
+      const parsedHours = place.regularOpeningHours ? parseGoogleOpeningHours(place.regularOpeningHours) : null;
+
       return {
         rating: place.rating || 5,
         userRatingCount: place.userRatingCount || 0,
         placeId: place.id || '',
-        reviews
+        reviews,
+        regularOpeningHours: parsedHours
       };
     }
     return defaultResult;
@@ -176,6 +232,7 @@ export async function GET(req: Request, { params }: { params: Promise<{ slug: st
     let googleRating = 5;
     let googleRatingCount = 0;
     let googleWriteReviewUrl = '';
+    let generalHours = tenant.general_operating_hours;
     
     let cachedReviews: any[] = [];
     let lastUpdated: string | null = null;
@@ -206,22 +263,30 @@ export async function GET(req: Request, { params }: { params: Promise<{ slug: st
         if (result.placeId) {
           googleWriteReviewUrl = `https://search.google.com/local/writereview?placeid=${result.placeId}`;
         }
+        if (result.regularOpeningHours) {
+          generalHours = result.regularOpeningHours;
+        }
 
         // Save to database asynchronously to keep response fast
+        const updateData: any = {
+          google_reviews: {
+            last_updated: new Date().toISOString(),
+            rating: result.rating,
+            userRatingCount: result.userRatingCount,
+            placeId: result.placeId,
+            reviews: result.reviews
+          }
+        };
+        if (result.regularOpeningHours) {
+          updateData.general_operating_hours = result.regularOpeningHours;
+        }
+
         supabaseAdmin
           .from('tenants')
-          .update({
-            google_reviews: {
-              last_updated: new Date().toISOString(),
-              rating: result.rating,
-              userRatingCount: result.userRatingCount,
-              placeId: result.placeId,
-              reviews: result.reviews
-            }
-          })
+          .update(updateData)
           .eq('id', tenant.id)
           .then(({ error }) => {
-            if (error) console.error('Failed to update tenant reviews in DB:', error);
+            if (error) console.error('Failed to update tenant reviews/hours in DB:', error);
           });
       } catch (err) {
         console.error('Failed fetching reviews on page load:', err);
@@ -279,7 +344,7 @@ export async function GET(req: Request, { params }: { params: Promise<{ slug: st
         registered_address_street: tenant.registered_address_street || '',
         registered_address_city: tenant.registered_address_city || '',
         registered_address_postcode: tenant.registered_address_postcode || '',
-        general_operating_hours: tenant.general_operating_hours,
+        general_operating_hours: generalHours,
         google_maps_share_url: tenant.google_maps_share_url,
         google_reviews: googleReviews,
         google_rating: googleRating,
