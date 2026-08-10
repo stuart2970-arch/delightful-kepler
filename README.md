@@ -597,6 +597,8 @@ ame, irstMessage, and 	ranscriber) rather than relying on ssistantOverrides de
   4. **Public Sorting Integration**: Updated the Metadata API endpoint `/api/tenants/[slug]/metadata` to query the chatbot's configuration and pre-sort services according to the custom reordering before serving them.
   5. **TypeScript Definitions**: Added the `ordered_service_ids` field to the `Chatbot` model interface in both `store.ts` and `DashboardClient.tsx` to maintain strict compile-time types.
   6. **Currency Labels**: Defaulted base price and override price currency indicator signs from `$` to `£` in `ServiceEditor.tsx`.
+  7. **Dynamic Welcome Message Placeholders**: Implemented customer name and chatbot name placeholders (e.g. `[Name]` and `[ChatbotName]`) inside the widget's welcome text greeting. It formats the text dynamically on load or onboarding submission, and updates the Vapi voice parameters accordingly.
+
 
 
 

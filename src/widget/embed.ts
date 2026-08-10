@@ -319,7 +319,7 @@ import Vapi from '@vapi-ai/web';
         <div class="flex items-start gap-2.5 w-full">
           <img src="${finalAvatarSrc}" alt="Agent Avatar" class="w-7 h-7 rounded-full object-cover bg-white border border-gray-100 flex-shrink-0" />
           <div class="p-3 bg-white border border-gray-100 text-gray-800 rounded-2xl rounded-tl-none styleflo-text-15 styleflo-mw-75 shadow-sm leading-relaxed w-full">
-            ${welcomeMessage}
+            <span id="styleflo-welcome-message-text">${welcomeMessage}</span>
           </div>
         </div>
       </div>
@@ -384,10 +384,35 @@ import Vapi from '@vapi-ai/web';
     let vapiInstance: Vapi | null = null;
     let isVapiActive = false;
 
+    function getFormattedWelcomeMessage(clientName?: string | null) {
+      let msg = welcomeMessage;
+      const nameVal = (clientName || storedName || '').trim() || 'there';
+      
+      // Replace name placeholders
+      msg = msg.replace(/\[Name\]/gi, nameVal);
+      msg = msg.replace(/\{Name\}/gi, nameVal);
+      msg = msg.replace(/\[ClientName\]/gi, nameVal);
+      msg = msg.replace(/\{ClientName\}/gi, nameVal);
+      
+      // Replace chatbot name placeholders
+      const botVal = agentName || botName || 'our assistant';
+      msg = msg.replace(/\[ChatbotName\]/gi, botVal);
+      msg = msg.replace(/\{ChatbotName\}/gi, botVal);
+      msg = msg.replace(/\[Chatbot Name\]/gi, botVal);
+      msg = msg.replace(/\{Chatbot Name\}/gi, botVal);
+      
+      return msg;
+    }
+
     // Check for existing name in localStorage
     let storedName = localStorage.getItem('styleflo-client-name');
     let disclaimerAccepted = localStorage.getItem('styleflo-disclaimer-accepted');
     
+    const welcomeTextEl = shadowRoot.getElementById('styleflo-welcome-message-text');
+    if (welcomeTextEl) {
+      welcomeTextEl.innerHTML = getFormattedWelcomeMessage(storedName);
+    }
+
     // If we need a disclaimer but it hasn't been accepted, force onboarding
     if (!storedName || (globalVoiceDisclaimer && !disclaimerAccepted)) {
       messagesContainer.style.display = 'none';
@@ -417,6 +442,9 @@ import Vapi from '@vapi-ai/web';
           disclaimerAccepted = 'true';
         }
         storedName = name;
+        if (welcomeTextEl) {
+          welcomeTextEl.innerHTML = getFormattedWelcomeMessage(name);
+        }
         onboardingContainer.style.display = 'none';
         messagesContainer.style.display = 'flex';
         chatForm.style.display = 'flex';
@@ -635,11 +663,11 @@ import Vapi from '@vapi-ai/web';
                 messages: [
                   {
                     role: "system",
-                    content: `You are ${agentName}, ${agentRole}. ${welcomeMessage}`
+                    content: `You are ${agentName}, ${agentRole}. The user's name is ${storedName || 'there'}. ${getFormattedWelcomeMessage(storedName)}`
                   }
                 ]
               },
-              firstMessage: welcomeMessage,
+              firstMessage: getFormattedWelcomeMessage(storedName),
               voice: {
                 provider: "11labs",
                 voiceId: actualVoiceId,
