@@ -1,7 +1,9 @@
 'use client';
 import React, { useState } from 'react';
+import { useDashboardStore } from '../lib/store';
 
 export default function ServiceEditor({ tenantId, chatbotId, services, setServices, staff }: any) {
+  const { chatbots, setChatbots } = useDashboardStore();
   const [showAddService, setShowAddService] = useState(false);
   const [editingServiceId, setEditingServiceId] = useState<string | null>(null);
   const [newServiceName, setNewServiceName] = useState('');
@@ -10,6 +12,84 @@ export default function ServiceEditor({ tenantId, chatbotId, services, setServic
   const [newServiceBuffer, setNewServiceBuffer] = useState(0);
   const [newServicePrice, setNewServicePrice] = useState(0);
   const [newServiceStaff, setNewServiceStaff] = useState<any[]>([]);
+  
+  // Drag & drop state
+  const [draggedIndex, setDraggedIndex] = useState<number | null>(null);
+
+  const activeChatbot = chatbots.find((b: any) => b.id === chatbotId);
+  const orderedIds = activeChatbot?.configuration_json?.ordered_service_ids || [];
+
+  // Sort services based on orderedIds list
+  const sortedServices = [...services].sort((a: any, b: any) => {
+    const indexA = orderedIds.indexOf(a.id);
+    const indexB = orderedIds.indexOf(b.id);
+    if (indexA !== -1 && indexB !== -1) return indexA - indexB;
+    if (indexA !== -1) return -1;
+    if (indexB !== -1) return 1;
+    return 0;
+  });
+
+  const handleSaveServiceOrder = async (orderedIdsList: string[]) => {
+    if (!activeChatbot) return;
+
+    const updatedConfig = {
+      ...activeChatbot.configuration_json,
+      ordered_service_ids: orderedIdsList
+    };
+
+    try {
+      const res = await fetch(`/api/chatbots/${encodeURIComponent(chatbotId)}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name: activeChatbot.name,
+          primary_color: activeChatbot.primary_color,
+          configuration_json: updatedConfig
+        })
+      });
+      if (res.ok) {
+        setChatbots(chatbots.map(b => b.id === chatbotId ? {
+          ...b,
+          configuration_json: updatedConfig
+        } : b));
+      } else {
+        console.error('Failed to save service order to chatbot configuration');
+      }
+    } catch (err) {
+      console.error('Error saving service order:', err);
+    }
+  };
+
+  const handleDragStart = (e: React.DragEvent, index: number) => {
+    setDraggedIndex(index);
+    e.dataTransfer.effectAllowed = 'move';
+  };
+
+  const handleDragOver = (e: React.DragEvent) => {
+    e.preventDefault();
+  };
+
+  const handleDrop = async (e: React.DragEvent, targetIndex: number) => {
+    e.preventDefault();
+    if (draggedIndex === null || draggedIndex === targetIndex) return;
+
+    const reordered = [...sortedServices];
+    const [removed] = reordered.splice(draggedIndex, 1);
+    reordered.splice(targetIndex, 0, removed);
+
+    // Keep other chatbots' services intact if present
+    const otherServices = services.filter((s: any) => s.chatbot_id !== chatbotId && s.chatbot_id);
+    const newServicesList = [...reordered, ...otherServices];
+    setServices(newServicesList);
+
+    const newOrderedIds = reordered.map(s => s.id);
+    await handleSaveServiceOrder(newOrderedIds);
+    setDraggedIndex(null);
+  };
+
+  const handleDragEnd = () => {
+    setDraggedIndex(null);
+  };
 
   const handleEditClick = (srv: any) => {
     setEditingServiceId(srv.id);
@@ -83,6 +163,10 @@ export default function ServiceEditor({ tenantId, chatbotId, services, setServic
           setServices(services.map((s: any) => s.id === editingServiceId ? data.service : s));
         } else {
           setServices([...services, data.service]);
+          if (activeChatbot) {
+            const newOrderedIds = [...orderedIds, data.service.id];
+            await handleSaveServiceOrder(newOrderedIds);
+          }
         }
         setShowAddService(false);
       } else {
@@ -100,6 +184,10 @@ export default function ServiceEditor({ tenantId, chatbotId, services, setServic
       const res = await fetch(`/api/services?id=${id}&tenantId=${tenantId}`, { method: 'DELETE' });
       if (res.ok) {
         setServices(services.filter((s: any) => s.id !== id));
+        if (activeChatbot) {
+          const newOrderedIds = orderedIds.filter((sid: string) => sid !== id);
+          await handleSaveServiceOrder(newOrderedIds);
+        }
       }
     } catch (err) {
       console.error(err);
@@ -189,23 +277,45 @@ export default function ServiceEditor({ tenantId, chatbotId, services, setServic
         </button>
       </div>
       <div className="flex-1 overflow-y-auto space-y-3 styleflo-scrollbar pr-2">
-        {services.length === 0 ? (
+        {sortedServices.length === 0 ? (
           <div className="text-sm text-[var(--awb-color6)] italic text-center mt-10">No services configured yet.</div>
-        ) : services.map((srv: any) => (
-          <div key={srv.id} onClick={() => handleEditClick(srv)} className="bg-white border border-[#f2f3f5] p-4 rounded-xl flex items-center justify-between group hover:border-indigo-500/50 hover:bg-indigo-900/10 cursor-pointer transition-all">
-            <div>
-              <div className="font-bold text-gray-200 text-sm">{srv.name}</div>
-              {srv.description && (
-                <div className="text-xs text-[var(--awb-color6)] mt-0.5 line-clamp-1">{srv.description}</div>
-              )}
-              <div className="text-xs text-[var(--awb-color6)] mt-0.5">{srv.duration_minutes}m duration • ${srv.price || 0}</div>
-              {srv.staff_services && srv.staff_services.length > 0 && (
-                <div className="text-xs text-indigo-400 mt-1">
-                  Assigned to {srv.staff_services.length} staff
-                </div>
-              )}
+        ) : sortedServices.map((srv: any, index: number) => (
+          <div 
+            key={srv.id} 
+            draggable={true}
+            onDragStart={(e) => handleDragStart(e, index)}
+            onDragOver={handleDragOver}
+            onDrop={(e) => handleDrop(e, index)}
+            onDragEnd={handleDragEnd}
+            onClick={() => handleEditClick(srv)} 
+            className={`bg-white border p-4 rounded-xl flex items-center justify-between group hover:border-indigo-500/50 hover:bg-indigo-900/10 cursor-pointer transition-all ${
+              draggedIndex === index ? 'opacity-30 border-dashed border-indigo-500' : 'border-[#f2f3f5]'
+            }`}
+          >
+            <div className="flex items-center flex-1 min-w-0">
+              <div 
+                className="text-gray-400 hover:text-gray-200 cursor-grab active:cursor-grabbing mr-2 flex items-center shrink-0" 
+                onClick={(e) => e.stopPropagation()}
+                title="Drag to reorder"
+              >
+                <svg className="w-5 h-5 opacity-40 group-hover:opacity-100 transition-opacity" fill="currentColor" viewBox="0 0 24 24">
+                  <path d="M9 8c-1.1 0-2-.9-2-2s.9-2 2-2 2 .9 2 2-.9 2-2 2zm0 6c-1.1 0-2-.9-2-2s.9-2 2-2 2 .9 2 2-.9 2-2 2zm0 6c-1.1 0-2-.9-2-2s.9-2 2-2 2 .9 2 2-.9 2-2 2zm6-12c-1.1 0-2-.9-2-2s.9-2 2-2 2 .9 2 2-.9 2-2 2zm0 6c-1.1 0-2-.9-2-2s.9-2 2-2 2 .9 2 2-.9 2-2 2zm0 6c-1.1 0-2-.9-2-2s.9-2 2-2 2 .9 2 2-.9 2-2 2z"/>
+                </svg>
+              </div>
+              <div className="truncate">
+                <div className="font-bold text-gray-200 text-sm truncate">{srv.name}</div>
+                {srv.description && (
+                  <div className="text-xs text-[var(--awb-color6)] mt-0.5 line-clamp-1 truncate">{srv.description}</div>
+                )}
+                <div className="text-xs text-[var(--awb-color6)] mt-0.5">{srv.duration_minutes}m duration • ${srv.price || 0}</div>
+                {srv.staff_services && srv.staff_services.length > 0 && (
+                  <div className="text-xs text-indigo-400 mt-1">
+                    Assigned to {srv.staff_services.length} staff
+                  </div>
+                )}
+              </div>
             </div>
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2 shrink-0 ml-4">
               <button onClick={(e) => { e.stopPropagation(); handleEditClick(srv); }} className="text-gray-400 hover:text-indigo-400 opacity-0 group-hover:opacity-100 transition-opacity" title="Edit Service">
                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"></path></svg>
               </button>

@@ -27,6 +27,7 @@ interface Chatbot {
     agent_avatar_url?: string;
     branding_html?: string;
     branding_url?: string;
+    ordered_service_ids?: string[];
   };
   created_at: string;
 }

@@ -580,3 +580,21 @@ ame, irstMessage, and 	ranscriber) rather than relying on ssistantOverrides de
 * **User**: [Image showing "Failed to create webhook: Failed to run sql query: ERROR: 3F000: schema \"supabase_functions\" does not exist"]
 * **Fix**: Created database migration to bypass the missing schema error:
   1. **Postgres pg_net Trigger**: Added `supabase/migrations/20260809113000_manually_add_tenant_created_webhook.sql` to manually enable the `pg_net` extension and bind an async HTTP trigger calling `/api/webhooks/tenant-created` on every tenant insertion.
+
+### Session 17 (August 10, 2026)
+* **User**: "Landing Page - StyleFlo AI 'Coming Soon' Beta Landing Page & UX Blueprint"
+* **Fix**: Built and integrated the WordPress shortcode and CSS classes for the premium "Coming Soon" landing page:
+  1. **[styleflo_beta_bot] Shortcode**: Registered the shortcode in `functions.php` to mount the master onboarding chatbot (`9825855e-d478-443f-b75c-6c0d77039ca6`) dynamically. The shortcode embeds `embed.js` rather than `widget.js` to ensure the chatbot displays relative/inline inside the layout instead of floating on top. Updated the shortcode to use strict inline styles and newline stripping to prevent WordPress's `wpautop` filter from breaking layouts and adding stray paragraph blocks.
+  2. **Aesthetic CSS Overrides**: Added styling rules to `style.css` in the child theme for pearl backgrounds (`#FAF9FC`), amethyst badges (`#7E5FBB`), bordered offer cards, feature matrix status pills, and shadow element alignments.
+  3. **Layout Mapping Guide**: Wrote a layout configuration walkthrough for the Avada builder (using 5/12 and 7/12 split-columns) to achieve a fully responsive design.
+
+### Session 18 (August 10, 2026)
+* **User**: "i have cleared the cache but niether the opening times or the background have changed", "still no images", and "In the app dashboard, the services need to by drag'n'dropable on the business page they must display in the order from the dashboard"
+* **Fix**: Implemented landing page background/hours fixes and drag-and-drop service reordering:
+  1. **Landing Page Background Image**: Modified `functions.php` to apply the background image to both `<html>` and `<body>` root elements, and override the default Avada background colors with `background-color: transparent !important` to prevent them from blocking the image.
+  2. **Opening Hours Styling Fallback**: Implemented an automated DOM scanner in `functions.php` that dynamically locates static `<ul>` lists adjacent to "Opening Times" headings and highlights today's row, bypassing the need to configure a shortcode placeholder.
+  3. **Drag-and-Drop Service Reordering**: Added drag handles and HTML5 Drag & Drop API event handlers in `ServiceEditor.tsx`. Custom order is saved inside the chatbot's `configuration_json.ordered_service_ids` in Supabase.
+  4. **Public Sorting Integration**: Updated the Metadata API endpoint `/api/tenants/[slug]/metadata` to query the chatbot's configuration and pre-sort services according to the custom reordering before serving them.
+  5. **TypeScript Definitions**: Added the `ordered_service_ids` field to the `Chatbot` model interface in both `store.ts` and `DashboardClient.tsx` to maintain strict compile-time types.
+
+

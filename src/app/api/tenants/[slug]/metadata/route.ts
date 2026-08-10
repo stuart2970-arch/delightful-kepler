@@ -252,7 +252,8 @@ export async function GET(req: Request, { params }: { params: Promise<{ slug: st
         chatbots (
           id,
           name,
-          primary_color
+          primary_color,
+          configuration_json
         )
       `)
       .eq('slug', slug)
@@ -365,6 +366,21 @@ export async function GET(req: Request, { params }: { params: Promise<{ slug: st
           duration_minutes: s.duration_minutes || 60,
           price: s.price || 0
         }));
+
+        // Sort services according to ordered_service_ids if present in chatbot configuration_json
+        const config = activeBot.configuration_json as Record<string, any> || {};
+        const orderedServiceIds = config.ordered_service_ids || [];
+        if (Array.isArray(orderedServiceIds) && orderedServiceIds.length > 0) {
+          servicesList.sort((a, b) => {
+            const indexA = orderedServiceIds.indexOf(a.id);
+            const indexB = orderedServiceIds.indexOf(b.id);
+            
+            if (indexA !== -1 && indexB !== -1) return indexA - indexB;
+            if (indexA !== -1) return -1;
+            if (indexB !== -1) return 1;
+            return 0;
+          });
+        }
       }
     }
 
