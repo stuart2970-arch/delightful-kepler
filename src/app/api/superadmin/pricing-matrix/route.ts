@@ -62,7 +62,7 @@ export async function POST(request: Request) {
         const toInsert = entitlements.map((ent: any) => ({
           tier_id: newTierId,
           feature_id: ent.feature_id,
-          included_volume: ent.included_volume,
+          limit_value: ent.limit_value !== undefined ? ent.limit_value : ent.included_volume,
           string_value: ent.string_value
         }));
         const { error: entError } = await supabaseAdmin
@@ -86,7 +86,7 @@ export async function POST(request: Request) {
         const toInsert = entitlements.map((ent: any) => ({
           tier_id: tierId,
           feature_id: ent.feature_id,
-          included_volume: ent.included_volume,
+          limit_value: ent.limit_value !== undefined ? ent.limit_value : ent.included_volume,
           string_value: ent.string_value
         }));
         const { error: entError } = await supabaseAdmin

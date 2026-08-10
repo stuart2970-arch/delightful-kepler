@@ -311,7 +311,7 @@ export default async function DashboardPage(props: { searchParams?: Promise<{ [k
         billingData.planTier = tenantData.plan_tier;
         const { data: entitlements } = await queryClient
           .from('tier_entitlements')
-          .select('feature_id, included_volume, features(name, is_metered)')
+          .select('feature_id, limit_value, features(name, is_metered)')
           .eq('tier_id', tenantData.plan_tier);
         if (entitlements) billingData.entitlements = entitlements;
       }

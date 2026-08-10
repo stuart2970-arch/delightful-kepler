@@ -20,7 +20,7 @@ type Feature = {
 type Entitlement = {
   tier_id: string;
   feature_id: string;
-  included_volume: number | null;
+  limit_value: number | null;
   string_value: string | null;
 };
 
@@ -103,8 +103,8 @@ export default function PricingMatrixView() {
                         {ent ? (
                           <div className="text-sm font-medium text-white">
                             {ent.string_value !== null ? ent.string_value : 
-                              (ent.included_volume === null ? 'Unlimited' : 
-                                (ent.included_volume === 1 && !feature.is_metered ? '✔' : ent.included_volume.toLocaleString()))}
+                              (ent.limit_value === null ? 'Unlimited' : 
+                                (ent.limit_value === 1 && !feature.is_metered ? '✔' : ent.limit_value.toLocaleString()))}
                           </div>
                         ) : (
                           <div className="text-sm text-gray-600 font-bold">X</div>

@@ -755,20 +755,18 @@ const globalBotId = '00000000-0000-0000-0000-000000000000';
                   <a href="https://styleflo.ai/pricing" target="_blank" rel="noopener noreferrer" className="bg-[#198fd9] hover:bg-[#157ab9] text-white text-xs font-bold py-2.5 px-5 rounded-[4px] shadow-sm transition-colors whitespace-nowrap">
                     Compare & Upgrade Plans
                   </a>
-                </div>
-
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                </div>                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                   {/* Chunks Progress */}
                   <div className="bg-[var(--awb-color2)] p-5 rounded-xl border border-[var(--awb-color3)]">
                     <h4 className="text-sm font-bold text-[var(--awb-color7)] mb-2">Knowledge Base Data Chunks</h4>
                     <div className="flex justify-between text-xs text-[var(--awb-color6)] mb-2">
                       <span>{billingData?.usage?.chunks || 0} used</span>
                       <span>
-                        {billingData?.entitlements?.find((e: any) => e.feature_id === 'knowledge_data_chunks')?.included_volume || 0} total
+                        {billingData?.entitlements?.find((e: any) => e.feature_id === 'knowledge_data_chunks')?.limit_value || 0} total
                       </span>
                     </div>
                     <div className="w-full bg-[var(--awb-color3)] rounded-full h-2.5">
-                      <div className="bg-[var(--awb-color4)] h-2.5 rounded-full" style={{ width: `${Math.min(100, ((billingData?.usage?.chunks || 0) / (billingData?.entitlements?.find((e: any) => e.feature_id === 'knowledge_data_chunks')?.included_volume || 1)) * 100)}%`}}></div>
+                      <div className="bg-[var(--awb-color4)] h-2.5 rounded-full" style={{ width: `${Math.min(100, ((billingData?.usage?.chunks || 0) / (billingData?.entitlements?.find((e: any) => e.feature_id === 'knowledge_data_chunks')?.limit_value || 1)) * 100)}%`}}></div>
                     </div>
                   </div>
 
@@ -778,11 +776,11 @@ const globalBotId = '00000000-0000-0000-0000-000000000000';
                     <div className="flex justify-between text-xs text-[var(--awb-color6)] mb-2">
                       <span>{billingData?.usage?.messages || 0} messages used this month</span>
                       <span>
-                        {billingData?.entitlements?.find((e: any) => e.feature_id === 'message_allowance')?.included_volume === -1 ? 'Unlimited' : (billingData?.entitlements?.find((e: any) => e.feature_id === 'message_allowance')?.included_volume || 0) + ' total'}
+                        {billingData?.entitlements?.find((e: any) => e.feature_id === 'message_allowance')?.limit_value === -1 ? 'Unlimited' : (billingData?.entitlements?.find((e: any) => e.feature_id === 'message_allowance')?.limit_value || 0) + ' total'}
                       </span>
                     </div>
                     <div className="w-full bg-[var(--awb-color3)] rounded-full h-2.5">
-                      <div className="bg-[var(--awb-color5)] h-2.5 rounded-full" style={{ width: `${billingData?.entitlements?.find((e: any) => e.feature_id === 'message_allowance')?.included_volume === -1 ? 100 : Math.min(100, ((billingData?.usage?.messages || 0) / (billingData?.entitlements?.find((e: any) => e.feature_id === 'message_allowance')?.included_volume || 1)) * 100)}%`}}></div>
+                      <div className="bg-[var(--awb-color5)] h-2.5 rounded-full" style={{ width: `${billingData?.entitlements?.find((e: any) => e.feature_id === 'message_allowance')?.limit_value === -1 ? 100 : Math.min(100, ((billingData?.usage?.messages || 0) / (billingData?.entitlements?.find((e: any) => e.feature_id === 'message_allowance')?.limit_value || 1)) * 100)}%`}}></div>
                     </div>
                   </div>
                 </div>
