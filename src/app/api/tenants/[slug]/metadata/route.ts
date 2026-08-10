@@ -61,8 +61,8 @@ function parseGoogleOpeningHours(googleHours: any) {
   return hoursResult;
 }
 
-async function fetchGoogleReviews(tenant: any, apiKey: string): Promise<{ rating: number; userRatingCount: number; placeId: string; reviews: any[]; regularOpeningHours: any }> {
-  const defaultResult = { rating: 5, userRatingCount: 0, placeId: '', reviews: [], regularOpeningHours: null };
+async function fetchGoogleReviews(tenant: any, apiKey: string): Promise<{ rating: number; userRatingCount: number; placeId: string; reviews: any[]; regularOpeningHours: any; photos: string[] }> {
+  const defaultResult = { rating: 5, userRatingCount: 0, placeId: '', reviews: [], regularOpeningHours: null, photos: [] };
   try {
     const addressParts = [
       tenant.rwg_business_name || tenant.company_name,
@@ -79,7 +79,7 @@ async function fetchGoogleReviews(tenant: any, apiKey: string): Promise<{ rating
       headers: {
         'Content-Type': 'application/json',
         'X-Goog-Api-Key': apiKey,
-        'X-Goog-FieldMask': 'places.id,places.displayName,places.rating,places.userRatingCount,places.reviews,places.regularOpeningHours',
+        'X-Goog-FieldMask': 'places.id,places.displayName,places.rating,places.userRatingCount,places.reviews,places.regularOpeningHours,places.photos',
         'Referer': 'https://app.styleflo.ai/'
       },
       body: JSON.stringify({
@@ -104,12 +104,47 @@ async function fetchGoogleReviews(tenant: any, apiKey: string): Promise<{ rating
 
       const parsedHours = place.regularOpeningHours ? parseGoogleOpeningHours(place.regularOpeningHours) : null;
 
+      // Filter and prioritize owner-uploaded photos (displayName matches company_name or rwg_business_name)
+      const businessNameLower = (tenant.rwg_business_name || tenant.company_name || '').toLowerCase();
+      const placePhotos = place.photos || [];
+      
+      const ownerPhotos = placePhotos.filter((p: any) => {
+        const creatorName = p.authorAttributions?.[0]?.displayName || '';
+        return creatorName.toLowerCase().includes(businessNameLower);
+      });
+
+      const customerPhotos = placePhotos.filter((p: any) => {
+        const creatorName = p.authorAttributions?.[0]?.displayName || '';
+        return !creatorName.toLowerCase().includes(businessNameLower);
+      });
+
+      // Combine prioritizing owner photos up to 10
+      const combinedPhotos = [...ownerPhotos, ...customerPhotos].slice(0, 10);
+
+      const photoPromises = combinedPhotos.map(async (photo: any) => {
+        try {
+          const mediaRes = await fetch(`https://places.googleapis.com/v1/${photo.name}/media?key=${apiKey}&maxWidthPx=1920&skipHttpRedirect=true`, {
+            headers: { 'Referer': 'https://app.styleflo.ai/' }
+          });
+          if (mediaRes.ok) {
+            const mediaData = await mediaRes.json();
+            return mediaData.photoUri || null;
+          }
+        } catch (e) {
+          console.error('Error fetching media URI for photo:', photo.name, e);
+        }
+        return null;
+      });
+
+      const photosList = (await Promise.all(photoPromises)).filter(Boolean) as string[];
+
       return {
         rating: place.rating || 5,
         userRatingCount: place.userRatingCount || 0,
         placeId: place.id || '',
         reviews,
-        regularOpeningHours: parsedHours
+        regularOpeningHours: parsedHours,
+        photos: photosList
       };
     }
     return defaultResult;
@@ -232,6 +267,7 @@ export async function GET(req: Request, { params }: { params: Promise<{ slug: st
     let googleRating = 5;
     let googleRatingCount = 0;
     let googleWriteReviewUrl = '';
+    let googlePhotos: string[] = [];
     let generalHours = tenant.general_operating_hours;
     
     let cachedReviews: any[] = [];
@@ -245,6 +281,7 @@ export async function GET(req: Request, { params }: { params: Promise<{ slug: st
         lastUpdated = (tenant.google_reviews as any).last_updated || null;
         googleRating = (tenant.google_reviews as any).rating || 5;
         googleRatingCount = (tenant.google_reviews as any).userRatingCount || 0;
+        googlePhotos = (tenant.google_reviews as any).photos || [];
         if ((tenant.google_reviews as any).placeId) {
           googleWriteReviewUrl = `https://search.google.com/local/writereview?placeid=${(tenant.google_reviews as any).placeId}`;
         }
@@ -260,6 +297,7 @@ export async function GET(req: Request, { params }: { params: Promise<{ slug: st
         googleReviews = result.reviews;
         googleRating = result.rating;
         googleRatingCount = result.userRatingCount;
+        googlePhotos = result.photos;
         if (result.placeId) {
           googleWriteReviewUrl = `https://search.google.com/local/writereview?placeid=${result.placeId}`;
         }
@@ -274,7 +312,8 @@ export async function GET(req: Request, { params }: { params: Promise<{ slug: st
             rating: result.rating,
             userRatingCount: result.userRatingCount,
             placeId: result.placeId,
-            reviews: result.reviews
+            reviews: result.reviews,
+            photos: result.photos
           }
         };
         if (result.regularOpeningHours) {
@@ -350,6 +389,7 @@ export async function GET(req: Request, { params }: { params: Promise<{ slug: st
         google_rating: googleRating,
         google_rating_count: googleRatingCount,
         google_write_review_url: googleWriteReviewUrl,
+        google_photos: googlePhotos,
         latitude: tenant.latitude,
         longitude: tenant.longitude,
         primary_color: activeBot?.primary_color || '#7E5FBB',
