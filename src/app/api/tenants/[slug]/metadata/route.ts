@@ -8,7 +8,8 @@ function getSupabaseAdmin() {
   return createClient(supabaseUrl, serviceRoleKey);
 }
 
-async function fetchGoogleReviews(tenant: any, apiKey: string): Promise<any[]> {
+async function fetchGoogleReviews(tenant: any, apiKey: string): Promise<{ rating: number; userRatingCount: number; placeId: string; reviews: any[] }> {
+  const defaultResult = { rating: 5, userRatingCount: 0, placeId: '', reviews: [] };
   try {
     const addressParts = [
       tenant.rwg_business_name || tenant.company_name,
@@ -17,7 +18,7 @@ async function fetchGoogleReviews(tenant: any, apiKey: string): Promise<any[]> {
       tenant.trading_address_postcode || tenant.postcode
     ].filter(Boolean);
 
-    if (addressParts.length === 0) return [];
+    if (addressParts.length === 0) return defaultResult;
     const query = addressParts.join(', ');
 
     const response = await fetch('https://places.googleapis.com/v1/places:searchText', {
@@ -25,7 +26,7 @@ async function fetchGoogleReviews(tenant: any, apiKey: string): Promise<any[]> {
       headers: {
         'Content-Type': 'application/json',
         'X-Goog-Api-Key': apiKey,
-        'X-Goog-FieldMask': 'places.id,places.displayName,places.reviews',
+        'X-Goog-FieldMask': 'places.id,places.displayName,places.rating,places.userRatingCount,places.reviews',
         'Referer': 'https://app.styleflo.ai/'
       },
       body: JSON.stringify({
@@ -35,23 +36,30 @@ async function fetchGoogleReviews(tenant: any, apiKey: string): Promise<any[]> {
 
     if (!response.ok) {
       console.warn('[Places API Error]', response.status, await response.text());
-      return [];
+      return defaultResult;
     }
 
     const data = await response.json();
     const place = data.places?.[0];
     
-    if (place && place.reviews && Array.isArray(place.reviews)) {
-      return place.reviews.map((r: any) => ({
+    if (place) {
+      const reviews = Array.isArray(place.reviews) ? place.reviews.map((r: any) => ({
         rating: r.rating || 5,
         text: r.text?.text || r.originalText?.text || '',
         author_name: r.authorAttribution?.displayName || 'Anonymous'
-      }));
+      })) : [];
+
+      return {
+        rating: place.rating || 5,
+        userRatingCount: place.userRatingCount || 0,
+        placeId: place.id || '',
+        reviews
+      };
     }
-    return [];
+    return defaultResult;
   } catch (error) {
     console.error('Error fetching Google Reviews:', error);
-    return [];
+    return defaultResult;
   }
 }
 
@@ -165,6 +173,10 @@ export async function GET(req: Request, { params }: { params: Promise<{ slug: st
     }
 
     let googleReviews: any[] = [];
+    let googleRating = 5;
+    let googleRatingCount = 0;
+    let googleWriteReviewUrl = '';
+    
     let cachedReviews: any[] = [];
     let lastUpdated: string | null = null;
 
@@ -174,6 +186,11 @@ export async function GET(req: Request, { params }: { params: Promise<{ slug: st
       } else if (typeof tenant.google_reviews === 'object' && tenant.google_reviews !== null) {
         cachedReviews = (tenant.google_reviews as any).reviews || [];
         lastUpdated = (tenant.google_reviews as any).last_updated || null;
+        googleRating = (tenant.google_reviews as any).rating || 5;
+        googleRatingCount = (tenant.google_reviews as any).userRatingCount || 0;
+        if ((tenant.google_reviews as any).placeId) {
+          googleWriteReviewUrl = `https://search.google.com/local/writereview?placeid=${(tenant.google_reviews as any).placeId}`;
+        }
       }
     }
 
@@ -182,25 +199,30 @@ export async function GET(req: Request, { params }: { params: Promise<{ slug: st
 
     if (apiKey && (cachedReviews.length === 0 || isCacheExpired)) {
       try {
-        const freshReviews = await fetchGoogleReviews(tenant, apiKey);
-        if (freshReviews && freshReviews.length > 0) {
-          googleReviews = freshReviews;
-          // Save to database asynchronously to keep response fast
-          supabaseAdmin
-            .from('tenants')
-            .update({
-              google_reviews: {
-                last_updated: new Date().toISOString(),
-                reviews: freshReviews
-              }
-            })
-            .eq('id', tenant.id)
-            .then(({ error }) => {
-              if (error) console.error('Failed to update tenant reviews in DB:', error);
-            });
-        } else {
-          googleReviews = cachedReviews;
+        const result = await fetchGoogleReviews(tenant, apiKey);
+        googleReviews = result.reviews;
+        googleRating = result.rating;
+        googleRatingCount = result.userRatingCount;
+        if (result.placeId) {
+          googleWriteReviewUrl = `https://search.google.com/local/writereview?placeid=${result.placeId}`;
         }
+
+        // Save to database asynchronously to keep response fast
+        supabaseAdmin
+          .from('tenants')
+          .update({
+            google_reviews: {
+              last_updated: new Date().toISOString(),
+              rating: result.rating,
+              userRatingCount: result.userRatingCount,
+              placeId: result.placeId,
+              reviews: result.reviews
+            }
+          })
+          .eq('id', tenant.id)
+          .then(({ error }) => {
+            if (error) console.error('Failed to update tenant reviews in DB:', error);
+          });
       } catch (err) {
         console.error('Failed fetching reviews on page load:', err);
         googleReviews = cachedReviews;
@@ -260,6 +282,9 @@ export async function GET(req: Request, { params }: { params: Promise<{ slug: st
         general_operating_hours: tenant.general_operating_hours,
         google_maps_share_url: tenant.google_maps_share_url,
         google_reviews: googleReviews,
+        google_rating: googleRating,
+        google_rating_count: googleRatingCount,
+        google_write_review_url: googleWriteReviewUrl,
         latitude: tenant.latitude,
         longitude: tenant.longitude,
         primary_color: activeBot?.primary_color || '#7E5FBB',
