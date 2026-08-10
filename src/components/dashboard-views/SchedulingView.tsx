@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { useDashboardStore, DailySchedule, WeeklySchedule } from '../../lib/store';
 import ServiceEditor from '../ServiceEditor';
-import BusinessOperatingHours from './BusinessOperatingHours';
+
 
 export default function SchedulingView() {
   const { tenantId, chatbots, services, setServices, staff, setStaff, bookingMode, setBookingMode, bookingUrl, setBookingUrl, isGoogleConnected, setIsGoogleConnected } = useDashboardStore();
@@ -286,7 +286,6 @@ export default function SchedulingView() {
           {true && (
             <div className="space-y-6">
 
-              <BusinessOperatingHours />
 
               <div className="bg-[var(--awb-color1)] border border-[var(--awb-color3)] p-6 rounded-2xl shadow-xl space-y-4">
                 <div>
