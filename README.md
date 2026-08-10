@@ -596,5 +596,7 @@ ame, irstMessage, and 	ranscriber) rather than relying on ssistantOverrides de
   3. **Drag-and-Drop Service Reordering**: Added drag handles and HTML5 Drag & Drop API event handlers in `ServiceEditor.tsx`. Custom order is saved inside the chatbot's `configuration_json.ordered_service_ids` in Supabase.
   4. **Public Sorting Integration**: Updated the Metadata API endpoint `/api/tenants/[slug]/metadata` to query the chatbot's configuration and pre-sort services according to the custom reordering before serving them.
   5. **TypeScript Definitions**: Added the `ordered_service_ids` field to the `Chatbot` model interface in both `store.ts` and `DashboardClient.tsx` to maintain strict compile-time types.
+  6. **Currency Labels**: Defaulted base price and override price currency indicator signs from `$` to `£` in `ServiceEditor.tsx`.
+
 
 

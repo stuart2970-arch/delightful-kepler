@@ -221,7 +221,7 @@ export default function ServiceEditor({ tenantId, chatbotId, services, setServic
                 <input required type="number" min="0" step="5" value={newServiceBuffer} onChange={e => setNewServiceBuffer(parseInt(e.target.value))} className="w-full bg-[var(--awb-color1)] border border-[var(--awb-color3)] rounded-lg px-3 py-2 text-sm text-[var(--awb-color8)]" />
               </div>
               <div>
-                <label className="block text-xs font-semibold text-[var(--awb-color6)] mb-1">Base Price ($)</label>
+                <label className="block text-xs font-semibold text-[var(--awb-color6)] mb-1">Base Price (£)</label>
                 <input type="number" min="0" step="1" value={newServicePrice} onChange={e => setNewServicePrice(parseInt(e.target.value))} className="w-full bg-[var(--awb-color1)] border border-[var(--awb-color3)] rounded-lg px-3 py-2 text-sm text-[var(--awb-color8)]" />
               </div>
             </div>
@@ -246,7 +246,7 @@ export default function ServiceEditor({ tenantId, chatbotId, services, setServic
                         {isAssigned && (
                           <div className="mt-3 pl-7 grid grid-cols-2 gap-3">
                             <div>
-                              <label className="block text-[10px] text-[var(--awb-color6)] mb-1">Override Price ($)</label>
+                              <label className="block text-[10px] text-[var(--awb-color6)] mb-1">Override Price (£)</label>
                               <input type="number" placeholder="Default" value={isAssigned.custom_price || ''} onChange={e => handleUpdateStaffMapping(st.id, 'custom_price', e.target.value)} className="w-full bg-white border border-[#f2f3f5] rounded px-2 py-1.5 text-xs text-[var(--awb-color8)]" />
                             </div>
                             <div>
@@ -307,7 +307,7 @@ export default function ServiceEditor({ tenantId, chatbotId, services, setServic
                 {srv.description && (
                   <div className="text-xs text-[var(--awb-color6)] mt-0.5 line-clamp-1 truncate">{srv.description}</div>
                 )}
-                <div className="text-xs text-[var(--awb-color6)] mt-0.5">{srv.duration_minutes}m duration • ${srv.price || 0}</div>
+                <div className="text-xs text-[var(--awb-color6)] mt-0.5">{srv.duration_minutes}m duration • £{srv.price || 0}</div>
                 {srv.staff_services && srv.staff_services.length > 0 && (
                   <div className="text-xs text-indigo-400 mt-1">
                     Assigned to {srv.staff_services.length} staff
