@@ -343,7 +343,7 @@ export async function GET(req: Request, { params }: { params: Promise<{ slug: st
     // 2. Fetch associated staff roster and services
     if (activeBot) {
       const [{ data: staff }, { data: services }] = await Promise.all([
-        supabaseAdmin.from('staff').select('id, name, role, email, working_days').eq('chatbot_id', activeBot.id),
+        supabaseAdmin.from('staff').select('id, name, role, email, working_days, image_url, specialist_product, bio').eq('chatbot_id', activeBot.id),
         supabaseAdmin.from('services').select('id, name, description, duration_minutes, price').eq('chatbot_id', activeBot.id).order('created_at', { ascending: true })
       ]);
 
@@ -354,7 +354,10 @@ export async function GET(req: Request, { params }: { params: Promise<{ slug: st
           name: member.name,
           role: member.role || 'Specialist',
           email: member.email,
-          status: calculateStaffStatus(member.working_days)
+          status: calculateStaffStatus(member.working_days),
+          image_url: member.image_url,
+          specialist_product: member.specialist_product,
+          bio: member.bio
         }));
       }
 

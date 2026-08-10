@@ -54,6 +54,52 @@ export default function SchedulingView() {
   const [newStaffName, setNewStaffName] = useState('');
   const [newStaffEmail, setNewStaffEmail] = useState('');
   const [newStaffCalId, setNewStaffCalId] = useState('');
+  const [newStaffImageUrl, setNewStaffImageUrl] = useState('');
+  const [newStaffSpecialistProduct, setNewStaffSpecialistProduct] = useState('');
+  const [newStaffBio, setNewStaffBio] = useState('');
+  const [isUploadingImage, setIsUploadingImage] = useState(false);
+  const [expandedBios, setExpandedBios] = useState<Record<string, boolean>>({});
+
+  const handleStaffImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (!file.type.startsWith('image/')) {
+      alert('Please upload an image file.');
+      return;
+    }
+    
+    if (file.size > 2 * 1024 * 1024) {
+      alert('Image size must be less than 2MB.');
+      return;
+    }
+
+    setIsUploadingImage(true);
+    try {
+      const formData = new FormData();
+      formData.append('file', file);
+      formData.append('tenantId', tenantId);
+
+      const response = await fetch('/api/chatbots/upload-avatar', {
+        method: 'POST',
+        body: formData,
+      });
+
+      if (!response.ok) {
+        const errData = await response.json();
+        throw new Error(errData.error || response.statusText);
+      }
+
+      const { url } = await response.json();
+      setNewStaffImageUrl(url);
+    } catch (err: any) {
+      console.error('Error uploading staff image:', err);
+      alert(`Failed to upload image: ${err.message}`);
+    } finally {
+      setIsUploadingImage(false);
+      if (e.target) e.target.value = '';
+    }
+  };
 
   const createEmptySchedule = (weekDate?: string): WeeklySchedule => ({
     weekCommencingDate: weekDate || new Date().toISOString().split('T')[0],
@@ -205,6 +251,9 @@ export default function SchedulingView() {
     setNewStaffName(staffMember.name);
     setNewStaffEmail(staffMember.email);
     setNewStaffCalId(staffMember.google_calendar_id === 'primary' ? '' : staffMember.google_calendar_id);
+    setNewStaffImageUrl(staffMember.image_url || '');
+    setNewStaffSpecialistProduct(staffMember.specialist_product || '');
+    setNewStaffBio(staffMember.bio || '');
     
     // Load existing weeks or create empty ones
     const existingWeeks = staffMember.working_days?.weeks || [];
@@ -233,7 +282,10 @@ export default function SchedulingView() {
         name: newStaffName,
         email: newStaffEmail,
         google_calendar_id: newStaffCalId || 'primary',
-        working_days: newStaffSchedule
+        working_days: newStaffSchedule,
+        image_url: newStaffImageUrl || null,
+        specialist_product: newStaffSpecialistProduct || null,
+        bio: newStaffBio || null
       };
       if (isUpdate) {
         bodyPayload.id = editingStaffId;
@@ -256,6 +308,9 @@ export default function SchedulingView() {
         setNewStaffName('');
         setNewStaffEmail('');
         setNewStaffCalId('');
+        setNewStaffImageUrl('');
+        setNewStaffSpecialistProduct('');
+        setNewStaffBio('');
         setNewStaffSchedule({
           weeks: [createEmptySchedule(), createEmptySchedule(), createEmptySchedule(), createEmptySchedule()]
         });
@@ -411,12 +466,50 @@ export default function SchedulingView() {
                               <label className="block text-xs font-semibold text-[var(--awb-color6)] mb-1">Email</label>
                               <input required type="email" value={newStaffEmail} onChange={e => setNewStaffEmail(e.target.value)} className="w-full bg-[var(--awb-color1)] border border-[var(--awb-color3)] rounded-lg px-3 py-2 text-sm text-[var(--awb-color8)]" placeholder="john@example.com" />
                             </div>
-                            {bookingMode === 'multi_calendar' && (
+                            {bookingMode === 'multi_calendar' ? (
                               <div>
                                 <label className="block text-xs font-semibold text-[var(--awb-color6)] mb-1">Google Calendar ID</label>
                                 <input type="text" value={newStaffCalId} onChange={e => setNewStaffCalId(e.target.value)} className="w-full bg-[var(--awb-color1)] border border-[var(--awb-color3)] rounded-lg px-3 py-2 text-sm text-[var(--awb-color8)]" placeholder="Defaults to 'primary'" />
                               </div>
-                            )}
+                            ) : <div />}
+                          </div>
+
+                          {/* Profile Picture, Specialist Product, and Bio */}
+                          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 items-end">
+                            <div className="flex items-center gap-3">
+                              <div className="relative w-12 h-12 rounded-full overflow-hidden bg-gray-100 border border-[var(--awb-color3)] flex-shrink-0 flex items-center justify-center">
+                                {newStaffImageUrl ? (
+                                  <img src={newStaffImageUrl} alt="Staff profile preview" className="w-full h-full object-cover" />
+                                ) : (
+                                  <svg className="w-6 h-6 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                                  </svg>
+                                )}
+                              </div>
+                              <div className="flex flex-col gap-1">
+                                <span className="text-[10px] font-semibold text-[var(--awb-color6)]">Profile Picture</span>
+                                <div className="flex items-center gap-2">
+                                  <label className={`cursor-pointer bg-[var(--awb-color2)] hover:bg-gray-100 text-[var(--awb-color8)] text-[11px] font-bold px-3 py-1.5 rounded-lg border border-[var(--awb-color3)] transition-colors inline-block ${isUploadingImage ? 'opacity-50 pointer-events-none' : ''}`}>
+                                    <input type="file" accept="image/*" className="hidden" onChange={handleStaffImageUpload} disabled={isUploadingImage} />
+                                    {isUploadingImage ? 'Uploading...' : 'Upload'}
+                                  </label>
+                                  {newStaffImageUrl && (
+                                    <button type="button" onClick={() => setNewStaffImageUrl('')} className="text-[11px] text-red-500 hover:text-red-700 transition-colors">
+                                      Clear
+                                    </button>
+                                  )}
+                                </div>
+                              </div>
+                            </div>
+                            <div className="md:col-span-2">
+                              <label className="block text-xs font-semibold text-[var(--awb-color6)] mb-1">Specialist Product</label>
+                              <input type="text" value={newStaffSpecialistProduct} onChange={e => setNewStaffSpecialistProduct(e.target.value)} className="w-full bg-[var(--awb-color1)] border border-[var(--awb-color3)] rounded-lg px-3 py-2 text-sm text-[var(--awb-color8)]" placeholder="e.g. Balayage, Tax Consultation" />
+                            </div>
+                          </div>
+
+                          <div>
+                            <label className="block text-xs font-semibold text-[var(--awb-color6)] mb-1">Bio</label>
+                            <textarea value={newStaffBio} onChange={e => setNewStaffBio(e.target.value)} rows={3} className="w-full bg-[var(--awb-color1)] border border-[var(--awb-color3)] rounded-lg px-3 py-2 text-sm text-[var(--awb-color8)] resize-y" placeholder="Brief professional biography..." />
                           </div>
 
                         {/* Schedule Spreadsheet Grid */}
@@ -524,6 +617,12 @@ export default function SchedulingView() {
                           <button type="button" onClick={() => {
                             setShowStaffModal(false);
                             setEditingStaffId(null);
+                            setNewStaffName('');
+                            setNewStaffEmail('');
+                            setNewStaffCalId('');
+                            setNewStaffImageUrl('');
+                            setNewStaffSpecialistProduct('');
+                            setNewStaffBio('');
                           }} className="px-4 py-2 text-sm text-[var(--awb-color6)] hover:text-[var(--awb-color8)] transition-colors">Cancel</button>
                           <button type="submit" className="px-5 py-2 text-sm bg-[#198fd9] text-white font-semibold rounded-[4px] px-[29px] py-[13px] hover:bg-[#198fd9] text-white font-semibold rounded-[4px] px-[29px] py-[13px] text-[var(--awb-color8)] rounded-lg font-bold shadow-lg transition-transform active:scale-95">
                             {editingStaffId ? 'Update Staff Member' : 'Save Staff Member'}
@@ -540,6 +639,9 @@ export default function SchedulingView() {
                       setNewStaffName('');
                       setNewStaffEmail('');
                       setNewStaffCalId('');
+                      setNewStaffImageUrl('');
+                      setNewStaffSpecialistProduct('');
+                      setNewStaffBio('');
                       setNewStaffSchedule({
                         weeks: [createEmptySchedule(), createEmptySchedule(), createEmptySchedule(), createEmptySchedule()]
                       });
@@ -554,23 +656,64 @@ export default function SchedulingView() {
                       <div className="text-sm text-[var(--awb-color6)] italic text-center mt-10">No staff configured yet.</div>
                     ) : filteredStaff.map(stf => (
                       <div key={stf.id} className="bg-white border border-[#f2f3f5] p-4 rounded-xl flex flex-col gap-2 group hover:border-[var(--awb-color3)] transition-colors">
-                        <div className="flex items-center justify-between">
-                          <div>
-                            <div className="font-bold text-gray-200 text-sm">{stf.name}</div>
-                            <div className="text-[10px] text-[var(--awb-color6)] font-mono mt-0.5">{stf.email}</div>
+                        <div className="flex items-start gap-3">
+                          <div className="w-10 h-10 rounded-full overflow-hidden bg-gray-100 border border-[#f2f3f5] flex-shrink-0 flex items-center justify-center">
+                            {stf.image_url ? (
+                              <img src={stf.image_url} alt={`${stf.name} profile`} className="w-full h-full object-cover" />
+                            ) : (
+                              <svg className="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                              </svg>
+                            )}
                           </div>
-                          <div className="flex items-center gap-2">
-                            <button onClick={() => openEditStaff(stf)} className="text-gray-600 hover:text-[var(--awb-color5)] opacity-0 group-hover:opacity-100 transition-opacity">
-                              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"></path></svg>
-                            </button>
-                            <button onClick={() => handleDeleteStaff(stf.id)} className="text-gray-600 hover:text-red-400 opacity-0 group-hover:opacity-100 transition-opacity">
-                              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg>
-                            </button>
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center justify-between">
+                              <div className="font-bold text-[var(--awb-color8)] text-sm truncate">{stf.name}</div>
+                              <div className="flex items-center gap-2">
+                                <button onClick={() => openEditStaff(stf)} className="text-gray-600 hover:text-[var(--awb-color5)] opacity-0 group-hover:opacity-100 transition-opacity">
+                                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"></path></svg>
+                                </button>
+                                <button onClick={() => handleDeleteStaff(stf.id)} className="text-gray-600 hover:text-red-400 opacity-0 group-hover:opacity-100 transition-opacity">
+                                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg>
+                                </button>
+                              </div>
+                            </div>
+                            <div className="text-[10px] text-[var(--awb-color6)] font-mono mt-0.5 truncate">{stf.email}</div>
+                            {stf.specialist_product && (
+                              <div className="mt-1">
+                                <span className="inline-block bg-[var(--awb-color2)] border border-[var(--awb-color3)] text-[var(--awb-color8)] text-[9.5px] font-bold px-2.5 py-0.5 rounded-md">
+                                  Specialist: {stf.specialist_product}
+                                </span>
+                              </div>
+                            )}
                           </div>
                         </div>
                         {bookingMode === 'multi_calendar' && (
                           <div className="text-[11px] text-[var(--awb-color6)] bg-[var(--awb-color1)] p-2 rounded-lg">
                             Cal ID: <span className="text-[var(--awb-color5)] break-all">{stf.google_calendar_id}</span>
+                          </div>
+                        )}
+                        {stf.bio && (
+                          <div className="mt-2 border-t border-[var(--awb-color3)] pt-2">
+                            <button
+                              onClick={() => setExpandedBios(prev => ({ ...prev, [stf.id]: !prev[stf.id] }))}
+                              className="flex items-center gap-1 text-[10px] font-bold text-[var(--awb-color5)] hover:underline"
+                            >
+                              <span>{expandedBios[stf.id] ? 'Hide Bio' : 'View Bio'}</span>
+                              <svg
+                                className={`w-3 h-3 transition-transform duration-200 ${expandedBios[stf.id] ? 'rotate-180' : ''}`}
+                                fill="none"
+                                stroke="currentColor"
+                                viewBox="0 0 24 24"
+                              >
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7" />
+                              </svg>
+                            </button>
+                            {expandedBios[stf.id] && (
+                              <div className="text-xs text-[var(--awb-color6)] mt-1.5 leading-relaxed bg-[var(--awb-color2)] p-2.5 rounded-lg border border-[var(--awb-color3)] animate-in fade-in duration-200 whitespace-pre-wrap">
+                                {stf.bio}
+                              </div>
+                            )}
                           </div>
                         )}
                       </div>
