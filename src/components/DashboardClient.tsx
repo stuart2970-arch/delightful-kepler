@@ -98,6 +98,7 @@ interface DashboardClientProps {
   initialIsRegisteredCompany?: boolean;
   initialRegisteredAddressSameAsTrading?: boolean;
   initialRwgAddressSameAsTrading?: boolean;
+  initialAppointments?: any[];
 }
 
 export default function DashboardClient({
@@ -122,6 +123,7 @@ export default function DashboardClient({
   initialGlobalVoiceDisclaimer,
   initialServices = [],
   initialStaff = [],
+  initialAppointments = [],
   billingData,
   superadminData,
   isImpersonating,
@@ -153,6 +155,7 @@ export default function DashboardClient({
       conversations: initialConversations,
       services: initialServices,
       staff: initialStaff,
+      appointments: initialAppointments,
       metrics: initialMetrics,
       billingData,
       superadminData,
@@ -191,6 +194,7 @@ export default function DashboardClient({
     initialConversations,
     initialServices,
     initialStaff,
+    initialAppointments,
     initialMetrics,
     billingData,
     superadminData,

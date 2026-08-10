@@ -599,6 +599,9 @@ ame, irstMessage, and 	ranscriber) rather than relying on ssistantOverrides de
   6. **Currency Labels**: Defaulted base price and override price currency indicator signs from `$` to `£` in `ServiceEditor.tsx`.
   7. **Dynamic Welcome Message Placeholders**: Implemented customer name and chatbot name placeholders (e.g. `[Name]` and `[ChatbotName]`) inside the widget's welcome text greeting. It formats the text dynamically on load or onboarding submission, and updates the Vapi voice parameters accordingly.
   8. **Voice completions RAG Match Threshold**: Fixed a bug where the voice assistant was hallucinating or looking up other shops by lowering the vector similarity matching threshold (`match_threshold`) from `0.7` to `0.2` in both `/api/voice/chat/completions` and `/api/voice/[chatbotId]/chat/completions` routes. This matches the text chat threshold and ensures business knowledge is correctly retrieved.
+  9. **Weekly Bookings Performance Tracker**: Integrated a weekly performance overview stats card on the Chatbots manager view (serving as the dashboard homepage). It dynamically parses the tenant's appointments table data to display the count of automated customer appointments scheduled for the current week (Monday to Sunday).
+  10. **Voice Recording & Transcripts Schema**: Identified that the migration script [`20260723100000_add_voice_fields_to_conversations.sql`](file:///c:/Users/Stuar/.gemini/antigravity/scratch/delightful-kepler/supabase/migrations/20260723100000_add_voice_fields_to_conversations.sql) was local-only. Added instructions for running this SQL file on the hosted Supabase instance to add `is_voice_call`, `resulted_in_booking`, `recording_url`, and `transcript` columns to the `conversations` table, enabling business users to listen to call recordings and view full call transcripts in the inbox explorer.
+
 
 
 

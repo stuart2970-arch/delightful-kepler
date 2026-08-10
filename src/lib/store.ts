@@ -105,6 +105,8 @@ export interface DashboardState {
   setServices: (services: any[]) => void;
   staff: any[];
   setStaff: (staff: any[]) => void;
+  appointments: any[];
+  setAppointments: (appointments: any[]) => void;
   isGoogleConnected: boolean;
   setIsGoogleConnected: (connected: boolean) => void;
   googleConnectedEmail: string | null;
@@ -220,6 +222,8 @@ export const useDashboardStore = create<DashboardState>((set) => ({
   setServices: (services) => set({ services }),
   staff: [],
   setStaff: (staff) => set({ staff }),
+  appointments: [],
+  setAppointments: (appointments) => set({ appointments }),
   isGoogleConnected: false,
   setIsGoogleConnected: (isGoogleConnected) => set({ isGoogleConnected }),
   googleConnectedEmail: null,

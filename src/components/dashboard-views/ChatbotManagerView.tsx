@@ -6,7 +6,7 @@ import { createBrowserClient } from '@supabase/ssr';
 
 
 export default function ChatbotManagerView() {
-  const { chatbots, setChatbots, setMetrics, tenantId, isSuperAdmin } = useDashboardStore();
+  const { chatbots, setChatbots, setMetrics, tenantId, isSuperAdmin, appointments } = useDashboardStore();
   const [testWidgetBotId, setTestWidgetBotId] = useState<string | null>(null);
   const [newBotName, setNewBotName] = useState('');
   const [newBotColor, setNewBotColor] = useState('#4F46E5');
@@ -295,9 +295,55 @@ export default function ChatbotManagerView() {
     setIsDeletingBot(false);
   };
 
+  // Filter appointments for the current week (Monday 00:00:00 to Sunday 23:59:59 local time)
+  const getWeeklyAppointmentsCount = () => {
+    if (!appointments || !Array.isArray(appointments)) return 0;
+    
+    const now = new Date();
+    const day = now.getDay();
+    const diff = now.getDate() - day + (day === 0 ? -6 : 1);
+    const startOfWeek = new Date(now.setDate(diff));
+    startOfWeek.setHours(0, 0, 0, 0);
+    
+    const endOfWeek = new Date(startOfWeek.getTime());
+    endOfWeek.setDate(endOfWeek.getDate() + 7);
+
+    return appointments.filter(appt => {
+      if (appt.is_blockout) return false;
+      const apptDate = new Date(appt.start_time);
+      return apptDate >= startOfWeek && apptDate < endOfWeek;
+    }).length;
+  };
+
   return (
     <>
             <div className="space-y-6">
+              {/* Weekly Performance Overview Banner */}
+              <div className="bg-gradient-to-r from-indigo-900 via-indigo-950 to-purple-950 border border-indigo-500/30 p-6 rounded-2xl shadow-xl flex flex-col md:flex-row justify-between items-start md:items-center gap-4 relative overflow-hidden">
+                <div className="absolute top-0 right-0 w-64 h-64 bg-indigo-500/10 rounded-full blur-3xl pointer-events-none"></div>
+                <div className="space-y-1 z-10">
+                  <span className="text-[10px] tracking-wider uppercase text-indigo-400 font-bold bg-indigo-500/10 px-2.5 py-1 rounded-full border border-indigo-500/20">
+                    Weekly Performance Overview
+                  </span>
+                  <h3 className="text-xl md:text-2xl font-extrabold text-white mt-2">
+                    Chatbot Bookings Statistics
+                  </h3>
+                  <p className="text-xs text-indigo-200">
+                    Track automated appointments scheduled for the current week (Monday to Sunday).
+                  </p>
+                </div>
+                <div className="flex items-center gap-4 z-10 bg-indigo-950/50 border border-indigo-500/20 p-4 rounded-xl shadow-inner min-w-[200px] justify-between">
+                  <div>
+                    <span className="text-xs text-indigo-300 font-medium block">Appointments Booked</span>
+                    <span className="text-2xl md:text-3xl font-black text-white">{getWeeklyAppointmentsCount()}</span>
+                  </div>
+                  <div className="w-12 h-12 bg-green-500/10 border border-green-500/30 rounded-xl flex items-center justify-center text-green-400 shadow">
+                    <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                    </svg>
+                  </div>
+                </div>
+              </div>
               {/* Create Chatbot Card */}
               <div className="bg-[var(--awb-color1)] border border-[var(--awb-color3)] p-6 rounded-2xl shadow-sm">
                 <h3 className="text-lg font-bold text-[var(--awb-color8)] mb-6">
