@@ -80,7 +80,7 @@ export default async function SuperadminPage() {
   // Fetch all tenants using admin client
   const { data: tenants } = await adminSupabase
     .from('tenants')
-    .select('id, company_name, plan_tier, created_at, owner_id, slug')
+    .select('id, company_name, plan_tier, created_at, slug')
     .order('created_at', { ascending: false });
 
   // Fetch usage logs for current month using admin client
@@ -89,15 +89,15 @@ export default async function SuperadminPage() {
   firstDay.setHours(0, 0, 0, 0);
 
   const { data: allUsage } = await adminSupabase
-    .from('usage_logs')
-    .select('amount, feature_id, tenant_id')
-    .gte('created_at', firstDay.toISOString());
+    .from('usage_ledger')
+    .select('quantity, feature_id, tenant_id')
+    .gte('recorded_at', firstDay.toISOString());
 
   // Aggregate stats
   const tenantStats = (tenants || []).map(t => {
     const tenantUsage = (allUsage || []).filter(u => u.tenant_id === t.id);
-    const messagesCount = tenantUsage.filter(u => u.feature_id === 'llm_tokens').reduce((sum, u) => sum + Number(u.amount), 0);
-    const crawlsCount = tenantUsage.filter(u => u.feature_id === 'knowledge_base_crawls').reduce((sum, u) => sum + Number(u.amount), 0);
+    const messagesCount = tenantUsage.filter(u => u.feature_id === 'message_allowance').reduce((sum, u) => sum + Number(u.quantity), 0);
+    const crawlsCount = tenantUsage.filter(u => u.feature_id === 'knowledge_data_chunks').reduce((sum, u) => sum + Number(u.quantity), 0);
 
     return {
       id: t.id,
