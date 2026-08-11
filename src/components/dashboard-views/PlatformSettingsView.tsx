@@ -3,14 +3,14 @@
 import React, { useState } from 'react';
 import { useDashboardStore } from '../../lib/store';
 
-export default function PlatformSettingsView() {
+export default function PlatformSettingsView({ tenants: propTenants }: { tenants?: any[] } = {}) {
   const { superadminData } = useDashboardStore();
   const [selectedSlug, setSelectedSlug] = useState('');
   const [manualSlug, setManualSlug] = useState('');
   const [isSyncing, setIsSyncing] = useState(false);
   const [notification, setNotification] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
 
-  const tenants = superadminData?.tenants || [];
+  const tenants = propTenants || superadminData?.tenants || [];
 
   const handleSync = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -58,19 +58,19 @@ export default function PlatformSettingsView() {
     <div className="space-y-6">
       {/* Platform Title */}
       <div>
-        <h3 className="text-xl font-bold text-[#260475]">Platform Caching & Webhooks</h3>
-        <p className="text-xs text-[#434549] mt-0.5">Manage WordPress dynamic page synchronization and invalidation hooks.</p>
+        <h3 className="text-xl font-bold text-white">Platform Caching & Webhooks</h3>
+        <p className="text-xs text-gray-400 mt-0.5">Manage WordPress dynamic page synchronization and invalidation hooks.</p>
       </div>
 
       {/* Sleek Glassmorphism Action Card */}
-      <div className="relative overflow-hidden rounded-2xl border border-white/20 bg-white/70 backdrop-blur-md p-8 shadow-xl shadow-slate-100/80">
+      <div className="relative overflow-hidden rounded-2xl border border-gray-800 bg-gray-900 p-8 shadow-xl shadow-slate-950/20">
         {/* Glow decorative element */}
-        <div className="absolute top-0 right-0 -mr-6 -mt-6 w-32 h-32 bg-gradient-to-br from-[#198fd9]/10 to-transparent rounded-full pointer-events-none" />
+        <div className="absolute top-0 right-0 -mr-6 -mt-6 w-32 h-32 bg-gradient-to-br from-indigo-500/10 to-transparent rounded-full pointer-events-none" />
 
         <div className="space-y-4">
           <div>
-            <h4 className="text-base font-bold text-[#260475]">WordPress Cache Purging Sync</h4>
-            <p className="text-xs text-[#434549] mt-1 leading-relaxed">
+            <h4 className="text-base font-bold text-white">WordPress Cache Purging Sync</h4>
+            <p className="text-xs text-gray-400 mt-1 leading-relaxed">
               Merchant profiles are cached statically on WordPress to maintain sub-second loading speeds and SEO metrics. 
               Triggering a sync dispatches a secure HMAC-signed request to the WordPress clear-cache REST API to clear the static page cache instantly.
             </p>
@@ -81,14 +81,14 @@ export default function PlatformSettingsView() {
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               {/* Select Tenant Dropdown */}
               <div>
-                <label className="block text-xs font-bold text-[#260475] mb-2">Registered Tenant Profiles</label>
+                <label className="block text-xs font-bold text-gray-400 mb-2">Registered Tenant Profiles</label>
                 <select
                   value={selectedSlug}
                   onChange={(e) => {
                     setSelectedSlug(e.target.value);
                     if (e.target.value) setManualSlug(''); // Clear manual slug if selected from dropdown
                   }}
-                  className="w-full h-[50px] bg-white border border-[#e2e8f0] rounded-[6px] px-3.5 py-2 text-sm text-[#212326] focus:outline-none focus:border-[#198fd9] font-medium"
+                  className="w-full h-[50px] bg-gray-950 border border-gray-800 rounded-[6px] px-3.5 py-2 text-sm text-white focus:outline-none focus:ring-1 focus:ring-indigo-500 font-medium"
                 >
                   <option value="">-- Choose Tenant --</option>
                   {tenants.map((t: any) => (
@@ -101,7 +101,7 @@ export default function PlatformSettingsView() {
 
               {/* Custom Slug Input */}
               <div>
-                <label className="block text-xs font-bold text-[#260475] mb-2">Or enter Custom Slug</label>
+                <label className="block text-xs font-bold text-gray-400 mb-2">Or enter Custom Slug</label>
                 <input
                   type="text"
                   placeholder="e.g. crew-childwall"
@@ -110,7 +110,7 @@ export default function PlatformSettingsView() {
                     setManualSlug(e.target.value);
                     if (e.target.value) setSelectedSlug(''); // Clear dropdown selection if custom input is used
                   }}
-                  className="w-full h-[50px] bg-white border border-[#e2e8f0] rounded-[6px] px-3.5 py-2 text-sm text-[#212326] focus:outline-none focus:border-[#198fd9] font-medium"
+                  className="w-full h-[50px] bg-gray-950 border border-gray-800 rounded-[6px] px-3.5 py-2 text-sm text-white focus:outline-none focus:ring-1 focus:ring-indigo-500 font-medium"
                 />
               </div>
             </div>
@@ -120,7 +120,7 @@ export default function PlatformSettingsView() {
               <button
                 type="submit"
                 disabled={isSyncing}
-                className="bg-[#198fd9] hover:bg-[#157ab9] text-white font-semibold rounded-[4px] px-[29px] py-[13px] text-sm shadow-md shadow-blue-500/10 active:scale-[0.98] transition-all disabled:opacity-50 flex items-center justify-center gap-2"
+                className="bg-indigo-600 hover:bg-indigo-500 text-white font-semibold rounded-xl px-6 py-2.5 text-sm shadow-lg shadow-indigo-500/10 active:scale-[0.98] transition-all disabled:opacity-50 flex items-center justify-center gap-2"
               >
                 {isSyncing && (
                   <svg className="animate-spin h-4 w-4 text-white" fill="none" viewBox="0 0 24 24">
@@ -138,8 +138,8 @@ export default function PlatformSettingsView() {
             <div
               className={`p-4 rounded-xl border flex items-start gap-3 mt-4 text-sm ${
                 notification.type === 'success'
-                  ? 'bg-emerald-50 border-emerald-200 text-emerald-950 shadow-sm'
-                  : 'bg-rose-50 border-rose-200 text-rose-950 shadow-sm'
+                  ? 'bg-emerald-950/20 border-emerald-800 text-emerald-400 shadow-sm'
+                  : 'bg-rose-950/20 border-rose-800 text-rose-400 shadow-sm'
               }`}
             >
               {notification.type === 'success' ? (

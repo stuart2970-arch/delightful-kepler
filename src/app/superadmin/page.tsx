@@ -80,7 +80,7 @@ export default async function SuperadminPage() {
   // Fetch all tenants using admin client
   const { data: tenants } = await adminSupabase
     .from('tenants')
-    .select('id, company_name, plan_tier, created_at, owner_id')
+    .select('id, company_name, plan_tier, created_at, owner_id, slug')
     .order('created_at', { ascending: false });
 
   // Fetch usage logs for current month using admin client
@@ -104,6 +104,7 @@ export default async function SuperadminPage() {
       company_name: t.company_name,
       plan_tier: t.plan_tier,
       created_at: t.created_at,
+      slug: t.slug,
       messagesCount,
       crawlsCount
     };

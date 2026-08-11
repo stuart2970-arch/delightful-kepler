@@ -3,6 +3,8 @@
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import SuperAdminEntitlementsView from './SuperAdminEntitlementsView';
+import PlatformSettingsView from '../dashboard-views/PlatformSettingsView';
+import SuperAdminVoiceManagerView from '../dashboard-views/SuperAdminVoiceManagerView';
 
 type GlobalHoliday = {
   id: string;
@@ -45,7 +47,7 @@ export default function SuperadminClient({
   const [newHoliday, setNewHoliday] = useState({ countries: ['UK'], date: new Date().toISOString().split('T')[0], name: '' });
   const [isSavingHoliday, setIsSavingHoliday] = useState(false);
 
-  const [activeTab, setActiveTab] = useState<'overview' | 'pricing' | 'holidays' | 'settings'>('overview');
+  const [activeTab, setActiveTab] = useState<'overview' | 'pricing' | 'holidays' | 'settings' | 'voices'>('overview');
 
   const [globalBrandingHtml, setGlobalBrandingHtml] = useState(initialGlobalBrandingHtml || '<span style="opacity: 0.6; font-size: 11px;">⚡ Powered by <strong>StyleFlo</strong></span>');
   const [globalTrackingUrl, setGlobalTrackingUrl] = useState(initialGlobalTrackingUrl || 'https://styleflo.ai');
@@ -202,10 +204,19 @@ export default function SuperadminClient({
         >
           Platform Settings
         </button>
+        <button 
+          onClick={() => setActiveTab('voices')}
+          className={`flex-1 py-2.5 text-sm font-medium rounded-lg transition-colors ${activeTab === 'voices' ? 'bg-indigo-600 text-white shadow' : 'text-gray-400 hover:text-white hover:bg-gray-800'}`}
+        >
+          Voice Personas
+        </button>
       </div>
 
       {activeTab === 'settings' && (
         <div className="space-y-6 mt-6">
+          {/* Caching Panel */}
+          <PlatformSettingsView tenants={tenants} />
+
           {/* Branding Panel */}
           <div className="bg-gray-900 border border-gray-800 p-6 rounded-2xl shadow-xl space-y-6">
             <div>
@@ -277,6 +288,12 @@ export default function SuperadminClient({
               </div>
             </form>
           </div>
+        </div>
+      )}
+
+      {activeTab === 'voices' && (
+        <div className="mt-6">
+          <SuperAdminVoiceManagerView />
         </div>
       )}
 
