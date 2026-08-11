@@ -801,10 +801,12 @@ const globalBotId = '00000000-0000-0000-0000-000000000000';
                       <p className="text-2xl font-extrabold text-[var(--awb-color8)]">{superadminData.tenants?.length || 0}</p>
                     </div>
                     <div className="bg-[var(--awb-color2)] border border-[var(--awb-color3)] p-4 rounded-xl text-center shadow-sm">
-                      <p className="text-xs text-[var(--awb-color7)] font-bold uppercase tracking-wider mb-1 font-semibold">Total Chat Messages</p>
-                      <p className="text-2xl font-extrabold text-[#198fd9]">{superadminData.totalChatMessages || 0}</p>
+                      <p className="text-xs text-[var(--awb-color7)] font-bold uppercase tracking-wider mb-1 font-semibold">Total Chats</p>
+                      <p className="text-2xl font-extrabold text-[#198fd9]">
+                        {superadminData.totalChatMessages || 0} <span className="text-sm font-semibold text-[var(--awb-color7)]">msgs</span>
+                      </p>
                       <p className="text-[10px] text-[var(--awb-color6)] mt-1 font-semibold">
-                        {superadminData.monthlyChatMessages || 0} this month
+                        {superadminData.totalChatConversations || 0} sessions ({superadminData.monthlyChatMessages || 0} msgs this month)
                       </p>
                     </div>
                     <div className="bg-[var(--awb-color2)] border border-[var(--awb-color3)] p-4 rounded-xl text-center shadow-sm">

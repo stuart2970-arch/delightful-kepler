@@ -360,6 +360,19 @@ export default async function DashboardPage(props: { searchParams?: Promise<{ [k
         .select('*', { count: 'exact', head: true })
         .gte('created_at', firstDay.toISOString());
 
+      // Fetch global total chat conversations (all-time)
+      const { count: globalChatConversations } = await adminSupabase
+        .from('conversations')
+        .select('*', { count: 'exact', head: true })
+        .eq('is_voice_call', false);
+
+      // Fetch global monthly chat conversations
+      const { count: monthlyChatConversations } = await adminSupabase
+        .from('conversations')
+        .select('*', { count: 'exact', head: true })
+        .eq('is_voice_call', false)
+        .gte('created_at', firstDay.toISOString());
+
       // Fetch global total voice calls (all-time)
       const { count: globalVoiceCalls } = await adminSupabase
         .from('conversations')
@@ -390,6 +403,8 @@ export default async function DashboardPage(props: { searchParams?: Promise<{ [k
         usage: allUsage || [],
         totalChatMessages: globalChatMessages || 0,
         monthlyChatMessages: monthlyChatMessages || 0,
+        totalChatConversations: globalChatConversations || 0,
+        monthlyChatConversations: monthlyChatConversations || 0,
         totalVoiceCalls: globalVoiceCalls || 0,
         monthlyVoiceCalls: monthlyVoiceCalls || 0,
         totalVoiceMinutes: totalVoiceMinutes || 0,
