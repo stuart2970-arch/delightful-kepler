@@ -795,15 +795,25 @@ const globalBotId = '00000000-0000-0000-0000-000000000000';
                   </div>
                   
                   {/* Aggregate Summary */}
-                  <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">
                     <div className="bg-[var(--awb-color2)] border border-[var(--awb-color3)] p-4 rounded-xl text-center shadow-sm">
-                      <p className="text-xs text-[var(--awb-color7)] font-bold uppercase tracking-wider mb-1">Total Tenants</p>
+                      <p className="text-xs text-[var(--awb-color7)] font-bold uppercase tracking-wider mb-1 font-semibold">Total Tenants</p>
                       <p className="text-2xl font-extrabold text-[var(--awb-color8)]">{superadminData.tenants?.length || 0}</p>
                     </div>
                     <div className="bg-[var(--awb-color2)] border border-[var(--awb-color3)] p-4 rounded-xl text-center shadow-sm">
-                      <p className="text-xs text-[var(--awb-color7)] font-bold uppercase tracking-wider mb-1">Total Platform Messages</p>
-                      <p className="text-2xl font-extrabold text-[#198fd9]">
-                        {superadminData.usage?.filter((u: any) => u.feature_id === 'message_allowance')?.reduce((sum: number, u: any) => sum + u.quantity, 0) || 0}
+                      <p className="text-xs text-[var(--awb-color7)] font-bold uppercase tracking-wider mb-1 font-semibold">Total Chat Messages</p>
+                      <p className="text-2xl font-extrabold text-[#198fd9]">{superadminData.totalChatMessages || 0}</p>
+                      <p className="text-[10px] text-[var(--awb-color6)] mt-1 font-semibold">
+                        {superadminData.monthlyChatMessages || 0} this month
+                      </p>
+                    </div>
+                    <div className="bg-[var(--awb-color2)] border border-[var(--awb-color3)] p-4 rounded-xl text-center shadow-sm">
+                      <p className="text-xs text-[var(--awb-color7)] font-bold uppercase tracking-wider mb-1 font-semibold">Total Voice Duration</p>
+                      <p className="text-2xl font-extrabold text-[#9333ea]">
+                        {superadminData.totalVoiceMinutes || 0} <span className="text-sm font-semibold text-[var(--awb-color7)]">mins</span>
+                      </p>
+                      <p className="text-[10px] text-[var(--awb-color6)] mt-1 font-semibold">
+                        {superadminData.totalVoiceCalls || 0} calls ({superadminData.monthlyVoiceMinutes || 0} mins this month)
                       </p>
                     </div>
                   </div>

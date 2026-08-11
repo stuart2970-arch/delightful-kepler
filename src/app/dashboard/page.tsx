@@ -349,9 +349,51 @@ export default async function DashboardPage(props: { searchParams?: Promise<{ [k
         .select('quantity, feature_id, tenant_id, actual_cost')
         .gte('recorded_at', firstDay.toISOString());
 
+      // Fetch global total chat messages (all-time)
+      const { count: globalChatMessages } = await adminSupabase
+        .from('messages')
+        .select('*', { count: 'exact', head: true });
+
+      // Fetch global monthly chat messages
+      const { count: monthlyChatMessages } = await adminSupabase
+        .from('messages')
+        .select('*', { count: 'exact', head: true })
+        .gte('created_at', firstDay.toISOString());
+
+      // Fetch global total voice calls (all-time)
+      const { count: globalVoiceCalls } = await adminSupabase
+        .from('conversations')
+        .select('*', { count: 'exact', head: true })
+        .eq('is_voice_call', true);
+
+      // Fetch global monthly voice calls
+      const { count: monthlyVoiceCalls } = await adminSupabase
+        .from('conversations')
+        .select('*', { count: 'exact', head: true })
+        .eq('is_voice_call', true)
+        .gte('created_at', firstDay.toISOString());
+
+      // Fetch global total voice duration (all-time) from usage_ledger
+      const { data: allTimeVoiceUsage } = await adminSupabase
+        .from('usage_ledger')
+        .select('quantity')
+        .eq('feature_id', 'vapi_voice_minutes');
+      const totalVoiceMinutes = allTimeVoiceUsage?.reduce((sum: number, u: any) => sum + u.quantity, 0) || 0;
+
+      // Monthly voice minutes (already fetched in allUsage)
+      const monthlyVoiceMinutes = allUsage
+        ?.filter((u: any) => u.feature_id === 'vapi_voice_minutes')
+        ?.reduce((sum: number, u: any) => sum + u.quantity, 0) || 0;
+
       superadminData = {
         tenants: allTenantsList || [],
-        usage: allUsage || []
+        usage: allUsage || [],
+        totalChatMessages: globalChatMessages || 0,
+        monthlyChatMessages: monthlyChatMessages || 0,
+        totalVoiceCalls: globalVoiceCalls || 0,
+        monthlyVoiceCalls: monthlyVoiceCalls || 0,
+        totalVoiceMinutes: totalVoiceMinutes || 0,
+        monthlyVoiceMinutes: monthlyVoiceMinutes || 0,
       };
     }
 
