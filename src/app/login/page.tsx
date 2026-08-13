@@ -16,6 +16,52 @@ export default function LoginPage() {
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
+  const [customSlug, setCustomSlug] = useState('');
+  const [slugStatus, setSlugStatus] = useState<{
+    checking: boolean;
+    available: boolean;
+    slug: string;
+    url: string;
+    suggestions: string[];
+  } | null>(null);
+
+  useEffect(() => {
+    if (isLogin) return;
+    const nameToCheck = customSlug || companyName;
+    if (!nameToCheck.trim()) {
+      setSlugStatus(null);
+      return;
+    }
+
+    setSlugStatus(prev => ({
+      checking: true,
+      available: prev?.available ?? true,
+      slug: prev?.slug ?? '',
+      url: prev?.url ?? '',
+      suggestions: prev?.suggestions ?? []
+    }));
+
+    const timer = setTimeout(async () => {
+      try {
+        const res = await fetch(`/api/tenants/check-slug?name=${encodeURIComponent(nameToCheck)}`);
+        if (res.ok) {
+          const data = await res.json();
+          setSlugStatus({
+            checking: false,
+            available: data.available,
+            slug: data.slug,
+            url: data.url,
+            suggestions: data.suggestions || [],
+          });
+        }
+      } catch (e) {
+        console.error('Slug check failed', e);
+      }
+    }, 350);
+
+    return () => clearTimeout(timer);
+  }, [companyName, customSlug, isLogin]);
+
   // Initialize Supabase client
   const [supabase] = useState(() =>
     createBrowserClient(
@@ -56,6 +102,12 @@ export default function LoginPage() {
         });
         if (error) throw error;
       } else {
+        if (slugStatus && !slugStatus.available) {
+          throw new Error(`The URL slug "${slugStatus.slug}" is already registered by another business. Please pick one of the available suggestions below.`);
+        }
+
+        const finalSlug = slugStatus?.slug || companyName.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
+
         const { data, error } = await supabase.auth.signUp({
           email,
           password,
@@ -64,7 +116,7 @@ export default function LoginPage() {
               full_name: fullName,
               company_name: companyName,
               website_url: websiteUrl,
-              slug: companyName.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, ''),
+              slug: finalSlug,
             },
           },
         });
@@ -163,10 +215,58 @@ export default function LoginPage() {
                   type="text"
                   required
                   value={companyName}
-                  onChange={(e) => setCompanyName(e.target.value)}
+                  onChange={(e) => {
+                    setCompanyName(e.target.value);
+                    setCustomSlug('');
+                  }}
                   className="w-full bg-gray-800 border border-gray-700 text-white rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all"
-                  placeholder="Rosser Hairdressing"
+                  placeholder="Wardrobe at the Cross"
                 />
+
+                {/* Real-time URL preview & Availability indicator */}
+                {slugStatus && slugStatus.slug && (
+                  <div className={`mt-2.5 p-3 rounded-xl border text-xs transition-all ${
+                    slugStatus.checking
+                      ? 'bg-gray-800/80 border-gray-700 text-gray-400'
+                      : slugStatus.available
+                      ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-300'
+                      : 'bg-red-500/10 border-red-500/30 text-red-300'
+                  }`}>
+                    <div className="flex items-center justify-between font-mono font-medium">
+                      <span className="truncate max-w-[260px]">{slugStatus.url}</span>
+                      {slugStatus.checking ? (
+                        <span className="text-[10px] text-gray-400 animate-pulse">Checking availability...</span>
+                      ) : slugStatus.available ? (
+                        <span className="inline-flex items-center gap-1 text-[10px] bg-emerald-500/20 text-emerald-300 px-2 py-0.5 rounded-full font-sans font-bold">
+                          ✓ Available
+                        </span>
+                      ) : (
+                        <span className="inline-flex items-center gap-1 text-[10px] bg-red-500/20 text-red-300 px-2 py-0.5 rounded-full font-sans font-bold">
+                          ✕ Already Taken
+                        </span>
+                      )}
+                    </div>
+
+                    {/* Suggestions list when URL is taken */}
+                    {!slugStatus.checking && !slugStatus.available && slugStatus.suggestions.length > 0 && (
+                      <div className="mt-2.5 pt-2 border-t border-red-500/20 font-sans">
+                        <p className="text-[11px] text-gray-300 font-semibold mb-1.5">Suggested available URLs:</p>
+                        <div className="flex flex-wrap gap-1.5">
+                          {slugStatus.suggestions.map((suggestion) => (
+                            <button
+                              key={suggestion}
+                              type="button"
+                              onClick={() => setCustomSlug(suggestion)}
+                              className="px-2.5 py-1 bg-indigo-600/30 hover:bg-indigo-600/50 text-indigo-200 border border-indigo-500/40 rounded-lg text-xs font-mono font-semibold transition-all hover:scale-105 active:scale-95"
+                            >
+                              {suggestion}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )}
               </div>
               <div>
                 <label className="block text-xs font-semibold text-gray-400 mb-1.5">Website URL</label>

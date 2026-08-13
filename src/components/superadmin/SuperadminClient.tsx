@@ -34,14 +34,16 @@ export default function SuperadminClient({
   initialGlobalVoiceDisclaimer?: string
 }) {
   const [searchTerm, setSearchTerm] = useState('');
+  const [tenantsList, setTenantsList] = useState<TenantStat[]>(tenants);
+  const [deletingTenantId, setDeletingTenantId] = useState<string | null>(null);
 
-  const filteredTenants = tenants.filter(t => 
+  const filteredTenants = tenantsList.filter(t => 
     t.company_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
     t.id.includes(searchTerm)
   );
 
-  const totalMessages = tenants.reduce((acc, t) => acc + t.messagesCount, 0);
-  const totalCrawls = tenants.reduce((acc, t) => acc + t.crawlsCount, 0);
+  const totalMessages = tenantsList.reduce((acc, t) => acc + t.messagesCount, 0);
+  const totalCrawls = tenantsList.reduce((acc, t) => acc + t.crawlsCount, 0);
 
   const [holidays, setHolidays] = useState<GlobalHoliday[]>([]);
   const [newHoliday, setNewHoliday] = useState({ countries: ['UK'], date: new Date().toISOString().split('T')[0], name: '' });
@@ -53,6 +55,31 @@ export default function SuperadminClient({
   const [globalTrackingUrl, setGlobalTrackingUrl] = useState(initialGlobalTrackingUrl || 'https://styleflo.ai');
   const [globalVoiceDisclaimer, setGlobalVoiceDisclaimer] = useState(initialGlobalVoiceDisclaimer || '');
   const [isSavingGlobal, setIsSavingGlobal] = useState(false);
+
+  const handleDeleteTenant = async (tenantId: string, companyName: string) => {
+    const confirmation = prompt(`PERMANENT DELETION WARNING:\nAre you sure you want to delete "${companyName}" (${tenantId})?\n\nType DELETE to confirm:`);
+    if (confirmation !== 'DELETE') {
+      if (confirmation !== null) alert('Deletion cancelled: Confirmation text did not match "DELETE".');
+      return;
+    }
+
+    setDeletingTenantId(tenantId);
+    try {
+      const res = await fetch(`/api/superadmin/tenants/${tenantId}`, {
+        method: 'DELETE',
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        throw new Error(data.error || 'Failed to delete tenant');
+      }
+      setTenantsList(prev => prev.filter(t => t.id !== tenantId));
+      alert(`Business "${companyName}" was deleted cleanly.`);
+    } catch (err: any) {
+      alert('Error deleting business: ' + err.message);
+    } finally {
+      setDeletingTenantId(null);
+    }
+  };
 
   const handleSaveBranding = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -319,12 +346,13 @@ export default function SuperadminClient({
                 <th className="px-6 py-3 text-xs font-semibold text-gray-400 uppercase tracking-wider">Created</th>
                 <th className="px-6 py-3 text-xs font-semibold text-gray-400 uppercase tracking-wider text-right">Tokens Used</th>
                 <th className="px-6 py-3 text-xs font-semibold text-gray-400 uppercase tracking-wider text-right">Crawls</th>
+                <th className="px-6 py-3 text-xs font-semibold text-gray-400 uppercase tracking-wider text-right">Actions</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-800">
               {filteredTenants.length === 0 ? (
                 <tr>
-                  <td colSpan={5} className="px-6 py-8 text-center text-gray-500">
+                  <td colSpan={6} className="px-6 py-8 text-center text-gray-500">
                     No tenants found matching "{searchTerm}"
                   </td>
                 </tr>
@@ -351,6 +379,15 @@ export default function SuperadminClient({
                     </td>
                     <td className="px-6 py-4 text-sm font-medium text-right text-white">
                       {tenant.crawlsCount.toLocaleString()}
+                    </td>
+                    <td className="px-6 py-4 text-sm text-right">
+                      <button
+                        onClick={() => handleDeleteTenant(tenant.id, tenant.company_name || tenant.id)}
+                        disabled={deletingTenantId === tenant.id}
+                        className="px-3 py-1.5 bg-red-500/10 hover:bg-red-500/20 text-red-400 hover:text-red-300 border border-red-500/30 rounded-lg text-xs font-semibold transition-colors disabled:opacity-50"
+                      >
+                        {deletingTenantId === tenant.id ? 'Deleting...' : 'Delete Business'}
+                      </button>
                     </td>
                   </tr>
                 ))
