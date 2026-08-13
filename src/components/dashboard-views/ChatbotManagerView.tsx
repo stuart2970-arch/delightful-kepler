@@ -23,6 +23,7 @@ export default function ChatbotManagerView() {
   const [newAgentAvatar, setNewAgentAvatar] = useState('/avatars/avatar1.png');
   const [newVoiceEnabled, setNewVoiceEnabled] = useState(false);
   const [newVoiceId, setNewVoiceId] = useState('');
+  const [newAdminEmail, setNewAdminEmail] = useState('');
   const [isCreatingBot, setIsCreatingBot] = useState(false);
   const [editingBotId, setEditingBotId] = useState<string | null>(null);
   const [wizardStep, setWizardStep] = useState(1);
@@ -146,6 +147,7 @@ export default function ChatbotManagerView() {
         agent_role: newAgentRole.trim(),
         agent_avatar_url: newAgentAvatar,
         voice_id: newVoiceId,
+        admin_email: newAdminEmail.trim(),
       },
       created_at: new Date().toISOString(),
     };
@@ -167,6 +169,7 @@ export default function ChatbotManagerView() {
             agent_role: newAgentRole.trim(),
             agent_avatar_url: newAgentAvatar,
             voice_id: newVoiceId,
+            admin_email: newAdminEmail.trim(),
           },
         }),
       });
@@ -197,6 +200,7 @@ export default function ChatbotManagerView() {
       setNewAgentRole('AI Assistant');
       setNewAgentAvatar('/avatars/avatar1.png');
       setNewVoiceEnabled(false);
+      setNewAdminEmail('');
       setWizardStep(1);
     }
     setIsCreatingBot(false);
@@ -215,6 +219,7 @@ export default function ChatbotManagerView() {
       agent_role: newAgentRole.trim(),
       agent_avatar_url: newAgentAvatar,
       voice_id: newVoiceId,
+      admin_email: newAdminEmail.trim(),
     };
 
     try {
@@ -423,6 +428,20 @@ export default function ChatbotManagerView() {
                             />
                           </div>
                         </div>
+                      </div>
+
+                      <div>
+                        <label className="block text-xs font-semibold text-[var(--awb-color7)] mb-1.5">Admin Notification Email</label>
+                        <input
+                          type="email"
+                          placeholder="e.g. admin@yourbusiness.com (receives consolidated lead emails)"
+                          value={newAdminEmail}
+                          onChange={(e) => setNewAdminEmail(e.target.value)}
+                          className="w-full h-[50px] bg-[var(--awb-color1)] border border-[var(--awb-color3)] rounded-[6px] px-3.5 py-2 text-sm text-[var(--awb-color8)] focus:outline-none focus:border-[var(--awb-color4)]"
+                        />
+                        <p className="text-[11px] text-[var(--awb-color6)] mt-1">
+                          Consolidated lead notifications (Email + Mobile Tel + Intent & Transcript) for this chatbot will be sent to this email address. If blank, notifications fall back to your account owner email.
+                        </p>
                       </div>
                     </div>
                   )}
@@ -777,6 +796,7 @@ export default function ChatbotManagerView() {
                           setNewAgentAvatar(config.agent_avatar_url || '/avatars/avatar1.png');
                           setNewVoiceEnabled(bot.voice_enabled || false);
                           setNewVoiceId(config.voice_id || '');
+                          setNewAdminEmail(config.admin_email || config.notification_email || '');
                           
                           // Scroll form into view
                           window.scrollTo({ top: 0, behavior: 'smooth' });

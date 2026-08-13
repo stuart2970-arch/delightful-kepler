@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
+import { sendConsolidatedLeadEmail } from '@/lib/lead-notifier';
 
 // Vapi sends a POST request with call details.
 // We only care about 'end-of-call-report' messages.
@@ -85,24 +86,24 @@ export async function POST(request: Request) {
         }
       }
 
-      const { data: existingConv } = await supabaseAdmin
-        .from('conversations')
-        .select('id')
-        .eq('tenant_id', tenantId)
-        .eq('user_session_id', sessionId)
-        .maybeSingle();
+      let targetConvId: string | null = null;
+      let targetChatbotId: string | null = null;
 
       if (existingConv) {
+        targetConvId = existingConv.id;
         await supabaseAdmin.from('conversations').update({
           is_voice_call: true,
           resulted_in_booking: resultedInBooking,
           recording_url: recordingUrl,
           transcript: transcript,
         }).eq('id', existingConv.id);
+        const { data: convData } = await supabaseAdmin.from('conversations').select('chatbot_id').eq('id', existingConv.id).single();
+        targetChatbotId = convData?.chatbot_id || null;
       } else {
         const { data: chatbot } = await supabaseAdmin.from('chatbots').select('id').eq('tenant_id', tenantId).limit(1).single();
         if (chatbot) {
-          await supabaseAdmin.from('conversations').insert({
+          targetChatbotId = chatbot.id;
+          const { data: newConv } = await supabaseAdmin.from('conversations').insert({
             tenant_id: tenantId,
             chatbot_id: chatbot.id,
             user_session_id: sessionId,
@@ -110,7 +111,27 @@ export async function POST(request: Request) {
             resulted_in_booking: resultedInBooking,
             recording_url: recordingUrl,
             transcript: transcript,
+          }).select('id').single();
+          targetConvId = newConv?.id || null;
+        }
+      }
+
+      // Fire consolidated lead email notification with voice transcript & intent
+      if (targetConvId && targetChatbotId) {
+        const callerNumber = call.customer?.number || call.phoneNumber || '';
+        try {
+          await sendConsolidatedLeadEmail({
+            tenantId,
+            chatbotId: targetChatbotId,
+            conversationId: targetConvId,
+            newContactInfo: callerNumber,
+            channelType: 'voice',
+            voiceTranscript: transcript,
+            voiceRecordingUrl: recordingUrl,
+            customerName: call.customer?.name,
           });
+        } catch (emailErr) {
+          console.error('[Vapi Webhook] Failed to send consolidated voice lead email:', emailErr);
         }
       }
     }

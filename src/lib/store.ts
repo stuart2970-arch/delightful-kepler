@@ -16,6 +16,7 @@ export interface Chatbot {
     branding_html?: string;
     branding_url?: string;
     ordered_service_ids?: string[];
+    admin_email?: string;
   };
   created_at: string;
 }

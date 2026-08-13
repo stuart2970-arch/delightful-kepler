@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import { generateText, embed } from 'ai';
 import { google } from '@ai-sdk/google';
+import { sendConsolidatedLeadEmail } from '@/lib/lead-notifier';
 
 function getSupabaseAdmin() {
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.SUPABASE_URL || 'https://tkoasyjvrgaglofpzduq.supabase.co';
@@ -168,6 +169,23 @@ CRITICAL INSTRUCTIONS:
       sender_role: 'assistant',
       content: cleanAiResponse
     });
+
+    // Check if customer provided email/phone contact details and send consolidated notification
+    const emailMatch = messageText.match(/[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/i);
+    const phoneMatch = messageText.match(/(?:(?:\+|00)\d{1,3}[\s-]*)?(?:0|\(\d+\))?[\s-]*\d{3,4}[\s-]*\d{3,4,5}/);
+    if (emailMatch || phoneMatch) {
+      try {
+        await sendConsolidatedLeadEmail({
+          tenantId,
+          chatbotId,
+          conversationId: conversation.id,
+          newContactInfo: messageText,
+          channelType: 'openclaw',
+        });
+      } catch (leadErr) {
+        console.error('[OpenClaw Webhook] Lead notification error:', leadErr);
+      }
+    }
 
     // 6. Return response to OpenClaw Gateway as simple plain text JSON
     return NextResponse.json({ reply: cleanAiResponse }, { status: 200 });

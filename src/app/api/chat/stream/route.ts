@@ -7,6 +7,7 @@ import { z } from 'zod';
 import formData from 'form-data';
 import Mailgun from 'mailgun.js';
 import { checkAvailability, bookMeeting, lookupAppointments } from './calendar';
+import { sendConsolidatedLeadEmail } from '@/lib/lead-notifier';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -303,35 +304,23 @@ ${staffContext}`;
             });
           }
 
-          // Handle manual lead capture
+          // Handle consolidated lead capture notification (combining email & phone into 1 email with intent & transcript)
           const leadMatch = event.text.match(/\[LEAD_CAPTURED:\s*(.+?)\]/);
           if (leadMatch && leadMatch[1]) {
             const contactInfo = leadMatch[1];
             console.log(`[Chat Stream][${requestId}] Extracted Lead Info: ${contactInfo}`);
             
-            // Fire Mailgun email silently in background
             try {
-              const { data: profile } = await supabaseAdmin.from('profiles').select('id').eq('tenant_id', tenantId).eq('role', 'owner').limit(1).single();
-              if (profile) {
-                const { data: authUser } = await supabaseAdmin.auth.admin.getUserById(profile.id);
-                if (authUser?.user?.email && process.env.MAILGUN_API_KEY && process.env.MAILGUN_DOMAIN) {
-                  const mailgun = new Mailgun(formData);
-                  const mg = mailgun.client({ 
-                    username: 'api', 
-                    key: process.env.MAILGUN_API_KEY,
-                    url: 'https://api.eu.mailgun.net'
-                  });
-                  await mg.messages.create(process.env.MAILGUN_DOMAIN, {
-                    from: `StyleFlo Assistant <no-reply@${process.env.MAILGUN_DOMAIN}>`,
-                    to: [authUser.user.email],
-                    subject: 'New Lead Captured by AI Chatbot',
-                    text: `You have a new lead from your Chatbot!\n\nContact Info: ${contactInfo}\n\nLog into your StyleFlo Dashboard to view the full conversation transcript.`,
-                  });
-                  console.log(`[Chat Stream][${requestId}] Successfully emailed lead to ${authUser.user.email}`);
-                }
-              }
+              await sendConsolidatedLeadEmail({
+                tenantId,
+                chatbotId,
+                conversationId,
+                newContactInfo: contactInfo,
+                channelType: 'chat',
+                customerName: clientName,
+              });
             } catch (err: any) {
-              console.error(`[Chat Stream][${requestId}] Background lead email failed:`, err);
+              console.error(`[Chat Stream][${requestId}] Background lead notification failed:`, err);
             }
           }
 
