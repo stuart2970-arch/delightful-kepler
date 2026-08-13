@@ -6,16 +6,18 @@ import { useRouter } from 'next/navigation';
 export default function SidebarNavigation() {
   const router = useRouter();
   const {
+    role,
     activeTab,
     setActiveTab,
     isMobileMenuOpen,
     setIsMobileMenuOpen,
     chatbots,
     conversations,
-    isSuperAdmin,
     userName,
     userEmail
   } = useDashboardStore();
+
+  const isOwner = role === 'owner' || role === 'admin';
 
   const handleSignOut = async () => {
     try {
@@ -33,6 +35,21 @@ export default function SidebarNavigation() {
 
   const globalBotId = '00000000-0000-0000-0000-000000000000';
 
+  const navItems = isOwner
+    ? [
+        { id: 'scheduling', label: '🗓️ Master Calendar & Rota' },
+        { id: 'chatbots', label: '🤖 Chatbot Manager', count: chatbots.filter(b => b.id !== globalBotId).length },
+        { id: 'conversations', label: '💬 Inbox & Logs', count: conversations.length },
+        { id: 'crawler', label: '📚 Knowledge Base' },
+        { id: 'integrations', label: '🔌 Integrations' },
+        { id: 'openclaw-monitor', label: '🛰️ OpenClaw Gateway' },
+        { id: 'billing', label: '💳 Subscriptions & Add-ons' },
+      ]
+    : [
+        { id: 'scheduling', label: '🗓️ Master Calendar & Rota' },
+        { id: 'my-profile', label: '👤 My Profile & Calendar' },
+      ];
+
   return (
     <>
       {/* Mobile Menu Backdrop */}
@@ -48,30 +65,26 @@ export default function SidebarNavigation() {
          <div className="p-6">
             <div className="flex items-center justify-between mb-10 pl-2">
                <div className="flex items-center gap-3">
-                 <div className="w-8 h-8 rounded-xl bg-[var(--awb-color8)] text-[var(--awb-color8)] font-extrabold flex items-center justify-center text-sm shadow-md">SF</div>
-                 <span className="font-extrabold text-xl tracking-tight text-[var(--awb-color8)]">StyleFlo</span>
+                 <div className="w-8 h-8 rounded-xl bg-[var(--awb-color8)] text-white font-extrabold flex items-center justify-center text-sm shadow-md">SF</div>
+                 <div>
+                   <span className="font-extrabold text-xl tracking-tight text-[var(--awb-color8)] block leading-none">StyleFlo</span>
+                   <span className="text-[10px] uppercase font-bold tracking-wider text-indigo-400 mt-1 block">
+                     {isOwner ? 'Workspace Admin' : 'Colleague Portal'}
+                   </span>
+                 </div>
                </div>
                <button className="md:hidden p-2 -mr-2 text-[var(--awb-color6)] hover:text-[var(--awb-color7)]" onClick={() => setIsMobileMenuOpen(false)}>
                  <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12"></path></svg>
                </button>
             </div>
             <nav className="space-y-1.5">
-              {[
-                { id: 'chatbots', label: 'Chatbots', icon: <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 002-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />, count: chatbots.filter(b => b.id !== globalBotId).length },
-                { id: 'scheduling', label: 'Scheduling & Staff', icon: <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" /> },
-                { id: 'conversations', label: 'Inbox & Logs', icon: <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z" />, count: conversations.length },
-                { id: 'crawler', label: 'Knowledge Base', icon: <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" /> },
-                { id: 'integrations', label: 'Integrations', icon: <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 10V3L4 14h7v7l9-11h-7z" /> },
-                { id: 'billing', label: 'Billing & Usage', icon: <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z" /> },
-
-              ].map(tab => (
-                 <button key={tab.id} onClick={() => { setActiveTab(tab.id as ActiveTab); setIsMobileMenuOpen(false); }} className={`w-full flex items-center justify-between px-3 py-3 rounded-xl text-sm font-semibold transition-all duration-200 border ${activeTab === tab.id ? 'bg-[var(--awb-color1)] text-[var(--awb-color8)] border-[var(--awb-color3)] shadow-sm' : 'text-[var(--awb-color6)] hover:text-[var(--awb-color7)] hover:bg-[var(--awb-color1)]/60 border-transparent'}`}>
-                    <div className="flex items-center gap-3">
-                       <svg className={`w-5 h-5 ${activeTab === tab.id ? 'text-[var(--awb-color5)]' : 'opacity-70'}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">{tab.icon}</svg>
-                       {tab.label}
+              {navItems.map(tab => (
+                 <button key={tab.id} onClick={() => { setActiveTab(tab.id as ActiveTab); setIsMobileMenuOpen(false); }} className={`w-full flex items-center justify-between px-3.5 py-3 rounded-xl text-sm font-semibold transition-all duration-200 border ${activeTab === tab.id ? 'bg-[var(--awb-color1)] text-[var(--awb-color8)] border-[var(--awb-color3)] shadow-sm' : 'text-[var(--awb-color6)] hover:text-[var(--awb-color7)] hover:bg-[var(--awb-color1)]/60 border-transparent'}`}>
+                    <div className="flex items-center gap-3 truncate">
+                       <span>{tab.label}</span>
                     </div>
                     {tab.count !== undefined && (
-                      <span className={`text-[10px] px-2 py-0.5 rounded-full font-mono font-bold ${activeTab === tab.id ? 'bg-[#198fd9] text-white font-semibold rounded-[4px] px-[29px] py-[13px]' : 'bg-[var(--awb-color3)] text-[var(--awb-color6)]'}`}>
+                      <span className={`text-[10px] px-2 py-0.5 rounded-full font-mono font-bold ${activeTab === tab.id ? 'bg-[#198fd9] text-white' : 'bg-[var(--awb-color3)] text-[var(--awb-color6)]'}`}>
                         {tab.count}
                       </span>
                     )}
@@ -82,7 +95,7 @@ export default function SidebarNavigation() {
          <div className="p-4 border-t border-[var(--awb-color3)]">
             <div className="flex items-center justify-between p-3 rounded-xl hover:bg-[var(--awb-color1)] transition-colors group cursor-pointer border border-transparent hover:border-[var(--awb-color3)]" onClick={handleSignOut} title="Sign Out">
                <div className="flex items-center gap-3">
-                  <div className="w-8 h-8 rounded-full bg-[var(--awb-color8)] text-[var(--awb-color8)] flex items-center justify-center font-bold text-sm shadow">
+                  <div className="w-8 h-8 rounded-full bg-indigo-600 text-white flex items-center justify-center font-bold text-sm shadow">
                     {userName?.[0] || 'U'}
                   </div>
                   <div className="flex flex-col text-left">

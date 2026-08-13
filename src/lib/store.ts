@@ -78,7 +78,7 @@ export type BusinessWeeklySchedule = {
   sunday: BusinessDailySchedule;
 };
 
-export type ActiveTab = 'chatbots' | 'crawler' | 'conversations' | 'scheduling' | 'integrations' | 'telephony' | 'settings' | 'billing' | 'account' | 'superadmin_voices';
+export type ActiveTab = 'chatbots' | 'crawler' | 'conversations' | 'scheduling' | 'integrations' | 'telephony' | 'settings' | 'billing' | 'account' | 'superadmin_voices' | 'my-profile' | 'analytics' | 'openclaw-monitor';
 
 export interface DashboardState {
   // User/Tenant Data
@@ -87,6 +87,10 @@ export interface DashboardState {
   userEmail: string;
   userName: string;
   isSuperAdmin: boolean;
+  role: 'owner' | 'admin' | 'member';
+  setRole: (role: 'owner' | 'admin' | 'member') => void;
+  myStaffRecord: any;
+  setMyStaffRecord: (staff: any) => void;
   
   // Navigation
   activeTab: ActiveTab;
@@ -176,6 +180,10 @@ export const useDashboardStore = create<DashboardState>((set) => ({
   userEmail: '',
   userName: '',
   isSuperAdmin: false,
+  role: 'owner',
+  setRole: (role) => set({ role }),
+  myStaffRecord: null,
+  setMyStaffRecord: (myStaffRecord) => set({ myStaffRecord }),
   
   businessAddress: '',
   setBusinessAddress: (addr) => set({ businessAddress: addr }),
@@ -251,3 +259,5 @@ export const useDashboardStore = create<DashboardState>((set) => ({
 
   initialize: (data) => set((state) => ({ ...state, ...data })),
 }));
+
+export const useStore = useDashboardStore;

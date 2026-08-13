@@ -7,6 +7,13 @@ import { createBrowserClient } from '@supabase/ssr';
 
 export default function ChatbotManagerView() {
   const { chatbots, setChatbots, setMetrics, tenantId, isSuperAdmin, appointments } = useDashboardStore();
+  const [whatsappEnabled, setWhatsappEnabled] = useState(true);
+  const [whatsappNumber, setWhatsappNumber] = useState('+44 7700 900077');
+  const [instagramEnabled, setInstagramEnabled] = useState(true);
+  const [instagramHandle, setInstagramHandle] = useState('@crew_barbers');
+  const [smsEnabled, setSmsEnabled] = useState(true);
+  const [smsNumber, setSmsNumber] = useState('+44 7700 900077');
+
   const [testWidgetBotId, setTestWidgetBotId] = useState<string | null>(null);
   const [newBotName, setNewBotName] = useState('');
   const [newBotColor, setNewBotColor] = useState('#4F46E5');
@@ -568,6 +575,96 @@ export default function ChatbotManagerView() {
                           </div>
                         </div>
                       )}
+                      {/* OPENCLAW OMNICHANNEL CHANNELS */}
+                      <div className="pt-4 border-t border-[var(--awb-color3)] space-y-4">
+                        <h4 className="text-sm font-bold text-[var(--awb-color8)] flex items-center gap-2">
+                          💬 Omnichannel 2-Way Messaging Channels (OpenClaw)
+                        </h4>
+
+                        {/* WhatsApp Toggle & Number */}
+                        <div className="bg-[var(--awb-color2)] p-4 rounded-xl border border-[var(--awb-color3)] space-y-3">
+                          <div className="flex items-center justify-between">
+                            <div className="flex items-center gap-2">
+                              <span className="text-emerald-500 font-bold text-base">🟢</span>
+                              <label className="text-xs font-bold text-[var(--awb-color8)]">WhatsApp Auto-Reply</label>
+                            </div>
+                            <input
+                              type="checkbox"
+                              checked={whatsappEnabled}
+                              onChange={(e) => setWhatsappEnabled(e.target.checked)}
+                              className="w-4 h-4 text-[#198fd9] rounded border-gray-300"
+                            />
+                          </div>
+                          {whatsappEnabled && (
+                            <div>
+                              <label className="block text-[11px] text-[var(--awb-color6)] font-semibold mb-1">Salon WhatsApp Phone Number</label>
+                              <input
+                                type="text"
+                                value={whatsappNumber}
+                                onChange={(e) => setWhatsappNumber(e.target.value)}
+                                className="w-full bg-[var(--awb-color1)] border border-[var(--awb-color3)] rounded-lg px-3 py-2 text-xs text-[var(--awb-color8)] focus:outline-none focus:border-[#198fd9]"
+                                placeholder="e.g. +447700900077"
+                              />
+                            </div>
+                          )}
+                        </div>
+
+                        {/* Instagram Toggle & Handle */}
+                        <div className="bg-[var(--awb-color2)] p-4 rounded-xl border border-[var(--awb-color3)] space-y-3">
+                          <div className="flex items-center justify-between">
+                            <div className="flex items-center gap-2">
+                              <span className="text-purple-500 font-bold text-base">📸</span>
+                              <label className="text-xs font-bold text-[var(--awb-color8)]">Instagram Direct DM Auto-Reply</label>
+                            </div>
+                            <input
+                              type="checkbox"
+                              checked={instagramEnabled}
+                              onChange={(e) => setInstagramEnabled(e.target.checked)}
+                              className="w-4 h-4 text-[#198fd9] rounded border-gray-300"
+                            />
+                          </div>
+                          {instagramEnabled && (
+                            <div>
+                              <label className="block text-[11px] text-[var(--awb-color6)] font-semibold mb-1">Instagram Business Handle</label>
+                              <input
+                                type="text"
+                                value={instagramHandle}
+                                onChange={(e) => setInstagramHandle(e.target.value)}
+                                className="w-full bg-[var(--awb-color1)] border border-[var(--awb-color3)] rounded-lg px-3 py-2 text-xs text-[var(--awb-color8)] focus:outline-none focus:border-[#198fd9]"
+                                placeholder="e.g. @crew_barbers"
+                              />
+                            </div>
+                          )}
+                        </div>
+
+                        {/* SMS Toggle & Number */}
+                        <div className="bg-[var(--awb-color2)] p-4 rounded-xl border border-[var(--awb-color3)] space-y-3">
+                          <div className="flex items-center justify-between">
+                            <div className="flex items-center gap-2">
+                              <span className="text-blue-500 font-bold text-base">💬</span>
+                              <label className="text-xs font-bold text-[var(--awb-color8)]">Twilio 2-Way SMS Reminders</label>
+                            </div>
+                            <input
+                              type="checkbox"
+                              checked={smsEnabled}
+                              onChange={(e) => setSmsEnabled(e.target.checked)}
+                              className="w-4 h-4 text-[#198fd9] rounded border-gray-300"
+                            />
+                          </div>
+                          {smsEnabled && (
+                            <div>
+                              <label className="block text-[11px] text-[var(--awb-color6)] font-semibold mb-1">Twilio SMS Sender Number</label>
+                              <input
+                                type="text"
+                                value={smsNumber}
+                                onChange={(e) => setSmsNumber(e.target.value)}
+                                className="w-full bg-[var(--awb-color1)] border border-[var(--awb-color3)] rounded-lg px-3 py-2 text-xs text-[var(--awb-color8)] focus:outline-none focus:border-[#198fd9]"
+                                placeholder="e.g. +447700900077"
+                              />
+                            </div>
+                          )}
+                        </div>
+                      </div>
                     </div>
                   )}
 

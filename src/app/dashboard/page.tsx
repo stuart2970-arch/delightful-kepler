@@ -98,7 +98,7 @@ export default async function DashboardPage(props: { searchParams?: Promise<{ [k
   let isRegisteredCompany = false;
   let registeredAddressSameAsTrading = true;
   let rwgAddressSameAsTrading = true;
-
+  let userRole: 'owner' | 'admin' | 'member' = 'owner';
   let billingData: any = { planTier: 'basic', entitlements: [], usage: { chunks: 0, messages: 0 } };
   let superadminData: any = null;
 
@@ -106,7 +106,7 @@ export default async function DashboardPage(props: { searchParams?: Promise<{ [k
     // 2. Fetch User Profile & Tenant Mapping
     const { data: profile } = await supabase
       .from('profiles')
-      .select('tenant_id, is_super_admin')
+      .select('tenant_id, is_super_admin, role')
       .eq('id', user.id)
       .single();
 
@@ -117,6 +117,7 @@ export default async function DashboardPage(props: { searchParams?: Promise<{ [k
     } else {
       tenantId = profile.tenant_id;
       isSuperAdmin = !!profile.is_super_admin;
+      userRole = (profile.role as 'owner' | 'admin' | 'member') || 'owner';
       
       const { data: tenant } = await supabase
         .from('tenants')
@@ -457,6 +458,7 @@ export default async function DashboardPage(props: { searchParams?: Promise<{ [k
         initialGlobalVoiceDisclaimer={globalVoiceDisclaimer}
         billingData={billingData}
         superadminData={superadminData}
+        role={userRole}
         isImpersonating={isSuperAdmin && typeof (props.searchParams ? await props.searchParams : {}).tenant_id === 'string'}
       />
     </main>
