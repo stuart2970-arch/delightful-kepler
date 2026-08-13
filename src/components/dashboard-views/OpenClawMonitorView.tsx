@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
+import { useDashboardStore } from '../../lib/store';
 
 interface ChannelConnection {
   id: string;
@@ -102,8 +103,15 @@ export default function OpenClawMonitorView() {
   }, [logs, logSearch, logLevelFilter]);
 
   const [activeConfigModal, setActiveConfigModal] = useState<ChannelConnection | null>(null);
-  const [activePhoneOrHandle, setActivePhoneOrHandle] = useState<string>('+44 7700 900077');
+  const { tradingAddressPhone, twilioShadowNumber, tenantName, tenantId } = useDashboardStore();
+  const [activePhoneOrHandle, setActivePhoneOrHandle] = useState<string>(tradingAddressPhone || twilioShadowNumber || '');
   const [isSavingChannelConfig, setIsSavingChannelConfig] = useState(false);
+
+  useEffect(() => {
+    if (tradingAddressPhone || twilioShadowNumber) {
+      setActivePhoneOrHandle(tradingAddressPhone || twilioShadowNumber || '');
+    }
+  }, [tradingAddressPhone, twilioShadowNumber]);
 
   return (
     <div className="space-y-6">
@@ -205,7 +213,7 @@ export default function OpenClawMonitorView() {
                         } else if (channel.name === 'Telegram') {
                           setActivePhoneOrHandle('@StyleFloBot');
                         } else {
-                          setActivePhoneOrHandle('+44 7700 900077');
+                          setActivePhoneOrHandle(tradingAddressPhone || twilioShadowNumber || '');
                         }
                       }}
                       className="text-[#198fd9] hover:text-[#157ab9] font-bold text-xs hover:underline transition cursor-pointer"
@@ -377,13 +385,27 @@ export default function OpenClawMonitorView() {
               </button>
               <button
                 type="button"
-                onClick={() => {
+                onClick={async () => {
                   setIsSavingChannelConfig(true);
-                  setTimeout(() => {
-                    setIsSavingChannelConfig(false);
-                    setActiveConfigModal(null);
+                  try {
+                    if (activeConfigModal.name === 'WhatsApp' || activeConfigModal.name === 'SMS (Twilio)') {
+                      await fetch('/api/tenants/settings', {
+                        method: 'PATCH',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                          tenantId,
+                          tradingAddressPhone: activePhoneOrHandle
+                        })
+                      });
+                      useDashboardStore.setState({ tradingAddressPhone: activePhoneOrHandle });
+                    }
                     alert(`${activeConfigModal.name} settings updated successfully!`);
-                  }, 500);
+                    setActiveConfigModal(null);
+                  } catch (err: any) {
+                    alert('Error saving settings: ' + err.message);
+                  } finally {
+                    setIsSavingChannelConfig(false);
+                  }
                 }}
                 disabled={isSavingChannelConfig}
                 className="bg-[#198fd9] hover:bg-[#157ab9] text-white text-xs font-semibold px-5 py-2 rounded-xl shadow-md transition disabled:opacity-50"
