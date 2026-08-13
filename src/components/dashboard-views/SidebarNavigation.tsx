@@ -39,8 +39,8 @@ export default function SidebarNavigation() {
     ? [
         { id: 'scheduling', label: '🗓️ Master Calendar & Rota' },
         { id: 'chatbots', label: '🤖 Chatbot Manager', count: chatbots.filter(b => b.id !== globalBotId).length },
-        { id: 'conversations', label: '💬 Inbox & Logs', count: conversations.length },
-        { id: 'telephony', label: '📞 Voice Calls & Receptionist' },
+        { id: 'conversations', label: '💬 Web Chat & Voice', count: conversations.filter(c => !c.is_phone_call).length },
+        { id: 'telephony', label: '📞 Phone Calls', count: conversations.filter(c => c.is_phone_call || (c.is_voice_call && c.user_session_id?.startsWith('phone_'))).length },
         { id: 'crawler', label: '📚 Knowledge Base' },
         { id: 'integrations', label: '🔌 Integrations' },
         { id: 'openclaw-monitor', label: '⚡ Gateways' },

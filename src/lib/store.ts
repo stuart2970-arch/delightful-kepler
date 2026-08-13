@@ -27,6 +27,8 @@ export interface Conversation {
   user_session_id: string;
   created_at: string;
   is_voice_call?: boolean;
+  is_phone_call?: boolean;
+  caller_phone_number?: string;
   resulted_in_booking?: boolean;
   recording_url?: string;
   transcript?: string;

@@ -88,10 +88,12 @@ export default function InboxView() {
 
   const [filterMode, setFilterMode] = useState<'all' | 'text' | 'voice'>('all');
 
-  const voiceConvosCount = conversations.filter(c => c.is_voice_call).length;
-  const textConvosCount = conversations.filter(c => !c.is_voice_call).length;
+  // Filter out telephony phone calls from Web Chat & Voice view
+  const webConversations = conversations.filter(c => !c.is_phone_call);
+  const voiceConvosCount = webConversations.filter(c => c.is_voice_call).length;
+  const textConvosCount = webConversations.filter(c => !c.is_voice_call).length;
 
-  const filteredConversations = conversations.filter(conv => {
+  const filteredConversations = webConversations.filter(conv => {
     if (filterMode === 'voice') return conv.is_voice_call;
     if (filterMode === 'text') return !conv.is_voice_call;
     return true;
@@ -101,8 +103,8 @@ export default function InboxView() {
     <>
             <div className="space-y-6">
               <div className="bg-[var(--awb-color1)] border border-[var(--awb-color3)] p-6 rounded-2xl shadow-xl">
-                <h3 className="text-lg font-bold text-[var(--awb-color8)] mb-2">Conversation Session Index</h3>
-                <p className="text-xs text-[var(--awb-color6)]">Select any chat session or voice call transcript from the explorer panel to view details.</p>
+                <h3 className="text-lg font-bold text-[var(--awb-color8)] mb-2">Web Chat & Voice Index</h3>
+                <p className="text-xs text-[var(--awb-color6)]">Select any website text chat session or widget browser voice transcript from the explorer panel to view details.</p>
               </div>
 
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 items-start">
@@ -115,7 +117,7 @@ export default function InboxView() {
                           onClick={() => { setFilterMode('all'); setConvPage(0); }}
                           className={`px-2.5 py-1 rounded-lg transition-all ${filterMode === 'all' ? 'bg-[#198fd9] text-white shadow-sm font-bold' : 'text-[var(--awb-color6)] hover:text-[var(--awb-color7)]'}`}
                         >
-                          All ({conversations.length})
+                          All ({webConversations.length})
                         </button>
                         <button
                           onClick={() => { setFilterMode('text'); setConvPage(0); }}
@@ -127,7 +129,7 @@ export default function InboxView() {
                           onClick={() => { setFilterMode('voice'); setConvPage(0); }}
                           className={`px-2.5 py-1 rounded-lg transition-all ${filterMode === 'voice' ? 'bg-[#198fd9] text-white shadow-sm font-bold' : 'text-[var(--awb-color6)] hover:text-[var(--awb-color7)]'}`}
                         >
-                          📞 Voice ({voiceConvosCount})
+                          🎙️ Voice ({voiceConvosCount})
                         </button>
                       </div>
                       <div className="flex gap-1 ml-auto">

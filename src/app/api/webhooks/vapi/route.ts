@@ -20,20 +20,9 @@ export async function POST(request: Request) {
     }
 
     // Extract tenant_id and session_id from metadata we pass when starting the call
-    const tenantId = call.metadata?.tenant_id || call.assistantOverrides?.variableValues?.tenant_id;
+    let rawTenantId = call.metadata?.tenant_id || call.assistantOverrides?.variableValues?.tenant_id;
+    const chatbotId = call.metadata?.chatbot_id;
     const sessionId = call.metadata?.session_id || call.id;
-    if (!tenantId) {
-      console.warn('[Vapi Webhook] No tenant_id found in call metadata, skipping metering.');
-      return NextResponse.json({ success: true, ignored: true });
-    }
-
-    // Calculate duration in minutes (ceiling)
-    const durationSeconds = call.duration || 0;
-    const durationMinutes = Math.ceil(durationSeconds / 60);
-
-    if (durationMinutes <= 0) {
-      return NextResponse.json({ success: true, ignored: true });
-    }
 
     // Initialize Supabase Admin Client to bypass RLS
     const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || 'https://tkoasyjvrgaglofpzduq.supabase.co';
@@ -45,31 +34,52 @@ export async function POST(request: Request) {
       auth: { persistSession: false, autoRefreshToken: false },
     });
 
-    // 1. Fetch current feature to get unit_cost_estimated
-    const { data: feature } = await supabaseAdmin
-      .from('features')
-      .select('unit_cost_estimated')
-      .eq('id', 'vapi_voice_minutes')
-      .single();
-
-    const unitCost = feature?.unit_cost_estimated || 0;
-    const actualCost = unitCost * durationMinutes;
-
-    // 2. Insert Usage Log into usage_ledger
-    const { error: insertError } = await supabaseAdmin.from('usage_ledger').insert({
-      tenant_id: tenantId,
-      feature_id: 'vapi_voice_minutes',
-      quantity: durationMinutes,
-      actual_cost: actualCost,
-      sector_tag: `Vapi Call ID: ${call.id}`,
-    });
-
-    if (insertError) {
-      console.error('[Vapi Webhook] Failed to insert usage ledger:', insertError);
-      return NextResponse.json({ error: 'Failed to record usage' }, { status: 500 });
+    let tenantId = rawTenantId;
+    if (rawTenantId) {
+      // Verify if rawTenantId is actually a chatbot_id
+      const { data: botLookup } = await supabaseAdmin.from('chatbots').select('tenant_id').eq('id', rawTenantId).single();
+      if (botLookup?.tenant_id) {
+        tenantId = botLookup.tenant_id;
+      }
+    } else if (chatbotId) {
+      const { data: botLookup } = await supabaseAdmin.from('chatbots').select('tenant_id').eq('id', chatbotId).single();
+      if (botLookup?.tenant_id) {
+        tenantId = botLookup.tenant_id;
+      }
     }
 
-    console.log(`[Vapi Webhook] Successfully metered ${durationMinutes} minutes for tenant ${tenantId}`);
+    if (!tenantId) {
+      console.warn('[Vapi Webhook] Unable to resolve tenantId for call:', call.id);
+    }
+
+    // Calculate duration in minutes (ceiling)
+    const durationSeconds = call.duration || 0;
+    const durationMinutes = Math.ceil(durationSeconds / 60);
+
+    // 1. Meter Usage Log (non-blocking for conversation logging)
+    if (tenantId && durationMinutes > 0) {
+      try {
+        const { data: feature } = await supabaseAdmin
+          .from('features')
+          .select('unit_cost_estimated')
+          .eq('id', 'vapi_voice_minutes')
+          .single();
+
+        const unitCost = feature?.unit_cost_estimated || 0;
+        const actualCost = unitCost * durationMinutes;
+
+        await supabaseAdmin.from('usage_ledger').insert({
+          tenant_id: tenantId,
+          feature_id: 'vapi_voice_minutes',
+          quantity: durationMinutes,
+          actual_cost: actualCost,
+          sector_tag: `Vapi Call ID: ${call.id}`,
+        });
+        console.log(`[Vapi Webhook] Successfully metered ${durationMinutes} minutes for tenant ${tenantId}`);
+      } catch (meterErr) {
+        console.error('[Vapi Webhook] Metering insert error:', meterErr);
+      }
+    }
 
     // 3. Update Conversation record with Voice Data
     if (tenantId && sessionId) {

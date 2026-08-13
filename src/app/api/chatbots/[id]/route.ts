@@ -105,6 +105,7 @@ export async function GET(
     }
 
     return NextResponse.json({
+      tenantId: chatbot.tenant_id,
       name: chatbot.name,
       primaryColor: chatbot.primary_color,
       agentName: config.agent_name || chatbot.name,

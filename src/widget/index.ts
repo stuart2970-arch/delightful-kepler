@@ -277,6 +277,7 @@ import Vapi from '@vapi-ai/web';
   let agentAvatarUrl = '/avatars/avatar1.png';
 
   let welcomeMessage = 'Hello! How can I help you today?';
+  let tenantId = '';
   let brandingHtml = '<span style="opacity: 0.6; font-size: 11px;">⚡ Powered by <strong>StyleFlo</strong></span>';
   let voiceEnabled = false;
   let vapiPublicKey = '';
@@ -291,6 +292,7 @@ import Vapi from '@vapi-ai/web';
       const response = await fetch(`${apiHost}/api/chatbots/${chatbotId}?t=${Date.now()}`, { cache: 'no-store' });
       if (response.ok) {
         const config = await response.json();
+        if (config.tenantId) tenantId = config.tenantId;
         if (config.name) botName = config.name;
         if (config.primaryColor) primaryColor = config.primaryColor;
         agentName = config.agentName || botName;
@@ -760,8 +762,10 @@ import Vapi from '@vapi-ai/web';
                 model: "eleven_turbo_v2_5"
               },
               metadata: {
-                tenant_id: chatbotId,
-                session_id: sessionId
+                tenant_id: tenantId || chatbotId,
+                chatbot_id: chatbotId,
+                session_id: sessionId,
+                call_type: 'web_voice'
               }
             });
           } catch (e: any) {
