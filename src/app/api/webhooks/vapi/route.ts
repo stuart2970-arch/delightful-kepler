@@ -75,6 +75,13 @@ export async function POST(request: Request) {
     if (tenantId && sessionId) {
       const recordingUrl = call.recordingUrl || null;
       const transcript = call.transcript || '';
+
+      const { data: existingConv } = await supabaseAdmin
+        .from('conversations')
+        .select('id, chatbot_id')
+        .eq('tenant_id', tenantId)
+        .eq('user_session_id', sessionId)
+        .single();
       
       // Determine if a booking was made
       // Heuristic: internal calendar uses [BOOK_MEETING:], external might direct to a booking URL

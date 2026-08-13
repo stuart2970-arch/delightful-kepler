@@ -40,6 +40,7 @@ export default function SidebarNavigation() {
         { id: 'scheduling', label: '🗓️ Master Calendar & Rota' },
         { id: 'chatbots', label: '🤖 Chatbot Manager', count: chatbots.filter(b => b.id !== globalBotId).length },
         { id: 'conversations', label: '💬 Inbox & Logs', count: conversations.length },
+        { id: 'telephony', label: '📞 Voice Calls & Receptionist' },
         { id: 'crawler', label: '📚 Knowledge Base' },
         { id: 'integrations', label: '🔌 Integrations' },
         { id: 'openclaw-monitor', label: '🛰️ OpenClaw Gateway' },

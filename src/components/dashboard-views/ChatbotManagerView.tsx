@@ -6,7 +6,7 @@ import { createBrowserClient } from '@supabase/ssr';
 
 
 export default function ChatbotManagerView() {
-  const { chatbots, setChatbots, setMetrics, tenantId, isSuperAdmin, appointments } = useDashboardStore();
+  const { chatbots, setChatbots, setMetrics, tenantId, isSuperAdmin, appointments, setActiveTab } = useDashboardStore();
   const [whatsappEnabled, setWhatsappEnabled] = useState(true);
   const [whatsappNumber, setWhatsappNumber] = useState('+44 7700 900077');
   const [instagramEnabled, setInstagramEnabled] = useState(true);
@@ -751,7 +751,18 @@ export default function ChatbotManagerView() {
                     <div className="absolute top-0 left-0 w-1.5 h-full" style={{ backgroundColor: bot.primary_color }} />
                     <div className="flex items-start justify-between">
                       <div>
-                        <h4 className="font-bold text-[var(--awb-color8)] text-base">{bot.name}</h4>
+                        <div className="flex items-center gap-2">
+                          <h4 className="font-bold text-[var(--awb-color8)] text-base">{bot.name}</h4>
+                          {bot.voice_enabled ? (
+                            <span className="px-2 py-0.5 rounded-full text-[10px] font-extrabold bg-blue-100 text-[#198fd9] border border-blue-200 inline-flex items-center gap-1 shadow-sm">
+                              📞 Voice Active
+                            </span>
+                          ) : (
+                            <span className="px-2 py-0.5 rounded-full text-[10px] font-medium bg-gray-100 text-gray-500 border border-gray-200">
+                              💬 Text Only
+                            </span>
+                          )}
+                        </div>
                         <p className="text-[10px] text-[var(--awb-color6)] font-mono mt-0.5">{bot.id}</p>
                       </div>
                       <span className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: bot.primary_color }} />
@@ -777,12 +788,19 @@ export default function ChatbotManagerView() {
                       </div>
                     </div>
 
-                    <div className="flex gap-2">
+                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
                       <button
                         onClick={() => setTestWidgetBotId(testWidgetBotId === bot.id ? null : bot.id)}
-                        className="flex-1 bg-[var(--awb-color2)] hover:bg-[var(--awb-color3)] text-[var(--awb-color8)] border border-[var(--awb-color3)] py-1.5 px-3 rounded-xl text-xs font-semibold transition-colors"
+                        className="bg-[var(--awb-color2)] hover:bg-[var(--awb-color3)] text-[var(--awb-color8)] border border-[var(--awb-color3)] py-1.5 px-2.5 rounded-xl text-xs font-semibold transition-colors text-center truncate"
                       >
-                        {testWidgetBotId === bot.id ? 'Hide Embed Code' : 'Embed Code'}
+                        {testWidgetBotId === bot.id ? 'Hide Embed' : 'Embed Code'}
+                      </button>
+                      <button
+                        onClick={() => setActiveTab('telephony')}
+                        className="bg-blue-50 hover:bg-blue-100 text-[#198fd9] border border-blue-200 py-1.5 px-2.5 rounded-xl text-xs font-bold transition-colors text-center truncate"
+                        title="Configure AI Voice Receptionist & Phone Numbers"
+                      >
+                        📞 Voice Setup
                       </button>
                       <button
                         onClick={() => {
@@ -801,13 +819,13 @@ export default function ChatbotManagerView() {
                           // Scroll form into view
                           window.scrollTo({ top: 0, behavior: 'smooth' });
                         }}
-                        className="flex-1 bg-[#198fd9] text-white/10 hover:bg-[#198fd9] text-white/20 text-[var(--awb-color5)] border border-[var(--awb-color5)]/30 py-1.5 px-3 rounded-xl text-xs font-semibold transition-colors"
+                        className="bg-[#198fd9] hover:bg-[#157ab9] text-white border border-[#198fd9] py-1.5 px-2.5 rounded-xl text-xs font-semibold transition-colors text-center truncate"
                       >
                         Edit Persona
                       </button>
                       <button
                         onClick={() => setShowDeleteModal(bot.id)}
-                        className="flex-1 bg-red-50 hover:bg-red-100 text-red-700 border border-red-200 py-1.5 px-3 rounded-xl text-xs font-semibold transition-colors"
+                        className="bg-red-50 hover:bg-red-100 text-red-700 border border-red-200 py-1.5 px-2.5 rounded-xl text-xs font-semibold transition-colors text-center truncate"
                       >
                         Delete
                       </button>

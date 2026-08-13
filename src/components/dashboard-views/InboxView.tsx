@@ -3,7 +3,7 @@ import { useDashboardStore, Message } from '../../lib/store';
 import { createBrowserClient } from '@supabase/ssr';
 
 export default function InboxView() {
-  const { tenantId, conversations, chatbots } = useDashboardStore();
+  const { tenantId, conversations, chatbots, setActiveTab } = useDashboardStore();
   const [selectedConversation, setSelectedConversation] = useState<string | null>(null);
   const [conversationMessages, setConversationMessages] = useState<Message[]>([]);
   const [isFetchingMessages, setIsFetchingMessages] = useState(false);
@@ -86,41 +86,90 @@ export default function InboxView() {
 
   const selectedConvObj = conversations.find(c => c.id === selectedConversation);
 
+  const [filterMode, setFilterMode] = useState<'all' | 'text' | 'voice'>('all');
+
+  const voiceConvosCount = conversations.filter(c => c.is_voice_call).length;
+  const textConvosCount = conversations.filter(c => !c.is_voice_call).length;
+
+  const filteredConversations = conversations.filter(conv => {
+    if (filterMode === 'voice') return conv.is_voice_call;
+    if (filterMode === 'text') return !conv.is_voice_call;
+    return true;
+  });
+
   return (
     <>
             <div className="space-y-6">
               <div className="bg-[var(--awb-color1)] border border-[var(--awb-color3)] p-6 rounded-2xl shadow-xl">
                 <h3 className="text-lg font-bold text-[var(--awb-color8)] mb-2">Conversation Session Index</h3>
-                <p className="text-xs text-[var(--awb-color6)]">Select any chat session from the explorer panel to browse user transcripts.</p>
+                <p className="text-xs text-[var(--awb-color6)]">Select any chat session or voice call transcript from the explorer panel to view details.</p>
               </div>
 
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 items-start">
                 <div className="bg-[var(--awb-color1)] border border-[var(--awb-color3)] p-6 rounded-2xl shadow-xl h-[700px] flex flex-col">
-                  <div className="flex justify-between items-center mb-4">
+                  <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2 mb-4">
                     <h3 className="text-base font-bold text-[var(--awb-color8)]">Conversation Explorer</h3>
-                    <div className="flex gap-2">
-                      <button 
-                        onClick={() => setConvPage(p => Math.max(0, p - 1))}
-                        disabled={convPage === 0}
-                        className="p-1 rounded bg-[var(--awb-color2)] text-[var(--awb-color8)] disabled:opacity-30 hover:bg-gray-700 text-[var(--awb-color8)]"
-                      >
-                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 19l-7-7 7-7"></path></svg>
-                      </button>
-                      <button 
-                        onClick={() => setConvPage(p => p + 1)}
-                        disabled={(convPage + 1) * 10 >= conversations.length}
-                        className="p-1 rounded bg-[var(--awb-color2)] text-[var(--awb-color8)] disabled:opacity-30 hover:bg-gray-700 text-[var(--awb-color8)]"
-                      >
-                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 5l7 7-7 7"></path></svg>
-                      </button>
+                    <div className="flex items-center gap-2 w-full sm:w-auto">
+                      <div className="flex bg-[var(--awb-color2)] p-1 rounded-xl border border-[var(--awb-color3)] text-xs font-semibold">
+                        <button
+                          onClick={() => { setFilterMode('all'); setConvPage(0); }}
+                          className={`px-2.5 py-1 rounded-lg transition-all ${filterMode === 'all' ? 'bg-[#198fd9] text-white shadow-sm font-bold' : 'text-[var(--awb-color6)] hover:text-[var(--awb-color7)]'}`}
+                        >
+                          All ({conversations.length})
+                        </button>
+                        <button
+                          onClick={() => { setFilterMode('text'); setConvPage(0); }}
+                          className={`px-2.5 py-1 rounded-lg transition-all ${filterMode === 'text' ? 'bg-[#198fd9] text-white shadow-sm font-bold' : 'text-[var(--awb-color6)] hover:text-[var(--awb-color7)]'}`}
+                        >
+                          💬 Text ({textConvosCount})
+                        </button>
+                        <button
+                          onClick={() => { setFilterMode('voice'); setConvPage(0); }}
+                          className={`px-2.5 py-1 rounded-lg transition-all ${filterMode === 'voice' ? 'bg-[#198fd9] text-white shadow-sm font-bold' : 'text-[var(--awb-color6)] hover:text-[var(--awb-color7)]'}`}
+                        >
+                          📞 Voice ({voiceConvosCount})
+                        </button>
+                      </div>
+                      <div className="flex gap-1 ml-auto">
+                        <button 
+                          onClick={() => setConvPage(p => Math.max(0, p - 1))}
+                          disabled={convPage === 0}
+                          className="p-1 rounded bg-[var(--awb-color2)] text-[var(--awb-color8)] disabled:opacity-30 hover:bg-gray-700"
+                        >
+                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 19l-7-7 7-7"></path></svg>
+                        </button>
+                        <button 
+                          onClick={() => setConvPage(p => p + 1)}
+                          disabled={(convPage + 1) * 10 >= filteredConversations.length}
+                          className="p-1 rounded bg-[var(--awb-color2)] text-[var(--awb-color8)] disabled:opacity-30 hover:bg-gray-700"
+                        >
+                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 5l7 7-7 7"></path></svg>
+                        </button>
+                      </div>
                     </div>
                   </div>
 
                   <div className="flex-1 overflow-y-auto space-y-2.5 pr-1 styleflo-scrollbar mb-4">
-                    {conversations.length === 0 ? (
-                      <div className="text-center text-xs text-[var(--awb-color6)] py-10">No sessions logged yet.</div>
+                    {filteredConversations.length === 0 ? (
+                      <div className="text-center text-xs text-[var(--awb-color6)] py-12 px-4 space-y-3">
+                        <p>
+                          {filterMode === 'voice' 
+                            ? 'No voice call recordings found yet.' 
+                            : filterMode === 'text' 
+                            ? 'No text chat logs found yet.' 
+                            : 'No sessions logged yet.'}
+                        </p>
+                        {filterMode === 'voice' && (
+                          <button
+                            onClick={() => setActiveTab('telephony')}
+                            className="bg-[#198fd9] hover:bg-[#157ab9] text-white text-xs font-semibold px-4 py-2 rounded-xl transition-all shadow-sm"
+                          >
+                            📞 Go to Voice Receptionist Settings
+                          </button>
+                        )}
+                      </div>
                     ) : (
-                      conversations.slice(convPage * 10, (convPage + 1) * 10).map((conv) => {
+                      filteredConversations.slice(convPage * 10, (convPage + 1) * 10).map((conv) => {
                         const chatbotName = chatbots.find(b => b.id === conv.chatbot_id)?.name || 'AI Bot';
                         return (
                           <button
