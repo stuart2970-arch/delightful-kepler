@@ -43,7 +43,7 @@ function getSupabaseAdminClient() {
 
 export async function DELETE(
   request: Request,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> | { id: string } }
 ) {
   try {
     const supabaseAuth = await getSupabaseAuthClient();
@@ -64,8 +64,14 @@ export async function DELETE(
       return NextResponse.json({ error: 'Forbidden: Superadmin access required' }, { status: 403 });
     }
 
-    const tenantId = params.id;
-    if (!tenantId) {
+    const resolvedParams = await params;
+    let tenantId = resolvedParams?.id;
+    if (!tenantId && request.url) {
+      const urlParts = request.url.split('?')[0].split('/');
+      tenantId = urlParts[urlParts.length - 1];
+    }
+
+    if (!tenantId || tenantId === 'undefined') {
       return NextResponse.json({ error: 'Tenant ID is required' }, { status: 400 });
     }
 

@@ -83,21 +83,52 @@ export default async function SuperadminPage() {
     .select('id, company_name, plan_tier, created_at, slug')
     .order('created_at', { ascending: false });
 
-  // Fetch usage logs for current month using admin client
-  const firstDay = new Date();
-  firstDay.setDate(1);
-  firstDay.setHours(0, 0, 0, 0);
+  // Fetch all chatbots with their tenant_id
+  const { data: allBots } = await adminSupabase
+    .from('chatbots')
+    .select('id, tenant_id');
 
+  // Fetch document chunks for crawls count
+  const { data: allChunks } = await adminSupabase
+    .from('document_chunks')
+    .select('chatbot_id');
+
+  // Fetch conversations and messages for token/messages count
+  const { data: allConvs } = await adminSupabase
+    .from('conversations')
+    .select('id, chatbot_id');
+
+  const convIds = (allConvs || []).map(c => c.id);
+  const { data: allMsgs } = convIds.length > 0
+    ? await adminSupabase.from('messages').select('conversation_id')
+    : { data: [] };
+
+  // Fetch usage logs
   const { data: allUsage } = await adminSupabase
     .from('usage_ledger')
-    .select('quantity, feature_id, tenant_id')
-    .gte('recorded_at', firstDay.toISOString());
+    .select('quantity, feature_id, tenant_id');
 
-  // Aggregate stats
+  // Map chatbot IDs to tenants
+  const botTenantMap = new Map<string, string>();
+  (allBots || []).forEach(b => {
+    if (b.tenant_id) botTenantMap.set(b.id, b.tenant_id);
+  });
+
+  // Map conversation IDs to tenants
+  const convTenantMap = new Map<string, string>();
+  (allConvs || []).forEach(c => {
+    const tenantId = botTenantMap.get(c.chatbot_id);
+    if (tenantId) convTenantMap.set(c.id, tenantId);
+  });
+
+  // Aggregate stats per tenant
   const tenantStats = (tenants || []).map(t => {
     const tenantUsage = (allUsage || []).filter(u => u.tenant_id === t.id);
-    const messagesCount = tenantUsage.filter(u => u.feature_id === 'message_allowance').reduce((sum, u) => sum + Number(u.quantity), 0);
-    const crawlsCount = tenantUsage.filter(u => u.feature_id === 'knowledge_data_chunks').reduce((sum, u) => sum + Number(u.quantity), 0);
+    const ledgerMessages = tenantUsage.filter(u => u.feature_id === 'message_allowance').reduce((sum, u) => sum + Number(u.quantity), 0);
+    const ledgerCrawls = tenantUsage.filter(u => u.feature_id === 'knowledge_data_chunks').reduce((sum, u) => sum + Number(u.quantity), 0);
+
+    const dbCrawls = (allChunks || []).filter(c => botTenantMap.get(c.chatbot_id) === t.id).length;
+    const dbMessages = (allMsgs || []).filter(m => convTenantMap.get(m.conversation_id) === t.id).length;
 
     return {
       id: t.id,
@@ -105,8 +136,8 @@ export default async function SuperadminPage() {
       plan_tier: t.plan_tier,
       created_at: t.created_at,
       slug: t.slug,
-      messagesCount,
-      crawlsCount
+      messagesCount: Math.max(ledgerMessages, dbMessages),
+      crawlsCount: Math.max(ledgerCrawls, dbCrawls)
     };
   });
 
