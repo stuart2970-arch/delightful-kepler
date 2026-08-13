@@ -65,7 +65,7 @@ export async function POST(request: NextRequest) {
       .select('*')
       .eq('chatbot_id', chatbotId)
       .eq('tenant_id', tenantId)
-      .eq('external_session_key', sessionKey)
+      .eq('user_session_id', sessionKey)
       .maybeSingle();
 
     if (!conversation) {
@@ -74,8 +74,7 @@ export async function POST(request: NextRequest) {
         .insert({
           chatbot_id: chatbotId,
           tenant_id: tenantId,
-          external_session_key: sessionKey,
-          status: 'active'
+          user_session_id: sessionKey,
         })
         .select()
         .single();
@@ -153,7 +152,7 @@ CRITICAL INSTRUCTIONS:
 `;
 
     const { text: aiResponse } = await generateText({
-      model: google('gemini-2.5-flash'),
+      model: google('gemini-flash-latest'),
       system: systemInstruction,
       prompt: `Conversation History:\n${historyPrompt}\n\nCustomer Message: ${messageText}`
     });
