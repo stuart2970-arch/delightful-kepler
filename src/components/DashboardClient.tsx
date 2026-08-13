@@ -1008,15 +1008,15 @@ const globalBotId = '00000000-0000-0000-0000-000000000000';
                       </p>
                     </div>
 
-                    {!rwgAddressSameAsTrading && (
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                         <div>
                           <label className="block text-xs font-semibold text-[#212326] mb-1.5">Google Business Name</label>
                           <input
                             type="text"
-                            value={rwgConfig?.rwg_business_name || ''}
+                            value={rwgAddressSameAsTrading ? (rwgConfig?.rwg_business_name || tenantName || '') : (rwgConfig?.rwg_business_name || '')}
                             onChange={(e) => setRwgConfig({ ...rwgConfig, rwg_business_name: e.target.value })}
-                            className="w-full h-[50px] bg-white border border-[#f2f3f5] rounded-[6px] px-3.5 py-2 text-sm text-[#212326] focus:outline-none focus:border-[#198fd9]"
+                            disabled={rwgAddressSameAsTrading}
+                            className="w-full h-[50px] bg-white disabled:bg-gray-100/80 disabled:text-[#212326] font-semibold disabled:cursor-not-allowed border border-[#f2f3f5] rounded-[6px] px-3.5 py-2 text-sm text-[#212326] focus:outline-none focus:border-[#198fd9]"
                             placeholder="e.g. Styleflo Salon"
                           />
                         </div>
@@ -1024,9 +1024,10 @@ const globalBotId = '00000000-0000-0000-0000-000000000000';
                           <label className="block text-xs font-semibold text-[#212326] mb-1.5">Google Phone Number</label>
                           <input
                             type="text"
-                            value={rwgConfig?.rwg_phone || ''}
+                            value={rwgAddressSameAsTrading ? (rwgConfig?.rwg_phone || tradingAddressPhone || twilioShadowNumber || '') : (rwgConfig?.rwg_phone || '')}
                             onChange={(e) => setRwgConfig({ ...rwgConfig, rwg_phone: e.target.value })}
-                            className="w-full h-[50px] bg-white border border-[#f2f3f5] rounded-[6px] px-3.5 py-2 text-sm text-[#212326] focus:outline-none focus:border-[#198fd9]"
+                            disabled={rwgAddressSameAsTrading}
+                            className="w-full h-[50px] bg-white disabled:bg-gray-100/80 disabled:text-[#212326] font-semibold disabled:cursor-not-allowed border border-[#f2f3f5] rounded-[6px] px-3.5 py-2 text-sm text-[#212326] focus:outline-none focus:border-[#198fd9]"
                             placeholder="e.g. +44 123 456 7890"
                           />
                         </div>
@@ -1034,9 +1035,10 @@ const globalBotId = '00000000-0000-0000-0000-000000000000';
                           <label className="block text-xs font-semibold text-[#212326] mb-1.5">Google Street Address</label>
                           <input
                             type="text"
-                            value={rwgConfig?.rwg_street_address || ''}
+                            value={rwgAddressSameAsTrading ? (rwgConfig?.rwg_street_address || tradingAddressStreet || businessAddress || '') : (rwgConfig?.rwg_street_address || '')}
                             onChange={(e) => setRwgConfig({ ...rwgConfig, rwg_street_address: e.target.value })}
-                            className="w-full h-[50px] bg-white border border-[#f2f3f5] rounded-[6px] px-3.5 py-2 text-sm text-[#212326] focus:outline-none focus:border-[#198fd9]"
+                            disabled={rwgAddressSameAsTrading}
+                            className="w-full h-[50px] bg-white disabled:bg-gray-100/80 disabled:text-[#212326] font-semibold disabled:cursor-not-allowed border border-[#f2f3f5] rounded-[6px] px-3.5 py-2 text-sm text-[#212326] focus:outline-none focus:border-[#198fd9]"
                             placeholder="e.g. 123 Salon Street"
                           />
                         </div>
@@ -1044,9 +1046,10 @@ const globalBotId = '00000000-0000-0000-0000-000000000000';
                           <label className="block text-xs font-semibold text-[#212326] mb-1.5">Google City</label>
                           <input
                             type="text"
-                            value={rwgConfig?.rwg_city || ''}
+                            value={rwgAddressSameAsTrading ? (rwgConfig?.rwg_city || tradingAddressCity || '') : (rwgConfig?.rwg_city || '')}
                             onChange={(e) => setRwgConfig({ ...rwgConfig, rwg_city: e.target.value })}
-                            className="w-full h-[50px] bg-white border border-[#f2f3f5] rounded-[6px] px-3.5 py-2 text-sm text-[#212326] focus:outline-none focus:border-[#198fd9]"
+                            disabled={rwgAddressSameAsTrading}
+                            className="w-full h-[50px] bg-white disabled:bg-gray-100/80 disabled:text-[#212326] font-semibold disabled:cursor-not-allowed border border-[#f2f3f5] rounded-[6px] px-3.5 py-2 text-sm text-[#212326] focus:outline-none focus:border-[#198fd9]"
                             placeholder="e.g. London"
                           />
                         </div>
@@ -1054,16 +1057,17 @@ const globalBotId = '00000000-0000-0000-0000-000000000000';
                           <label className="block text-xs font-semibold text-[#212326] mb-1.5">Google Postcode</label>
                           <input
                             type="text"
-                            value={rwgConfig?.rwg_postcode || ''}
+                            value={rwgAddressSameAsTrading ? (rwgConfig?.rwg_postcode || tradingAddressPostcode || postcode || '') : (rwgConfig?.rwg_postcode || '')}
                             onChange={(e) => setRwgConfig({ ...rwgConfig, rwg_postcode: e.target.value })}
-                            className="w-full h-[50px] bg-white border border-[#f2f3f5] rounded-[6px] px-3.5 py-2 text-sm text-[#212326] focus:outline-none focus:border-[#198fd9]"
+                            disabled={rwgAddressSameAsTrading}
+                            className="w-full h-[50px] bg-white disabled:bg-gray-100/80 disabled:text-[#212326] font-semibold disabled:cursor-not-allowed border border-[#f2f3f5] rounded-[6px] px-3.5 py-2 text-sm text-[#212326] focus:outline-none focus:border-[#198fd9]"
                             placeholder="e.g. SW1A 1AA"
                           />
                         </div>
                       </div>
-                    )}
+
                     {rwgAddressSameAsTrading && (
-                      <p className="text-xs text-[#65bd7d] font-semibold">✓ Automatically synchronized with your Trading Address.</p>
+                      <p className="text-xs text-[#65bd7d] font-semibold mt-1">✓ Automatically synchronized with your Trading Address.</p>
                     )}
                   </div>
 

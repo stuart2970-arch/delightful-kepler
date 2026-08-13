@@ -132,19 +132,19 @@ export default async function DashboardPage(props: { searchParams?: Promise<{ [k
         postcode = tenant.postcode || '';
         bookingMode = tenant.booking_mode || 'single_calendar';
         bookingUrl = tenant.booking_url || '';
+        tradingAddressStreet = tenant.trading_address_street || tenant.business_address || '';
+        tradingAddressCity = tenant.trading_address_city || '';
+        tradingAddressPostcode = tenant.trading_address_postcode || tenant.postcode || '';
+        tradingAddressPhone = tenant.trading_address_phone || tenant.twilio_shadow_number || '';
         rwgConfig = {
           is_rwg_enabled: tenant.is_rwg_enabled || false,
-          rwg_business_name: tenant.rwg_business_name || '',
-          rwg_street_address: tenant.rwg_street_address || '',
-          rwg_city: tenant.rwg_city || '',
-          rwg_postcode: tenant.rwg_postcode || '',
-          rwg_phone: tenant.rwg_phone || '',
+          rwg_business_name: tenant.rwg_business_name || tenant.company_name || '',
+          rwg_street_address: tenant.rwg_street_address || tradingAddressStreet,
+          rwg_city: tenant.rwg_city || tradingAddressCity,
+          rwg_postcode: tenant.rwg_postcode || tradingAddressPostcode,
+          rwg_phone: tenant.rwg_phone || tradingAddressPhone,
           is_registered_business_address: tenant.is_registered_business_address || false,
         };
-        tradingAddressStreet = tenant.trading_address_street || '';
-        tradingAddressCity = tenant.trading_address_city || '';
-        tradingAddressPostcode = tenant.trading_address_postcode || '';
-        tradingAddressPhone = tenant.trading_address_phone || '';
         companyRegistrationNumber = tenant.company_registration_number || '';
         registeredAddressStreet = tenant.registered_address_street || '';
         registeredAddressCity = tenant.registered_address_city || '';
@@ -204,19 +204,19 @@ export default async function DashboardPage(props: { searchParams?: Promise<{ [k
         postcode = impTenant.postcode || '';
         bookingMode = impTenant.booking_mode || 'single_calendar';
         bookingUrl = impTenant.booking_url || '';
+        tradingAddressStreet = impTenant.trading_address_street || impTenant.business_address || '';
+        tradingAddressCity = impTenant.trading_address_city || '';
+        tradingAddressPostcode = impTenant.trading_address_postcode || impTenant.postcode || '';
+        tradingAddressPhone = impTenant.trading_address_phone || impTenant.twilio_shadow_number || '';
         rwgConfig = {
           is_rwg_enabled: impTenant.is_rwg_enabled || false,
-          rwg_business_name: impTenant.rwg_business_name || '',
-          rwg_street_address: impTenant.rwg_street_address || '',
-          rwg_city: impTenant.rwg_city || '',
-          rwg_postcode: impTenant.rwg_postcode || '',
-          rwg_phone: impTenant.rwg_phone || '',
+          rwg_business_name: impTenant.rwg_business_name || impTenant.company_name || '',
+          rwg_street_address: impTenant.rwg_street_address || tradingAddressStreet,
+          rwg_city: impTenant.rwg_city || tradingAddressCity,
+          rwg_postcode: impTenant.rwg_postcode || tradingAddressPostcode,
+          rwg_phone: impTenant.rwg_phone || tradingAddressPhone,
           is_registered_business_address: impTenant.is_registered_business_address || false,
         };
-        tradingAddressStreet = impTenant.trading_address_street || '';
-        tradingAddressCity = impTenant.trading_address_city || '';
-        tradingAddressPostcode = impTenant.trading_address_postcode || '';
-        tradingAddressPhone = impTenant.trading_address_phone || '';
         companyRegistrationNumber = impTenant.company_registration_number || '';
         registeredAddressStreet = impTenant.registered_address_street || '';
         registeredAddressCity = impTenant.registered_address_city || '';
