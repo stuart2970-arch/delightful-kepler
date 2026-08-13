@@ -27,7 +27,7 @@ test.describe('Authentication Flows', () => {
 
     // Verify additional inputs appear
     await expect(page.locator('input[placeholder="Jane Doe"]')).toBeVisible();
-    await expect(page.locator('input[placeholder="Rosser Hairdressing"]')).toBeVisible();
+    await expect(page.locator('input[placeholder="Wardrobe at the Cross"]')).toBeVisible();
     await expect(page.locator('input[placeholder="https://example.com"]')).toBeVisible();
     
     // Verify submit button changed
