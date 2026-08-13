@@ -43,7 +43,7 @@ export default function SidebarNavigation() {
         { id: 'telephony', label: '📞 Voice Calls & Receptionist' },
         { id: 'crawler', label: '📚 Knowledge Base' },
         { id: 'integrations', label: '🔌 Integrations' },
-        { id: 'openclaw-monitor', label: '🛰️ OpenClaw Gateway' },
+        { id: 'openclaw-monitor', label: '⚡ Gateways' },
         { id: 'billing', label: '💳 Subscriptions & Add-ons' },
       ]
     : [

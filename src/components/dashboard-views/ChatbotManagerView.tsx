@@ -597,7 +597,7 @@ export default function ChatbotManagerView() {
                       {/* OPENCLAW OMNICHANNEL CHANNELS */}
                       <div className="pt-4 border-t border-[var(--awb-color3)] space-y-4">
                         <h4 className="text-sm font-bold text-[var(--awb-color8)] flex items-center gap-2">
-                          💬 Omnichannel 2-Way Messaging Channels (OpenClaw)
+                          💬 Omnichannel 2-Way Messaging Channels
                         </h4>
 
                         {/* WhatsApp Toggle & Number */}
