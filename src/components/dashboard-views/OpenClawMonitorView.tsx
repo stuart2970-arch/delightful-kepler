@@ -21,13 +21,56 @@ interface LogEntry {
 export default function OpenClawMonitorView() {
   const [nodeStatus] = useState<'healthy' | 'degraded' | 'offline'>('healthy');
   const [latency, setLatency] = useState<number>(42);
-  const [channels] = useState<ChannelConnection[]>([
-    { id: '1', name: 'WhatsApp', type: 'WhatsApp Business API', status: 'connected', activeTenants: 12, uptime: '14d 6h', lastMessageAt: 'Just now' },
-    { id: '2', name: 'Instagram', type: 'Instagram Messenger API', status: 'connected', activeTenants: 8, uptime: '14d 6h', lastMessageAt: '2m ago' },
-    { id: '3', name: 'Telegram', type: 'Telegram Bot API', status: 'connected', activeTenants: 5, uptime: '30d 12h', lastMessageAt: '12m ago' },
-    { id: '4', name: 'SMS (Twilio)', type: 'Twilio SMS API', status: 'connected', activeTenants: 15, uptime: '45d 1h', lastMessageAt: '1m ago' },
-    { id: '5', name: 'Slack', type: 'Slack App Gateway', status: 'reconnecting', activeTenants: 2, uptime: '0h 15m', lastMessageAt: '1h ago' }
-  ]);
+  const isWhatsappConnected = Boolean(tradingAddressPhone);
+  const isSmsConnected = Boolean(twilioShadowNumber);
+
+  const channels: ChannelConnection[] = useMemo(() => [
+    { 
+      id: '1', 
+      name: 'WhatsApp', 
+      type: 'WhatsApp Business API', 
+      status: isWhatsappConnected ? 'connected' : 'disconnected', 
+      activeTenants: isWhatsappConnected ? 1 : 0, 
+      uptime: isWhatsappConnected ? '14d 6h' : '0m', 
+      lastMessageAt: isWhatsappConnected ? 'Just now' : 'Never' 
+    },
+    { 
+      id: '2', 
+      name: 'Instagram', 
+      type: 'Instagram Messenger API', 
+      status: 'disconnected', 
+      activeTenants: 0, 
+      uptime: '0m', 
+      lastMessageAt: 'Never' 
+    },
+    { 
+      id: '3', 
+      name: 'Telegram', 
+      type: 'Telegram Bot API', 
+      status: 'disconnected', 
+      activeTenants: 0, 
+      uptime: '0m', 
+      lastMessageAt: 'Never' 
+    },
+    { 
+      id: '4', 
+      name: 'SMS (Twilio)', 
+      type: 'Twilio SMS API', 
+      status: isSmsConnected ? 'connected' : 'disconnected', 
+      activeTenants: isSmsConnected ? 1 : 0, 
+      uptime: isSmsConnected ? '45d 1h' : '0m', 
+      lastMessageAt: isSmsConnected ? 'Never' : 'Never' 
+    },
+    { 
+      id: '5', 
+      name: 'Slack', 
+      type: 'Slack App Gateway', 
+      status: 'disconnected', 
+      activeTenants: 0, 
+      uptime: '0m', 
+      lastMessageAt: 'Never' 
+    }
+  ], [isWhatsappConnected, isSmsConnected]);
 
   const [logSearch, setLogSearch] = useState('');
   const [logLevelFilter, setLogLevelFilter] = useState<'all' | 'info' | 'warn' | 'error'>('all');
