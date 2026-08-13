@@ -19,6 +19,7 @@ interface LogEntry {
 }
 
 export default function OpenClawMonitorView() {
+  const { tradingAddressPhone, twilioShadowNumber, tenantName, tenantId } = useDashboardStore();
   const [nodeStatus] = useState<'healthy' | 'degraded' | 'offline'>('healthy');
   const [latency, setLatency] = useState<number>(42);
   const isWhatsappConnected = Boolean(tradingAddressPhone);
@@ -74,6 +75,16 @@ export default function OpenClawMonitorView() {
 
   const [logSearch, setLogSearch] = useState('');
   const [logLevelFilter, setLogLevelFilter] = useState<'all' | 'info' | 'warn' | 'error'>('all');
+
+  const [activeConfigModal, setActiveConfigModal] = useState<ChannelConnection | null>(null);
+  const [activePhoneOrHandle, setActivePhoneOrHandle] = useState<string>(tradingAddressPhone || twilioShadowNumber || '');
+  const [isSavingChannelConfig, setIsSavingChannelConfig] = useState(false);
+
+  useEffect(() => {
+    if (tradingAddressPhone || twilioShadowNumber) {
+      setActivePhoneOrHandle(tradingAddressPhone || twilioShadowNumber || '');
+    }
+  }, [tradingAddressPhone, twilioShadowNumber]);
 
   const [logs, setLogs] = useState<LogEntry[]>([
     { timestamp: '10:42:01', level: 'info', channel: 'SYSTEM', message: 'Messaging Gateway v1.8 initialized successfully.' },
@@ -144,17 +155,6 @@ export default function OpenClawMonitorView() {
       return matchesSearch && matchesLevel;
     });
   }, [logs, logSearch, logLevelFilter]);
-
-  const [activeConfigModal, setActiveConfigModal] = useState<ChannelConnection | null>(null);
-  const { tradingAddressPhone, twilioShadowNumber, tenantName, tenantId } = useDashboardStore();
-  const [activePhoneOrHandle, setActivePhoneOrHandle] = useState<string>(tradingAddressPhone || twilioShadowNumber || '');
-  const [isSavingChannelConfig, setIsSavingChannelConfig] = useState(false);
-
-  useEffect(() => {
-    if (tradingAddressPhone || twilioShadowNumber) {
-      setActivePhoneOrHandle(tradingAddressPhone || twilioShadowNumber || '');
-    }
-  }, [tradingAddressPhone, twilioShadowNumber]);
 
   return (
     <div className="space-y-6">
