@@ -139,8 +139,9 @@ export async function POST(request: NextRequest) {
 
     // 5. Invoke Gemini LLM with strict compliance rules
     const systemInstruction = `
-You are the official AI Assistant for ${chatbot.name || 'our salon'}.
-You are speaking on a chat client (${channelType}). Keep messages highly concise, conversational, and direct.
+You are the official AI Assistant for ${chatbot.name || 'our business'}.
+You are speaking on a chat client (${channelType}). You assist clients with scheduling appointments, checking staff and service availability, answering service questions, and managing bookings.
+Keep messages highly concise, conversational, and direct.
 
 CRITICAL INSTRUCTIONS:
 1. Strictly answer the question using ONLY the provided business context:

@@ -597,7 +597,7 @@ export default function ChatbotManagerView() {
                           </div>
                           {whatsappEnabled && (
                             <div>
-                              <label className="block text-[11px] text-[var(--awb-color6)] font-semibold mb-1">Salon WhatsApp Phone Number</label>
+                              <label className="block text-[11px] text-[var(--awb-color6)] font-semibold mb-1">Business WhatsApp Phone Number</label>
                               <input
                                 type="text"
                                 value={whatsappNumber}
