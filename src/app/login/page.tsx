@@ -128,11 +128,26 @@ export default function LoginPage() {
       }
     } catch (err: any) {
       console.error("Signup error:", err);
-      let errorMsg = err.message || 'An error occurred during authentication.';
-      if (typeof errorMsg === 'object') {
-        errorMsg = JSON.stringify(errorMsg);
-      } else if (typeof err === 'object' && !err.message) {
-        errorMsg = JSON.stringify(err);
+      let errorMsg = 'An error occurred during authentication.';
+      if (typeof err === 'string') {
+        errorMsg = err;
+      } else if (err && typeof err === 'object') {
+        if (typeof err.message === 'string' && err.message.trim()) {
+          errorMsg = err.message;
+        } else if (typeof err.error_description === 'string' && err.error_description.trim()) {
+          errorMsg = err.error_description;
+        } else if (typeof err.error === 'string' && err.error.trim()) {
+          errorMsg = err.error;
+        } else if (err.error && typeof err.error.message === 'string' && err.error.message.trim()) {
+          errorMsg = err.error.message;
+        } else {
+          try {
+            const str = JSON.stringify(err);
+            if (str && str !== '{}') errorMsg = str;
+          } catch {
+            errorMsg = String(err);
+          }
+        }
       }
       setError(errorMsg);
     } finally {
