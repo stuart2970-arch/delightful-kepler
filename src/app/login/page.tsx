@@ -71,6 +71,22 @@ export default function LoginPage() {
   );
 
   useEffect(() => {
+    // Handle PKCE auth code exchange if present in URL
+    if (typeof window !== 'undefined') {
+      const urlParams = new URLSearchParams(window.location.search);
+      const code = urlParams.get('code');
+      if (code) {
+        supabase.auth.exchangeCodeForSession(code).then(({ error }) => {
+          if (error) {
+            console.error('Error exchanging code for session:', error);
+          } else {
+            const cleanUrl = window.location.pathname;
+            window.history.replaceState({}, document.title, cleanUrl);
+          }
+        });
+      }
+    }
+
     const {
       data: { subscription },
     } = supabase.auth.onAuthStateChange((event, session) => {
@@ -108,10 +124,19 @@ export default function LoginPage() {
 
         const finalSlug = slugStatus?.slug || companyName.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
 
+        const isLocal = typeof window !== 'undefined' && (
+          window.location.hostname === 'localhost' || 
+          window.location.hostname === '127.0.0.1'
+        );
+        const redirectUrl = isLocal 
+          ? `${window.location.origin}/login`
+          : 'https://app.styleflo.ai/login';
+
         const { data, error } = await supabase.auth.signUp({
           email,
           password,
           options: {
+            emailRedirectTo: redirectUrl,
             data: {
               full_name: fullName,
               company_name: companyName,
