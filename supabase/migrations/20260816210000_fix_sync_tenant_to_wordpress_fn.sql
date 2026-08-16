@@ -1,7 +1,7 @@
--- 1. Enable the pg_net extension to make async HTTP requests from Postgres
-CREATE EXTENSION IF NOT EXISTS pg_net;
+-- Fix sync_tenant_to_wordpress_fn function signature and exception handling
+-- 1. Ensure body is passed as jsonb (not ::text) to match net.http_post signature
+-- 2. Wrap http_post in EXCEPTION block so network/webhook errors never block tenant creation or user signups
 
--- 2. Create the custom trigger function to call our Next.js API route
 CREATE OR REPLACE FUNCTION public.sync_tenant_to_wordpress_fn()
 RETURNS trigger
 LANGUAGE plpgsql
@@ -26,7 +26,6 @@ BEGIN
 END;
 $$;
 
--- 3. Create the AFTER INSERT trigger on the public.tenants table
 DROP TRIGGER IF EXISTS trigger_sync_tenant_to_wordpress ON public.tenants;
 CREATE TRIGGER trigger_sync_tenant_to_wordpress
   AFTER INSERT ON public.tenants
