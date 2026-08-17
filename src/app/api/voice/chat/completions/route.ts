@@ -173,8 +173,7 @@ export async function POST(req: Request) {
               tenant_id: chatbot.tenant_id,
               chatbot_id: chatbotId,
               user_session_id: sessionId,
-              is_voice_call: true,
-              channel: 'web_voice'
+              is_voice_call: true
             }, { onConflict: 'tenant_id, user_session_id' }).select('id').single();
 
             if (conv?.id) {
