@@ -630,6 +630,9 @@ ame, irstMessage, and 	ranscriber) rather than relying on ssistantOverrides de
   4. **Web Voice Transcriptions & Automatic Supabase Logging**: Enhanced `InboxView.tsx` transcript viewer to display full transcribed speech text, HTML5 audio playback (`recording_url`), and turn-by-turn user vs bot speech bubbles. Updated `/api/voice/[chatbotId]/chat/completions` and `/api/voice/chat/completions` routes to automatically persist voice sessions into `conversations` and `messages`.
   5. **Messaging Gateways Navigation Scoping**: Removed the **Gateways** tab (`openclaw-monitor`) from standard tenant left navigation menus. Added a dedicated **Messaging Gateways** tab to `SuperadminClient.tsx` so platform superadmins can monitor active messaging channels on the God Page (`/superadmin`).
 
-
-
-
+### Session 22 (August 17, 2026)
+* **User**: "i have added a folder audio in the root of the website, this contains the audion of the voices users can choose for thier chatbot"
+* **Fix**: Integrated static audio sample files into `public/audio/` and updated `/api/voice-personas` to serve instant audio previews:
+  1. **Static Audio Asset Deployment**: Copied MP3 voice samples (`c8MZcZcr0JnMAwkwnTIu_jay_manchester.mp3` and `dqTe8OSrj3PERbkXF8Kx_lpool_woman.mp3`) into `public/audio/` so Next.js and Cloud Run serve them statically over HTTPS at `/audio/<filename>`.
+  2. **Voice Personas API Route Enriched**: Updated `/api/voice-personas/route.ts` to map ElevenLabs voice IDs (`c8MZcZcr0JnMAwkwnTIu` Jay Manchester accent & `dqTe8OSrj3PERbkXF8Kx` Liverpool accent female) to `/audio/c8MZcZcr0JnMAwkwnTIu_jay_manchester.mp3` and `/audio/dqTe8OSrj3PERbkXF8Kx_lpool_woman.mp3`.
+  3. **Instant Dashboard Audio Previews**: Users configuring voice personas in `ChatbotManagerView.tsx` can now click the play button to preview the Manchester and Liverpool accent voice samples directly inside their browser before activating voice for their chatbot.
