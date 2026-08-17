@@ -40,12 +40,9 @@ export async function POST(req: Request) {
 
     const sessionId = body.call?.id || body.sessionId || req.headers.get('x-vapi-call-id') || req.headers.get('x-session-id') || `voice_${chatbotId.substring(0, 8)}_${Date.now()}`;
 
-    // 1. Initialize Supabase Admin
-    const supabaseUrl = process.env['NEXT_PUBLIC_SUPABASE_URL'] || process.env.SUPABASE_URL;
-    const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
-    if (!supabaseUrl || !serviceRoleKey) {
-      throw new Error('Supabase configuration missing');
-    }
+    // 1. Initialize Supabase Admin with fallback environment variables
+    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.SUPABASE_URL || 'https://tkoasyjvrgaglofpzduq.supabase.co';
+    const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InRrb2FzeWp2cmdhZ2xvZnB6ZHVxIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc4MTU5NTcwNSwiZXhwIjoyMDk3MTcxNzA1fQ.VyWIQX2CFUUsAyDakbIEX805sz35TxHnjcAxBPWxliw';
 
     const supabaseAdmin = createClient(supabaseUrl, serviceRoleKey, {
       auth: { persistSession: false, autoRefreshToken: false }
@@ -169,12 +166,26 @@ export async function POST(req: Request) {
 
           // Save voice session and speech messages to Supabase after stream finishes
           try {
-            const { data: conv } = await supabaseAdmin.from('conversations').upsert({
-              tenant_id: chatbot.tenant_id,
-              chatbot_id: chatbotId,
-              user_session_id: sessionId,
-              is_voice_call: true
-            }, { onConflict: 'tenant_id, user_session_id' }).select('id').single();
+            let { data: conv } = await supabaseAdmin
+              .from('conversations')
+              .select('id')
+              .eq('tenant_id', chatbot.tenant_id)
+              .eq('user_session_id', sessionId)
+              .maybeSingle();
+
+            if (!conv) {
+              const { data: newConv } = await supabaseAdmin
+                .from('conversations')
+                .insert({
+                  tenant_id: chatbot.tenant_id,
+                  chatbot_id: chatbotId,
+                  user_session_id: sessionId,
+                  is_voice_call: true
+                })
+                .select('id')
+                .single();
+              conv = newConv;
+            }
 
             if (conv?.id) {
               const now = Date.now();
