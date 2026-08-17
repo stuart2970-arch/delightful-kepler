@@ -5,7 +5,7 @@ import { createBrowserClient } from '@supabase/ssr';
 export type ChannelFilterOption = 'all' | 'chat' | 'sms' | 'web_voice' | 'instagram' | 'whatsapp';
 
 export default function InboxView() {
-  const { tenantId, conversations, chatbots } = useDashboardStore();
+  const { tenantId, conversations, chatbots, setConversations } = useDashboardStore();
   const [selectedConversation, setSelectedConversation] = useState<string | null>(null);
   const [conversationMessages, setConversationMessages] = useState<Message[]>([]);
   const [isFetchingMessages, setIsFetchingMessages] = useState(false);
@@ -179,6 +179,25 @@ export default function InboxView() {
                 </select>
 
                 <div className="flex gap-1 shrink-0">
+                  <button
+                    onClick={async () => {
+                      if (!supabase || !tenantId) return;
+                      try {
+                        const { data } = await supabase
+                          .from('conversations')
+                          .select('*')
+                          .eq('tenant_id', tenantId)
+                          .order('created_at', { ascending: false });
+                        if (data) setConversations(data);
+                      } catch (err) {
+                        console.error('Sync failed:', err);
+                      }
+                    }}
+                    title="Sync Latest Communications"
+                    className="p-1 rounded bg-[var(--awb-color2)] text-[var(--awb-color8)] hover:bg-gray-200 transition-colors"
+                  >
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path></svg>
+                  </button>
                   <button 
                     onClick={() => setConvPage(p => Math.max(0, p - 1))}
                     disabled={convPage === 0}
