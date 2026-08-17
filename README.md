@@ -216,6 +216,16 @@ This runbook documents the key fixes and architecture enhancements implemented d
   - Injected an `<a>` tag at the bottom of the widget (`src/widget/index.ts`) pointing to `/api/track?ref=[chatbot_id]&source=[host]`.
   - Created a new tracking endpoint `/api/track/route.ts` that logs the click into a `referral_clicks` Supabase table before issuing a `302 Redirect` to the global tracking URL.
 
+### 23. Web Voice Session Persistence & Dashboard Null-Safety
+* **Problem**: Web Voice calls were failing to persist into Supabase, and clicking refresh in the Communications Explorer did not display new calls. Debugging revealed two root causes:
+  1. Postgres Error `42P10` (`no unique or exclusion constraint matching ON CONFLICT`): Voice endpoints were calling `.upsert(..., { onConflict: 'tenant_id, user_session_id' })`, but the `conversations` table lacked a unique constraint on those columns, causing Postgres to reject the writes.
+  2. Postgres Error `42703` (`column conversations.channel does not exist`): Voice endpoints specified a non-existent `channel` column.
+  3. Component Crash on Null State: Missing array null-checks in `DashboardClient.tsx` and `InboxView.tsx` caused page load crashes when initializing empty state.
+* **Solution**:
+  - Replaced `.upsert(..., { onConflict: ... })` with a robust `select-or-insert` pattern across all voice completion routes (`src/app/api/voice/[chatbotId]/chat/completions/route.ts` and `src/app/api/voice/chat/completions/route.ts`).
+  - Added default fallback Supabase environment variables for runtime resilience on Cloud Run.
+  - Added null-safe array guards (`(conversations || [])`, `(chatbots || [])`) in `DashboardClient.tsx` and `InboxView.tsx`.
+
 ---
 
 ### Session Chat History Log
