@@ -27,6 +27,10 @@ export async function PATCH(req: NextRequest) {
       general_operating_hours,
       operating_hours_overrides,
       holiday_settings,
+      flexible_breaks, flexibleBreaks,
+      is_24_7, is247,
+      open_public_holidays, openPublicHolidays,
+      max_advance_weeks, maxAdvanceWeeks,
 
       // New Address Profile Fields
       trading_address_street, tradingAddressStreet,
@@ -64,6 +68,10 @@ export async function PATCH(req: NextRequest) {
         ...(general_operating_hours !== undefined && { general_operating_hours }),
         ...(operating_hours_overrides !== undefined && { operating_hours_overrides }),
         ...(holiday_settings !== undefined && { holiday_settings }),
+        ...((flexible_breaks !== undefined || flexibleBreaks !== undefined) && { flexible_breaks: flexible_breaks ?? flexibleBreaks }),
+        ...((is_24_7 !== undefined || is247 !== undefined) && { is_24_7: is_24_7 ?? is247 }),
+        ...((open_public_holidays !== undefined || openPublicHolidays !== undefined) && { open_public_holidays: open_public_holidays ?? openPublicHolidays }),
+        ...((max_advance_weeks !== undefined || maxAdvanceWeeks !== undefined) && { max_advance_weeks: max_advance_weeks ?? maxAdvanceWeeks }),
 
         // Add new address fields
         ...((trading_address_street !== undefined || tradingAddressStreet !== undefined) && { trading_address_street: trading_address_street ?? tradingAddressStreet }),

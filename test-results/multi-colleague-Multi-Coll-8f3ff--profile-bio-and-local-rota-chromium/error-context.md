@@ -20,7 +20,7 @@ Timeout: 5000ms
 
 Call log:
   - Expect "toHaveURL" with timeout 5000ms
-    13 × locator resolved to <html lang="en" class="poppins_39de20a3-module__8LurOG__variable inter_ce929fb-module__qqrwVG__variable antialiased">…</html>
+    14 × locator resolved to <html lang="en" class="poppins_39de20a3-module__8LurOG__variable inter_ce929fb-module__qqrwVG__variable antialiased">…</html>
        - unexpected value "http://localhost:3000/login"
 
 ```

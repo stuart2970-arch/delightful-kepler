@@ -166,8 +166,18 @@ export interface DashboardState {
   setBookingMode: (mode: string) => void;
   bookingUrl: string;
   setBookingUrl: (url: string) => void;
+  
+  // Calendar Policy & Operating Hours Context
   generalOperatingHours: any;
   setGeneralOperatingHours: (hours: any) => void;
+  flexibleBreaks: boolean;
+  setFlexibleBreaks: (flexible: boolean) => void;
+  is247: boolean;
+  setIs247: (is247: boolean) => void;
+  openPublicHolidays: boolean;
+  setOpenPublicHolidays: (open: boolean) => void;
+  maxAdvanceWeeks: number;
+  setMaxAdvanceWeeks: (weeks: number) => void;
   operatingHoursOverrides: any[];
   setOperatingHoursOverrides: (overrides: any[]) => void;
   holidaySettings: any;
@@ -255,6 +265,14 @@ export const useDashboardStore = create<DashboardState>((set) => ({
   setBookingUrl: (url) => set({ bookingUrl: url }),
   generalOperatingHours: {},
   setGeneralOperatingHours: (hours) => set({ generalOperatingHours: hours }),
+  flexibleBreaks: true,
+  setFlexibleBreaks: (flexibleBreaks) => set({ flexibleBreaks }),
+  is247: false,
+  setIs247: (is247) => set({ is247 }),
+  openPublicHolidays: false,
+  setOpenPublicHolidays: (openPublicHolidays) => set({ openPublicHolidays }),
+  maxAdvanceWeeks: 12,
+  setMaxAdvanceWeeks: (maxAdvanceWeeks) => set({ maxAdvanceWeeks }),
   operatingHoursOverrides: [],
   setOperatingHoursOverrides: (overrides) => set({ operatingHoursOverrides: overrides }),
   holidaySettings: {},

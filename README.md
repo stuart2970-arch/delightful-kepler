@@ -611,3 +611,13 @@ ame, irstMessage, and 	ranscriber) rather than relying on ssistantOverrides de
      - **WPMUDEV Webhook (`/api/webhooks/wpmudev`)**: Updated to handle both registration and invoice payment webhooks, matching or auto-provisioning Supabase users and activating paid tiers.
      - **Direct Stripe Webhook (`/api/webhooks/stripe`)**: Added a dedicated endpoint handling `checkout.session.completed` events from direct Stripe payment buttons and payment links, setting `is_active: true` and activating customer tiers automatically upon payment.
   3. **Dynamic Tier Entitlements & Trial Enforcement**: Updated `entitlements.ts` to evaluate all feature limits dynamically against `tier_entitlements`. Added `is_active` and `trial_ends_at` checks to pause unpaid accounts after 30 days unless comped by a Superadmin.
+
+### Session 20 (August 17, 2026)
+* **User**: "next i would like to review the business times and calendar section we need to address the calendar booking function and how its should operate based on how people use their calendar..."
+* **Fix**: Built standard daily operating hours, calendar policies, daily rota grid, interactive appointment inspection & amendment, and iCal (`.ics`) email confirmations:
+  1. **Standard Daily Operating Hours Editor**: Updated `SchedulingView.tsx` with clean daily schedule rows for **Mon, Tue, Wed, Thu, Fri, Sat, Sun** featuring `[Checkbox | Closed]` and 30-minute Open/Closed dropdowns (`00:00` to `23:30`). Persisted via `/api/tenants/settings` and served via `/api/tenants/[slug]/metadata` as Google Places fallback.
+  2. **Advanced Calendar Policy Settings**: Integrated policy controls for **Flexible Personal Breaks** (adjusts ±30m for bookings), **24/7 Operations**, **Public Holidays Enforcement** (blocks bookings on bank holidays), and **Max Advance Booking Window** (number input in weeks).
+  3. **15-Minute Slot Alignment & Padding Math**: Calculated slot availability starting on 15-minute boundaries (`Next Available Slot = Start Time + Service Duration + Buffer/Padding`; e.g. 09:00 start + 30m service + 5m padding = 09:35 next available slot). Ignored native Google Out of Office events (requiring `unavailable` / `personal` blocks).
+  4. **Daily Bookings Rota & Inspection/Edit Modal**: Rendered a daily appointments rota on the Scheduling tab. Business owners can inspect appointments to view customer name, email, **mobile phone number**, and notes, and amend staff, date, time, and service with instant DB + calendar sync.
+  5. **iCal (`.ics`) Email Attachment Generator**: Built `src/lib/ical.ts` generating RFC 5545 `.ics` strings for confirmation emails, enabling non-Gmail / Outlook / Apple Mail customers to add bookings to their calendars in 1 click.
+

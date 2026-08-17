@@ -336,394 +336,453 @@ export default function SchedulingView() {
     }
   };
 
+  // Policy controls state
+  const {
+    generalOperatingHours, setGeneralOperatingHours,
+    flexibleBreaks, setFlexibleBreaks,
+    is247, setIs247,
+    openPublicHolidays, setOpenPublicHolidays,
+    maxAdvanceWeeks, setMaxAdvanceWeeks,
+    appointments, setAppointments
+  } = useDashboardStore();
+
+  const [selectedRotaDate, setSelectedRotaDate] = useState<string>(new Date().toISOString().split('T')[0]);
+  const [selectedApptForInspection, setSelectedApptForInspection] = useState<any | null>(null);
+  const [isSavingAppointment, setIsSavingAppointment] = useState(false);
+
+  // Form fields for editing appointment
+  const [editApptStaffId, setEditApptStaffId] = useState('');
+  const [editApptStartTime, setEditApptStartTime] = useState('');
+  const [editApptEndTime, setEditApptEndTime] = useState('');
+  const [editApptNotes, setEditApptNotes] = useState('');
+  const [editApptCustomerPhone, setEditApptCustomerPhone] = useState('');
+
+  const daysOfWeek = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'];
+
+  const generateTimeOptions = () => {
+    const times: string[] = [];
+    for (let h = 0; h < 24; h++) {
+      for (let m = 0; m < 60; m += 30) {
+        const hh = h < 10 ? '0' + h : '' + h;
+        const mm = m === 0 ? '00' : '30';
+        times.push(`${hh}:${mm}`);
+      }
+    }
+    return times;
+  };
+  const timeOptions = generateTimeOptions();
+
+  const handleDayOperatingHoursChange = (day: string, field: 'closed' | 'open' | 'close', value: any) => {
+    const existingDayObj = generalOperatingHours[day] || { closed: false, open: '09:00', close: '17:00' };
+    const updatedDayObj = { ...existingDayObj };
+
+    if (field === 'closed') {
+      updatedDayObj.closed = Boolean(value);
+    } else if (field === 'open') {
+      updatedDayObj.open = value;
+    } else if (field === 'close') {
+      updatedDayObj.close = value;
+    }
+
+    const updatedHours = {
+      ...generalOperatingHours,
+      [day]: updatedDayObj
+    };
+
+    setGeneralOperatingHours(updatedHours);
+  };
+
+  const handleSaveCalendarPolicies = async () => {
+    setIsSavingBookingMode(true);
+    try {
+      const res = await fetch('/api/tenants/settings', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          tenantId,
+          bookingMode,
+          bookingUrl,
+          general_operating_hours: generalOperatingHours,
+          flexible_breaks: flexibleBreaks,
+          is_24_7: is247,
+          open_public_holidays: openPublicHolidays,
+          max_advance_weeks: maxAdvanceWeeks
+        })
+      });
+      if (res.ok) {
+        alert('Calendar settings and operating hours saved successfully!');
+      } else {
+        alert('Failed to save calendar settings.');
+      }
+    } catch (err) {
+      console.error('Failed to save settings', err);
+      alert('An error occurred while saving.');
+    } finally {
+      setIsSavingBookingMode(false);
+    }
+  };
+
+  const openInspectAppointment = (appt: any) => {
+    setSelectedApptForInspection(appt);
+    setEditApptStaffId(appt.staff_id || '');
+    setEditApptStartTime(appt.start_time || '');
+    setEditApptEndTime(appt.end_time || '');
+    setEditApptNotes(appt.notes || appt.comments || '');
+    setEditApptCustomerPhone(appt.customer_phone || appt.caller_phone_number || '');
+  };
+
+  const handleSaveAmendedAppointment = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!selectedApptForInspection) return;
+
+    setIsSavingAppointment(true);
+    try {
+      const staffMember = staff.find(s => s.id === editApptStaffId);
+      const res = await fetch(`/api/appointments/${selectedApptForInspection.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          tenantId,
+          start_time: editApptStartTime,
+          end_time: editApptEndTime,
+          staff_id: editApptStaffId,
+          staff_name: staffMember?.name || '',
+          notes: editApptNotes,
+          customer_phone: editApptCustomerPhone
+        })
+      });
+
+      if (res.ok) {
+        const data = await res.json();
+        setAppointments(appointments.map(a => a.id === selectedApptForInspection.id ? data.appointment : a));
+        alert('Appointment amended successfully! Confirmation email and iCal (.ics) attachment generated.');
+        setSelectedApptForInspection(null);
+      } else {
+        alert('Failed to amend appointment.');
+      }
+    } catch (err: any) {
+      alert('Error amending appointment: ' + err.message);
+    } finally {
+      setIsSavingAppointment(false);
+    }
+  };
+
+  // Filter appointments for selected date
+  const rotaAppointments = appointments.filter(a => {
+    if (!a.start_time) return false;
+    const apptDateStr = new Date(a.start_time).toISOString().split('T')[0];
+    return apptDateStr === selectedRotaDate;
+  });
+
   return (
     <>
-          {true && (
-            <div className="space-y-6">
+      <div className="space-y-6">
+        {/* Operating Booking Mode & Google Calendar */}
+        <div className="bg-[var(--awb-color1)] border border-[var(--awb-color3)] p-6 rounded-2xl shadow-xl space-y-4">
+          <div>
+            <h3 className="text-lg font-bold text-[var(--awb-color8)]">Scheduling & Booking Mode</h3>
+            <p className="text-xs text-[var(--awb-color6)] mt-1">Configure your booking mode and calendar policy settings.</p>
+          </div>
 
-
-              <div className="bg-[var(--awb-color1)] border border-[var(--awb-color3)] p-6 rounded-2xl shadow-xl space-y-4">
-                <div>
-                  <h3 className="text-lg font-bold text-[var(--awb-color8)]">Scheduling & Calendar</h3>
-                  <p className="text-xs text-[var(--awb-color6)] mt-1">Configure your booking mode and manage external calendar connections.</p>
-                </div>
-
-                <div className="bg-white border border-[#f2f3f5] p-4 rounded-xl">
-                  <h4 className="text-sm font-bold text-gray-200 mb-3">Operating Booking Mode</h4>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mb-4">
-                    {[
-                      { id: 'walk_in_only', label: 'Walk-ins Only', desc: 'No appointments. Bots tell users to just walk in.' },
-                      { id: 'single_calendar', label: 'Single Unified Calendar', desc: 'All bookings drop into one central Google Calendar.' },
-                      { id: 'multi_calendar', label: 'Multi-Calendar (Per Staff)', desc: 'Bookings map to individual Google Calendars per staff.' },
-                      { id: 'external_platform', label: 'External Booking Link', desc: 'Use an existing system like Vagaro or Fresha.' }
-                    ].map(mode => (
-                      <label key={mode.id} className={`flex flex-col p-3 rounded-xl border cursor-pointer transition-colors ${
-                        bookingMode === mode.id ? 'bg-blue-50 border border-blue-200 border-indigo-500/50' : 'bg-[var(--awb-color1)] border-[var(--awb-color3)] hover:border-[var(--awb-color3)]'
-                      }`}>
-                        <div className="flex items-center gap-2 mb-1">
-                          <input type="radio" name="bookingMode" value={mode.id} checked={bookingMode === mode.id} onChange={(e) => setBookingMode(e.target.value)} className="text-indigo-600 bg-[var(--awb-color1)] border-[var(--awb-color3)] focus:ring-indigo-600 focus:ring-offset-gray-900" />
-                          <span className="text-sm font-bold text-gray-200">{mode.label}</span>
-                        </div>
-                        <span className="text-[10px] text-[var(--awb-color6)] pl-6">{mode.desc}</span>
-                      </label>
-                    ))}
+          <div className="bg-white border border-[#f2f3f5] p-4 rounded-xl">
+            <h4 className="text-sm font-bold text-gray-200 mb-3">Operating Booking Mode</h4>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mb-4">
+              {[
+                { id: 'walk_in_only', label: 'Walk-ins Only', desc: 'No appointments. Bots tell users to just walk in.' },
+                { id: 'single_calendar', label: 'Single Unified Calendar', desc: 'All bookings drop into one central Google Calendar.' },
+                { id: 'multi_calendar', label: 'Multi-Calendar (Per Staff)', desc: 'Bookings map to individual Google Calendars per staff.' },
+                { id: 'external_platform', label: 'External Booking Link', desc: 'Use an existing system like Vagaro or Fresha.' }
+              ].map(mode => (
+                <label key={mode.id} className={`flex flex-col p-3 rounded-xl border cursor-pointer transition-colors ${
+                  bookingMode === mode.id ? 'bg-blue-50 border border-blue-200 border-indigo-500/50' : 'bg-[var(--awb-color1)] border-[var(--awb-color3)] hover:border-[var(--awb-color3)]'
+                }`}>
+                  <div className="flex items-center gap-2 mb-1">
+                    <input type="radio" name="bookingMode" value={mode.id} checked={bookingMode === mode.id} onChange={(e) => setBookingMode(e.target.value)} className="text-indigo-600 focus:ring-indigo-600" />
+                    <span className="text-sm font-bold text-gray-200">{mode.label}</span>
                   </div>
-                  
-                  {bookingMode === 'external_platform' && (
-                    <div className="mb-4 pl-1">
-                      <label className="block text-xs font-semibold text-[var(--awb-color6)] mb-1">External Booking URL</label>
-                      <input type="url" value={bookingUrl} onChange={(e) => setBookingUrl(e.target.value)} className="w-full bg-[var(--awb-color1)] border border-[var(--awb-color3)] rounded-lg px-3 py-2 text-sm text-[var(--awb-color8)] focus:border-indigo-500 outline-none" placeholder="https://www.fresha.com/a/your-salon" />
-                    </div>
-                  )}
-                  
-                  <button onClick={handleSaveBookingMode} disabled={isSavingBookingMode} className="bg-[#198fd9] text-white font-semibold rounded-[4px] px-[29px] py-[13px] hover:bg-[#198fd9] text-white font-semibold rounded-[4px] px-[29px] py-[13px] text-[var(--awb-color8)] text-xs px-4 py-2 rounded-lg font-semibold transition-colors disabled:opacity-50">
-                    {isSavingBookingMode ? 'Saving...' : 'Save Booking Mode'}
-                  </button>
-                </div>
+                  <span className="text-[10px] text-[var(--awb-color6)] pl-6">{mode.desc}</span>
+                </label>
+              ))}
+            </div>
 
-                {bookingMode !== 'walk_in_only' && bookingMode !== 'external_platform' && (
-                  <div className="bg-white border border-[#f2f3f5] p-4 rounded-xl flex items-center justify-between">
-                    <div>
-                      <h4 className="text-sm font-bold text-gray-200">Google Calendar Status</h4>
-                      <p className="text-xs text-[var(--awb-color6)] mt-0.5">Authorize the primary workspace calendar to push and pull appointments.</p>
-                      {isGoogleConnected && (
-                        <div className="inline-flex items-center gap-1.5 mt-2 bg-emerald-50 border-emerald-300 text-emerald-900/40 text-emerald-800 text-[10px] px-2 py-1 rounded-full border border-emerald-500/20 font-semibold">
-                          <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
-                          Connected & Syncing
-                        </div>
-                      )}
-                    </div>
-                    <div>
-                      {isGoogleConnected ? (
-                        <div className="flex flex-col items-end gap-2">
-                          {useDashboardStore.getState().googleConnectedEmail && (
-                            <span className="text-xs text-[var(--awb-color6)]">Connected to: <strong className="text-[var(--awb-color7)]">{useDashboardStore.getState().googleConnectedEmail}</strong></span>
-                          )}
-                          <button onClick={handleDisconnectCalendar} className="text-xs text-red-400 hover:text-red-300 font-semibold transition-colors">
-                            Disconnect
-                          </button>
-                        </div>
-                      ) : (
-                        <button
-                          onClick={() => window.location.href = `/api/integrations/google/authorize?tenantId=${tenantId}`}
-                          className="bg-[#198fd9] text-white font-semibold rounded-[4px] px-[29px] py-[13px] hover:bg-[#198fd9] text-white font-semibold rounded-[4px] px-[29px] py-[13px] text-[var(--awb-color8)] px-5 py-2.5 rounded-xl font-bold shadow-lg transition-colors flex items-center gap-2"
+            {bookingMode === 'external_platform' && (
+              <div className="mb-4 pl-1">
+                <label className="block text-xs font-semibold text-[var(--awb-color6)] mb-1">External Booking URL</label>
+                <input type="url" value={bookingUrl} onChange={(e) => setBookingUrl(e.target.value)} className="w-full bg-[var(--awb-color1)] border border-[var(--awb-color3)] rounded-lg px-3 py-2 text-sm text-[var(--awb-color8)] focus:border-indigo-500 outline-none" placeholder="https://www.fresha.com/a/your-salon" />
+              </div>
+            )}
+
+            <button onClick={handleSaveCalendarPolicies} disabled={isSavingBookingMode} className="bg-[#198fd9] text-white font-semibold rounded-[4px] px-6 py-2 text-xs transition-colors disabled:opacity-50">
+              {isSavingBookingMode ? 'Saving Settings...' : 'Save Settings & Policies'}
+            </button>
+          </div>
+        </div>
+
+        {/* Standard Operating Hours (Mon-Sun) */}
+        <div className="bg-[var(--awb-color1)] border border-[var(--awb-color3)] p-6 rounded-2xl shadow-xl space-y-4">
+          <div>
+            <h3 className="text-lg font-bold text-[var(--awb-color8)]">Standard Operating Hours</h3>
+            <p className="text-xs text-[var(--awb-color6)] mt-0.5">Define your standard opening and closing times. Drives web page displays when Google Places is unlinked.</p>
+          </div>
+
+          <div className="bg-white border border-[#f2f3f5] p-4 rounded-xl divide-y divide-gray-100">
+            {daysOfWeek.map(day => {
+              const dayData = generalOperatingHours[day] || { closed: false, open: '09:00', close: '17:00' };
+              return (
+                <div key={day} className="py-3 flex flex-col md:flex-row items-center justify-between gap-4">
+                  <div className="w-32 flex items-center gap-2">
+                    <span className="text-sm font-bold text-gray-700 capitalize">{day}</span>
+                  </div>
+
+                  <div className="flex items-center gap-4">
+                    <label className="flex items-center gap-1.5 text-xs text-gray-600 font-semibold cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={Boolean(dayData.closed)}
+                        onChange={e => handleDayOperatingHoursChange(day, 'closed', e.target.checked)}
+                        className="rounded border-gray-300 text-indigo-600 focus:ring-indigo-500"
+                      />
+                      <span>Closed</span>
+                    </label>
+
+                    {!dayData.closed && (
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs text-gray-500 font-semibold">Open:</span>
+                        <select
+                          value={dayData.open || '09:00'}
+                          onChange={e => handleDayOperatingHoursChange(day, 'open', e.target.value)}
+                          className="bg-gray-50 border border-gray-300 rounded px-2 py-1 text-xs text-gray-800 font-semibold focus:outline-none focus:ring-1 focus:ring-indigo-500"
                         >
-                          <svg className="w-5 h-5" viewBox="0 0 24 24" fill="currentColor">
-                            <path d="M12.24 10.285V14.4h6.806c-.275 1.765-2.056 5.174-6.806 5.174-4.095 0-7.439-3.389-7.439-7.574s3.345-7.574 7.439-7.574c2.33 0 3.891.989 4.785 1.849l3.254-3.138C18.189 1.186 15.479 0 12.24 0c-6.635 0-12 5.365-12 12s5.365 12 12 12c6.926 0 11.52-4.869 11.52-11.726 0-.788-.085-1.39-.189-1.989H12.24z"/>
-                          </svg>
-                          Connect Calendar
-                        </button>
-                      )}
-                    </div>
+                          {timeOptions.map(t => (
+                            <option key={t} value={t}>{t}</option>
+                          ))}
+                        </select>
+
+                        <span className="text-xs text-gray-500 font-semibold ml-2">Closed:</span>
+                        <select
+                          value={dayData.close || '17:00'}
+                          onChange={e => handleDayOperatingHoursChange(day, 'close', e.target.value)}
+                          className="bg-gray-50 border border-gray-300 rounded px-2 py-1 text-xs text-gray-800 font-semibold focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                        >
+                          {timeOptions.map(t => (
+                            <option key={t} value={t}>{t}</option>
+                          ))}
+                        </select>
+                      </div>
+                    )}
                   </div>
-                )}
+                </div>
+              );
+            })}
+          </div>
+
+          {/* Secondary Calendar Policy Dropdowns */}
+          <div className="bg-white border border-[#f2f3f5] p-4 rounded-xl space-y-4">
+            <h4 className="text-sm font-bold text-gray-800">Advanced Calendar Policies</h4>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <label className="block text-xs font-semibold text-gray-600 mb-1">Flexible Personal Breaks</label>
+                <select
+                  value={flexibleBreaks ? 'true' : 'false'}
+                  onChange={e => setFlexibleBreaks(e.target.value === 'true')}
+                  className="w-full bg-gray-50 border border-gray-300 rounded px-3 py-2 text-xs font-semibold text-gray-800"
+                >
+                  <option value="true">Breaks ≤30m ARE flexible (can adjust ±30m for bookings)</option>
+                  <option value="false">Breaks ARE NOT flexible (fixed duration)</option>
+                </select>
               </div>
 
-              {bookingMode !== 'external_platform' && (
-                <div className="bg-white border border-[#f2f3f5] p-4 rounded-xl">
-                  <label className="block text-xs font-semibold text-[var(--awb-color6)] mb-1.5">Target Chatbot for Scheduling</label>
+              <div>
+                <label className="block text-xs font-semibold text-gray-600 mb-1">24/7 Operations</label>
+                <select
+                  value={is247 ? 'true' : 'false'}
+                  onChange={e => setIs247(e.target.value === 'true')}
+                  className="w-full bg-gray-50 border border-gray-300 rounded px-3 py-2 text-xs font-semibold text-gray-800"
+                >
+                  <option value="false">We ARE NOT a 24/7 365 operation</option>
+                  <option value="true">We ARE a 24/7 365 online operation</option>
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-gray-600 mb-1">Public Holidays</label>
+                <select
+                  value={openPublicHolidays ? 'true' : 'false'}
+                  onChange={e => setOpenPublicHolidays(e.target.value === 'true')}
+                  className="w-full bg-gray-50 border border-gray-300 rounded px-3 py-2 text-xs font-semibold text-gray-800"
+                >
+                  <option value="false">We DO NOT open on Public Holidays</option>
+                  <option value="true">We DO open on Public Holidays</option>
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-gray-600 mb-1">Max Advance Booking Window</label>
+                <div className="flex items-center gap-2">
+                  <input
+                    type="number"
+                    min={1}
+                    max={52}
+                    value={maxAdvanceWeeks}
+                    onChange={e => setMaxAdvanceWeeks(Number(e.target.value))}
+                    className="w-24 bg-gray-50 border border-gray-300 rounded px-3 py-2 text-xs font-semibold text-gray-800"
+                  />
+                  <span className="text-xs text-gray-600 font-semibold">weeks in advance</span>
+                </div>
+              </div>
+            </div>
+
+            <div className="pt-2">
+              <button onClick={handleSaveCalendarPolicies} disabled={isSavingBookingMode} className="bg-[#198fd9] text-white font-semibold rounded px-5 py-2 text-xs transition-colors">
+                Save All Calendar Policies
+              </button>
+            </div>
+          </div>
+        </div>
+
+        {/* Daily Rota Calendar Grid & Appointment Inspection */}
+        <div className="bg-[var(--awb-color1)] border border-[var(--awb-color3)] p-6 rounded-2xl shadow-xl space-y-4">
+          <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
+            <div>
+              <h3 className="text-lg font-bold text-[var(--awb-color8)]">Daily Bookings Rota</h3>
+              <p className="text-xs text-[var(--awb-color6)] mt-0.5">View and inspect customer appointments for any date.</p>
+            </div>
+            <div className="flex items-center gap-2">
+              <span className="text-xs text-gray-600 font-semibold">Select Date:</span>
+              <input
+                type="date"
+                value={selectedRotaDate}
+                onChange={e => setSelectedRotaDate(e.target.value)}
+                className="bg-white border border-gray-300 rounded px-3 py-1.5 text-xs text-gray-800 font-semibold focus:outline-none focus:ring-1 focus:ring-indigo-500"
+              />
+            </div>
+          </div>
+
+          <div className="bg-white border border-[#f2f3f5] p-4 rounded-xl">
+            {rotaAppointments.length === 0 ? (
+              <div className="py-12 text-center text-sm text-gray-400 italic">
+                No appointments scheduled for {selectedRotaDate}.
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                {rotaAppointments.map((appt) => {
+                  const staffMember = staff.find(s => s.id === appt.staff_id);
+                  const startTimeStr = appt.start_time ? new Date(appt.start_time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '';
+                  const endTimeStr = appt.end_time ? new Date(appt.end_time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '';
+
+                  return (
+                    <div
+                      key={appt.id}
+                      onClick={() => openInspectAppointment(appt)}
+                      className="bg-gray-50 border border-gray-200 hover:border-indigo-500 p-4 rounded-xl cursor-pointer transition-all hover:shadow-md space-y-2 group"
+                    >
+                      <div className="flex items-center justify-between">
+                        <span className="text-xs font-bold text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded border border-indigo-100">
+                          {startTimeStr} - {endTimeStr}
+                        </span>
+                        <span className="text-[10px] text-gray-400 font-mono">Inspect / Amend →</span>
+                      </div>
+
+                      <div>
+                        <h4 className="text-sm font-bold text-gray-800">{appt.customer_name || 'Customer Booking'}</h4>
+                        <p className="text-xs text-gray-500">{appt.service_name || 'Service'}</p>
+                      </div>
+
+                      <div className="pt-2 border-t border-gray-200 flex items-center justify-between text-xs text-gray-600">
+                        <span>Staff: <strong>{staffMember?.name || 'Unassigned'}</strong></span>
+                        <span className="font-semibold text-emerald-600">📞 {appt.customer_phone || appt.caller_phone_number || 'N/A'}</span>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* Appointment Inspection & Edit Modal */}
+        {selectedApptForInspection && (
+          <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+            <div className="bg-white rounded-2xl max-w-lg w-full p-6 space-y-6 shadow-2xl border border-gray-100 max-h-[90vh] overflow-y-auto">
+              <div className="flex items-center justify-between border-b border-gray-100 pb-3">
+                <h3 className="text-lg font-bold text-gray-800">Inspect & Amend Appointment</h3>
+                <button onClick={() => setSelectedApptForInspection(null)} className="text-gray-400 hover:text-gray-600 text-lg font-bold">✕</button>
+              </div>
+
+              <form onSubmit={handleSaveAmendedAppointment} className="space-y-4">
+                <div>
+                  <label className="block text-xs font-semibold text-gray-600 mb-1">Customer Name</label>
+                  <input type="text" readOnly value={selectedApptForInspection.customer_name || 'N/A'} className="w-full bg-gray-100 border border-gray-200 rounded px-3 py-2 text-xs font-semibold text-gray-700" />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-semibold text-gray-600 mb-1">Customer Mobile Phone Number</label>
+                  <input
+                    type="tel"
+                    value={editApptCustomerPhone}
+                    onChange={e => setEditApptCustomerPhone(e.target.value)}
+                    className="w-full bg-gray-50 border border-gray-300 rounded px-3 py-2 text-xs font-semibold text-gray-800"
+                    placeholder="e.g. +44 7123 456789"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-semibold text-gray-600 mb-1">Assigned Colleague</label>
                   <select
-                    value={targetChatbotId}
-                    onChange={(e) => setTargetChatbotId(e.target.value)}
-                    className="w-full md:w-1/3 bg-[var(--awb-color1)] border border-[var(--awb-color3)] rounded-lg px-3 py-2 text-sm text-[var(--awb-color8)] focus:outline-none focus:ring-1 focus:ring-indigo-500"
-                    required
+                    value={editApptStaffId}
+                    onChange={e => setEditApptStaffId(e.target.value)}
+                    className="w-full bg-gray-50 border border-gray-300 rounded px-3 py-2 text-xs font-semibold text-gray-800"
                   >
-                    <option value="" disabled>Select chatbot...</option>
-                    {realBots.map((bot) => (
-                      <option key={bot.id} value={bot.id}>
-                        {bot.name}
-                      </option>
+                    <option value="">Select staff...</option>
+                    {staff.map(stf => (
+                      <option key={stf.id} value={stf.id}>{stf.name}</option>
                     ))}
                   </select>
                 </div>
-              )}
 
-              {bookingMode !== 'external_platform' && targetChatbotId && (
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                  {/* Services List using ServiceEditor */}
-                  <ServiceEditor 
-                    tenantId={tenantId}
-                    chatbotId={targetChatbotId}
-                    services={filteredServices} 
-                    setServices={setServices} 
-                    staff={filteredStaff} 
-                  />
-
-                  {/* Staff List */}
-                  <div className="bg-[var(--awb-color1)] border border-[var(--awb-color3)] p-6 rounded-2xl shadow-xl flex flex-col h-[500px] relative lg:col-span-2">
-                    {showStaffModal ? (
-                      <div className="absolute inset-0 bg-[var(--awb-color1)] text-[var(--awb-color8)] border-[var(--awb-color3)] p-6 rounded-2xl z-10 flex flex-col overflow-y-auto styleflo-scrollbar">
-                        <h3 className="text-lg font-bold text-[var(--awb-color8)] mb-4">
-                          {editingStaffId ? 'Edit Staff Member' : 'Add Staff Member'}
-                        </h3>
-                        <form onSubmit={handleSaveStaff} className="flex-1 flex flex-col gap-6">
-                          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                            <div>
-                              <label className="block text-xs font-semibold text-[var(--awb-color6)] mb-1">Name</label>
-                              <input required type="text" value={newStaffName} onChange={e => setNewStaffName(e.target.value)} className="w-full bg-[var(--awb-color1)] border border-[var(--awb-color3)] rounded-lg px-3 py-2 text-sm text-[var(--awb-color8)]" placeholder="e.g. John Doe" />
-                            </div>
-                            <div>
-                              <label className="block text-xs font-semibold text-[var(--awb-color6)] mb-1">Email</label>
-                              <input required type="email" value={newStaffEmail} onChange={e => setNewStaffEmail(e.target.value)} className="w-full bg-[var(--awb-color1)] border border-[var(--awb-color3)] rounded-lg px-3 py-2 text-sm text-[var(--awb-color8)]" placeholder="john@example.com" />
-                            </div>
-                            {bookingMode === 'multi_calendar' ? (
-                              <div>
-                                <label className="block text-xs font-semibold text-[var(--awb-color6)] mb-1">Google Calendar ID</label>
-                                <input type="text" value={newStaffCalId} onChange={e => setNewStaffCalId(e.target.value)} className="w-full bg-[var(--awb-color1)] border border-[var(--awb-color3)] rounded-lg px-3 py-2 text-sm text-[var(--awb-color8)]" placeholder="Defaults to 'primary'" />
-                              </div>
-                            ) : <div />}
-                          </div>
-
-                          {/* Profile Picture, Specialist Product, and Bio */}
-                          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 items-end">
-                            <div className="flex items-center gap-3">
-                              <div className="relative w-12 h-12 rounded-full overflow-hidden bg-gray-100 border border-[var(--awb-color3)] flex-shrink-0 flex items-center justify-center">
-                                {newStaffImageUrl ? (
-                                  <img src={newStaffImageUrl} alt="Staff profile preview" className="w-full h-full object-cover" />
-                                ) : (
-                                  <svg className="w-6 h-6 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
-                                  </svg>
-                                )}
-                              </div>
-                              <div className="flex flex-col gap-1">
-                                <span className="text-[10px] font-semibold text-[var(--awb-color6)]">Profile Picture</span>
-                                <div className="flex items-center gap-2">
-                                  <label className={`cursor-pointer bg-[var(--awb-color2)] hover:bg-gray-100 text-[var(--awb-color8)] text-[11px] font-bold px-3 py-1.5 rounded-lg border border-[var(--awb-color3)] transition-colors inline-block ${isUploadingImage ? 'opacity-50 pointer-events-none' : ''}`}>
-                                    <input type="file" accept="image/*" className="hidden" onChange={handleStaffImageUpload} disabled={isUploadingImage} />
-                                    {isUploadingImage ? 'Uploading...' : 'Upload'}
-                                  </label>
-                                  {newStaffImageUrl && (
-                                    <button type="button" onClick={() => setNewStaffImageUrl('')} className="text-[11px] text-red-500 hover:text-red-700 transition-colors">
-                                      Clear
-                                    </button>
-                                  )}
-                                </div>
-                              </div>
-                            </div>
-                            <div className="md:col-span-2">
-                              <label className="block text-xs font-semibold text-[var(--awb-color6)] mb-1">Specialist Product</label>
-                              <input type="text" value={newStaffSpecialistProduct} onChange={e => setNewStaffSpecialistProduct(e.target.value)} className="w-full bg-[var(--awb-color1)] border border-[var(--awb-color3)] rounded-lg px-3 py-2 text-sm text-[var(--awb-color8)]" placeholder="e.g. Balayage, Tax Consultation" />
-                            </div>
-                          </div>
-
-                          <div>
-                            <label className="block text-xs font-semibold text-[var(--awb-color6)] mb-1">Bio</label>
-                            <textarea value={newStaffBio} onChange={e => setNewStaffBio(e.target.value)} rows={3} className="w-full bg-[var(--awb-color1)] border border-[var(--awb-color3)] rounded-lg px-3 py-2 text-sm text-[var(--awb-color8)] resize-y" placeholder="Brief professional biography..." />
-                          </div>
-
-                        {/* Schedule Spreadsheet Grid */}
-                        <div className="bg-[var(--awb-color1)] rounded-xl border border-[var(--awb-color3)] overflow-hidden flex flex-col">
-                          {/* Week Tabs */}
-                          <div className="flex border-b border-[var(--awb-color3)]">
-                            {[0, 1, 2, 3].map(weekIdx => (
-                              <button
-                                key={weekIdx}
-                                type="button"
-                                onClick={() => setActiveWeekIndex(weekIdx)}
-                                className={`flex-1 py-2 text-xs font-bold transition-colors ${activeWeekIndex === weekIdx ? 'bg-[#198fd9] text-white font-semibold rounded-[4px] px-[29px] py-[13px] text-[var(--awb-color8)]' : 'bg-[var(--awb-color2)] text-[var(--awb-color6)] hover:bg-[var(--awb-color2)] text-[var(--awb-color8)] hover:text-gray-200'}`}
-                              >
-                                Week {weekIdx + 1}
-                              </button>
-                            ))}
-                          </div>
-                          
-                          <div className="flex items-center justify-between bg-[var(--awb-color2)] px-4 py-3 border-b border-[var(--awb-color3)]">
-                            <div className="flex items-center gap-3">
-                              <span className="text-sm font-bold text-gray-200">Week Commencing (Monday)</span>
-                              <input 
-                                type="date" 
-                                required
-                                value={newStaffSchedule.weeks[activeWeekIndex].weekCommencingDate}
-                                onChange={e => handleDateChange(e.target.value)}
-                                className="bg-white border border-[#f2f3f5] rounded px-3 py-1.5 text-xs text-[var(--awb-color8)] focus:border-indigo-500 outline-none"
-                              />
-                            </div>
-                          </div>
-                          
-                          <table className="w-full text-left border-collapse">
-                            <thead>
-                              <tr className="bg-[var(--awb-color1)] text-[10px] text-[var(--awb-color6)] uppercase tracking-wider border-b border-[var(--awb-color3)]">
-                                <th className="p-3 font-semibold w-24">Day</th>
-                                <th className="p-3 font-semibold text-center border-l border-[var(--awb-color3)] w-16">N/A</th>
-                                <th className="p-3 font-semibold border-l border-[var(--awb-color3)] text-center" colSpan={2}>AM Shift</th>
-                                <th className="p-3 font-semibold border-l border-[var(--awb-color3)] text-center" colSpan={2}>PM Shift</th>
-                              </tr>
-                            </thead>
-                            <tbody className="divide-y divide-gray-800">
-                              {(['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'] as Array<keyof Omit<WeeklySchedule, 'weekCommencingDate'>>).map(day => {
-                                const currentDayData = newStaffSchedule.weeks[activeWeekIndex][day];
-                                const isUnavail = currentDayData.unavailable;
-                                
-                                // Calculate if this specific day is in the past
-                                const dayOffsets: Record<string, number> = { 'monday': 0, 'tuesday': 1, 'wednesday': 2, 'thursday': 3, 'friday': 4, 'saturday': 5, 'sunday': 6 };
-                                const currentDayDate = new Date(newStaffSchedule.weeks[activeWeekIndex].weekCommencingDate);
-                                currentDayDate.setDate(currentDayDate.getDate() + dayOffsets[day]);
-                                const today = new Date();
-                                today.setHours(0, 0, 0, 0);
-                                const isPast = currentDayDate < today;
-                                const isDisabled = isUnavail || isPast;
-
-                                return (
-                                  <tr key={day} className={`transition-colors ${isUnavail || isPast ? 'bg-[var(--awb-color1)]' : 'hover:bg-[var(--awb-color2)]'}`}>
-                                    <td className="p-3 text-sm font-medium text-[var(--awb-color7)] capitalize">
-                                      {day.substring(0, 3)}
-                                      {isPast && <span className="block text-[9px] text-red-400 mt-0.5">Past</span>}
-                                    </td>
-                                    
-                                    <td className="p-3 text-center border-l border-[var(--awb-color3)]">
-                                      <input 
-                                        type="checkbox" 
-                                        disabled={isPast}
-                                        checked={isUnavail}
-                                        onChange={e => handleUnavailableChange(day, e.target.checked)}
-                                        className="w-4 h-4 rounded bg-[var(--awb-color1)] border-[var(--awb-color3)] text-indigo-600 focus:ring-indigo-600 focus:ring-offset-gray-900 disabled:opacity-30"
-                                      />
-                                    </td>
-                                    
-                                    {/* AM Shift */}
-                                    <td className="p-2 border-l border-[var(--awb-color3)] text-center">
-                                      <input type="time" disabled={isDisabled} value={currentDayData.am?.start || ''} onChange={e => handleScheduleChange(day, 'am', 'start', e.target.value)} className="bg-[var(--awb-color1)] text-[var(--awb-color8)] border-[var(--awb-color3)] disabled:opacity-30 border border-[var(--awb-color3)] rounded px-2 py-1 text-xs text-[var(--awb-color8)] w-24 focus:border-indigo-500 outline-none" />
-                                    </td>
-                                    <td className="p-2 text-center">
-                                      <input type="time" disabled={isDisabled} value={currentDayData.am?.end || ''} onChange={e => handleScheduleChange(day, 'am', 'end', e.target.value)} className="bg-[var(--awb-color1)] text-[var(--awb-color8)] border-[var(--awb-color3)] disabled:opacity-30 border border-[var(--awb-color3)] rounded px-2 py-1 text-xs text-[var(--awb-color8)] w-24 focus:border-indigo-500 outline-none" />
-                                    </td>
-                                    
-                                    {/* PM Shift */}
-                                    <td className="p-2 border-l border-[var(--awb-color3)] text-center">
-                                      <input type="time" disabled={isDisabled} value={currentDayData.pm?.start || ''} onChange={e => handleScheduleChange(day, 'pm', 'start', e.target.value)} className="bg-[var(--awb-color1)] text-[var(--awb-color8)] border-[var(--awb-color3)] disabled:opacity-30 border border-[var(--awb-color3)] rounded px-2 py-1 text-xs text-[var(--awb-color8)] w-24 focus:border-indigo-500 outline-none" />
-                                    </td>
-                                    <td className="p-2 text-center">
-                                      <input type="time" disabled={isDisabled} value={currentDayData.pm?.end || ''} onChange={e => handleScheduleChange(day, 'pm', 'end', e.target.value)} className="bg-[var(--awb-color1)] text-[var(--awb-color8)] border-[var(--awb-color3)] disabled:opacity-30 border border-[var(--awb-color3)] rounded px-2 py-1 text-xs text-[var(--awb-color8)] w-24 focus:border-indigo-500 outline-none" />
-                                    </td>
-                                  </tr>
-                                );
-                              })}
-                            </tbody>
-                          </table>
-                          <div className="bg-[var(--awb-color1)] p-3 border-t border-[var(--awb-color3)] flex justify-center">
-                            <button 
-                              type="button" 
-                              onClick={copyToNextWeek}
-                              disabled={activeWeekIndex >= 3}
-                              className="text-xs text-[var(--awb-color5)] hover:text-[var(--awb-color5)] font-semibold bg-[#198fd9] text-white font-semibold rounded-[4px] px-[29px] py-[13px]/10 px-4 py-2 rounded disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-                            >
-                              Copy this rota to next week →
-                            </button>
-                          </div>
-                        </div>
-
-                        <div className="mt-auto flex justify-end gap-3 pt-4 border-t border-[var(--awb-color3)]">
-                          <button type="button" onClick={() => {
-                            setShowStaffModal(false);
-                            setEditingStaffId(null);
-                            setNewStaffName('');
-                            setNewStaffEmail('');
-                            setNewStaffCalId('');
-                            setNewStaffImageUrl('');
-                            setNewStaffSpecialistProduct('');
-                            setNewStaffBio('');
-                          }} className="px-4 py-2 text-sm text-[var(--awb-color6)] hover:text-[var(--awb-color8)] transition-colors">Cancel</button>
-                          <button type="submit" className="px-5 py-2 text-sm bg-[#198fd9] text-white font-semibold rounded-[4px] px-[29px] py-[13px] hover:bg-[#198fd9] text-white font-semibold rounded-[4px] px-[29px] py-[13px] text-[var(--awb-color8)] rounded-lg font-bold shadow-lg transition-transform active:scale-95">
-                            {editingStaffId ? 'Update Staff Member' : 'Save Staff Member'}
-                          </button>
-                        </div>
-                      </form>
-                    </div>
-                  ) : null}
-
-                  <div className="flex items-center justify-between mb-4">
-                    <h3 className="text-lg font-bold text-[var(--awb-color8)]">Staff Schedule</h3>
-                    <button onClick={() => {
-                      setEditingStaffId(null);
-                      setNewStaffName('');
-                      setNewStaffEmail('');
-                      setNewStaffCalId('');
-                      setNewStaffImageUrl('');
-                      setNewStaffSpecialistProduct('');
-                      setNewStaffBio('');
-                      setNewStaffSchedule({
-                        weeks: [createEmptySchedule(), createEmptySchedule(), createEmptySchedule(), createEmptySchedule()]
-                      });
-                      setActiveWeekIndex(0);
-                      setShowStaffModal(true);
-                    }} className="bg-[var(--awb-color2)] text-[var(--awb-color8)] hover:bg-gray-700 text-[var(--awb-color8)] text-xs px-3 py-1.5 rounded-lg font-semibold transition-colors">
-                      + Add Staff
-                    </button>
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-xs font-semibold text-gray-600 mb-1">Start Time (ISO)</label>
+                    <input
+                      type="datetime-local"
+                      value={editApptStartTime ? new Date(editApptStartTime).toISOString().slice(0, 16) : ''}
+                      onChange={e => setEditApptStartTime(new Date(e.target.value).toISOString())}
+                      className="w-full bg-gray-50 border border-gray-300 rounded px-3 py-2 text-xs font-semibold text-gray-800"
+                    />
                   </div>
-                  <div className="flex-1 overflow-y-auto space-y-3 styleflo-scrollbar pr-2">
-                    {filteredStaff.length === 0 ? (
-                      <div className="text-sm text-[var(--awb-color6)] italic text-center mt-10">No staff configured yet.</div>
-                    ) : filteredStaff.map(stf => (
-                      <div key={stf.id} className="bg-white border border-[#f2f3f5] p-4 rounded-xl flex flex-col gap-2 group hover:border-[var(--awb-color3)] transition-colors">
-                        <div className="flex items-start gap-3">
-                          <div className="w-10 h-10 rounded-full overflow-hidden bg-gray-100 border border-[#f2f3f5] flex-shrink-0 flex items-center justify-center">
-                            {stf.image_url ? (
-                              <img src={stf.image_url} alt={`${stf.name} profile`} className="w-full h-full object-cover" />
-                            ) : (
-                              <svg className="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
-                              </svg>
-                            )}
-                          </div>
-                          <div className="flex-1 min-w-0">
-                            <div className="flex items-center justify-between">
-                              <div className="font-bold text-[var(--awb-color8)] text-sm truncate">{stf.name}</div>
-                              <div className="flex items-center gap-2">
-                                <button onClick={() => openEditStaff(stf)} className="text-gray-600 hover:text-[var(--awb-color5)] opacity-0 group-hover:opacity-100 transition-opacity">
-                                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"></path></svg>
-                                </button>
-                                <button onClick={() => handleDeleteStaff(stf.id)} className="text-gray-600 hover:text-red-400 opacity-0 group-hover:opacity-100 transition-opacity">
-                                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg>
-                                </button>
-                              </div>
-                            </div>
-                            <div className="text-[10px] text-[var(--awb-color6)] font-mono mt-0.5 truncate">{stf.email}</div>
-                            {stf.specialist_product && (
-                              <div className="mt-1">
-                                <span className="inline-block bg-[var(--awb-color2)] border border-[var(--awb-color3)] text-[var(--awb-color8)] text-[9.5px] font-bold px-2.5 py-0.5 rounded-md">
-                                  Specialist: {stf.specialist_product}
-                                </span>
-                              </div>
-                            )}
-                          </div>
-                        </div>
-                        {bookingMode === 'multi_calendar' && (
-                          <div className="text-[11px] text-[var(--awb-color6)] bg-[var(--awb-color1)] p-2 rounded-lg">
-                            Cal ID: <span className="text-[var(--awb-color5)] break-all">{stf.google_calendar_id}</span>
-                          </div>
-                        )}
-                        {stf.bio && (
-                          <div className="mt-2 border-t border-[var(--awb-color3)] pt-2">
-                            <button
-                              onClick={() => setExpandedBios(prev => ({ ...prev, [stf.id]: !prev[stf.id] }))}
-                              className="flex items-center gap-1 text-[10px] font-bold text-[var(--awb-color5)] hover:underline"
-                            >
-                              <span>{expandedBios[stf.id] ? 'Hide Bio' : 'View Bio'}</span>
-                              <svg
-                                className={`w-3 h-3 transition-transform duration-200 ${expandedBios[stf.id] ? 'rotate-180' : ''}`}
-                                fill="none"
-                                stroke="currentColor"
-                                viewBox="0 0 24 24"
-                              >
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7" />
-                              </svg>
-                            </button>
-                            {expandedBios[stf.id] && (
-                              <div className="text-xs text-[var(--awb-color6)] mt-1.5 leading-relaxed bg-[var(--awb-color2)] p-2.5 rounded-lg border border-[var(--awb-color3)] animate-in fade-in duration-200 whitespace-pre-wrap">
-                                {stf.bio}
-                              </div>
-                            )}
-                          </div>
-                        )}
-                      </div>
-                    ))}
+                  <div>
+                    <label className="block text-xs font-semibold text-gray-600 mb-1">End Time (ISO)</label>
+                    <input
+                      type="datetime-local"
+                      value={editApptEndTime ? new Date(editApptEndTime).toISOString().slice(0, 16) : ''}
+                      onChange={e => setEditApptEndTime(new Date(e.target.value).toISOString())}
+                      className="w-full bg-gray-50 border border-gray-300 rounded px-3 py-2 text-xs font-semibold text-gray-800"
+                    />
                   </div>
                 </div>
-              </div>
-            )}
+
+                <div>
+                  <label className="block text-xs font-semibold text-gray-600 mb-1">Customer Requested Comments & Notes</label>
+                  <textarea
+                    rows={3}
+                    value={editApptNotes}
+                    onChange={e => setEditApptNotes(e.target.value)}
+                    className="w-full bg-gray-50 border border-gray-300 rounded px-3 py-2 text-xs text-gray-800"
+                    placeholder="Customer requested notes or staff instructions..."
+                  />
+                </div>
+
+                <div className="pt-2 flex items-center justify-end gap-3 border-t border-gray-100">
+                  <button type="button" onClick={() => setSelectedApptForInspection(null)} className="px-4 py-2 text-xs text-gray-600 hover:text-gray-800 font-semibold">Cancel</button>
+                  <button type="submit" disabled={isSavingAppointment} className="px-5 py-2 text-xs bg-indigo-600 hover:bg-indigo-500 text-white font-bold rounded-lg shadow-lg transition-colors">
+                    {isSavingAppointment ? 'Saving Amendment...' : 'Amend & Send iCal Confirmation'}
+                  </button>
+                </div>
+              </form>
             </div>
-          )}
+          </div>
+        )}
+      </div>
     </>
   );
 }
