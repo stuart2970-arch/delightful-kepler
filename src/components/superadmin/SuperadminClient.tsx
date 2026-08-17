@@ -5,6 +5,7 @@ import Link from 'next/link';
 import SuperAdminEntitlementsView from './SuperAdminEntitlementsView';
 import PlatformSettingsView from '../dashboard-views/PlatformSettingsView';
 import SuperAdminVoiceManagerView from '../dashboard-views/SuperAdminVoiceManagerView';
+import OpenClawMonitorView from '../dashboard-views/OpenClawMonitorView';
 
 type GlobalHoliday = {
   id: string;
@@ -287,7 +288,19 @@ export default function SuperadminClient({
         >
           Voice Personas
         </button>
+        <button 
+          onClick={() => setActiveTab('gateways')}
+          className={`flex-1 py-2.5 text-sm font-medium rounded-lg transition-colors ${activeTab === 'gateways' ? 'bg-indigo-600 text-white shadow' : 'text-gray-400 hover:text-white hover:bg-gray-800'}`}
+        >
+          Messaging Gateways
+        </button>
       </div>
+
+      {activeTab === 'gateways' && (
+        <div className="mt-6">
+          <OpenClawMonitorView />
+        </div>
+      )}
 
       {activeTab === 'settings' && (
         <div className="space-y-6 mt-6">

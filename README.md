@@ -621,3 +621,11 @@ ame, irstMessage, and 	ranscriber) rather than relying on ssistantOverrides de
   4. **Daily Bookings Rota & Inspection/Edit Modal**: Rendered a daily appointments rota on the Scheduling tab. Business owners can inspect appointments to view customer name, email, **mobile phone number**, and notes, and amend staff, date, time, and service with instant DB + calendar sync.
   5. **iCal (`.ics`) Email Attachment Generator**: Built `src/lib/ical.ts` generating RFC 5545 `.ics` strings for confirmation emails, enabling non-Gmail / Outlook / Apple Mail customers to add bookings to their calendars in 1 click.
 
+### Session 21 (August 17, 2026)
+* **User**: "if i can enter my omnichannel details here, why do i need customers to view gateways... The web chat & voice tab should include all communications filtered by All (Default) Chat/ SMS/ Web Voice/ Instagram/ Whatsapp (as a dropdown)..."
+* **Fix**: Moved Gateways monitor to Superadmin God Mode, added Omnichannel Channel dropdown filter, and enabled Web Voice transcriptions & audio player:
+  1. **Omnichannel Channel Dropdown Filter**: Updated `InboxView.tsx` (**Web Chat & Voice** tab) with a channel filter dropdown allowing business users to filter by **All Communications**, **💬 Web Chat**, **💬 SMS**, **🎙️ Web Voice**, **📸 Instagram**, and **🟢 WhatsApp**. Each session card now features its dynamic channel badge.
+  2. **Web Voice Transcriptions & Display**: Enhanced `InboxView.tsx` transcript viewer to display full transcribed speech text, HTML5 audio playback (`recording_url`), and turn-by-turn user vs bot speech bubbles for Web Voice streaming sessions.
+  3. **Messaging Gateways Navigation Scoping**: Removed the **Gateways** tab (`openclaw-monitor`) from standard tenant left navigation menus. Added a dedicated **Messaging Gateways** tab to `SuperadminClient.tsx` so platform superadmins can monitor active messaging channels, latency, and live activity logs on the God Page (`/superadmin`).
+
+
