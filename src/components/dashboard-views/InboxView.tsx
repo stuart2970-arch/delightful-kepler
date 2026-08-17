@@ -127,22 +127,23 @@ export default function InboxView() {
     fetchMessages();
   }, [selectedConversation, supabase, tenantId]);
 
-  const selectedConvObj = conversations.find(c => c.id === selectedConversation);
+  const selectedConvObj = (conversations || []).find(c => c && c.id === selectedConversation);
 
   // Filter conversations based on selected channel dropdown
-  const webConversations = conversations.filter(c => !c.is_phone_call);
+  const webConversations = (conversations || []).filter(c => c && !c.is_phone_call);
 
-  const filteredConversations = webConversations.filter(conv => {
+  const filteredConversations = (webConversations || []).filter(conv => {
+    if (!conv) return false;
     if (channelFilter === 'all') return true;
     return getConversationChannel(conv) === channelFilter;
   });
 
   // Channel counts for metrics
-  const chatCount = webConversations.filter(c => getConversationChannel(c) === 'chat').length;
-  const smsCount = webConversations.filter(c => getConversationChannel(c) === 'sms').length;
-  const webVoiceCount = webConversations.filter(c => getConversationChannel(c) === 'web_voice').length;
-  const igCount = webConversations.filter(c => getConversationChannel(c) === 'instagram').length;
-  const waCount = webConversations.filter(c => getConversationChannel(c) === 'whatsapp').length;
+  const chatCount = (webConversations || []).filter(c => c && getConversationChannel(c) === 'chat').length;
+  const smsCount = (webConversations || []).filter(c => c && getConversationChannel(c) === 'sms').length;
+  const webVoiceCount = (webConversations || []).filter(c => c && getConversationChannel(c) === 'web_voice').length;
+  const igCount = (webConversations || []).filter(c => c && getConversationChannel(c) === 'instagram').length;
+  const waCount = (webConversations || []).filter(c => c && getConversationChannel(c) === 'whatsapp').length;
 
   return (
     <>
