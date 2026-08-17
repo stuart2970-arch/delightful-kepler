@@ -37,9 +37,18 @@ export async function getTenantEffectiveLimit(tenantId: string, featureId: strin
   // 3. Fall back to their base subscription tier entitlements
   const { data: tenant } = await supabase
     .from('tenants')
-    .select('plan_tier')
+    .select('plan_tier, is_active, trial_ends_at')
     .eq('id', tenantId)
     .single();
+
+  // If tenant is marked inactive (unpaid / paused), block feature volume (limit = 0)
+  if (tenant && tenant.is_active === false) {
+    // Check if trial has expired without payment
+    if (tenant.trial_ends_at && new Date(tenant.trial_ends_at) < new Date()) {
+      return 0;
+    }
+    return 0;
+  }
 
   const { data: entitlement } = await supabase
     .from('tier_entitlements')

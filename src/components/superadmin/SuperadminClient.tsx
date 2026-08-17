@@ -17,6 +17,8 @@ type TenantStat = {
   id: string;
   company_name: string;
   plan_tier: string;
+  is_active?: boolean;
+  subscription_status?: string;
   created_at: string;
   messagesCount: number;
   crawlsCount: number;
@@ -36,6 +38,54 @@ export default function SuperadminClient({
   const [searchTerm, setSearchTerm] = useState('');
   const [tenantsList, setTenantsList] = useState<TenantStat[]>(tenants);
   const [deletingTenantId, setDeletingTenantId] = useState<string | null>(null);
+  const [updatingTenantId, setUpdatingTenantId] = useState<string | null>(null);
+
+  const handleUpdateTenantTier = async (tenantId: string, newTier: string) => {
+    setUpdatingTenantId(tenantId);
+    try {
+      const res = await fetch('/api/billing/override', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ targetTenantId: tenantId, newTier }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error || 'Failed to update tenant tier');
+      
+      setTenantsList(prev => prev.map(t => t.id === tenantId ? { ...t, plan_tier: newTier } : t));
+    } catch (err: any) {
+      alert('Error updating tier: ' + err.message);
+    } finally {
+      setUpdatingTenantId(null);
+    }
+  };
+
+  const handleToggleActiveStatus = async (tenantId: string, currentIsActive: boolean = true) => {
+    const nextIsActive = !currentIsActive;
+    setUpdatingTenantId(tenantId);
+    try {
+      const res = await fetch('/api/billing/override', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ 
+          targetTenantId: tenantId, 
+          isActive: nextIsActive,
+          subscriptionStatus: nextIsActive ? 'comped' : 'paused'
+        }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error || 'Failed to update active status');
+
+      setTenantsList(prev => prev.map(t => t.id === tenantId ? { 
+        ...t, 
+        is_active: nextIsActive, 
+        subscription_status: nextIsActive ? 'comped' : 'paused' 
+      } : t));
+    } catch (err: any) {
+      alert('Error updating status: ' + err.message);
+    } finally {
+      setUpdatingTenantId(null);
+    }
+  };
 
   const filteredTenants = tenantsList.filter(t => 
     t.company_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -343,6 +393,7 @@ export default function SuperadminClient({
               <tr className="bg-gray-950/50">
                 <th className="px-6 py-3 text-xs font-semibold text-gray-400 uppercase tracking-wider">Company</th>
                 <th className="px-6 py-3 text-xs font-semibold text-gray-400 uppercase tracking-wider">Plan Tier</th>
+                <th className="px-6 py-3 text-xs font-semibold text-gray-400 uppercase tracking-wider">Payment Status</th>
                 <th className="px-6 py-3 text-xs font-semibold text-gray-400 uppercase tracking-wider">Created</th>
                 <th className="px-6 py-3 text-xs font-semibold text-gray-400 uppercase tracking-wider text-right">Tokens Used</th>
                 <th className="px-6 py-3 text-xs font-semibold text-gray-400 uppercase tracking-wider text-right">Crawls</th>
@@ -352,7 +403,7 @@ export default function SuperadminClient({
             <tbody className="divide-y divide-gray-800">
               {filteredTenants.length === 0 ? (
                 <tr>
-                  <td colSpan={6} className="px-6 py-8 text-center text-gray-500">
+                  <td colSpan={7} className="px-6 py-8 text-center text-gray-500">
                     No tenants found matching "{searchTerm}"
                   </td>
                 </tr>
@@ -364,12 +415,33 @@ export default function SuperadminClient({
                       <div className="text-xs text-gray-500 mt-0.5 font-mono">{tenant.id}</div>
                     </td>
                     <td className="px-6 py-4">
-                      <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium capitalize
-                        ${tenant.plan_tier === 'enterprise' ? 'bg-indigo-500/10 text-indigo-400 border border-indigo-500/20' : 
-                          tenant.plan_tier === 'pro' ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20' : 
-                          'bg-gray-800 text-gray-300 border border-gray-700'}`}>
-                        {tenant.plan_tier || 'Free'}
-                      </span>
+                      <select
+                        value={tenant.plan_tier || 'basic'}
+                        onChange={(e) => handleUpdateTenantTier(tenant.id, e.target.value)}
+                        disabled={updatingTenantId === tenant.id}
+                        className="bg-gray-950 border border-gray-700 rounded-lg px-2.5 py-1 text-xs font-semibold text-white focus:outline-none focus:ring-1 focus:ring-indigo-500 capitalize disabled:opacity-50"
+                      >
+                        <option value="ultimate">Ultimate</option>
+                        <option value="premium">Premium</option>
+                        <option value="starter">Starter</option>
+                        <option value="basic">Basic</option>
+                        <option value="trial">Trial</option>
+                      </select>
+                    </td>
+                    <td className="px-6 py-4">
+                      <button
+                        onClick={() => handleToggleActiveStatus(tenant.id, tenant.is_active !== false)}
+                        disabled={updatingTenantId === tenant.id}
+                        title="Click to toggle Superadmin Payment Status Override"
+                        className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold transition-all border ${
+                          tenant.is_active !== false
+                            ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/30 hover:bg-emerald-500/20'
+                            : 'bg-amber-500/10 text-amber-400 border-amber-500/30 hover:bg-amber-500/20'
+                        }`}
+                      >
+                        <span className={`w-1.5 h-1.5 rounded-full ${tenant.is_active !== false ? 'bg-emerald-400' : 'bg-amber-400'}`}></span>
+                        {tenant.is_active !== false ? 'Active (Comped)' : 'Paused (Unpaid)'}
+                      </button>
                     </td>
                     <td className="px-6 py-4 text-sm text-gray-400">
                       {new Date(tenant.created_at).toLocaleDateString()}

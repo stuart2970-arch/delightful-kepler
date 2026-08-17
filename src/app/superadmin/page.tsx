@@ -80,7 +80,7 @@ export default async function SuperadminPage() {
   // Fetch all tenants using admin client
   const { data: tenants } = await adminSupabase
     .from('tenants')
-    .select('id, company_name, plan_tier, created_at, slug')
+    .select('id, company_name, plan_tier, is_active, subscription_status, created_at, slug')
     .order('created_at', { ascending: false });
 
   // Fetch all chatbots with their tenant_id
@@ -134,6 +134,8 @@ export default async function SuperadminPage() {
       id: t.id,
       company_name: t.company_name,
       plan_tier: t.plan_tier,
+      is_active: t.is_active !== false,
+      subscription_status: t.subscription_status || 'active',
       created_at: t.created_at,
       slug: t.slug,
       messagesCount: Math.max(ledgerMessages, dbMessages),

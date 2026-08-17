@@ -38,15 +38,32 @@ export async function POST(request: Request) {
     }
 
     const body = await request.json();
-    const { targetTenantId, newTier } = body;
+    const { targetTenantId, newTier, isActive, subscriptionStatus } = body;
 
-    if (!targetTenantId || !newTier) {
-      return NextResponse.json({ error: 'Missing required fields' }, { status: 400 });
+    if (!targetTenantId) {
+      return NextResponse.json({ error: 'Missing targetTenantId' }, { status: 400 });
     }
 
-    const validTiers = ['basic', 'starter', 'premium', 'ultimate'];
-    if (!validTiers.includes(newTier)) {
-      return NextResponse.json({ error: 'Invalid subscription tier' }, { status: 400 });
+    const updates: Record<string, any> = {};
+
+    if (newTier !== undefined) {
+      const validTiers = ['basic', 'starter', 'premium', 'ultimate', 'trial', 'free'];
+      if (!validTiers.includes(newTier)) {
+        return NextResponse.json({ error: 'Invalid subscription tier' }, { status: 400 });
+      }
+      updates.plan_tier = newTier;
+    }
+
+    if (typeof isActive === 'boolean') {
+      updates.is_active = isActive;
+    }
+
+    if (subscriptionStatus !== undefined) {
+      updates.subscription_status = subscriptionStatus;
+    }
+
+    if (Object.keys(updates).length === 0) {
+      return NextResponse.json({ error: 'No update parameters provided' }, { status: 400 });
     }
 
     // Use Service Role to bypass RLS and force the update on the target tenant
@@ -59,15 +76,19 @@ export async function POST(request: Request) {
 
     const { error: updateError } = await adminClient
       .from('tenants')
-      .update({ plan_tier: newTier })
+      .update(updates)
       .eq('id', targetTenantId);
 
     if (updateError) {
       console.error('[Billing Override] Error updating tenant:', updateError);
-      return NextResponse.json({ error: 'Failed to update tenant tier' }, { status: 500 });
+      return NextResponse.json({ error: 'Failed to update tenant' }, { status: 500 });
     }
 
-    return NextResponse.json({ success: true, message: `Tenant overridden to ${newTier}` });
+    return NextResponse.json({ 
+      success: true, 
+      message: `Tenant ${targetTenantId} updated successfully`, 
+      updates 
+    });
 
   } catch (err: any) {
     console.error('[Billing Override] Unhandled error:', err);

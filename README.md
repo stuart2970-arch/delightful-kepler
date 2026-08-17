@@ -603,9 +603,11 @@ ame, irstMessage, and 	ranscriber) rather than relying on ssistantOverrides de
   10. **Voice Recording & Transcripts Schema**: Identified that the migration script [`20260723100000_add_voice_fields_to_conversations.sql`](file:///c:/Users/Stuar/.gemini/antigravity/scratch/delightful-kepler/supabase/migrations/20260723100000_add_voice_fields_to_conversations.sql) was local-only. Added instructions for running this SQL file on the hosted Supabase instance to add `is_voice_call`, `resulted_in_booking`, `recording_url`, and `transcript` columns to the `conversations` table, enabling business users to listen to call recordings and view full call transcripts in the inbox explorer.
   11. **Billing Limits Mapping Fix**: Fixed a bug where current plan limits were rendering as `0 total` for "Knowledge Base Data Chunks" and "Monthly Message Allowance". The backend was querying `included_volume` from `tier_entitlements`, but the database columns had been updated to use `limit_value`. Standardized mapping to `limit_value` across `page.tsx`, `DashboardClient.tsx`, `PricingMatrixView.tsx`, and `/api/superadmin/pricing-matrix`.
 
-
-
-
-
-
-
+### Session 19 (August 17, 2026)
+* **User**: "sync registration between wpmudev and app.styleflo.ai and styleflo.ai"
+* **Fix**: Implemented bi-directional registration & payment synchronization, superadmin payment status overrides, and dual Stripe/WPMUDEV webhook engine:
+  1. **Superadmin Payment Status Override & Tier Selector**: Updated `SuperadminClient.tsx` (**Tenants & Usage**) with an inline **Plan Tier Selector Dropdown** (`Ultimate`, `Basic`, `Premium`, `Starter`, `Trial`) and an **Active / Comped Payment Status Toggle** (`Active (Comped)` vs `Paused (Unpaid)`). Enhanced `/api/billing/override` and `/superadmin/page.tsx` so Superadmins can override payment status, grant lifetime/comped access, or unpause any tenant instantly.
+  2. **Dual Payment Gateway Webhooks**:
+     - **WPMUDEV Webhook (`/api/webhooks/wpmudev`)**: Updated to handle both registration and invoice payment webhooks, matching or auto-provisioning Supabase users and activating paid tiers.
+     - **Direct Stripe Webhook (`/api/webhooks/stripe`)**: Added a dedicated endpoint handling `checkout.session.completed` events from direct Stripe payment buttons and payment links, setting `is_active: true` and activating customer tiers automatically upon payment.
+  3. **Dynamic Tier Entitlements & Trial Enforcement**: Updated `entitlements.ts` to evaluate all feature limits dynamically against `tier_entitlements`. Added `is_active` and `trial_ends_at` checks to pause unpaid accounts after 30 days unless comped by a Superadmin.
