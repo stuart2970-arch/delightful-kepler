@@ -27,17 +27,18 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: 'Missing chatbotId in query' }, { status: 400, headers: corsHeaders });
     }
 
-    // Map GEMINI_API_KEY to GOOGLE_GENERATIVE_AI_API_KEY for the @ai-sdk/google provider and embeddings fetch
     if (process.env.GEMINI_API_KEY && !process.env.GOOGLE_GENERATIVE_AI_API_KEY) {
       process.env.GOOGLE_GENERATIVE_AI_API_KEY = process.env.GEMINI_API_KEY;
     }
 
     const body = await req.json();
-    const { messages } = body; // standard OpenAI messages array payload from Vapi
+    const { messages } = body;
 
     if (!messages || !Array.isArray(messages)) {
       return NextResponse.json({ error: 'Invalid messages payload' }, { status: 400, headers: corsHeaders });
     }
+
+    const sessionId = body.call?.id || body.sessionId || req.headers.get('x-vapi-call-id') || req.headers.get('x-session-id') || `voice_${chatbotId.substring(0, 8)}_${Date.now()}`;
 
     // 1. Initialize Supabase Admin
     const supabaseUrl = process.env['NEXT_PUBLIC_SUPABASE_URL'] || process.env.SUPABASE_URL;
@@ -75,12 +76,11 @@ export async function POST(req: Request) {
     // 3. Extract the latest user message for RAG embedding
     const latestUserMessage = messages.slice().reverse().find((m: any) => m.role === 'user');
     let ragContext = '';
+    let queryText = '';
 
     if (latestUserMessage && typeof latestUserMessage.content === 'string') {
+      queryText = latestUserMessage.content;
       try {
-        const queryText = latestUserMessage.content;
-        
-        // Convert to embedding using google's text-embedding-004
         const embeddingRes = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/text-embedding-004:embedContent?key=${process.env.GOOGLE_GENERATIVE_AI_API_KEY}`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -94,7 +94,6 @@ export async function POST(req: Request) {
         const embedding = embedData.embedding?.values;
 
         if (embedding) {
-          // Localized RAG match_documents
           const { data: matchedChunks, error: matchError } = await supabaseAdmin.rpc('match_documents', {
             query_embedding: embedding,
             match_threshold: 0.2,
@@ -130,13 +129,16 @@ export async function POST(req: Request) {
       temperature: 0.7,
     });
 
-    // 6. Stream back to Vapi in OpenAI format
+    let fullAiResponse = '';
+
+    // 6. Stream back to Vapi in OpenAI format & Log to Supabase
     const encoder = new TextEncoder();
     const stream = new ReadableStream({
       async start(controller) {
         try {
           for await (const textDelta of result.textStream) {
             if (textDelta) {
+              fullAiResponse += textDelta;
               const chunk = {
                 id: 'chatcmpl-vapi',
                 object: 'chat.completion.chunk',
@@ -159,17 +161,47 @@ export async function POST(req: Request) {
             object: 'chat.completion.chunk',
             created: Math.floor(Date.now() / 1000),
             model: 'gemini-3.5-flash',
-            choices: [
-              {
-                delta: {},
-                index: 0,
-                finish_reason: 'stop'
-              }
-            ]
+            choices: [{ delta: {}, index: 0, finish_reason: 'stop' }]
           };
           controller.enqueue(encoder.encode(`data: ${JSON.stringify(finishChunk)}\n\n`));
-          controller.enqueue(encoder.encode(`data: [DONE]\n\n`));
+          controller.encode(`data: [DONE]\n\n`);
           controller.close();
+
+          // Save voice session and speech messages to Supabase after stream finishes
+          try {
+            const { data: conv } = await supabaseAdmin.from('conversations').upsert({
+              tenant_id: chatbot.tenant_id,
+              chatbot_id: chatbotId,
+              user_session_id: sessionId,
+              is_voice_call: true,
+              channel: 'web_voice'
+            }, { onConflict: 'tenant_id, user_session_id' }).select('id').single();
+
+            if (conv?.id) {
+              const now = Date.now();
+              if (queryText) {
+                await supabaseAdmin.from('messages').insert({
+                  tenant_id: chatbot.tenant_id,
+                  conversation_id: conv.id,
+                  sender_type: 'user',
+                  text_content: queryText,
+                  created_at: new Date(now - 1000).toISOString()
+                });
+              }
+              if (fullAiResponse) {
+                await supabaseAdmin.from('messages').insert({
+                  tenant_id: chatbot.tenant_id,
+                  conversation_id: conv.id,
+                  sender_type: 'bot',
+                  text_content: fullAiResponse,
+                  created_at: new Date(now).toISOString()
+                });
+              }
+            }
+          } catch (dbErr) {
+            console.error('[Vapi Custom LLM] Database voice logging error:', dbErr);
+          }
+
         } catch (err) {
           console.error('[Vapi Custom LLM] Stream error:', err);
           controller.error(err);

@@ -37,6 +37,9 @@ export async function POST(
       return NextResponse.json({ error: 'Invalid messages payload' }, { status: 400, headers: corsHeaders });
     }
 
+    // Resolve session ID for logging
+    const sessionId = body.call?.id || body.sessionId || req.headers.get('x-vapi-call-id') || req.headers.get('x-session-id') || `voice_${chatbotId.substring(0, 8)}_${Date.now()}`;
+
     // 1. Initialize Supabase Admin
     const supabaseUrl = process.env['NEXT_PUBLIC_SUPABASE_URL'] || process.env.SUPABASE_URL;
     const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -87,7 +90,6 @@ export async function POST(
 
     if (queryText && apiKey) {
       try {
-        // Convert to embedding using google's text-embedding-004
         const embeddingRes = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/text-embedding-004:embedContent?key=${apiKey}`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -102,7 +104,6 @@ export async function POST(
           const embedding = embedData.embedding?.values;
 
           if (embedding) {
-            // Localized RAG match_documents
             const { data: matchedChunks, error: matchError } = await supabaseAdmin.rpc('match_documents', {
               query_embedding: embedding,
               match_threshold: 0.2,
@@ -151,6 +152,39 @@ export async function POST(
         messages: enhancedMessages,
         temperature: 0.7,
       });
+
+      // Log voice session & messages in background
+      try {
+        const { data: conv } = await supabaseAdmin.from('conversations').upsert({
+          tenant_id: chatbot.tenant_id,
+          chatbot_id: chatbotId,
+          user_session_id: sessionId,
+          is_voice_call: true,
+          channel: 'web_voice'
+        }, { onConflict: 'tenant_id, user_session_id' }).select('id').single();
+
+        if (conv?.id) {
+          if (queryText) {
+            await supabaseAdmin.from('messages').insert({
+              tenant_id: chatbot.tenant_id,
+              conversation_id: conv.id,
+              sender_type: 'user',
+              text_content: queryText
+            });
+          }
+          if (text) {
+            await supabaseAdmin.from('messages').insert({
+              tenant_id: chatbot.tenant_id,
+              conversation_id: conv.id,
+              sender_type: 'bot',
+              text_content: text
+            });
+          }
+        }
+      } catch (logErr) {
+        console.error('[Vapi Non-stream] Error logging voice conversation:', logErr);
+      }
+
       return NextResponse.json({
         id: 'chatcmpl-vapi',
         object: 'chat.completion',
@@ -172,7 +206,9 @@ export async function POST(
       temperature: 0.7,
     });
 
-    // 6. Stream back to Vapi in OpenAI format
+    let fullAiResponse = '';
+
+    // 6. Stream back to Vapi in OpenAI format & Log to database
     const encoder = new TextEncoder();
     const stream = new ReadableStream({
       async start(controller) {
@@ -192,6 +228,7 @@ export async function POST(
             }
             
             if (textDelta) {
+              fullAiResponse += textDelta;
               const chunk = {
                 id: 'chatcmpl-vapi',
                 object: 'chat.completion.chunk',
@@ -208,35 +245,53 @@ export async function POST(
               controller.enqueue(encoder.encode(`data: ${JSON.stringify(chunk)}\n\n`));
             }
           }
-          
-          if (isFirst) {
-            // If textStream produced nothing, send an initial chunk anyway so stream is valid
-            const roleChunk = {
-              id: 'chatcmpl-vapi',
-              object: 'chat.completion.chunk',
-              created: Math.floor(Date.now() / 1000),
-              model: 'gemini-1.5-flash',
-              choices: [{ delta: { role: 'assistant', content: '' }, index: 0, finish_reason: null }]
-            };
-            controller.enqueue(encoder.encode(`data: ${JSON.stringify(roleChunk)}\n\n`));
-          }
 
           const finishChunk = {
             id: 'chatcmpl-vapi',
             object: 'chat.completion.chunk',
             created: Math.floor(Date.now() / 1000),
             model: 'gemini-1.5-flash',
-            choices: [
-              {
-                delta: {},
-                index: 0,
-                finish_reason: 'stop'
-              }
-            ]
+            choices: [{ delta: {}, index: 0, finish_reason: 'stop' }]
           };
           controller.enqueue(encoder.encode(`data: ${JSON.stringify(finishChunk)}\n\n`));
           controller.enqueue(encoder.encode(`data: [DONE]\n\n`));
           controller.close();
+
+          // Save voice session and speech messages to Supabase after stream finishes
+          try {
+            const { data: conv } = await supabaseAdmin.from('conversations').upsert({
+              tenant_id: chatbot.tenant_id,
+              chatbot_id: chatbotId,
+              user_session_id: sessionId,
+              is_voice_call: true,
+              channel: 'web_voice'
+            }, { onConflict: 'tenant_id, user_session_id' }).select('id').single();
+
+            if (conv?.id) {
+              const now = Date.now();
+              if (queryText) {
+                await supabaseAdmin.from('messages').insert({
+                  tenant_id: chatbot.tenant_id,
+                  conversation_id: conv.id,
+                  sender_type: 'user',
+                  text_content: queryText,
+                  created_at: new Date(now - 1000).toISOString()
+                });
+              }
+              if (fullAiResponse) {
+                await supabaseAdmin.from('messages').insert({
+                  tenant_id: chatbot.tenant_id,
+                  conversation_id: conv.id,
+                  sender_type: 'bot',
+                  text_content: fullAiResponse,
+                  created_at: new Date(now).toISOString()
+                });
+              }
+            }
+          } catch (dbErr) {
+            console.error('[Vapi Custom LLM] Database voice logging error:', dbErr);
+          }
+
         } catch (err) {
           console.error('[Vapi Custom LLM] Stream error:', err);
           controller.error(err);

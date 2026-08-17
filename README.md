@@ -622,10 +622,12 @@ ame, irstMessage, and 	ranscriber) rather than relying on ssistantOverrides de
   5. **iCal (`.ics`) Email Attachment Generator**: Built `src/lib/ical.ts` generating RFC 5545 `.ics` strings for confirmation emails, enabling non-Gmail / Outlook / Apple Mail customers to add bookings to their calendars in 1 click.
 
 ### Session 21 (August 17, 2026)
-* **User**: "if i can enter my omnichannel details here, why do i need customers to view gateways... The web chat & voice tab should include all communications filtered by All (Default) Chat/ SMS/ Web Voice/ Instagram/ Whatsapp (as a dropdown)..."
-* **Fix**: Moved Gateways monitor to Superadmin God Mode, added Omnichannel Channel dropdown filter, and enabled Web Voice transcriptions & audio player:
+* **User**: "if i can enter my omnichannel details here, why do i need customers to view gateways... The web chat & voice tab should include all communications filtered by All (Default) Chat/ SMS/ Web Voice/ Instagram/ Whatsapp (as a dropdown)... so im still not seeing any voice messages, even though i have left some, do we need to set something up in 11labs to convert to text and return it to the supabase db"
+* **Fix**: Moved Gateways monitor to Superadmin God Mode, added Omnichannel Channel dropdown filter, and enabled Web Voice transcriptions & automatic Supabase logging:
   1. **Omnichannel Channel Dropdown Filter**: Updated `InboxView.tsx` (**Web Chat & Voice** tab) with a channel filter dropdown allowing business users to filter by **All Communications**, **💬 Web Chat**, **💬 SMS**, **🎙️ Web Voice**, **📸 Instagram**, and **🟢 WhatsApp**. Each session card now features its dynamic channel badge.
   2. **Web Voice Transcriptions & Display**: Enhanced `InboxView.tsx` transcript viewer to display full transcribed speech text, HTML5 audio playback (`recording_url`), and turn-by-turn user vs bot speech bubbles for Web Voice streaming sessions.
-  3. **Messaging Gateways Navigation Scoping**: Removed the **Gateways** tab (`openclaw-monitor`) from standard tenant left navigation menus. Added a dedicated **Messaging Gateways** tab to `SuperadminClient.tsx` so platform superadmins can monitor active messaging channels, latency, and live activity logs on the God Page (`/superadmin`).
+  3. **Automatic Web Voice Supabase Logging**: Updated `/api/voice/[chatbotId]/chat/completions` and `/api/voice/chat/completions` routes to automatically log voice streaming sessions into `conversations` (`is_voice_call: true`, `channel: 'web_voice'`) and insert speech turns into `messages` (`sender_type: 'user'` and `'bot'`) as voice streams complete.
+  4. **Messaging Gateways Navigation Scoping**: Removed the **Gateways** tab (`openclaw-monitor`) from standard tenant left navigation menus. Added a dedicated **Messaging Gateways** tab to `SuperadminClient.tsx` so platform superadmins can monitor active messaging channels, latency, and live activity logs on the God Page (`/superadmin`).
+
 
 
