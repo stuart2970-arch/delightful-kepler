@@ -1,20 +1,23 @@
 import { NextResponse } from 'next/server';
 import Stripe from 'stripe';
 
-const stripe = new Stripe(process.env.STRIPE_SECRET_KEY || '', {
-  apiVersion: '2023-10-16',
-});
+export const dynamic = 'force-dynamic';
 
 export async function POST(req: Request) {
   try {
+    const apiKey = process.env.STRIPE_SECRET_KEY;
+    if (!apiKey) {
+      return NextResponse.json({ error: 'Stripe API key not configured on server' }, { status: 500 });
+    }
+
+    const stripe = new Stripe(apiKey, {
+      apiVersion: '2023-10-16',
+    });
+
     const { priceId, tenantId, customerEmail, returnUrl } = await req.json();
 
     if (!priceId) {
       return NextResponse.json({ error: 'Missing priceId parameter' }, { status: 400 });
-    }
-
-    if (!process.env.STRIPE_SECRET_KEY) {
-      return NextResponse.json({ error: 'Stripe API key not configured on server' }, { status: 500 });
     }
 
     const session = await stripe.checkout.sessions.create({
