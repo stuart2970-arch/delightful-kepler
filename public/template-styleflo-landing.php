@@ -1,0 +1,968 @@
+<?php
+/**
+ * Template Name: StyleFlo Landing Page - Fasthosts Spark Style
+ * Post Type: page, post
+ * Description: Ready-to-upload WordPress Page Template for StyleFlo AI Receptionist with 1 Month Free on ALL plans.
+ */
+
+if (!defined('ABSPATH')) exit;
+?>
+<!DOCTYPE html>
+<html <?php language_attributes(); ?> class="scroll-smooth">
+<head>
+  <meta charset="<?php bloginfo('charset'); ?>">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  
+  <!-- SEO & Metadata Schema -->
+  <title>StyleFlo.ai | 24/7 AI Receptionist UK — 1st Month Free on ALL Plans</title>
+  <meta name="description" content="Never miss a customer call or booking again. StyleFlo’s 24/7 AI Receptionist answers phone calls, website chats, WhatsApp, and Instagram DMs—booking clients directly onto your calendar. Get your 1st month FREE on ALL plans!">
+  <meta name="keywords" content="AI receptionist UK, salon booking automation, 24/7 phone answering AI, automated booking system, Reserve with Google integration, voice receptionist B2B SaaS, hair salon software UK">
+  <meta name="author" content="StyleFlo.ai">
+  
+  <!-- Open Graph (OG) Metadata -->
+  <meta property="og:title" content="StyleFlo AI Receptionist: Turn Missed Calls Into Booked Clients (1st Month FREE)">
+  <meta property="og:description" content="A premium AI booking & voice receptionist engine that connects directly to Google Calendar, Booksy, SalonIQ, and Shopify. Try any plan free for 30 days!">
+  <meta property="og:image" content="https://styleflo.ai/wp-content/uploads/2026/08/styleflo-og-share-card.jpg">
+  <meta property="og:url" content="https://styleflo.ai">
+  <meta property="og:type" content="website">
+
+  <!-- Favicon & Touch Icons -->
+  <link rel="icon" type="image/png" sizes="32x32" href="https://styleflo.ai/favicon-32x32.png">
+  <link rel="apple-touch-icon" sizes="180x180" href="https://styleflo.ai/apple-touch-icon.png">
+
+  <?php wp_head(); ?>
+
+  <!-- Fonts: Poppins (Headings) + Inter (Body) -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Poppins:ital,wght@0,300;0,400;0,500;0,600;0,700;0,800;0,900&display=swap" rel="stylesheet">
+
+  <!-- Tailwind CSS CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  
+  <!-- Lucide Icons -->
+  <script src="https://unpkg.com/lucide@latest"></script>
+
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            amethyst: {
+              DEFAULT: '#7E5FBB',
+              dark: '#4A1F52',
+              light: '#9678D3',
+              soft: '#F4EFFC',
+              surface: '#F8F5FE'
+            },
+            slate: {
+              accent: '#707070',
+              body: '#2C3E50',
+              ash: '#EBE7F2',
+              muted: '#64748B'
+            },
+            pearl: '#FAF9FC'
+          },
+          fontFamily: {
+            poppins: ['Poppins', 'sans-serif'],
+            sans: ['Inter', 'sans-serif'],
+            body: ['Inter', 'sans-serif']
+          },
+          boxShadow: {
+            'glow': '0 10px 30px -10px rgba(126, 95, 187, 0.25)',
+            'card': '0 4px 20px -2px rgba(44, 62, 80, 0.06)',
+            'soft-elevated': '0 12px 36px -6px rgba(74, 31, 82, 0.08)'
+          }
+        }
+      }
+    }
+  </script>
+  
+  <style>
+    body {
+      background-color: #FAF9FC;
+      color: #2C3E50;
+      font-family: 'Inter', sans-serif;
+      overflow-x: hidden;
+    }
+    
+    .heading-poppins {
+      font-family: 'Poppins', sans-serif;
+      font-weight: 800;
+      letter-spacing: -0.02em;
+    }
+    
+    .gradient-text {
+      background: linear-gradient(135deg, #4A1F52 0%, #7E5FBB 70%, #9678D3 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+    
+    .live-pulse {
+      animation: pulse-ring 2s infinite ease-in-out;
+    }
+    @keyframes pulse-ring {
+      0% { transform: scale(0.95); opacity: 0.8; }
+      50% { transform: scale(1.15); opacity: 0.4; }
+      100% { transform: scale(0.95); opacity: 0.8; }
+    }
+    
+    .typing-dot {
+      animation: typing 1.4s infinite ease-in-out fill-mode-both;
+    }
+    .typing-dot:nth-child(1) { animation-delay: 0s; }
+    .typing-dot:nth-child(2) { animation-delay: 0.2s; }
+    .typing-dot:nth-child(3) { animation-delay: 0.4s; }
+    
+    @keyframes typing {
+      0%, 80%, 100% { transform: scale(0.6); opacity: 0.4; }
+      40% { transform: scale(1); opacity: 1; }
+    }
+  </style>
+</head>
+<body <?php body_class('antialiased selection:bg-amethyst selection:text-white'); ?>>
+<?php wp_body_open(); ?>
+
+  <!-- TOP PROMOTION BANNER -->
+  <div class="bg-gradient-to-r from-[#260475] via-amethyst to-amethyst-dark text-white text-xs sm:text-sm py-2.5 px-4 text-center font-medium shadow-inner flex items-center justify-center gap-2 flex-wrap">
+    <span class="bg-amber-400 text-slate-body text-[11px] font-black uppercase tracking-wider px-2.5 py-0.5 rounded-full shadow-sm">SPECIAL OFFER</span>
+    <span>🎉 <strong>1ST MONTH FREE ON ALL PLANS</strong> — Try any StyleFlo AI Receptionist plan risk-free for 30 days!</span>
+    <a href="#pricing" class="underline underline-offset-2 hover:text-amethyst-soft transition-colors font-bold ml-1">Claim Offer Below →</a>
+  </div>
+
+  <!-- NAVIGATION HEADER -->
+  <header class="sticky top-0 z-50 bg-pearl/95 backdrop-blur-md border-b border-slate-ash/80 transition-all duration-200">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-20 flex items-center justify-between">
+      
+      <!-- Brand Logo (Official styleflo.ai Monogram) -->
+      <a href="#" class="flex items-center gap-3 group">
+        <div class="w-10 h-10 rounded-xl bg-gradient-to-br from-[#260475] to-[#7E5FBB] flex items-center justify-center text-white shadow-md group-hover:scale-105 transition-transform duration-200">
+          <img src="https://styleflo.ai/wp-content/uploads/2026/07/icon.png" class="w-6 h-6 object-contain" alt="StyleFlo Icon" onerror="this.onerror=null; this.src='https://styleflo.ai/wp-content/uploads/2026/08/styleflo-og-share-card.jpg';">
+        </div>
+        <div class="flex flex-col">
+          <span class="text-xl tracking-tight text-slate-body font-sans" style="font-family: 'Poppins', sans-serif;">
+            <strong class="font-black text-[#0F172A]">STYLE</strong><span class="font-light text-[#7E5FBB]">FLO</span><span class="text-xs text-slate-500 font-mono ml-0.5 font-normal">.AI</span>
+          </span>
+          <span class="text-[10px] tracking-widest uppercase font-semibold text-slate-accent -mt-1">24/7 AI Receptionist</span>
+        </div>
+      </a>
+
+      <!-- Desktop Nav Links -->
+      <nav class="hidden md:flex items-center gap-8 text-sm font-semibold text-slate-body/80">
+        <a href="#features" class="hover:text-amethyst transition-colors">Why StyleFlo</a>
+        <a href="#playground" class="hover:text-amethyst transition-colors">Live Demo</a>
+        <a href="#how-it-works" class="hover:text-amethyst transition-colors">How It Works</a>
+        <a href="#pricing" class="hover:text-amethyst transition-colors">Pricing & Plans</a>
+        <a href="#faq" class="hover:text-amethyst transition-colors">FAQ</a>
+      </nav>
+
+      <!-- Right CTAs -->
+      <div class="flex items-center gap-4">
+        <a href="https://app.styleflo.ai/login" class="hidden sm:inline-flex text-sm font-semibold text-slate-body hover:text-amethyst transition-colors px-3 py-2">
+          Sign In
+        </a>
+        <a href="#pricing" class="inline-flex items-center justify-center text-xs sm:text-sm font-bold text-white bg-amethyst hover:bg-amethyst-dark rounded-full px-5 py-2.5 shadow-md shadow-amethyst/20 hover:shadow-lg hover:shadow-amethyst/30 transition-all duration-200 transform hover:-translate-y-0.5 uppercase tracking-wider">
+          Claim 1 Month Free
+        </a>
+      </div>
+    </div>
+  </header>
+
+  <main>
+    <!-- 1. HERO ENGAGEMENT SECTION -->
+    <section class="relative pt-12 pb-20 md:pt-20 md:pb-28 overflow-hidden bg-pearl border-b border-slate-ash">
+      <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        <div class="grid grid-cols-1 lg:grid-cols-12 gap-12 lg:gap-8 items-center">
+          
+          <!-- Left Column: Copy & Offer (60%) -->
+          <div class="lg:col-span-7 flex flex-col items-start space-y-6">
+            
+            <!-- Promo Badge -->
+            <div class="inline-flex items-center gap-2 bg-purple-50 border border-amethyst/30 text-amethyst-dark text-xs font-bold px-3.5 py-1.5 rounded-full shadow-sm">
+              <span class="w-2.5 h-2.5 rounded-full bg-emerald-500 live-pulse"></span>
+              <span>🎉 1 Month FREE Trial on ALL Plans</span>
+            </div>
+
+            <!-- Main Headline -->
+            <h1 class="heading-poppins text-4xl sm:text-5xl lg:text-6xl font-black text-slate-body leading-[1.12]">
+              Never Miss a Business Call or Client <span class="gradient-text">Booking Again.</span>
+            </h1>
+
+            <!-- Sub-Headline -->
+            <p class="text-base sm:text-lg text-slate-muted font-normal leading-relaxed max-w-2xl">
+              Meet StyleFlo’s 24/7 AI Receptionist. It automatically answers phone calls, website inquiries, Instagram DMs, and WhatsApp messages—booking appointments straight into Google Calendar, Booksy, or SalonIQ in under a second.
+            </p>
+
+            <!-- Action Buttons -->
+            <div class="flex flex-col sm:flex-row items-stretch sm:items-center gap-4 w-full sm:w-auto pt-2">
+              <a href="#pricing" class="inline-flex items-center justify-center text-base font-bold text-white bg-amethyst hover:bg-amethyst-dark rounded-full px-8 py-4 shadow-lg shadow-amethyst/30 hover:shadow-xl hover:shadow-amethyst/40 transition-all duration-200 transform hover:-translate-y-0.5 gap-2 group">
+                <span>Start Free Trial (1st Month Free)</span>
+                <i data-lucide="arrow-right" class="w-5 h-5 group-hover:translate-x-1 transition-transform"></i>
+              </a>
+
+              <button onclick="openVoiceModal()" class="inline-flex items-center justify-center text-base font-semibold text-slate-body bg-white hover:bg-slate-ash/40 border border-slate-accent/40 rounded-full px-6 py-4 shadow-sm hover:border-amethyst transition-all duration-200 gap-2.5">
+                <span class="w-7 h-7 rounded-full bg-amethyst-soft flex items-center justify-center text-amethyst">
+                  <i data-lucide="volume-2" class="w-4 h-4 fill-current"></i>
+                </span>
+                <span>Listen to Voice AI Demo</span>
+              </button>
+            </div>
+
+            <!-- Frictionless Trust Badges -->
+            <div class="pt-6 border-t border-slate-ash/80 w-full">
+              <div class="flex flex-wrap items-center gap-y-3 gap-x-6 text-xs sm:text-sm font-semibold text-slate-body">
+                <div class="flex items-center gap-1.5">
+                  <i data-lucide="check-circle-2" class="w-4.5 h-4.5 text-emerald-600"></i>
+                  <span>1 Month Free (All Plans)</span>
+                </div>
+                <div class="flex items-center gap-1.5">
+                  <i data-lucide="shield-check" class="w-4.5 h-4.5 text-amethyst"></i>
+                  <span>UK GDPR Compliant (London GCP)</span>
+                </div>
+                <div class="flex items-center gap-1.5">
+                  <i data-lucide="clock" class="w-4.5 h-4.5 text-amethyst"></i>
+                  <span>Setup in under 5 Minutes</span>
+                </div>
+              </div>
+            </div>
+
+          </div>
+
+          <!-- Right Column: Interactive AI Call & Booking Preview Card (40%) -->
+          <div class="lg:col-span-5 relative">
+            <div class="bg-white rounded-3xl shadow-soft-elevated border border-slate-ash p-5 sm:p-6 space-y-4">
+              
+              <!-- Card Header -->
+              <div class="flex items-center justify-between pb-3 border-b border-slate-ash">
+                <div class="flex items-center gap-3">
+                  <div class="w-10 h-10 rounded-full bg-gradient-to-br from-amethyst to-amethyst-dark text-white flex items-center justify-center font-bold text-sm shadow-md">
+                    <i data-lucide="phone-call" class="w-5 h-5"></i>
+                  </div>
+                  <div>
+                    <h3 class="font-bold text-sm text-slate-body">StyleFlo AI Receptionist</h3>
+                    <p class="text-xs text-slate-muted">Live Telephony & Chat Node</p>
+                  </div>
+                </div>
+                <span class="bg-emerald-100 text-emerald-800 text-[11px] font-bold px-2.5 py-1 rounded-full flex items-center gap-1">
+                  <span class="w-1.5 h-1.5 bg-emerald-500 rounded-full live-pulse"></span> 24/7 Active
+                </span>
+              </div>
+
+              <!-- Live Call Metrics Block -->
+              <div class="grid grid-cols-2 gap-3">
+                <div class="bg-pearl p-3.5 rounded-xl border border-slate-ash">
+                  <p class="text-[11px] text-slate-muted uppercase font-bold tracking-wider">Answer Rate</p>
+                  <p class="text-xl font-bold text-slate-body mt-0.5">100% ⚡</p>
+                  <p class="text-[10px] text-emerald-600 font-semibold mt-1">Zero missed calls</p>
+                </div>
+
+                <div class="bg-pearl p-3.5 rounded-xl border border-slate-ash">
+                  <p class="text-[11px] text-slate-muted uppercase font-bold tracking-wider">Avg Latency</p>
+                  <p class="text-xl font-bold text-slate-body mt-0.5">&lt;400ms</p>
+                  <p class="text-[10px] text-amethyst font-semibold mt-1">Human-like inflection</p>
+                </div>
+              </div>
+
+              <!-- Conversation Simulation -->
+              <div class="bg-amethyst-surface rounded-2xl p-4 border border-amethyst/20 space-y-3 text-xs">
+                <div class="flex items-start gap-2.5">
+                  <span class="w-6 h-6 rounded-full bg-slate-body text-white font-bold flex items-center justify-center shrink-0 text-[10px]">CALL</span>
+                  <div class="bg-white p-2.5 rounded-xl text-slate-body shadow-sm border border-slate-ash">
+                    "Hi! Do you have any open slots for a cut & balayage this Saturday?"
+                  </div>
+                </div>
+
+                <div class="flex items-start gap-2.5 justify-end">
+                  <div class="bg-amethyst text-white p-2.5 rounded-xl shadow-sm max-w-[88%] leading-relaxed">
+                    "Hello! Yes, Michael has a 2:30 PM opening this Saturday. Would you like me to book that into our calendar for you?"
+                  </div>
+                  <span class="w-6 h-6 rounded-full bg-amethyst-dark text-white font-bold flex items-center justify-center shrink-0 text-[10px]">AI</span>
+                </div>
+              </div>
+
+              <!-- Calendar Direct Sync Banner -->
+              <div class="bg-slate-body text-white p-3.5 rounded-xl flex items-center justify-between text-xs">
+                <div class="flex items-center gap-2">
+                  <i data-lucide="calendar-check" class="w-4 h-4 text-emerald-400"></i>
+                  <span>Direct Google Calendar & Booksy Handoff</span>
+                </div>
+                <span class="bg-emerald-500/20 text-emerald-300 font-mono text-[10px] font-bold px-2 py-0.5 rounded">Synced</span>
+              </div>
+
+            </div>
+          </div>
+
+        </div>
+      </div>
+    </section>
+
+    <!-- 2. WHY CHOOSE STYLEFLO (FASTHOSTS SPARK BENCHMARK) -->
+    <section id="features" class="py-16 md:py-24 bg-white border-b border-slate-ash">
+      <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        
+        <div class="text-center max-w-3xl mx-auto mb-16">
+          <span class="text-xs font-bold tracking-widest text-amethyst uppercase bg-amethyst-soft px-3 py-1 rounded-full">Built for Local Businesses & Salons</span>
+          <h2 class="heading-poppins text-3xl sm:text-4xl font-bold text-slate-body mt-3">
+            Not Your Average Phone Answering Service
+          </h2>
+          <p class="text-slate-muted mt-3 text-base">
+            Legacy call centers charge high per-minute fees and leave callers on hold. StyleFlo is your intelligent 24/7 AI front-desk that qualifies, answers, and books automatically.
+          </p>
+        </div>
+
+        <!-- 3-Column Feature Grid -->
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-8">
+          
+          <!-- Feature 1 -->
+          <div class="bg-pearl rounded-2xl p-8 border border-slate-ash shadow-card hover:shadow-soft-elevated transition-all">
+            <div class="w-12 h-12 rounded-xl bg-purple-100 text-amethyst flex items-center justify-center mb-6 font-bold">
+              <i data-lucide="phone-call" class="w-6 h-6"></i>
+            </div>
+            <h3 class="heading-poppins text-xl font-bold text-slate-body mb-3">24/7 Phone & Message Answering</h3>
+            <p class="text-slate-muted text-sm leading-relaxed">
+              Never let a missed call go to a competitor. StyleFlo greets callers instantly with 4 natural British voice accents to choose from (with more being added all the time). Name your own concierge, answer FAQs, and book clients 24/7.
+            </p>
+          </div>
+
+          <!-- Feature 2 -->
+          <div class="bg-pearl rounded-2xl p-8 border border-slate-ash shadow-card hover:shadow-soft-elevated transition-all">
+            <div class="w-12 h-12 rounded-xl bg-blue-100 text-blue-700 flex items-center justify-center mb-6 font-bold">
+              <i data-lucide="calendar" class="w-6 h-6"></i>
+            </div>
+            <h3 class="heading-poppins text-xl font-bold text-slate-body mb-3">Direct Calendar Sync & Handoff</h3>
+            <p class="text-slate-muted text-sm leading-relaxed">
+              Seamless two-way integration with Google Calendar, OR keep your existing booking software including Booksy, SalonIQ, etc. Reads live availability, respects staff rotas, and locks slots with zero duplicate risk.
+            </p>
+          </div>
+
+          <!-- Feature 3 -->
+          <div class="bg-pearl rounded-2xl p-8 border border-slate-ash shadow-card hover:shadow-soft-elevated transition-all">
+            <div class="w-12 h-12 rounded-xl bg-emerald-100 text-emerald-700 flex items-center justify-center mb-6 font-bold">
+              <i data-lucide="message-square" class="w-6 h-6"></i>
+            </div>
+            <h3 class="heading-poppins text-xl font-bold text-slate-body mb-3">Omnichannel Social Concierge</h3>
+            <p class="text-slate-muted text-sm leading-relaxed">
+              Automatically reply to Instagram DMs, Story mentions, WhatsApp inquiries, and website chat widgets within sub-600ms streaming 
+              <span class="relative group inline-block cursor-help font-bold text-slate-body underline decoration-dotted decoration-amethyst underline-offset-2">
+                RAG
+                <span class="absolute bottom-full left-1/2 -translate-x-1/2 mb-2.5 hidden group-hover:block w-72 bg-slate-body text-white text-xs rounded-xl p-3.5 shadow-2xl z-50 pointer-events-none leading-relaxed border border-slate-700 font-normal text-left">
+                  <strong class="text-amethyst-light font-bold block mb-1 text-xs">💡 What is RAG?</strong>
+                  <strong class="font-bold">Retrieval-Augmented Generation (RAG)</strong> is a cutting-edge AI technique that searches your exact business documentation, pricing menus, and rules in real-time. It enables the AI to answer customer questions with 100% factual accuracy and zero hallucinations.
+                  <span class="absolute top-full left-1/2 -translate-x-1/2 border-4 border-transparent border-t-slate-body"></span>
+                </span>
+              </span> 
+              response times.
+            </p>
+          </div>
+
+        </div>
+
+      </div>
+    </section>
+
+    <!-- 3. STYLEFLO CHATBOT EMBED SHOWCASE -->
+    <section id="playground" class="py-16 md:py-24 bg-pearl border-b border-slate-ash">
+      <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        
+        <div class="text-center max-w-3xl mx-auto mb-14">
+          <span class="text-xs font-bold tracking-widest text-amethyst uppercase bg-amethyst-soft px-3.5 py-1.5 rounded-full">Turnkey Web Integration</span>
+          <h2 class="heading-poppins text-3xl sm:text-4xl font-bold text-slate-body mt-3">
+            The StyleFlo Chatbot Embed
+          </h2>
+          <p class="text-slate-muted mt-2 text-base">
+            Drop our lightweight, shadow DOM chatbot snippet onto any website in under 60 seconds. Trained on your business documentation with sub-600ms streaming 
+            <span class="relative group inline-block cursor-help font-bold text-slate-body underline decoration-dotted decoration-amethyst underline-offset-2">
+              RAG
+              <span class="absolute bottom-full left-1/2 -translate-x-1/2 mb-2.5 hidden group-hover:block w-72 bg-slate-body text-white text-xs rounded-xl p-3.5 shadow-2xl z-50 pointer-events-none leading-relaxed border border-slate-700 font-normal text-left">
+                <strong class="text-amethyst-light font-bold block mb-1 text-xs">💡 What is RAG?</strong>
+                <strong class="font-bold">Retrieval-Augmented Generation (RAG)</strong> is an AI architecture that securely indexes your business rules, prices, and FAQs, letting the AI respond with 100% factual accuracy and zero guesswork.
+                <span class="absolute top-full left-1/2 -translate-x-1/2 border-4 border-transparent border-t-slate-body"></span>
+              </span>
+            </span>.
+          </p>
+        </div>
+
+        <div class="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start max-w-6xl mx-auto">
+          
+          <!-- Left Column: Code Embed Snippet & Features (5 Columns) -->
+          <div class="lg:col-span-5 space-y-6">
+            
+            <div class="bg-slate-body text-white rounded-2xl p-5 border border-slate-700 shadow-lg font-mono text-xs space-y-3">
+              <div class="flex items-center justify-between border-b border-slate-700 pb-2.5">
+                <div class="flex items-center gap-2">
+                  <span class="w-3 h-3 rounded-full bg-red-400"></span>
+                  <span class="w-3 h-3 rounded-full bg-yellow-400"></span>
+                  <span class="w-3 h-3 rounded-full bg-green-400"></span>
+                  <span class="text-[11px] text-slate-400 font-sans ml-1">StyleFlo Live Embed Code</span>
+                </div>
+                <button onclick="navigator.clipboard.writeText('&lt;div id=&quot;styleflo-chatbot-container&quot; style=&quot;width: 100%; height: 500px;&quot;&gt;&lt;/div&gt;\n&lt;script src=&quot;https://app.styleflo.ai/embed.js&quot; data-api-host=&quot;https://app.styleflo.ai&quot; data-bot-id=&quot;9825855e-d478-443f-b75c-6c0d77039ca6&quot; data-container-id=&quot;styleflo-chatbot-container&quot;&gt;&lt;/script&gt;')" class="text-[11px] bg-amethyst hover:bg-amethyst-dark text-white px-2.5 py-1 rounded font-sans font-bold transition-colors">
+                  Copy Snippet
+                </button>
+              </div>
+
+              <pre class="text-purple-300 overflow-x-auto leading-relaxed text-[11px]"><code><span class="text-slate-400">&lt;!-- StyleFlo Inline Embed --&gt;</span>
+&lt;<span class="text-pink-400">div</span> <span class="text-emerald-300">id</span>=<span class="text-yellow-200">"styleflo-chatbot-container"</span> <span class="text-emerald-300">style</span>=<span class="text-yellow-200">"width: 100%; height: 500px;"</span>&gt;&lt;/<span class="text-pink-400">div</span>&gt;
+&lt;<span class="text-pink-400">script</span>
+  <span class="text-emerald-300">src</span>=<span class="text-yellow-200">"https://app.styleflo.ai/embed.js"</span>
+  <span class="text-emerald-300">data-api-host</span>=<span class="text-yellow-200">"https://app.styleflo.ai"</span>
+  <span class="text-emerald-300">data-bot-id</span>=<span class="text-yellow-200">"9825855e-d478-443f-b75c-6c0d77039ca6"</span>
+  <span class="text-emerald-300">data-container-id</span>=<span class="text-yellow-200">"styleflo-chatbot-container"</span>&gt;
+&lt;/<span class="text-pink-400">script</span>&gt;</code></pre>
+            </div>
+
+            <!-- 5-Minute Onboarding Callout Box -->
+            <div class="bg-purple-50 border border-amethyst/30 rounded-2xl p-4 flex items-center gap-3.5 shadow-sm text-xs">
+              <div class="w-9 h-9 rounded-xl bg-amethyst text-white flex items-center justify-center shrink-0 font-bold shadow-sm">
+                <i data-lucide="clock" class="w-5 h-5"></i>
+              </div>
+              <div>
+                <h5 class="font-bold text-slate-body text-xs">⚡ Ready in Just 5 Minutes!</h5>
+                <p class="text-slate-muted mt-0.5 leading-relaxed">
+                  Your custom embed code will be generated and ready to copy & paste in <strong>just 5 minutes</strong> after setting up your account.
+                </p>
+              </div>
+            </div>
+
+            <!-- Embed Specs List -->
+            <div class="space-y-3.5 text-xs text-slate-body">
+              <div class="flex items-start gap-3 bg-white p-3.5 rounded-xl border border-slate-ash shadow-sm">
+                <div class="w-7 h-7 rounded-lg bg-purple-100 text-amethyst flex items-center justify-center shrink-0 font-bold">
+                  <i data-lucide="layers" class="w-4 h-4"></i>
+                </div>
+                <div>
+                  <h4 class="font-bold text-slate-body">Live Beta Assistant Integration</h4>
+                  <p class="text-slate-muted mt-0.5">Connected directly to StyleFlo production engine (Bot ID: <code class="bg-slate-100 px-1 py-0.5 rounded font-mono text-[10px]">9825855e</code>).</p>
+                </div>
+              </div>
+
+              <div class="flex items-start gap-3 bg-white p-3.5 rounded-xl border border-slate-ash shadow-sm">
+                <div class="w-7 h-7 rounded-lg bg-emerald-100 text-emerald-700 flex items-center justify-center shrink-0 font-bold">
+                  <i data-lucide="zap" class="w-4 h-4"></i>
+                </div>
+                <div>
+                  <h4 class="font-bold text-slate-body">Sub-600ms Streaming RAG</h4>
+                  <p class="text-slate-muted mt-0.5">Answers price, service, and location questions instantly with zero hallucinations.</p>
+                </div>
+              </div>
+
+              <div class="flex items-start gap-3 bg-white p-3.5 rounded-xl border border-slate-ash shadow-sm">
+                <div class="w-7 h-7 rounded-lg bg-blue-100 text-blue-700 flex items-center justify-center shrink-0 font-bold">
+                  <i data-lucide="calendar-check" class="w-4 h-4"></i>
+                </div>
+                <div>
+                  <h4 class="font-bold text-slate-body">Intent Redirection Handoff</h4>
+                  <p class="text-slate-muted mt-0.5">Qualifies client service needs and logs bookings directly into your calendar software.</p>
+                </div>
+              </div>
+            </div>
+
+          </div>
+
+          <!-- Right Column: Live StyleFlo Chatbot Embed Container (7 Columns) -->
+          <div class="lg:col-span-7">
+            
+            <div class="bg-white rounded-3xl border border-amethyst/30 shadow-soft-elevated overflow-hidden p-1">
+              
+              <!-- EXACT LIVE STYLEFLO EMBED CODE -->
+              <div id="styleflo-chatbot-container" style="width: 100%; height: 550px; border-radius: 1.25rem; overflow: hidden;"></div>
+              <script
+                src="https://app.styleflo.ai/embed.js"
+                data-api-host="https://app.styleflo.ai"
+                data-bot-id="9825855e-d478-443f-b75c-6c0d77039ca6"
+                data-container-id="styleflo-chatbot-container">
+              </script>
+
+            </div>
+
+          </div>
+
+        </div>
+
+      </div>
+    </section>
+
+    <!-- 4. HOW IT WORKS IN 3 STEPS -->
+    <section id="how-it-works" class="py-16 md:py-24 bg-white border-b border-slate-ash">
+      <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        
+        <div class="text-center max-w-3xl mx-auto mb-16">
+          <span class="text-xs font-bold tracking-widest text-amethyst uppercase bg-amethyst-soft px-3 py-1 rounded-full">Simple Setup</span>
+          <h2 class="heading-poppins text-3xl sm:text-4xl font-bold text-slate-body mt-3">
+            Three Steps to Put Your Reception on Autopilot
+          </h2>
+        </div>
+
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-8">
+          
+          <div class="bg-pearl p-8 rounded-2xl border border-slate-ash relative">
+            <div class="w-10 h-10 rounded-xl bg-amethyst text-white font-black flex items-center justify-center mb-6 text-lg">1</div>
+            <h3 class="heading-poppins text-lg font-bold text-slate-body mb-2">Upload Your Knowledge</h3>
+            <p class="text-xs sm:text-sm text-slate-muted leading-relaxed">
+              Paste your website URL, upload a PDF, copy & paste into a text box, or type directly. StyleFlo extracts service details and guidelines automatically in seconds.
+            </p>
+          </div>
+
+          <div class="bg-pearl p-8 rounded-2xl border border-slate-ash relative">
+            <div class="w-10 h-10 rounded-xl bg-amethyst text-white font-black flex items-center justify-center mb-6 text-lg">2</div>
+            <h3 class="heading-poppins text-lg font-bold text-slate-body mb-2">Connect Your Calendar</h3>
+            <p class="text-xs sm:text-sm text-slate-muted leading-relaxed">
+              Link your Google Calendar, or add the URL for your preferred booking tool (Booksy, SalonIQ, etc.). StyleFlo maps staff shifts and pricing matrices automatically.
+            </p>
+          </div>
+
+          <div class="bg-pearl p-8 rounded-2xl border border-slate-ash relative">
+            <div class="w-10 h-10 rounded-xl bg-amethyst text-white font-black flex items-center justify-center mb-6 text-lg">3</div>
+            <h3 class="heading-poppins text-lg font-bold text-slate-body mb-2">Go Live & Claim Free Month</h3>
+            <p class="text-xs sm:text-sm text-slate-muted leading-relaxed">
+              Activate your dedicated UK phone line, website chat widget, or Instagram DM listening node. Enjoy your 1st Month FREE on all plans!
+            </p>
+          </div>
+
+        </div>
+
+      </div>
+    </section>
+
+    <!-- 5. PRICING SECTION (FASTHOSTS BENCHMARK + 1ST MONTH FREE PROMO) -->
+    <section id="pricing" class="py-16 md:py-24 bg-pearl border-b border-slate-ash">
+      <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        
+        <div class="text-center max-w-3xl mx-auto mb-12">
+          <span class="text-xs font-bold tracking-widest text-amethyst uppercase bg-amethyst-soft px-3 py-1.5 rounded-full">Transparent SaaS Pricing</span>
+          <h2 class="heading-poppins text-3xl sm:text-4xl font-bold text-slate-body mt-3">
+            Choose Your AI Receptionist Plan
+          </h2>
+          <p class="text-slate-muted mt-2 text-base">
+            🎁 <strong>Special Promotion:</strong> Get your <strong>1st Month FREE</strong> on ALL plans! (No commitment, cancel anytime).
+          </p>
+
+          <!-- Billing Toggle -->
+          <div class="flex items-center justify-center gap-4 mt-8">
+            <span id="billing-monthly-label" class="text-sm font-bold text-slate-body">Monthly Billing</span>
+            <button id="billing-toggle" onclick="toggleBillingPeriod()" class="w-14 h-8 bg-amethyst rounded-full p-1 transition-colors relative focus:outline-none">
+              <div id="billing-toggle-dot" class="w-6 h-6 bg-white rounded-full shadow-md transform transition-transform duration-200"></div>
+            </button>
+            <div class="flex items-center gap-1.5">
+              <span id="billing-annual-label" class="text-sm font-medium text-slate-muted">Annual Billing</span>
+              <span class="text-[10px] font-bold text-emerald-700 bg-emerald-100 px-2 py-0.5 rounded-full">Save 20%</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- 4-Tier Pricing Grid -->
+        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-12">
+          
+          <!-- Basic Tier (£5.99/mo | £59.90/yr) -->
+          <div class="bg-white rounded-2xl p-6 border-2 border-emerald-500/50 flex flex-col justify-between shadow-sm relative">
+            <span class="absolute -top-3 left-1/2 -translate-x-1/2 bg-emerald-600 text-white text-[10px] uppercase font-black tracking-wider px-3 py-0.5 rounded-full shadow-sm">
+              🎉 1ST MONTH FREE
+            </span>
+            <div>
+              <div class="flex items-center justify-between mb-2">
+                <h3 class="font-bold text-lg text-slate-body">Basic Tier</h3>
+                <span class="text-[10px] font-bold text-emerald-700 bg-emerald-100 px-2 py-0.5 rounded">Free Month</span>
+              </div>
+              <p class="text-xs text-slate-muted min-h-[32px]">Solo Stylists & Starters</p>
+              
+              <div class="my-5">
+                <div class="flex items-baseline gap-2">
+                  <span class="text-3xl font-bold text-emerald-600">£0</span>
+                  <span class="text-xs font-bold text-slate-muted line-through price-value" data-monthly="£5.99" data-annual="£59.90">£5.99</span>
+                  <span class="text-xs text-slate-muted price-unit">/ 1st month</span>
+                </div>
+                <p class="text-[10px] text-slate-accent mt-1 price-sub" data-monthly="Then £5.99/mo thereafter" data-annual="Then £59.90/yr thereafter (billed annually)">Then £5.99/mo thereafter</p>
+              </div>
+
+              <ul class="text-xs text-slate-body space-y-2.5 mb-6">
+                <li class="flex items-center gap-2"><i data-lucide="check" class="w-4 h-4 text-amethyst"></i> 1,000 messages / mo</li>
+                <li class="flex items-center gap-2">
+                  <i data-lucide="check" class="w-4 h-4 text-amethyst"></i> 
+                  <span>50 
+                    <span class="relative group inline-block cursor-help font-semibold text-slate-body underline decoration-dotted decoration-amethyst underline-offset-2">
+                      Vector Chunks
+                      <span class="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 hidden group-hover:block w-64 bg-slate-body text-white text-[11px] rounded-xl p-3 shadow-2xl z-50 pointer-events-none leading-relaxed border border-slate-700 font-normal text-left">
+                        <strong class="text-amethyst-light font-bold block mb-1 text-xs">🧠 What are Vector Chunks?</strong>
+                        Vector Chunks are indexed fragments of your business rules, prices, and FAQs. They allow the AI to retrieve precise, 100% factual answers instantly.
+                        <span class="absolute top-full left-1/2 -translate-x-1/2 border-4 border-transparent border-t-slate-body"></span>
+                      </span>
+                    </span>
+                  </span>
+                </li>
+                <li class="flex items-center gap-2"><i data-lucide="check" class="w-4 h-4 text-amethyst"></i> Web Chat Widget</li>
+                <li class="flex items-center gap-2">
+                  <i data-lucide="check" class="w-4 h-4 text-amethyst"></i> 
+                  <span class="relative group inline-block cursor-help font-semibold text-slate-body underline decoration-dotted decoration-emerald-500 underline-offset-2">
+                    Automated Lead Capture
+                    <span class="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 hidden group-hover:block w-64 bg-slate-body text-white text-[11px] rounded-xl p-3 shadow-2xl z-50 pointer-events-none leading-relaxed border border-slate-700 font-normal text-left">
+                      <strong class="text-emerald-400 font-bold block mb-1 text-xs">📩 Instant Lead Alerts</strong>
+                      You will receive an email with the user contact details and the nature of the enquiry.
+                      <span class="absolute top-full left-1/2 -translate-x-1/2 border-4 border-transparent border-t-slate-body"></span>
+                    </span>
+                  </span>
+                </li>
+                <li class="flex items-center gap-2"><i data-lucide="check" class="w-4 h-4 text-amethyst"></i> Self-Serve Ingestion</li>
+                <li class="flex items-center gap-2"><i data-lucide="check" class="w-4 h-4 text-amethyst"></i> Full visibility of all chats, inc. voice in our dashboard</li>
+              </ul>
+            </div>
+
+            <a href="https://app.styleflo.ai/register?plan=basic&promo=1monthfree" class="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs py-3 rounded-xl text-center transition-colors shadow-sm">
+              Claim 1st Month Free
+            </a>
+          </div>
+
+          <!-- Starter / Standard Tier (£29/mo | £290/yr) -->
+          <div class="bg-white rounded-2xl p-6 border-2 border-amethyst/60 flex flex-col justify-between shadow-card relative">
+            <span class="absolute -top-3 left-1/2 -translate-x-1/2 bg-emerald-600 text-white text-[10px] uppercase font-black tracking-wider px-3 py-0.5 rounded-full shadow-sm">
+              🎉 1ST MONTH FREE
+            </span>
+            <div>
+              <div class="flex items-center justify-between mb-2">
+                <h3 class="font-bold text-lg text-slate-body">Starter Tier</h3>
+                <span class="text-[10px] font-bold text-emerald-700 bg-emerald-100 px-2 py-0.5 rounded">Free Month</span>
+              </div>
+              <p class="text-xs text-slate-muted min-h-[32px]">Growing Independent Salons</p>
+              
+              <div class="my-5">
+                <div class="flex items-baseline gap-2">
+                  <span class="text-3xl font-bold text-emerald-600">£0</span>
+                  <span class="text-xs font-bold text-slate-muted line-through price-value" data-monthly="£29" data-annual="£290">£29</span>
+                  <span class="text-xs text-slate-muted price-unit">/ 1st month</span>
+                </div>
+                <p class="text-[10px] text-slate-accent mt-1 price-sub" data-monthly="Then £29/mo thereafter" data-annual="Then £290/yr thereafter (billed annually)">Then £29/mo thereafter</p>
+              </div>
+
+              <ul class="text-xs text-slate-body space-y-2.5 mb-6">
+                <li class="flex items-center gap-2"><i data-lucide="check" class="w-4 h-4 text-amethyst"></i> 5,000 messages / mo</li>
+                <li class="flex items-center gap-2">
+                  <i data-lucide="check" class="w-4 h-4 text-amethyst"></i> 
+                  <span>1,000 
+                    <span class="relative group inline-block cursor-help font-semibold text-slate-body underline decoration-dotted decoration-amethyst underline-offset-2">
+                      Vector Chunks
+                      <span class="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 hidden group-hover:block w-64 bg-slate-body text-white text-[11px] rounded-xl p-3 shadow-2xl z-50 pointer-events-none leading-relaxed border border-slate-700 font-normal text-left">
+                        <strong class="text-amethyst-light font-bold block mb-1 text-xs">🧠 What are Vector Chunks?</strong>
+                        Vector Chunks are indexed fragments of your business rules, prices, and FAQs. They allow the AI to retrieve precise, 100% factual answers instantly.
+                        <span class="absolute top-full left-1/2 -translate-x-1/2 border-4 border-transparent border-t-slate-body"></span>
+                      </span>
+                    </span>
+                  </span>
+                </li>
+                <li class="flex items-center gap-2"><i data-lucide="check" class="w-4 h-4 text-amethyst"></i> 1 Calendar Connection</li>
+                <li class="flex items-center gap-2"><i data-lucide="check" class="w-4 h-4 text-amethyst"></i> 3 Staff Rotas / Seats</li>
+                <li class="flex items-center gap-2"><i data-lucide="check" class="w-4 h-4 text-amethyst"></i> 15 Products / Services</li>
+                <li class="flex items-center gap-2"><i data-lucide="check" class="w-4 h-4 text-amethyst"></i> 4 British Voice Accents (30m)</li>
+                <li class="flex items-center gap-2">
+                  <i data-lucide="check" class="w-4 h-4 text-amethyst"></i> 
+                  <span class="relative group inline-block cursor-help font-semibold text-slate-body underline decoration-dotted decoration-emerald-500 underline-offset-2">
+                    Automated Lead Capture
+                    <span class="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 hidden group-hover:block w-64 bg-slate-body text-white text-[11px] rounded-xl p-3 shadow-2xl z-50 pointer-events-none leading-relaxed border border-slate-700 font-normal text-left">
+                      <strong class="text-emerald-400 font-bold block mb-1 text-xs">📩 Instant Lead Alerts</strong>
+                      You will receive an email with the user contact details and the nature of the enquiry.
+                      <span class="absolute top-full left-1/2 -translate-x-1/2 border-4 border-transparent border-t-slate-body"></span>
+                    </span>
+                  </span>
+                </li>
+                <li class="flex items-center gap-2"><i data-lucide="check" class="w-4 h-4 text-amethyst"></i> Full visibility of all chats, inc. voice in our dashboard</li>
+              </ul>
+            </div>
+
+            <a href="https://app.styleflo.ai/register?plan=starter&promo=1monthfree" class="w-full bg-amethyst hover:bg-amethyst-dark text-white font-bold text-xs py-3 rounded-xl text-center transition-colors shadow-md">
+              Claim 1st Month Free
+            </a>
+          </div>
+
+          <!-- Premium Tier (£79/mo | £790/yr - FEATURED!) -->
+          <div class="bg-white rounded-2xl p-6 border-2 border-amethyst shadow-glow flex flex-col justify-between relative transform lg:-translate-y-2">
+            <span class="absolute -top-3 left-1/2 -translate-x-1/2 bg-gradient-to-r from-amethyst-dark to-amethyst text-white text-[10px] uppercase font-black tracking-wider px-3.5 py-0.5 rounded-full shadow-md">
+              🔥 MOST POPULAR — 1ST MONTH FREE
+            </span>
+            <div>
+              <div class="flex items-center justify-between mb-2">
+                <h3 class="font-bold text-lg text-slate-body">Premium Tier</h3>
+                <span class="text-[10px] font-bold text-purple-700 bg-purple-100 px-2 py-0.5 rounded">Free Month</span>
+              </div>
+              <p class="text-xs text-slate-muted min-h-[32px]">High-Volume & Multi-Chair Salons</p>
+              
+              <div class="my-5">
+                <div class="flex items-baseline gap-2">
+                  <span class="text-3xl font-bold text-emerald-600">£0</span>
+                  <span class="text-xs font-bold text-slate-muted line-through price-value" data-monthly="£79" data-annual="£790">£79</span>
+                  <span class="text-xs text-slate-muted price-unit">/ 1st month</span>
+                </div>
+                <p class="text-[10px] text-slate-accent mt-1 price-sub" data-monthly="Then £79/mo thereafter" data-annual="Then £790/yr thereafter (billed annually)">Then £79/mo thereafter</p>
+              </div>
+
+              <ul class="text-xs text-slate-body space-y-2.5 mb-6">
+                <li class="flex items-center gap-2"><i data-lucide="check" class="w-4 h-4 text-amethyst"></i> 15,000 messages / mo</li>
+                <li class="flex items-center gap-2">
+                  <i data-lucide="check" class="w-4 h-4 text-amethyst"></i> 
+                  <span>5,000 
+                    <span class="relative group inline-block cursor-help font-semibold text-slate-body underline decoration-dotted decoration-amethyst underline-offset-2">
+                      Vector Chunks
+                      <span class="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 hidden group-hover:block w-64 bg-slate-body text-white text-[11px] rounded-xl p-3 shadow-2xl z-50 pointer-events-none leading-relaxed border border-slate-700 font-normal text-left">
+                        <strong class="text-amethyst-light font-bold block mb-1 text-xs">🧠 What are Vector Chunks?</strong>
+                        Vector Chunks are indexed fragments of your business rules, prices, and FAQs. They allow the AI to retrieve precise, 100% factual answers instantly.
+                        <span class="absolute top-full left-1/2 -translate-x-1/2 border-4 border-transparent border-t-slate-body"></span>
+                      </span>
+                    </span>
+                  </span>
+                </li>
+                <li class="flex items-center gap-2"><i data-lucide="check" class="w-4 h-4 text-amethyst"></i> 6 Calendar Connections</li>
+                <li class="flex items-center gap-2"><i data-lucide="check" class="w-4 h-4 text-amethyst"></i> 6 Staff Rotas / Seats</li>
+                <li class="flex items-center gap-2"><i data-lucide="check" class="w-4 h-4 text-amethyst"></i> StyleFlo Chatbot Footer Removed</li>
+                <li class="flex items-center gap-2"><i data-lucide="check" class="w-4 h-4 text-amethyst"></i> 50 Products / Services</li>
+                <li class="flex items-center gap-2"><i data-lucide="check" class="w-4 h-4 text-amethyst"></i> Dedicated Mobile Tel Number & WhatsApp</li>
+                <li class="flex items-center gap-2"><i data-lucide="check" class="w-4 h-4 text-amethyst"></i> 4 British Voice Accents (120m)</li>
+                <li class="flex items-center gap-2">
+                  <i data-lucide="check" class="w-4 h-4 text-amethyst"></i> 
+                  <span class="relative group inline-block cursor-help font-semibold text-slate-body underline decoration-dotted decoration-emerald-500 underline-offset-2">
+                    Automated Lead Capture
+                    <span class="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 hidden group-hover:block w-64 bg-slate-body text-white text-[11px] rounded-xl p-3 shadow-2xl z-50 pointer-events-none leading-relaxed border border-slate-700 font-normal text-left">
+                      <strong class="text-emerald-400 font-bold block mb-1 text-xs">📩 Instant Lead Alerts</strong>
+                      You will receive an email with the user contact details and the nature of the enquiry.
+                      <span class="absolute top-full left-1/2 -translate-x-1/2 border-4 border-transparent border-t-slate-body"></span>
+                    </span>
+                  </span>
+                </li>
+                <li class="flex items-center gap-2"><i data-lucide="check" class="w-4 h-4 text-amethyst"></i> Full visibility of all chats, inc. voice in our dashboard</li>
+              </ul>
+            </div>
+
+            <a href="https://app.styleflo.ai/register?plan=premium&promo=1monthfree" class="w-full bg-gradient-to-r from-amethyst-dark to-amethyst hover:from-amethyst hover:to-amethyst-dark text-white font-black text-xs py-3.5 rounded-xl text-center transition-all shadow-md">
+              Claim 1st Month Free
+            </a>
+          </div>
+
+          <!-- Ultimate Tier (POA) -->
+          <div class="bg-white rounded-2xl p-6 border border-slate-ash flex flex-col justify-between shadow-sm">
+            <div>
+              <div class="flex items-center justify-between mb-2">
+                <h3 class="font-bold text-lg text-slate-body">Ultimate Tier</h3>
+                <span class="text-[10px] font-bold text-slate-700 bg-slate-100 px-2 py-0.5 rounded">Enterprise</span>
+              </div>
+              <p class="text-xs text-slate-muted min-h-[32px]">Enterprise & Franchise Groups</p>
+              
+              <div class="my-5">
+                <span class="text-3xl font-bold text-slate-body price-value" data-monthly="POA" data-annual="POA">POA</span>
+                <p class="text-[10px] text-slate-accent mt-1 price-sub" data-monthly="Price On Application" data-annual="Bespoke Enterprise Billing">Price On Application</p>
+              </div>
+
+              <ul class="text-xs text-slate-body space-y-2.5 mb-6">
+                <li class="flex items-center gap-2"><i data-lucide="check" class="w-4 h-4 text-amethyst"></i> Unlimited Message Quotas</li>
+                <li class="flex items-center gap-2">
+                  <i data-lucide="check" class="w-4 h-4 text-amethyst"></i> 
+                  <span>Unlimited 
+                    <span class="relative group inline-block cursor-help font-semibold text-slate-body underline decoration-dotted decoration-amethyst underline-offset-2">
+                      Vector Chunks
+                      <span class="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 hidden group-hover:block w-64 bg-slate-body text-white text-[11px] rounded-xl p-3 shadow-2xl z-50 pointer-events-none leading-relaxed border border-slate-700 font-normal text-left">
+                        <strong class="text-amethyst-light font-bold block mb-1 text-xs">🧠 What are Vector Chunks?</strong>
+                        Vector Chunks are indexed fragments of your business rules, prices, and FAQs. They allow the AI to retrieve precise, 100% factual answers instantly.
+                        <span class="absolute top-full left-1/2 -translate-x-1/2 border-4 border-transparent border-t-slate-body"></span>
+                      </span>
+                    </span>
+                  </span>
+                </li>
+                <li class="flex items-center gap-2"><i data-lucide="check" class="w-4 h-4 text-amethyst"></i> Unlimited Staff Rotas & Syncs</li>
+                <li class="flex items-center gap-2"><i data-lucide="check" class="w-4 h-4 text-amethyst"></i> FloVoice & FloDial Infrastructure</li>
+                <li class="flex items-center gap-2"><i data-lucide="check" class="w-4 h-4 text-amethyst"></i> WhatsApp & IG DM Omni-Channel</li>
+                <li class="flex items-center gap-2"><i data-lucide="check" class="w-4 h-4 text-amethyst"></i> Bespoke API Integration</li>
+                <li class="flex items-center gap-2">
+                  <i data-lucide="check" class="w-4 h-4 text-amethyst"></i> 
+                  <span class="relative group inline-block cursor-help font-semibold text-slate-body underline decoration-dotted decoration-emerald-500 underline-offset-2">
+                    Automated Lead Capture
+                    <span class="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 hidden group-hover:block w-64 bg-slate-body text-white text-[11px] rounded-xl p-3 shadow-2xl z-50 pointer-events-none leading-relaxed border border-slate-700 font-normal text-left">
+                      <strong class="text-emerald-400 font-bold block mb-1 text-xs">📩 Instant Lead Alerts</strong>
+                      You will receive an email with the user contact details and the nature of the enquiry.
+                      <span class="absolute top-full left-1/2 -translate-x-1/2 border-4 border-transparent border-t-slate-body"></span>
+                    </span>
+                  </span>
+                </li>
+                <li class="flex items-center gap-2"><i data-lucide="check" class="w-4 h-4 text-amethyst"></i> Full visibility of all chats, inc. voice in our dashboard</li>
+                <li class="flex items-center gap-2"><i data-lucide="check" class="w-4 h-4 text-amethyst"></i> Dedicated Account Manager</li>
+              </ul>
+            </div>
+
+            <a href="mailto:sales@styleflo.ai?subject=Ultimate%20Tier%20POA%20Inquiry" class="w-full bg-slate-body hover:bg-slate-800 text-white font-bold text-xs py-3 rounded-xl text-center transition-colors">
+              Contact Sales (POA)
+            </a>
+          </div>
+
+        </div>
+
+      </div>
+    </section>
+
+    <!-- 6. FREQUENTLY ASKED QUESTIONS (FAQ) -->
+    <section id="faq" class="py-16 md:py-24 bg-white border-b border-slate-ash">
+      <div class="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
+        
+        <div class="text-center max-w-2xl mx-auto mb-14">
+          <span class="text-xs font-bold tracking-widest text-amethyst uppercase bg-amethyst-soft px-3 py-1 rounded-full">Got Questions?</span>
+          <h2 class="heading-poppins text-3xl sm:text-4xl font-bold text-slate-body mt-3">
+            Frequently Asked Questions
+          </h2>
+        </div>
+
+        <div class="space-y-4">
+          
+          <div class="bg-pearl rounded-2xl border border-slate-ash overflow-hidden">
+            <button onclick="toggleFaq(1)" class="w-full p-6 text-left font-bold text-slate-body text-base flex justify-between items-center hover:bg-slate-ash/20 transition-colors">
+              <span>How does the 1 Month Free trial work on all accounts?</span>
+              <i id="faq-icon-1" data-lucide="chevron-down" class="w-5 h-5 text-amethyst transition-transform"></i>
+            </button>
+            <div id="faq-content-1" class="hidden px-6 pb-6 text-sm text-slate-muted leading-relaxed">
+              When you sign up for any of our tiers, your first 30 days are 100% free with £0 charged upfront. You get full access to all features, staff calendar sync, and message quotas. After 30 days, your subscription transitions to standard billing unless canceled.
+            </div>
+          </div>
+
+          <div class="bg-pearl rounded-2xl border border-slate-ash overflow-hidden">
+            <button onclick="toggleFaq(2)" class="w-full p-6 text-left font-bold text-slate-body text-base flex justify-between items-center hover:bg-slate-ash/20 transition-colors">
+              <span>Can I change my calendar or booking software later?</span>
+              <i id="faq-icon-2" data-lucide="chevron-down" class="w-5 h-5 text-amethyst transition-transform"></i>
+            </button>
+            <div id="faq-content-2" class="hidden px-6 pb-6 text-sm text-slate-muted leading-relaxed">
+              Yes. StyleFlo’s "AI Front-Door" architecture decouples qualification from your scheduling vendor. You can switch from Booksy to Google Calendar or SalonIQ in under two minutes from your dashboard—without losing your custom trained rules.
+            </div>
+          </div>
+
+          <div class="bg-pearl rounded-2xl border border-slate-ash overflow-hidden">
+            <button onclick="toggleFaq(3)" class="w-full p-6 text-left font-bold text-slate-body text-base flex justify-between items-center hover:bg-slate-ash/20 transition-colors">
+              <span>How does the AI know my specific pricing and services?</span>
+              <i id="faq-icon-3" data-lucide="chevron-down" class="w-5 h-5 text-amethyst transition-transform"></i>
+            </button>
+            <div id="faq-content-3" class="hidden px-6 pb-6 text-sm text-slate-muted leading-relaxed">
+              Setup is self-serve. Simply paste your website URL, upload a PDF, copy & paste into a text box, or type directly. StyleFlo automatically crawls, indexes, and structures your pricing into vector coordinates so your AI receptionist answers with zero hallucinations.
+            </div>
+          </div>
+
+          <div class="bg-pearl rounded-2xl border border-slate-ash overflow-hidden">
+            <button onclick="toggleFaq(4)" class="w-full p-6 text-left font-bold text-slate-body text-base flex justify-between items-center hover:bg-slate-ash/20 transition-colors">
+              <span>What happens if I reach my monthly message limit?</span>
+              <i id="faq-icon-4" data-lucide="chevron-down" class="w-5 h-5 text-amethyst transition-transform"></i>
+            </button>
+            <div id="faq-content-4" class="hidden px-6 pb-6 text-sm text-slate-muted leading-relaxed">
+              StyleFlo triggers a notification once you reach 85% of your monthly quota. You can easily upgrade tiers or add a modular chunk/message boost pack from your billing control panel.
+            </div>
+          </div>
+
+          <div class="bg-pearl rounded-2xl border border-slate-ash overflow-hidden">
+            <button onclick="toggleFaq(5)" class="w-full p-6 text-left font-bold text-slate-body text-base flex justify-between items-center hover:bg-slate-ash/20 transition-colors">
+              <span>How do I cancel my plan if it's not for me?</span>
+              <i id="faq-icon-5" data-lucide="chevron-down" class="w-5 h-5 text-amethyst transition-transform"></i>
+            </button>
+            <div id="faq-content-5" class="hidden px-6 pb-6 text-sm text-slate-muted leading-relaxed">
+              You can cancel your plan at any time by cancelling your subscription charges. You will still be able to use your chatbot until the time your plan runs out.
+            </div>
+          </div>
+
+        </div>
+
+      </div>
+    </section>
+
+  </main>
+
+  <!-- MODAL: FLOVOICE DEMO -->
+  <div id="voice-modal" class="fixed inset-0 z-50 bg-slate-body/80 backdrop-blur-sm hidden flex items-center justify-center p-4">
+    <div class="bg-white rounded-3xl max-w-lg w-full p-6 sm:p-8 shadow-2xl border border-slate-ash relative space-y-6">
+      <button onclick="closeVoiceModal()" class="absolute top-4 right-4 text-slate-accent hover:text-slate-body p-2 rounded-full hover:bg-slate-ash/40 transition-colors">
+        <i data-lucide="x" class="w-5 h-5"></i>
+      </button>
+
+      <div class="text-center space-y-2">
+        <div class="w-12 h-12 rounded-full bg-amethyst-soft text-amethyst mx-auto flex items-center justify-center font-bold">
+          <i data-lucide="mic" class="w-6 h-6"></i>
+        </div>
+        <h3 class="heading-poppins text-2xl font-bold text-slate-body">FloVoice Audio Agent</h3>
+        <p class="text-xs text-slate-muted">Low-latency UK voice receptionist (4 natural British voice accents to choose from & custom concierge naming).</p>
+      </div>
+
+      <div class="bg-pearl p-6 rounded-2xl border border-slate-ash text-center space-y-4">
+        <div class="flex items-center justify-center gap-1.5 h-12">
+          <div class="w-1.5 bg-amethyst rounded-full animate-bounce h-6"></div>
+          <div class="w-1.5 bg-amethyst-dark rounded-full animate-bounce h-10" style="animation-delay: 0.1s"></div>
+          <div class="w-1.5 bg-amethyst rounded-full animate-bounce h-8" style="animation-delay: 0.2s"></div>
+          <div class="w-1.5 bg-amethyst-light rounded-full animate-bounce h-12" style="animation-delay: 0.3s"></div>
+        </div>
+        <p class="text-xs font-mono text-amethyst font-semibold">"Good afternoon! How can FloVoice help you today?"</p>
+      </div>
+
+      <button onclick="closeVoiceModal()" class="w-full bg-amethyst text-white font-bold text-sm py-3 rounded-xl hover:bg-amethyst-dark transition-colors">
+        Close Preview
+      </button>
+    </div>
+  </div>
+
+  <!-- JAVASCRIPT LOGIC -->
+  <script>
+    lucide.createIcons();
+
+    function toggleFaq(id) {
+      const content = document.getElementById(`faq-content-${id}`);
+      const icon = document.getElementById(`faq-icon-${id}`);
+      if (content.classList.contains('hidden')) {
+        content.classList.remove('hidden');
+        icon.style.transform = 'rotate(180deg)';
+      } else {
+        content.classList.add('hidden');
+        icon.style.transform = 'rotate(0deg)';
+      }
+    }
+
+    let isAnnual = false;
+    function toggleBillingPeriod() {
+      isAnnual = !isAnnual;
+      const dot = document.getElementById('billing-toggle-dot');
+      const monthlyLabel = document.getElementById('billing-monthly-label');
+      const annualLabel = document.getElementById('billing-annual-label');
+      const prices = document.querySelectorAll('.price-value');
+      const subs = document.querySelectorAll('.price-sub');
+
+      if (isAnnual) {
+        dot.style.transform = 'translateX(24px)';
+        monthlyLabel.classList.replace('font-bold', 'font-medium');
+        annualLabel.classList.replace('font-medium', 'font-bold');
+      } else {
+        dot.style.transform = 'translateX(0px)';
+        annualLabel.classList.replace('font-bold', 'font-medium');
+        monthlyLabel.classList.replace('font-medium', 'font-bold');
+      }
+
+      prices.forEach(el => {
+        const val = isAnnual ? el.getAttribute('data-annual') : el.getAttribute('data-monthly');
+        if (val) el.textContent = val;
+      });
+
+      subs.forEach(el => {
+        const val = isAnnual ? el.getAttribute('data-annual') : el.getAttribute('data-monthly');
+        if (val) el.textContent = val;
+      });
+
+      const units = document.querySelectorAll('.price-unit');
+      units.forEach(el => {
+        el.textContent = isAnnual ? '/ year' : '/ 1st month';
+      });
+    }
+
+    function openVoiceModal() {
+      document.getElementById('voice-modal').classList.remove('hidden');
+    }
+    function closeVoiceModal() {
+      document.getElementById('voice-modal').classList.add('hidden');
+    }
+  </script>
+
+  <!-- FLOATING STYLEFLO CHATBOT EMBED WIDGET (BOTTOM-RIGHT) -->
+  <div class="fixed bottom-6 right-6 z-50 flex items-center gap-3">
+    <a href="#playground" class="hidden sm:flex items-center gap-2 bg-white text-slate-body border border-slate-ash px-3.5 py-2 rounded-full shadow-xl text-xs font-bold hover:border-amethyst transition-colors">
+      <span class="w-2 h-2 rounded-full bg-emerald-500 live-pulse"></span>
+      <span>StyleFlo AI Chatbot</span>
+    </a>
+    <a href="#playground" class="w-14 h-14 rounded-full bg-gradient-to-br from-amethyst-dark to-amethyst text-white flex items-center justify-center shadow-2xl hover:scale-110 transition-transform duration-200 border-2 border-white">
+      <img src="https://styleflo.ai/wp-content/uploads/2026/07/icon.png" class="w-7 h-7 object-contain" alt="StyleFlo Chat" onerror="this.onerror=null; this.src='https://styleflo.ai/wp-content/uploads/2026/08/styleflo-og-share-card.jpg';">
+    </a>
+  </div>
+
+  <!-- WORDPRESS THEME FOOTER FUNCTION CALL -->
+  <?php get_footer(); ?>
+</body>
+</html>

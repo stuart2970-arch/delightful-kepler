@@ -914,8 +914,16 @@ const globalBotId = '00000000-0000-0000-0000-000000000000';
 
                 <form onSubmit={handleSaveAccountSettings} className="space-y-6">
                   {/* Custom Domain Card */}
-                  <div className="bg-white border border-[#f2f3f5] p-6 rounded-xl space-y-4">
-                    <h4 className="text-sm font-bold text-[#260475]">General Information</h4>
+                  <div className="bg-white border border-[#f2f3f5] p-6 rounded-xl space-y-4 shadow-sm">
+                    <div className="flex items-center gap-3 pb-3.5 border-b border-purple-100/80">
+                      <div className="w-9 h-9 rounded-xl bg-[#260475] text-white flex items-center justify-center text-base shadow-sm shrink-0">
+                        ⚙️
+                      </div>
+                      <div>
+                        <h4 className="text-base font-extrabold text-[#260475] tracking-tight">General Information</h4>
+                        <p className="text-[11px] text-gray-500 font-medium">Configure primary domain & public branding options</p>
+                      </div>
+                    </div>
                     <div>
                       <label className="block text-xs font-semibold text-[#212326] mb-1.5">Custom Domain</label>
                       <input
@@ -930,8 +938,16 @@ const globalBotId = '00000000-0000-0000-0000-000000000000';
                   </div>
 
                   {/* Trading Address Card */}
-                  <div className="bg-white border border-[#f2f3f5] p-6 rounded-xl space-y-4">
-                    <h4 className="text-sm font-bold text-[#260475]">Trading Address</h4>
+                  <div className="bg-white border border-[#f2f3f5] p-6 rounded-xl space-y-4 shadow-sm">
+                    <div className="flex items-center gap-3 pb-3.5 border-b border-purple-100/80">
+                      <div className="w-9 h-9 rounded-xl bg-[#260475] text-white flex items-center justify-center text-base shadow-sm shrink-0">
+                        📍
+                      </div>
+                      <div>
+                        <h4 className="text-base font-extrabold text-[#260475] tracking-tight">Trading Address</h4>
+                        <p className="text-[11px] text-gray-500 font-medium">Physical storefront location & phone routing details</p>
+                      </div>
+                    </div>
                     
                     <div className="bg-blue-50 border border-blue-200 p-4 rounded-xl space-y-1.5">
                       <p className="text-xs text-blue-900 flex items-center gap-1.5 font-bold">
@@ -989,108 +1005,26 @@ const globalBotId = '00000000-0000-0000-0000-000000000000';
                     </div>
                   </div>
 
-                  {/* Reserve with Google Mapping Card */}
-                  <div className="bg-white border border-[#f2f3f5] p-6 rounded-xl space-y-4">
-                    <div className="flex items-center justify-between">
-                      <h4 className="text-sm font-bold text-[#260475]">Reserve with Google Mapping</h4>
-                      <label className="flex items-center gap-2 cursor-pointer">
-                        <input
-                          type="checkbox"
-                          checked={rwgAddressSameAsTrading}
-                          onChange={(e) => setRwgAddressSameAsTrading(e.target.checked)}
-                          className="w-4 h-4 text-[#198fd9] bg-white border-[#f2f3f5] rounded focus:ring-[#198fd9]"
-                        />
-                        <span className="text-xs font-bold text-[#212326]">Same as Trading Address</span>
-                      </label>
-                    </div>
-
-                    <div className="bg-blue-50 border border-blue-200 p-4 rounded-xl space-y-1.5">
-                      <p className="text-xs text-blue-900 flex items-center gap-1.5 font-bold">
-                        ℹ️ About Reserve with Google Address
-                      </p>
-                      <p className="text-[11px] text-blue-800 leading-relaxed">
-                        This must match your Google Business Profile (Google Maps) details exactly, letter-for-letter. Google uses this precise match to authorize the "Book Online" integrations.
-                      </p>
-                      <p className="text-[11px] text-amber-900 font-bold border-t border-blue-200/50 pt-1.5 mt-1.5">
-                        ⚠️ If Omitted: The native "Book Online" button cannot be activated on your Google Maps and Search profiles.
-                      </p>
-                    </div>
-
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        <div>
-                          <label className="block text-xs font-semibold text-[#212326] mb-1.5">Google Business Name</label>
-                          <input
-                            type="text"
-                            value={rwgAddressSameAsTrading ? (rwgConfig?.rwg_business_name || tenantName || '') : (rwgConfig?.rwg_business_name || '')}
-                            onChange={(e) => setRwgConfig({ ...(rwgConfig || {}), rwg_business_name: e.target.value })}
-                            disabled={rwgAddressSameAsTrading}
-                            className="w-full h-[50px] bg-white disabled:bg-gray-100/80 disabled:text-[#212326] font-semibold disabled:cursor-not-allowed border border-[#f2f3f5] rounded-[6px] px-3.5 py-2 text-sm text-[#212326] focus:outline-none focus:border-[#198fd9]"
-                            placeholder="e.g. Styleflo Salon"
-                          />
+                  {/* Registered Business Address Card */}
+                  <div className="bg-white border border-[#f2f3f5] p-6 rounded-xl space-y-4 shadow-sm">
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between pb-3.5 border-b border-purple-100/80 gap-3">
+                      <div className="flex items-center gap-3">
+                        <div className="w-9 h-9 rounded-xl bg-[#260475] text-white flex items-center justify-center text-base shadow-sm shrink-0">
+                          🏢
                         </div>
                         <div>
-                          <label className="block text-xs font-semibold text-[#212326] mb-1.5">Google Phone Number</label>
-                          <input
-                            type="text"
-                            value={rwgAddressSameAsTrading ? (rwgConfig?.rwg_phone || tradingAddressPhone || twilioShadowNumber || '') : (rwgConfig?.rwg_phone || '')}
-                            onChange={(e) => setRwgConfig({ ...(rwgConfig || {}), rwg_phone: e.target.value })}
-                            disabled={rwgAddressSameAsTrading}
-                            className="w-full h-[50px] bg-white disabled:bg-gray-100/80 disabled:text-[#212326] font-semibold disabled:cursor-not-allowed border border-[#f2f3f5] rounded-[6px] px-3.5 py-2 text-sm text-[#212326] focus:outline-none focus:border-[#198fd9]"
-                            placeholder="e.g. +44 123 456 7890"
-                          />
-                        </div>
-                        <div className="md:col-span-2">
-                          <label className="block text-xs font-semibold text-[#212326] mb-1.5">Google Street Address</label>
-                          <input
-                            type="text"
-                            value={rwgAddressSameAsTrading ? (rwgConfig?.rwg_street_address || tradingAddressStreet || businessAddress || '') : (rwgConfig?.rwg_street_address || '')}
-                            onChange={(e) => setRwgConfig({ ...(rwgConfig || {}), rwg_street_address: e.target.value })}
-                            disabled={rwgAddressSameAsTrading}
-                            className="w-full h-[50px] bg-white disabled:bg-gray-100/80 disabled:text-[#212326] font-semibold disabled:cursor-not-allowed border border-[#f2f3f5] rounded-[6px] px-3.5 py-2 text-sm text-[#212326] focus:outline-none focus:border-[#198fd9]"
-                            placeholder="e.g. 123 Salon Street"
-                          />
-                        </div>
-                        <div>
-                          <label className="block text-xs font-semibold text-[#212326] mb-1.5">Google City</label>
-                          <input
-                            type="text"
-                            value={rwgAddressSameAsTrading ? (rwgConfig?.rwg_city || tradingAddressCity || '') : (rwgConfig?.rwg_city || '')}
-                            onChange={(e) => setRwgConfig({ ...(rwgConfig || {}), rwg_city: e.target.value })}
-                            disabled={rwgAddressSameAsTrading}
-                            className="w-full h-[50px] bg-white disabled:bg-gray-100/80 disabled:text-[#212326] font-semibold disabled:cursor-not-allowed border border-[#f2f3f5] rounded-[6px] px-3.5 py-2 text-sm text-[#212326] focus:outline-none focus:border-[#198fd9]"
-                            placeholder="e.g. London"
-                          />
-                        </div>
-                        <div>
-                          <label className="block text-xs font-semibold text-[#212326] mb-1.5">Google Postcode</label>
-                          <input
-                            type="text"
-                            value={rwgAddressSameAsTrading ? (rwgConfig?.rwg_postcode || tradingAddressPostcode || postcode || '') : (rwgConfig?.rwg_postcode || '')}
-                            onChange={(e) => setRwgConfig({ ...(rwgConfig || {}), rwg_postcode: e.target.value })}
-                            disabled={rwgAddressSameAsTrading}
-                            className="w-full h-[50px] bg-white disabled:bg-gray-100/80 disabled:text-[#212326] font-semibold disabled:cursor-not-allowed border border-[#f2f3f5] rounded-[6px] px-3.5 py-2 text-sm text-[#212326] focus:outline-none focus:border-[#198fd9]"
-                            placeholder="e.g. SW1A 1AA"
-                          />
+                          <h4 className="text-base font-extrabold text-[#260475] tracking-tight">Official Registered Address</h4>
+                          <p className="text-[11px] text-gray-500 font-medium">Corporate entity details & UK CRN legal compliance</p>
                         </div>
                       </div>
-
-                    {rwgAddressSameAsTrading && (
-                      <p className="text-xs text-[#65bd7d] font-semibold mt-1">✓ Automatically synchronized with your Trading Address.</p>
-                    )}
-                  </div>
-
-                  {/* Registered Business Address Card */}
-                  <div className="bg-white border border-[#f2f3f5] p-6 rounded-xl space-y-4">
-                    <div className="flex items-center justify-between">
-                      <h4 className="text-sm font-bold text-[#260475]">Official Registered Address</h4>
-                      <label className="flex items-center gap-2 cursor-pointer">
+                      <label className="flex items-center gap-2 cursor-pointer bg-purple-50 hover:bg-purple-100/60 px-3 py-1.5 rounded-lg border border-purple-200/60 transition-colors">
                         <input
                           type="checkbox"
                           checked={isRegisteredCompany}
                           onChange={(e) => setIsRegisteredCompany(e.target.checked)}
                           className="w-4 h-4 text-[#198fd9] bg-white border-[#f2f3f5] rounded focus:ring-[#198fd9]"
                         />
-                        <span className="text-xs font-bold text-[#212326]">Business is a registered company</span>
+                        <span className="text-xs font-bold text-[#260475]">Business is a registered company</span>
                       </label>
                     </div>
 
