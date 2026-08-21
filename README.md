@@ -649,7 +649,7 @@ ame, irstMessage, and 	ranscriber) rather than relying on ssistantOverrides de
 
 ### Session 24 (August 21, 2026)
 * **User**: "Under scheduling ans staff i cant see any changes, there is no google calendar integration showing, no services a dn no staff data... add a staff member and edit staff member is styles incorrectly, plus, the upload immage, specialist services and bio area is missing... when attempting to connect my google calendar from withinn the iframe https://styleflo.ai/app i get this screen from https://app.styleflo.ai i am given the auth screen... Failed to save calendar settings: Could not find the 'flexible_breaks' column of 'tenants' in the schema cache"
-* **Fix**: Restored scheduling components, refactored iframe modal flexbox alignment, solved Google OAuth iframe framing error, implemented 3-tier fallback database settings API, and built Playwright E2E suite:
+* **Fix**: Restored scheduling components, refactored iframe modal flexbox alignment, solved Google OAuth iframe framing error, implemented 3-tier fallback database settings API, added SQL migration script, and built Playwright E2E suite:
   1. **Google OAuth `target="_top"` Framing Resolution**: Added `target="_top"` and `rel="noopener noreferrer"` to Google Calendar authorize links in `SchedulingView.tsx` and `MyProfileView.tsx`. This breaks out of embedded WordPress iframes and opens Google's OAuth consent screen in the top window, resolving Google 403 `X-Frame-Options: DENY` errors.
   2. **Iframe Flexbox Modal Layout Fix**: Refactored all 3 modals (`showAddService`, `showStaffModal`, `selectedApptForInspection`) in `SchedulingView.tsx` to use a 3-layer `min-h-full flex items-center justify-center` scroll wrapper pattern with `my-8` card margins, eliminating bottom modal cutoff bugs inside Chrome/Safari iframes.
   3. **Staff Member Profile & Shift Rota Redesign**: Added profile photo upload & live preview, specialist services/products, professional bio, and 4-week shift rota editor (Week 1–4 tabs, Monday date pickers, AM/PM time pickers, and `Copy to Next Week →` action button) in `SchedulingView.tsx`.
@@ -657,7 +657,9 @@ ame, irstMessage, and 	ranscriber) rather than relying on ssistantOverrides de
      - **Attempt 1**: All fields (Baseline + Advanced Policies + Extended Address).
      - **Attempt 2**: Baseline + Advanced Policies.
      - **Attempt 3**: Guaranteed Baseline ONLY (`booking_mode`, `booking_url`, `general_operating_hours`).
-     Guarantees saving operating hours and calendar settings will never fail even when unmigrated schema columns like `flexible_breaks` are absent from the Supabase production database.
-  5. **Playwright End-to-End Test Suite**: Updated `tests/scheduling-verification.spec.ts` covering calendar policy saving, Google Calendar connection status, services catalog, and staff POST creation payloads with avatar URLs, bio, specialist products, and 4-week shift rotas.
-  6. **Build & Release Verification**: Verified local build (`npm run build`), compiling **34 static routes in 23.1s with 0 errors**. Pushed commits `ee98666`, `543217e`, `4e55265`, `260e723`, and `04b6029` to `origin/main`.
+     Updated error variable assignments (`res2.error` and `res3.error`) so Attempt 3 clears Attempt 1 error state on success.
+  5. **Supabase SQL Migration Script**: Created `supabase/migrations/20260821143000_add_calendar_policy_columns.sql` adding `flexible_breaks`, `is_24_7`, `open_public_holidays`, `max_advance_weeks`, `operating_hours_overrides`, and `holiday_settings` columns to the `tenants` table.
+  6. **Playwright End-to-End Test Suite**: Updated `tests/scheduling-verification.spec.ts` covering calendar policy saving, Google Calendar connection status, services catalog, and staff POST creation payloads with avatar URLs, bio, specialist products, and 4-week shift rotas.
+  7. **Build & Release Verification**: Verified local build (`npm run build`), compiling **34 static routes in 23.1s with 0 errors**. Pushed commits `ee98666`, `543217e`, `4e55265`, `260e723`, `04b6029`, and `1a8a285` to `origin/main`.
+
 
