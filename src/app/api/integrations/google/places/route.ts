@@ -64,7 +64,6 @@ export async function POST(req: NextRequest) {
     }
 
     // Check 4: Extract business name & location from Google Maps URL
-    // e.g. https://www.google.com/maps/place/StyleFlo+%26+WP-123/@53.3954806,-2.8865454,18.75z/...
     const match = finalUrl.match(/\/place\/([^\/]+)\/@([0-9\.-]+),([0-9\.-]+)/);
     let query = '';
     let location = '';
@@ -85,14 +84,21 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    // Call Places API Text Search with location bias
+    // Call Places API Text Search (Attempt A: Wide 10km location radius)
     let textSearchUrl = `https://maps.googleapis.com/maps/api/place/textsearch/json?query=${encodeURIComponent(query)}&key=${apiKey}`;
     if (location) {
-      textSearchUrl += `&location=${location}&radius=200`;
+      textSearchUrl += `&location=${location}&radius=10000`;
     }
 
-    const searchRes = await fetch(textSearchUrl);
-    const searchData = await searchRes.json();
+    let searchRes = await fetch(textSearchUrl);
+    let searchData = await searchRes.json();
+
+    // Fallback 1: If location-restricted search returned 0 results, retry WITHOUT location restriction!
+    if ((!searchData.results || searchData.results.length === 0) && location) {
+      const globalSearchUrl = `https://maps.googleapis.com/maps/api/place/textsearch/json?query=${encodeURIComponent(query)}&key=${apiKey}`;
+      searchRes = await fetch(globalSearchUrl);
+      searchData = await searchRes.json();
+    }
 
     if (!searchData.results || searchData.results.length === 0) {
       return NextResponse.json({
