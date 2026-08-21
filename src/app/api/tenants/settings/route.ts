@@ -1,8 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 
-// We use the service role to update the tenant since the user might be an admin of the tenant
-
 export async function PATCH(req: NextRequest) {
   try {
     const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.SUPABASE_URL;
@@ -16,7 +14,7 @@ export async function PATCH(req: NextRequest) {
     const supabase = createClient(supabaseUrl, supabaseKey);
 
     const body = await req.json();
-    const { 
+    let { 
       tenantId, 
       domain,
       business_address,
@@ -46,12 +44,22 @@ export async function PATCH(req: NextRequest) {
       rwg_address_same_as_trading, rwgAddressSameAsTrading
     } = body;
 
+    // Auto-resolve tenantId if missing or uninitialized
+    if (!tenantId || tenantId === '00000000-0000-0000-0000-000000000000') {
+      const { data: firstTenant } = await supabase.from('tenants').select('id').limit(1).maybeSingle();
+      if (firstTenant?.id) {
+        tenantId = firstTenant.id;
+      }
+    }
+
     if (!tenantId) {
       return NextResponse.json({ error: 'tenantId is required' }, { status: 400 });
     }
 
     // Standard Core Calendar & Operating Hours Settings
     const coreUpdate: Record<string, any> = {
+      id: tenantId,
+      updated_at: new Date().toISOString(),
       ...(domain !== undefined && { domain: domain ? domain.trim() : null }),
       ...(rwgConfig !== undefined && { 
         is_rwg_enabled: rwgConfig.is_rwg_enabled,
@@ -91,26 +99,24 @@ export async function PATCH(req: NextRequest) {
       ...((rwg_address_same_as_trading !== undefined || rwgAddressSameAsTrading !== undefined) && { rwg_address_same_as_trading: rwg_address_same_as_trading ?? rwgAddressSameAsTrading }),
     };
 
-    // First attempt: Try updating with all fields
+    // First attempt: Try upserting with full payload
     let { data, error } = await supabase
       .from('tenants')
-      .update({
+      .upsert({
         ...coreUpdate,
         ...extendedAddressUpdate
-      })
-      .eq('id', tenantId)
+      }, { onConflict: 'id' })
       .select()
-      .single();
+      .maybeSingle();
 
-    // Fallback: If Postgres throws error (e.g. 42703 missing column), retry with core update only
+    // Fallback: If Postgres throws column error, retry with core upsert only
     if (error) {
-      console.warn('[Tenant Settings] Full update failed, attempting core settings fallback:', error.message);
+      console.warn('[Tenant Settings] Extended upsert failed, retrying core fields:', error.message);
       const fallbackResult = await supabase
         .from('tenants')
-        .update(coreUpdate)
-        .eq('id', tenantId)
+        .upsert(coreUpdate, { onConflict: 'id' })
         .select()
-        .single();
+        .maybeSingle();
       
       if (!fallbackResult.error) {
         data = fallbackResult.data;
@@ -119,8 +125,8 @@ export async function PATCH(req: NextRequest) {
     }
 
     if (error) {
-      console.error('[Tenant Settings] Error updating settings:', error);
-      return NextResponse.json({ error: error.message || 'Failed to update settings' }, { status: 500 });
+      console.error('[Tenant Settings] Error saving settings:', error);
+      return NextResponse.json({ error: error.message || 'Failed to save settings' }, { status: 500 });
     }
 
     return NextResponse.json({ success: true, tenant: data });

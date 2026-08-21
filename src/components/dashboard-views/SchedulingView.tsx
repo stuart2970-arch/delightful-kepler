@@ -412,7 +412,8 @@ export default function SchedulingView() {
       if (res.ok) {
         alert('Calendar settings and operating hours saved successfully!');
       } else {
-        alert('Failed to save calendar settings.');
+        const errData = await res.json().catch(() => ({}));
+        alert(`Failed to save calendar settings: ${errData.error || 'Server error (' + res.status + ')'}`);
       }
     } catch (err) {
       console.error('Failed to save settings', err);
