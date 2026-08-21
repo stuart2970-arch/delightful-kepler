@@ -59,7 +59,6 @@ export async function PATCH(req: NextRequest) {
     // Tier 1: Core Base Fields (Guaranteed in all Supabase schemas)
     const baselineUpdate: Record<string, any> = {
       id: tenantId,
-      updated_at: new Date().toISOString(),
       ...(domain !== undefined && { domain: domain ? domain.trim() : null }),
       ...(bookingMode !== undefined && { booking_mode: bookingMode }),
       ...(bookingUrl !== undefined && { booking_url: bookingUrl }),

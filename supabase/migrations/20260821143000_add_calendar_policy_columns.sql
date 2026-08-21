@@ -1,5 +1,6 @@
--- Migration: Add Advanced Calendar Policy Columns to Tenants Table
+-- Migration: Add Advanced Calendar Policy Columns & Timestamps to Tenants Table
 ALTER TABLE public.tenants 
+ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ DEFAULT now(),
 ADD COLUMN IF NOT EXISTS flexible_breaks BOOLEAN DEFAULT TRUE,
 ADD COLUMN IF NOT EXISTS is_24_7 BOOLEAN DEFAULT FALSE,
 ADD COLUMN IF NOT EXISTS open_public_holidays BOOLEAN DEFAULT FALSE,
