@@ -477,6 +477,139 @@ export default function SchedulingView() {
   return (
     <>
       <div className="space-y-6">
+        {/* Google Calendar Authorization Banner */}
+        <div className="bg-gradient-to-r from-slate-900 to-indigo-950 p-6 rounded-2xl text-white shadow-xl flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
+          <div>
+            <div className="flex items-center gap-2.5 mb-1">
+              <span className="text-2xl">📅</span>
+              <h3 className="text-lg font-bold">Google Calendar Integration</h3>
+            </div>
+            <p className="text-xs text-slate-300 max-w-xl">
+              Synchronize appointments two-way with Google Calendar in real-time. Prevents double-booking and updates staff rotas automatically.
+            </p>
+            {isGoogleConnected ? (
+              <div className="mt-3 inline-flex items-center gap-2 px-3 py-1 bg-emerald-500/20 text-emerald-300 rounded-full text-xs font-semibold border border-emerald-500/30">
+                <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
+                Connected to Google Calendar API
+              </div>
+            ) : (
+              <div className="mt-3 inline-flex items-center gap-2 px-3 py-1 bg-amber-500/20 text-amber-300 rounded-full text-xs font-semibold border border-amber-500/30">
+                <span className="w-2 h-2 rounded-full bg-amber-400"></span>
+                Not Connected to Google Calendar
+              </div>
+            )}
+          </div>
+
+          <a
+            href="/api/integrations/google/authorize"
+            className="px-5 py-3 bg-indigo-600 hover:bg-indigo-500 text-white font-bold rounded-xl shadow-md transition-all flex items-center gap-2 text-sm whitespace-nowrap shrink-0"
+          >
+            <span>{isGoogleConnected ? '🔄 Re-authorize Google Calendar' : '🔗 Connect Google Calendar'}</span>
+          </a>
+        </div>
+
+        {/* Services & Treatment Catalog */}
+        <div className="bg-[var(--awb-color1)] border border-[var(--awb-color3)] p-6 rounded-2xl shadow-xl space-y-4">
+          <div className="flex items-center justify-between">
+            <div>
+              <h3 className="text-lg font-bold text-[var(--awb-color8)]">Services & Treatment Catalog</h3>
+              <p className="text-xs text-[var(--awb-color6)] mt-0.5">Manage services, durations, and buffer times available for AI booking.</p>
+            </div>
+            <button
+              type="button"
+              onClick={() => setShowAddService(true)}
+              className="bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold px-4 py-2.5 rounded-xl shadow-sm transition-colors flex items-center gap-1.5"
+            >
+              <span>+ Add Service</span>
+            </button>
+          </div>
+
+          {/* Services List */}
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            {filteredServices.length === 0 ? (
+              <div className="col-span-full py-8 text-center text-xs text-gray-400 italic bg-white border border-[#f2f3f5] rounded-xl">
+                No services configured yet. Click "+ Add Service" to create your first service.
+              </div>
+            ) : (
+              filteredServices.map(service => (
+                <div key={service.id} className="bg-white border border-[#f2f3f5] p-4 rounded-xl shadow-sm flex items-center justify-between">
+                  <div>
+                    <h4 className="text-sm font-bold text-gray-800">{service.name}</h4>
+                    <p className="text-xs text-gray-500 mt-0.5">⏱️ {service.duration_minutes || 30} mins {service.buffer_minutes ? `(+${service.buffer_minutes}m buffer)` : ''}</p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => handleDeleteService(service.id)}
+                    className="text-rose-500 hover:text-rose-700 text-xs font-semibold px-2 py-1 rounded hover:bg-rose-50 transition-colors"
+                  >
+                    Delete
+                  </button>
+                </div>
+              ))
+            )}
+          </div>
+        </div>
+
+        {/* Staff Members & Rotas */}
+        <div className="bg-[var(--awb-color1)] border border-[var(--awb-color3)] p-6 rounded-2xl shadow-xl space-y-4">
+          <div className="flex items-center justify-between">
+            <div>
+              <h3 className="text-lg font-bold text-[var(--awb-color8)]">Staff Members & Rotas</h3>
+              <p className="text-xs text-[var(--awb-color6)] mt-0.5">Manage team members, individual Google Calendar IDs, and 4-week shift rotas.</p>
+            </div>
+            <button
+              type="button"
+              onClick={() => {
+                setEditingStaffId(null);
+                setNewStaffName('');
+                setNewStaffEmail('');
+                setNewStaffCalId('');
+                setNewStaffImageUrl('');
+                setNewStaffSpecialistProduct('');
+                setNewStaffBio('');
+                setShowStaffModal(true);
+              }}
+              className="bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold px-4 py-2.5 rounded-xl shadow-sm transition-colors flex items-center gap-1.5"
+            >
+              <span>+ Add Staff Member</span>
+            </button>
+          </div>
+
+          {/* Staff Cards */}
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            {filteredStaff.length === 0 ? (
+              <div className="col-span-full py-8 text-center text-xs text-gray-400 italic bg-white border border-[#f2f3f5] rounded-xl">
+                No staff members added yet. Click "+ Add Staff Member" to add your team.
+              </div>
+            ) : (
+              filteredStaff.map(member => (
+                <div key={member.id} className="bg-white border border-[#f2f3f5] p-4 rounded-xl shadow-sm space-y-3">
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-full bg-indigo-100 text-indigo-700 font-bold flex items-center justify-center overflow-hidden shrink-0">
+                      {member.image_url ? (
+                        <img src={member.image_url} alt={member.name} className="w-full h-full object-cover" />
+                      ) : (
+                        member.name?.[0] || 'S'
+                      )}
+                    </div>
+                    <div>
+                      <h4 className="text-sm font-bold text-gray-800">{member.name}</h4>
+                      <p className="text-xs text-gray-500">{member.email || 'No email'}</p>
+                    </div>
+                  </div>
+                  <div className="flex items-center justify-between pt-2 border-t border-gray-100 text-xs">
+                    <span className="text-gray-500">Calendar: <strong className="text-slate-700">{member.google_calendar_id || 'primary'}</strong></span>
+                    <div className="flex items-center gap-2">
+                      <button type="button" onClick={() => openEditStaff(member)} className="text-indigo-600 hover:text-indigo-800 font-semibold">Edit Rota</button>
+                      <button type="button" onClick={() => handleDeleteStaff(member.id)} className="text-rose-500 hover:text-rose-700 font-semibold">Delete</button>
+                    </div>
+                  </div>
+                </div>
+              ))
+            )}
+          </div>
+        </div>
+
         {/* Operating Booking Mode & Google Calendar */}
         <div className="bg-[var(--awb-color1)] border border-[var(--awb-color3)] p-6 rounded-2xl shadow-xl space-y-4">
           <div>
@@ -699,6 +832,116 @@ export default function SchedulingView() {
             )}
           </div>
         </div>
+
+        {/* Add Service Modal */}
+        {showAddService && (
+          <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+            <div className="bg-white rounded-2xl max-w-md w-full p-6 space-y-4 shadow-2xl border border-gray-100">
+              <div className="flex items-center justify-between border-b border-gray-100 pb-3">
+                <h3 className="text-base font-bold text-gray-800">Add New Service</h3>
+                <button type="button" onClick={() => setShowAddService(false)} className="text-gray-400 hover:text-gray-600 font-bold">✕</button>
+              </div>
+              <form onSubmit={handleAddService} className="space-y-4">
+                <div>
+                  <label className="block text-xs font-semibold text-gray-600 mb-1">Service Name</label>
+                  <input
+                    type="text"
+                    required
+                    value={newServiceName}
+                    onChange={e => setNewServiceName(e.target.value)}
+                    placeholder="e.g. Cut & Blow Dry"
+                    className="w-full bg-gray-50 border border-gray-300 rounded px-3 py-2 text-xs font-semibold text-gray-800"
+                  />
+                </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-xs font-semibold text-gray-600 mb-1">Duration (mins)</label>
+                    <input
+                      type="number"
+                      required
+                      min={5}
+                      max={480}
+                      value={newServiceDuration}
+                      onChange={e => setNewServiceDuration(Number(e.target.value))}
+                      className="w-full bg-gray-50 border border-gray-300 rounded px-3 py-2 text-xs font-semibold text-gray-800"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-semibold text-gray-600 mb-1">Buffer Time (mins)</label>
+                    <input
+                      type="number"
+                      min={0}
+                      max={120}
+                      value={newServiceBuffer}
+                      onChange={e => setNewServiceBuffer(Number(e.target.value))}
+                      className="w-full bg-gray-50 border border-gray-300 rounded px-3 py-2 text-xs font-semibold text-gray-800"
+                    />
+                  </div>
+                </div>
+                <div className="pt-2 flex items-center justify-end gap-3 border-t border-gray-100">
+                  <button type="button" onClick={() => setShowAddService(false)} className="px-4 py-2 text-xs text-gray-600 font-semibold">Cancel</button>
+                  <button type="submit" className="px-5 py-2 text-xs bg-indigo-600 hover:bg-indigo-500 text-white font-bold rounded-lg shadow transition-colors">Create Service</button>
+                </div>
+              </form>
+            </div>
+          </div>
+        )}
+
+        {/* Add / Edit Staff & Rota Modal */}
+        {showStaffModal && (
+          <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+            <div className="bg-white rounded-2xl max-w-2xl w-full p-6 space-y-5 shadow-2xl border border-gray-100 max-h-[90vh] overflow-y-auto">
+              <div className="flex items-center justify-between border-b border-gray-100 pb-3">
+                <h3 className="text-lg font-bold text-gray-800">{editingStaffId ? 'Edit Staff & Working Shift Rota' : 'Add New Staff Member'}</h3>
+                <button type="button" onClick={() => setShowStaffModal(false)} className="text-gray-400 hover:text-gray-600 font-bold">✕</button>
+              </div>
+              <form onSubmit={handleSaveStaff} className="space-y-4">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-xs font-semibold text-gray-600 mb-1">Staff Member Name</label>
+                    <input
+                      type="text"
+                      required
+                      value={newStaffName}
+                      onChange={e => setNewStaffName(e.target.value)}
+                      placeholder="e.g. Jessica Taylor"
+                      className="w-full bg-gray-50 border border-gray-300 rounded px-3 py-2 text-xs font-semibold text-gray-800"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-semibold text-gray-600 mb-1">Email Address</label>
+                    <input
+                      type="email"
+                      value={newStaffEmail}
+                      onChange={e => setNewStaffEmail(e.target.value)}
+                      placeholder="jessica@salon.com"
+                      className="w-full bg-gray-50 border border-gray-300 rounded px-3 py-2 text-xs font-semibold text-gray-800"
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-semibold text-gray-600 mb-1">Google Calendar ID</label>
+                  <input
+                    type="text"
+                    value={newStaffCalId}
+                    onChange={e => setNewStaffCalId(e.target.value)}
+                    placeholder="primary or calendar-id@group.calendar.google.com"
+                    className="w-full bg-gray-50 border border-gray-300 rounded px-3 py-2 text-xs font-mono text-gray-800"
+                  />
+                  <p className="text-[10px] text-gray-400 mt-1">Leave empty to use primary default Google Calendar.</p>
+                </div>
+
+                <div className="pt-2 flex items-center justify-end gap-3 border-t border-gray-100">
+                  <button type="button" onClick={() => setShowStaffModal(false)} className="px-4 py-2 text-xs text-gray-600 font-semibold">Cancel</button>
+                  <button type="submit" className="px-5 py-2 text-xs bg-indigo-600 hover:bg-indigo-500 text-white font-bold rounded-lg shadow transition-colors">
+                    {editingStaffId ? 'Save Staff & Rota Changes' : 'Add Staff Member'}
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        )}
 
         {/* Appointment Inspection & Edit Modal */}
         {selectedApptForInspection && (
