@@ -56,11 +56,14 @@ export async function PATCH(req: NextRequest) {
       return NextResponse.json({ error: 'tenantId is required' }, { status: 400 });
     }
 
-    // Standard Core Calendar & Operating Hours Settings
-    const coreUpdate: Record<string, any> = {
+    // Tier 1: Core Base Fields (Guaranteed in all Supabase schemas)
+    const baselineUpdate: Record<string, any> = {
       id: tenantId,
       updated_at: new Date().toISOString(),
       ...(domain !== undefined && { domain: domain ? domain.trim() : null }),
+      ...(bookingMode !== undefined && { booking_mode: bookingMode }),
+      ...(bookingUrl !== undefined && { booking_url: bookingUrl }),
+      ...(general_operating_hours !== undefined && { general_operating_hours }),
       ...(rwgConfig !== undefined && { 
         is_rwg_enabled: rwgConfig.is_rwg_enabled,
         rwg_business_name: rwgConfig.rwg_business_name,
@@ -70,9 +73,10 @@ export async function PATCH(req: NextRequest) {
         rwg_phone: rwgConfig.rwg_phone,
         is_registered_business_address: rwgConfig.is_registered_business_address
       }),
-      ...(bookingMode !== undefined && { booking_mode: bookingMode }),
-      ...(bookingUrl !== undefined && { booking_url: bookingUrl }),
-      ...(general_operating_hours !== undefined && { general_operating_hours }),
+    };
+
+    // Tier 2: Advanced Policy Fields (May be missing in unmigrated schemas)
+    const advancedPolicyUpdate: Record<string, any> = {
       ...(operating_hours_overrides !== undefined && { operating_hours_overrides }),
       ...(holiday_settings !== undefined && { holiday_settings }),
       ...((flexible_breaks !== undefined || flexibleBreaks !== undefined) && { flexible_breaks: flexible_breaks ?? flexibleBreaks }),
@@ -81,7 +85,7 @@ export async function PATCH(req: NextRequest) {
       ...((max_advance_weeks !== undefined || maxAdvanceWeeks !== undefined) && { max_advance_weeks: max_advance_weeks ?? maxAdvanceWeeks }),
     };
 
-    // Extended Address Profile Fields (if columns exist in DB schema)
+    // Tier 3: Extended Address Profile Fields
     const extendedAddressUpdate: Record<string, any> = {
       ...((trading_address_street !== undefined || tradingAddressStreet !== undefined) && { trading_address_street: trading_address_street ?? tradingAddressStreet }),
       ...((trading_address_city !== undefined || tradingAddressCity !== undefined) && { trading_address_city: trading_address_city ?? tradingAddressCity }),
@@ -99,33 +103,52 @@ export async function PATCH(req: NextRequest) {
       ...((rwg_address_same_as_trading !== undefined || rwgAddressSameAsTrading !== undefined) && { rwg_address_same_as_trading: rwg_address_same_as_trading ?? rwgAddressSameAsTrading }),
     };
 
-    // First attempt: Try upserting with full payload
+    // Attempt 1: Try upserting all tiers (Baseline + Advanced Policies + Extended Address)
     let { data, error } = await supabase
       .from('tenants')
       .upsert({
-        ...coreUpdate,
+        ...baselineUpdate,
+        ...advancedPolicyUpdate,
         ...extendedAddressUpdate
       }, { onConflict: 'id' })
       .select()
       .maybeSingle();
 
-    // Fallback: If Postgres throws column error, retry with core upsert only
+    // Attempt 2: If Attempt 1 failed due to missing columns, retry with Baseline + Advanced Policies
     if (error) {
-      console.warn('[Tenant Settings] Extended upsert failed, retrying core fields:', error.message);
-      const fallbackResult = await supabase
+      console.warn('[Tenant Settings] Attempt 1 (All Tiers) failed, retrying Attempt 2 (Baseline + Policies):', error.message);
+      const res2 = await supabase
         .from('tenants')
-        .upsert(coreUpdate, { onConflict: 'id' })
+        .upsert({
+          ...baselineUpdate,
+          ...advancedPolicyUpdate
+        }, { onConflict: 'id' })
         .select()
         .maybeSingle();
       
-      if (!fallbackResult.error) {
-        data = fallbackResult.data;
+      if (!res2.error) {
+        data = res2.data;
+        error = null;
+      }
+    }
+
+    // Attempt 3: If Attempt 2 failed (e.g. flexible_breaks column missing in schema cache), retry with Baseline ONLY
+    if (error) {
+      console.warn('[Tenant Settings] Attempt 2 failed, retrying Attempt 3 (Guaranteed Baseline ONLY):', error.message);
+      const res3 = await supabase
+        .from('tenants')
+        .upsert(baselineUpdate, { onConflict: 'id' })
+        .select()
+        .maybeSingle();
+      
+      if (!res3.error) {
+        data = res3.data;
         error = null;
       }
     }
 
     if (error) {
-      console.error('[Tenant Settings] Error saving settings:', error);
+      console.error('[Tenant Settings] Error saving settings across all attempts:', error);
       return NextResponse.json({ error: error.message || 'Failed to save settings' }, { status: 500 });
     }
 
