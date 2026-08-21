@@ -1,10 +1,16 @@
 import React, { useState, useRef, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { useDashboardStore, DailySchedule, WeeklySchedule } from '../../lib/store';
 import ServiceEditor from '../ServiceEditor';
 import { getMondayDate, formatMondayTabLabel, formatMondayFull, generateRollingSchedule, addDaysToDate } from '../../lib/dateUtils';
 
 
 export default function SchedulingView() {
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+
   const {
     tenantId,
     chatbots,
@@ -842,10 +848,10 @@ export default function SchedulingView() {
         </div>
 
         {/* Add Service Modal */}
-        {showAddService && (
-          <div className="fixed inset-0 z-[9999] overflow-y-auto bg-black/75 backdrop-blur-md">
+        {mounted && showAddService && createPortal(
+          <div className="fixed inset-0 z-[99999] overflow-y-auto bg-black/75 backdrop-blur-md">
             <div className="min-h-full flex items-center justify-center p-4 sm:p-6 text-center">
-              <div className="w-full max-w-md bg-white rounded-3xl p-6 sm:p-8 space-y-5 shadow-2xl border border-slate-200 text-left my-8 transform transition-all">
+              <div className="w-full max-w-md bg-white rounded-3xl p-6 sm:p-8 space-y-5 shadow-2xl border border-slate-200 text-left my-8 transform transition-all max-h-[90vh] overflow-y-auto styleflo-scrollbar">
                 <div className="flex items-center justify-between border-b border-slate-100 pb-3">
                   <h3 className="text-base font-bold text-slate-900">Add New Service</h3>
                   <button type="button" onClick={() => setShowAddService(false)} className="w-7 h-7 rounded-full bg-slate-100 text-slate-500 hover:bg-slate-200 font-bold text-xs flex items-center justify-center">✕</button>
@@ -894,18 +900,19 @@ export default function SchedulingView() {
                 </form>
               </div>
             </div>
-          </div>
+          </div>,
+          document.body
         )}
 
         {/* Add / Edit Staff & Rota Modal */}
-        {showStaffModal && (
-          <div className="fixed inset-0 z-[9999] overflow-y-auto bg-black/75 backdrop-blur-md">
+        {mounted && showStaffModal && createPortal(
+          <div className="fixed inset-0 z-[99999] overflow-y-auto bg-black/75 backdrop-blur-md">
             <div className="min-h-full flex items-center justify-center p-4 sm:p-6 text-center">
-              <div className="w-full max-w-2xl bg-white rounded-3xl p-6 sm:p-8 space-y-6 shadow-2xl border border-slate-200 text-left my-8 transform transition-all">
+              <div className="w-full max-w-2xl bg-white rounded-3xl p-6 sm:p-8 space-y-6 shadow-2xl border border-slate-200 text-left my-8 transform transition-all max-h-[90vh] overflow-y-auto styleflo-scrollbar">
                 <div className="flex items-center justify-between border-b border-slate-100 pb-4">
                   <div>
                     <h3 className="text-xl font-bold text-slate-900">{editingStaffId ? '✏️ Edit Staff & Shift Rota' : '👤 Add New Staff Member'}</h3>
-                    <p className="text-xs text-slate-500 mt-0.5">Configure colleague profile, photo avatar, bio, and 4-week shift rota.</p>
+                    <p className="text-xs text-slate-500 mt-0.5">Configure colleague profile, photo avatar, bio, and {maxAdvanceWeeks || 4}-week rolling shift & holiday rota.</p>
                   </div>
                   <button type="button" onClick={() => setShowStaffModal(false)} className="w-8 h-8 rounded-full bg-slate-100 text-slate-500 hover:bg-slate-200 font-bold text-sm flex items-center justify-center transition-colors">✕</button>
                 </div>
@@ -1181,14 +1188,15 @@ export default function SchedulingView() {
                 </form>
               </div>
             </div>
-          </div>
+          </div>,
+          document.body
         )}
 
         {/* Appointment Inspection & Edit Modal */}
-        {selectedApptForInspection && (
-          <div className="fixed inset-0 z-[9999] overflow-y-auto bg-black/75 backdrop-blur-md">
+        {mounted && selectedApptForInspection && createPortal(
+          <div className="fixed inset-0 z-[99999] overflow-y-auto bg-black/75 backdrop-blur-md">
             <div className="min-h-full flex items-center justify-center p-4 sm:p-6 text-center">
-              <div className="w-full max-w-lg bg-white rounded-3xl p-6 sm:p-8 space-y-6 shadow-2xl border border-slate-200 text-left my-8 transform transition-all">
+              <div className="w-full max-w-lg bg-white rounded-3xl p-6 sm:p-8 space-y-6 shadow-2xl border border-slate-200 text-left my-8 transform transition-all max-h-[90vh] overflow-y-auto styleflo-scrollbar">
                 <div className="flex items-center justify-between border-b border-slate-100 pb-3">
                   <h3 className="text-lg font-bold text-slate-900">Inspect & Amend Appointment</h3>
                   <button type="button" onClick={() => setSelectedApptForInspection(null)} className="w-8 h-8 rounded-full bg-slate-100 text-slate-500 hover:bg-slate-200 font-bold text-sm flex items-center justify-center transition-colors">✕</button>
@@ -1280,7 +1288,8 @@ export default function SchedulingView() {
                 </form>
               </div>
             </div>
-          </div>
+          </div>,
+          document.body
         )}
       </div>
     </>
