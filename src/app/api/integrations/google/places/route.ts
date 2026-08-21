@@ -12,22 +12,60 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Google Places API key is missing. Please add it to your environment variables.' }, { status: 500 });
     }
 
-    // Step 1: Follow redirects if it's a short URL (maps.app.goo.gl, g.page, etc.)
-    let finalUrl = url;
+    const trimmedInput = url.trim();
+
+    // Check 1: Direct Google Place ID (e.g. ChIJ... or GhIJ...)
+    if (/^(ChIJ|GhIJ)[a-zA-Z0-9_-]{10,}$/.test(trimmedInput)) {
+      return await fetchPlaceDetailsById(trimmedInput, apiKey);
+    }
+
+    // Follow redirects for short links (maps.app.goo.gl, g.page, etc.)
+    let finalUrl = trimmedInput;
     try {
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), 5000);
-      const res = await fetch(url, { method: 'HEAD', redirect: 'follow', signal: controller.signal });
+      const res = await fetch(trimmedInput, { method: 'HEAD', redirect: 'follow', signal: controller.signal });
       clearTimeout(timeoutId);
       finalUrl = res.url;
     } catch (e) {
       console.warn("Could not follow redirect, using original URL", e);
     }
 
-    // Step 2: Parse the final URL for the business name and location
+    // Check 2: Direct Place ID in URL parameters (place_id=...)
+    const placeIdParamMatch = finalUrl.match(/[?&]place_id=([^&]+)/);
+    if (placeIdParamMatch) {
+      return await fetchPlaceDetailsById(placeIdParamMatch[1], apiKey);
+    }
+
+    // Check 3: Extract Google CID (Customer ID) decimal or hex (ftid=0x...:0x...)
+    let cid: string | null = null;
+    const cidMatch = finalUrl.match(/[?&]cid=([0-9]+)/);
+    if (cidMatch) {
+      cid = cidMatch[1];
+    } else {
+      const ftidMatch = finalUrl.match(/ftid=0x[0-9a-fA-F]+:0x([0-9a-fA-F]+)/);
+      if (ftidMatch) {
+        try {
+          cid = BigInt('0x' + ftidMatch[1]).toString(10);
+        } catch (err) {
+          console.warn('Could not parse hex ftid to decimal CID', err);
+        }
+      }
+    }
+
+    // If exact CID is found, query Google Places by CID for 100% unique match!
+    if (cid) {
+      const cidSearchUrl = `https://maps.googleapis.com/maps/api/place/textsearch/json?query=cid:${cid}&key=${apiKey}`;
+      const cidRes = await fetch(cidSearchUrl);
+      const cidData = await cidRes.json();
+      if (cidData.results && cidData.results.length > 0 && cidData.results[0].place_id) {
+        return await fetchPlaceDetailsById(cidData.results[0].place_id, apiKey);
+      }
+    }
+
+    // Check 4: Extract business name & location from Google Maps URL
     // e.g. https://www.google.com/maps/place/StyleFlo+%26+WP-123/@53.3954806,-2.8865454,18.75z/...
     const match = finalUrl.match(/\/place\/([^\/]+)\/@([0-9\.-]+),([0-9\.-]+)/);
-    
     let query = '';
     let location = '';
 
@@ -35,27 +73,28 @@ export async function POST(req: NextRequest) {
       query = decodeURIComponent(match[1].replace(/\+/g, ' '));
       location = `${match[2]},${match[3]}`;
     } else {
-      // Fallback: try to extract 'q' parameter if it's an older map URL, or just use the whole URL
-      const urlObj = new URL(finalUrl);
-      query = urlObj.searchParams.get('q') || urlObj.searchParams.get('query') || '';
+      try {
+        const urlObj = new URL(finalUrl);
+        query = urlObj.searchParams.get('q') || urlObj.searchParams.get('query') || '';
+      } catch (err) {
+        query = trimmedInput;
+      }
       
       if (!query) {
          return NextResponse.json({ error: 'Could not extract business name from URL. Please ensure it is a direct Google Maps business link.' }, { status: 400 });
       }
     }
 
-    // Step 3: Call Places API Text Search to get the exact Place ID
+    // Call Places API Text Search with location bias
     let textSearchUrl = `https://maps.googleapis.com/maps/api/place/textsearch/json?query=${encodeURIComponent(query)}&key=${apiKey}`;
     if (location) {
-      textSearchUrl += `&location=${location}&radius=500`;
+      textSearchUrl += `&location=${location}&radius=200`;
     }
 
     const searchRes = await fetch(textSearchUrl);
     const searchData = await searchRes.json();
 
     if (!searchData.results || searchData.results.length === 0) {
-      // Fallback: If we couldn't find the exact place (often happens with brand new unindexed businesses), 
-      // just return the basic info we managed to parse from the URL!
       return NextResponse.json({
         name: query,
         phone: '',
@@ -67,46 +106,58 @@ export async function POST(req: NextRequest) {
       });
     }
 
-    const placeId = searchData.results[0].place_id;
+    // Smart Match: Find the result whose name best matches the query name
+    let bestMatchPlaceId = searchData.results[0].place_id;
+    const cleanQuery = query.toLowerCase().replace(/[^a-z0-9]/g, '');
 
-    // Step 4: Call Places API Details to get all address components
-    const detailsUrl = `https://maps.googleapis.com/maps/api/place/details/json?place_id=${placeId}&fields=name,formatted_phone_number,address_components&key=${apiKey}`;
-    const detailsRes = await fetch(detailsUrl);
-    const detailsData = await detailsRes.json();
-
-    if (!detailsData.result) {
-      return NextResponse.json({ error: 'Could not fetch business details.' }, { status: 500 });
+    for (const result of searchData.results) {
+      const cleanResultName = (result.name || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+      if (cleanResultName.includes(cleanQuery) || cleanQuery.includes(cleanResultName)) {
+        bestMatchPlaceId = result.place_id;
+        break;
+      }
     }
 
-    const result = detailsData.result;
-    
-    // Parse address components
-    let streetAddress = '';
-    let streetNumber = '';
-    let route = '';
-    let city = '';
-    let postcode = '';
-
-    for (const comp of result.address_components || []) {
-      if (comp.types.includes('street_number')) streetNumber = comp.long_name;
-      if (comp.types.includes('route')) route = comp.long_name;
-      if (comp.types.includes('locality') || comp.types.includes('postal_town')) city = comp.long_name;
-      if (comp.types.includes('postal_code')) postcode = comp.long_name;
-    }
-
-    streetAddress = `${streetNumber} ${route}`.trim();
-
-    return NextResponse.json({
-      name: result.name || query,
-      phone: result.formatted_phone_number || '',
-      streetAddress,
-      city,
-      postcode,
-      placeId
-    });
+    return await fetchPlaceDetailsById(bestMatchPlaceId, apiKey, query);
 
   } catch (error: any) {
     console.error('Error importing place:', error);
     return NextResponse.json({ error: error.message || 'Internal Server Error' }, { status: 500 });
   }
+}
+
+async function fetchPlaceDetailsById(placeId: string, apiKey: string, fallbackName = '') {
+  const detailsUrl = `https://maps.googleapis.com/maps/api/place/details/json?place_id=${placeId}&fields=name,formatted_phone_number,address_components&key=${apiKey}`;
+  const detailsRes = await fetch(detailsUrl);
+  const detailsData = await detailsRes.json();
+
+  if (!detailsData.result) {
+    return NextResponse.json({ error: 'Could not fetch business details for Place ID: ' + placeId }, { status: 500 });
+  }
+
+  const result = detailsData.result;
+  
+  let streetAddress = '';
+  let streetNumber = '';
+  let route = '';
+  let city = '';
+  let postcode = '';
+
+  for (const comp of result.address_components || []) {
+    if (comp.types.includes('street_number')) streetNumber = comp.long_name;
+    if (comp.types.includes('route')) route = comp.long_name;
+    if (comp.types.includes('locality') || comp.types.includes('postal_town')) city = comp.long_name;
+    if (comp.types.includes('postal_code')) postcode = comp.long_name;
+  }
+
+  streetAddress = `${streetNumber} ${route}`.trim();
+
+  return NextResponse.json({
+    name: result.name || fallbackName,
+    phone: result.formatted_phone_number || '',
+    streetAddress,
+    city,
+    postcode,
+    placeId
+  });
 }
