@@ -58,7 +58,6 @@ export async function PATCH(req: NextRequest) {
 
     // Tier 1: Core Base Fields (Guaranteed in all Supabase schemas)
     const baselineUpdate: Record<string, any> = {
-      id: tenantId,
       ...(domain !== undefined && { domain: domain ? domain.trim() : null }),
       ...(bookingMode !== undefined && { booking_mode: bookingMode }),
       ...(bookingUrl !== undefined && { booking_url: bookingUrl }),
@@ -102,29 +101,99 @@ export async function PATCH(req: NextRequest) {
       ...((rwg_address_same_as_trading !== undefined || rwgAddressSameAsTrading !== undefined) && { rwg_address_same_as_trading: rwg_address_same_as_trading ?? rwgAddressSameAsTrading }),
     };
 
-    // Attempt 1: Try upserting all tiers (Baseline + Advanced Policies + Extended Address)
+    // Check if tenant row exists in database
+    const { data: existingTenant } = await supabase
+      .from('tenants')
+      .select('id, company_name')
+      .eq('id', tenantId)
+      .maybeSingle();
+
+    if (existingTenant) {
+      // Row EXISTS -> Execute UPDATE (does NOT trigger company_name NOT NULL requirement)
+      let { data, error } = await supabase
+        .from('tenants')
+        .update({
+          ...baselineUpdate,
+          ...advancedPolicyUpdate,
+          ...extendedAddressUpdate
+        })
+        .eq('id', tenantId)
+        .select()
+        .maybeSingle();
+
+      if (error) {
+        console.warn('[Tenant Settings] Update Attempt 1 failed, retrying Attempt 2:', error.message);
+        const res2 = await supabase
+          .from('tenants')
+          .update({
+            ...baselineUpdate,
+            ...advancedPolicyUpdate
+          })
+          .eq('id', tenantId)
+          .select()
+          .maybeSingle();
+
+        if (!res2.error) {
+          data = res2.data;
+          error = null;
+        } else {
+          error = res2.error;
+        }
+      }
+
+      if (error) {
+        console.warn('[Tenant Settings] Update Attempt 2 failed, retrying Attempt 3 (Guaranteed Baseline ONLY):', error.message);
+        const res3 = await supabase
+          .from('tenants')
+          .update(baselineUpdate)
+          .eq('id', tenantId)
+          .select()
+          .maybeSingle();
+
+        if (!res3.error) {
+          data = res3.data;
+          error = null;
+        } else {
+          error = res3.error;
+        }
+      }
+
+      if (!error) {
+        return NextResponse.json({ success: true, tenant: data });
+      }
+    }
+
+    // Row does NOT exist -> Execute UPSERT with company_name fallback
+    const company_name = body.company_name || body.companyName || 'StyleFlo Business';
+    const fullUpsert = {
+      id: tenantId,
+      tenant_id: tenantId,
+      company_name,
+      ...baselineUpdate,
+      ...advancedPolicyUpdate,
+      ...extendedAddressUpdate
+    };
+
     let { data, error } = await supabase
       .from('tenants')
-      .upsert({
-        ...baselineUpdate,
-        ...advancedPolicyUpdate,
-        ...extendedAddressUpdate
-      }, { onConflict: 'id' })
+      .upsert(fullUpsert, { onConflict: 'id' })
       .select()
       .maybeSingle();
 
-    // Attempt 2: If Attempt 1 failed due to missing columns, retry with Baseline + Advanced Policies
     if (error) {
-      console.warn('[Tenant Settings] Attempt 1 failed, retrying Attempt 2:', error.message);
+      console.warn('[Tenant Settings] Upsert Attempt 1 failed, retrying Attempt 2:', error.message);
       const res2 = await supabase
         .from('tenants')
         .upsert({
+          id: tenantId,
+          tenant_id: tenantId,
+          company_name,
           ...baselineUpdate,
           ...advancedPolicyUpdate
         }, { onConflict: 'id' })
         .select()
         .maybeSingle();
-      
+
       if (!res2.error) {
         data = res2.data;
         error = null;
@@ -133,15 +202,19 @@ export async function PATCH(req: NextRequest) {
       }
     }
 
-    // Attempt 3: If Attempt 2 failed (e.g. flexible_breaks missing), retry with Baseline ONLY
     if (error) {
-      console.warn('[Tenant Settings] Attempt 2 failed, retrying Attempt 3 (Guaranteed Baseline ONLY):', error.message);
+      console.warn('[Tenant Settings] Upsert Attempt 2 failed, retrying Attempt 3 (Guaranteed Baseline ONLY):', error.message);
       const res3 = await supabase
         .from('tenants')
-        .upsert(baselineUpdate, { onConflict: 'id' })
+        .upsert({
+          id: tenantId,
+          tenant_id: tenantId,
+          company_name,
+          ...baselineUpdate
+        }, { onConflict: 'id' })
         .select()
         .maybeSingle();
-      
+
       if (!res3.error) {
         data = res3.data;
         error = null;
