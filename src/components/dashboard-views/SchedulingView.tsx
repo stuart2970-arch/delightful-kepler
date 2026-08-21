@@ -502,6 +502,8 @@ export default function SchedulingView() {
 
           <a
             href="/api/integrations/google/authorize"
+            target="_top"
+            rel="noopener noreferrer"
             className="px-5 py-3 bg-indigo-600 hover:bg-indigo-500 text-white font-bold rounded-xl shadow-md transition-all flex items-center gap-2 text-sm whitespace-nowrap shrink-0"
           >
             <span>{isGoogleConnected ? '🔄 Re-authorize Google Calendar' : '🔗 Connect Google Calendar'}</span>
