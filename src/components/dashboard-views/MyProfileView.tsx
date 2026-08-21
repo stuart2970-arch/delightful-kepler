@@ -1,8 +1,10 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useDashboardStore } from '../../lib/store';
+import { getMondayDate, formatMondayTabLabel, formatMondayFull, generateRollingSchedule, addDaysToDate } from '../../lib/dateUtils';
 
 export default function MyProfileView() {
-  const { tenantId, userEmail, userName } = useDashboardStore();
+  const { tenantId, userEmail, userName, maxAdvanceWeeks } = useDashboardStore();
+  const profileTabsRef = useRef<HTMLDivElement | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
@@ -16,7 +18,7 @@ export default function MyProfileView() {
   const [isUploading, setIsUploading] = useState(false);
 
   const createEmptySchedule = (weekDate?: string) => ({
-    weekCommencingDate: weekDate || new Date().toISOString().split('T')[0],
+    weekCommencingDate: weekDate ? getMondayDate(weekDate) : getMondayDate(),
     monday: { unavailable: false, am: { start: '09:00', end: '13:00' }, pm: { start: '14:00', end: '18:00' } },
     tuesday: { unavailable: false, am: { start: '09:00', end: '13:00' }, pm: { start: '14:00', end: '18:00' } },
     wednesday: { unavailable: false, am: { start: '09:00', end: '13:00' }, pm: { start: '14:00', end: '18:00' } },
@@ -27,8 +29,9 @@ export default function MyProfileView() {
   });
 
   const [activeWeekIndex, setActiveWeekIndex] = useState(0);
-  const [rotaSchedule, setRotaSchedule] = useState<{ weeks: any[] }>({
-    weeks: [createEmptySchedule(), createEmptySchedule(), createEmptySchedule(), createEmptySchedule()]
+  const [rotaSchedule, setRotaSchedule] = useState<{ weeks: any[] }>(() => {
+    const rolling = generateRollingSchedule([], maxAdvanceWeeks || 4, createEmptySchedule);
+    return { weeks: rolling.weeks };
   });
 
   useEffect(() => {
@@ -48,15 +51,9 @@ export default function MyProfileView() {
         setGoogleCalendarId(data.google_calendar_id || 'primary');
         
         const existingWeeks = data.working_days?.weeks || [];
-        const loadedWeeks = [];
-        for (let i = 0; i < 4; i++) {
-          if (existingWeeks[i]) {
-            loadedWeeks.push(existingWeeks[i]);
-          } else {
-            loadedWeeks.push(createEmptySchedule());
-          }
-        }
-        setRotaSchedule({ weeks: loadedWeeks });
+        const rolling = generateRollingSchedule(existingWeeks, maxAdvanceWeeks || 4, createEmptySchedule);
+        setRotaSchedule({ weeks: rolling.weeks });
+        setActiveWeekIndex(rolling.currentWeekIndex);
       } else {
         setMessage({ type: 'error', text: 'Could not find your linked colleague record.' });
       }
@@ -222,15 +219,15 @@ export default function MyProfileView() {
             </div>
           </div>
 
-          {/* Avatar URL & Upload */}
+          {/* Avatar Upload / URL */}
           <div>
-            <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-2">Avatar / Profile Photo</label>
+            <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-2">Profile Avatar / Photo</label>
             <div className="flex items-center gap-4">
-              <div className="w-16 h-16 rounded-full overflow-hidden bg-slate-100 border-2 border-slate-200 flex-shrink-0 flex items-center justify-center">
+              <div className="w-16 h-16 rounded-full overflow-hidden bg-slate-100 border-2 border-slate-200 flex-shrink-0 flex items-center justify-center text-xl font-bold text-slate-400">
                 {avatarUrl ? (
                   <img src={avatarUrl} alt="Avatar" className="w-full h-full object-cover" />
                 ) : (
-                  <span className="text-2xl font-bold text-slate-400">{name?.[0] || 'U'}</span>
+                  name?.[0] || 'S'
                 )}
               </div>
               <div className="flex-1 space-y-2">
@@ -239,14 +236,14 @@ export default function MyProfileView() {
                   placeholder="https://example.com/avatar.jpg"
                   value={avatarUrl}
                   onChange={(e) => setAvatarUrl(e.target.value)}
-                  className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                  className="w-full px-4 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs focus:outline-none focus:ring-2 focus:ring-indigo-500"
                 />
                 <input
                   type="file"
                   accept="image/*"
                   onChange={handleAvatarUpload}
                   disabled={isUploading}
-                  className="text-xs text-slate-500 file:mr-3 file:py-1.5 file:px-3 file:rounded-lg file:border-0 file:text-xs file:font-semibold file:bg-indigo-50 file:text-indigo-700 hover:file:bg-indigo-100"
+                  className="text-xs text-slate-500 file:mr-4 file:py-1.5 file:px-3 file:rounded-lg file:border-0 file:text-xs file:font-semibold file:bg-indigo-50 file:text-indigo-700 hover:file:bg-indigo-100"
                 />
               </div>
             </div>
@@ -277,48 +274,110 @@ export default function MyProfileView() {
             />
           </div>
 
-          {/* 4-Week Shift Rota & Working Hours Editor */}
+          {/* Rolling Shift Rota & Working Hours Editor */}
           <div className="pt-6 border-t border-slate-200 space-y-4">
             <div className="flex items-center justify-between">
               <div>
-                <h3 className="text-base font-bold text-slate-900">📅 My 4-Week Working Shift Rota</h3>
-                <p className="text-xs text-slate-500 mt-0.5">Define your available working hours for morning and afternoon shifts across 4 rolling weeks.</p>
+                <h3 className="text-base font-bold text-slate-900">📅 My Working Shift Rota & Holiday Planner ({maxAdvanceWeeks || 4} Weeks)</h3>
+                <p className="text-xs text-slate-500 mt-0.5">Define your available working hours or mark booked holidays/time off across the {maxAdvanceWeeks || 4}-week booking window.</p>
               </div>
+              <button
+                type="button"
+                onClick={copyToNextWeek}
+                className="px-3 py-1.5 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 text-xs font-semibold rounded-lg border border-indigo-200 transition-colors shrink-0"
+              >
+                Copy to Next Week →
+              </button>
             </div>
 
-            {/* Week Selector Tabs */}
-            <div className="flex gap-2 border-b border-slate-200 pb-2">
-              {[0, 1, 2, 3].map((weekIdx) => (
-                <button
-                  key={weekIdx}
-                  type="button"
-                  onClick={() => setActiveWeekIndex(weekIdx)}
-                  className={`px-4 py-2 text-xs font-bold rounded-lg transition-all ${
-                    activeWeekIndex === weekIdx
-                      ? 'bg-indigo-600 text-white shadow'
-                      : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
-                  }`}
-                >
-                  Week {weekIdx + 1}
-                </button>
-              ))}
+            {/* Scrollable Week Tabs with Arrow Navigation */}
+            <div className="relative flex items-center gap-1.5 border-b border-slate-200 pb-2">
+              <button
+                type="button"
+                onClick={() => {
+                  if (profileTabsRef.current) {
+                    profileTabsRef.current.scrollBy({ left: -200, behavior: 'smooth' });
+                  }
+                }}
+                className="w-7 h-7 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold flex items-center justify-center shrink-0 transition-colors text-sm shadow-sm"
+                title="Scroll to previous weeks"
+              >
+                ‹
+              </button>
+
+              <div
+                ref={profileTabsRef}
+                className="flex gap-2 overflow-x-auto scroll-smooth py-1 px-1 flex-1 no-scrollbar"
+                style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}
+              >
+                {rotaSchedule.weeks.map((week, weekIdx) => {
+                  const currentMonday = getMondayDate();
+                  const isCurrent = week.weekCommencingDate === currentMonday;
+                  const isPast = Boolean(week.weekCommencingDate && week.weekCommencingDate < currentMonday);
+                  const isSelected = activeWeekIndex === weekIdx;
+
+                  return (
+                    <button
+                      key={week.weekCommencingDate || weekIdx}
+                      type="button"
+                      onClick={() => setActiveWeekIndex(weekIdx)}
+                      className={`px-4 py-2 text-xs font-bold rounded-lg whitespace-nowrap transition-all flex items-center gap-1.5 shrink-0 ${
+                        isSelected
+                          ? 'bg-indigo-600 text-white shadow-md ring-2 ring-indigo-300'
+                          : isPast
+                          ? 'bg-slate-100 text-slate-400 hover:bg-slate-200 hover:text-slate-600'
+                          : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                      }`}
+                    >
+                      <span>{formatMondayTabLabel(week.weekCommencingDate)}</span>
+                      {isCurrent && (
+                        <span className={`text-[9px] px-1.5 py-0.5 rounded font-semibold ${isSelected ? 'bg-indigo-700 text-indigo-100' : 'bg-indigo-100 text-indigo-700'}`}>
+                          Current
+                        </span>
+                      )}
+                      {isPast && (
+                        <span className="text-[9px] text-slate-400 font-normal">(Past)</span>
+                      )}
+                    </button>
+                  );
+                })}
+              </div>
+
+              <button
+                type="button"
+                onClick={() => {
+                  if (profileTabsRef.current) {
+                    profileTabsRef.current.scrollBy({ left: 200, behavior: 'smooth' });
+                  }
+                }}
+                className="w-7 h-7 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold flex items-center justify-center shrink-0 transition-colors text-sm shadow-sm"
+                title="Scroll to next weeks"
+              >
+                ›
+              </button>
             </div>
 
             {/* Shift Rota Table for Active Week */}
             {rotaSchedule.weeks && rotaSchedule.weeks[activeWeekIndex] && (
               <div className="bg-slate-50 border border-slate-200 rounded-xl overflow-hidden p-4 space-y-4">
-                <div className="flex items-center gap-3 mb-2">
-                  <label className="text-xs font-bold text-slate-700">Week Commencing Date (Monday):</label>
-                  <input
-                    type="date"
-                    value={rotaSchedule.weeks[activeWeekIndex].weekCommencingDate || ''}
-                    onChange={(e) => {
-                      const newWeeks = [...rotaSchedule.weeks];
-                      newWeeks[activeWeekIndex].weekCommencingDate = e.target.value;
-                      setRotaSchedule({ weeks: newWeeks });
-                    }}
-                    className="px-3 py-1.5 bg-white border border-slate-300 rounded-lg text-xs font-mono text-slate-800"
-                  />
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 bg-white px-3 py-2 rounded-lg border border-slate-200">
+                  <div className="flex items-center gap-3">
+                    <label className="text-xs font-bold text-slate-700">Week Commencing Date (Monday):</label>
+                    <input
+                      type="date"
+                      value={rotaSchedule.weeks[activeWeekIndex].weekCommencingDate || ''}
+                      onChange={(e) => {
+                        const mondayStr = getMondayDate(e.target.value);
+                        const newWeeks = [...rotaSchedule.weeks];
+                        newWeeks[activeWeekIndex].weekCommencingDate = mondayStr;
+                        setRotaSchedule({ weeks: newWeeks });
+                      }}
+                      className="px-3 py-1.5 bg-slate-50 border border-slate-300 rounded-lg text-xs font-mono text-slate-800 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                    />
+                  </div>
+                  <span className="text-xs text-indigo-700 font-medium">
+                    {formatMondayFull(rotaSchedule.weeks[activeWeekIndex].weekCommencingDate)}
+                  </span>
                 </div>
 
                 <div className="divide-y divide-slate-200 border border-slate-200 rounded-xl bg-white overflow-hidden">
@@ -344,7 +403,11 @@ export default function MyProfileView() {
                         </div>
 
                         {daySched.unavailable ? (
-                          <span className="text-slate-400 italic">Day Off / Unavailable</span>
+                          <div className="flex items-center gap-2 flex-1">
+                            <span className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-rose-100 text-rose-700 text-xs font-semibold rounded-md border border-rose-200">
+                              <span>🌴</span> Holiday / Day Off (Unavailable)
+                            </span>
+                          </div>
                         ) : (
                           <div className="flex flex-wrap items-center gap-4 flex-1">
                             {/* Morning Shift */}

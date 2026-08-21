@@ -1,13 +1,41 @@
-import React, { useState } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { useDashboardStore, DailySchedule, WeeklySchedule } from '../../lib/store';
 import ServiceEditor from '../ServiceEditor';
+import { getMondayDate, formatMondayTabLabel, formatMondayFull, generateRollingSchedule, addDaysToDate } from '../../lib/dateUtils';
 
 
 export default function SchedulingView() {
-  const { tenantId, chatbots, services, setServices, staff, setStaff, bookingMode, setBookingMode, bookingUrl, setBookingUrl, isGoogleConnected, setIsGoogleConnected } = useDashboardStore();
+  const {
+    tenantId,
+    chatbots,
+    services,
+    setServices,
+    staff,
+    setStaff,
+    bookingMode,
+    setBookingMode,
+    bookingUrl,
+    setBookingUrl,
+    isGoogleConnected,
+    setIsGoogleConnected,
+    maxAdvanceWeeks,
+    setMaxAdvanceWeeks,
+    generalOperatingHours,
+    setGeneralOperatingHours,
+    flexibleBreaks,
+    setFlexibleBreaks,
+    is247,
+    setIs247,
+    openPublicHolidays,
+    setOpenPublicHolidays,
+    appointments,
+    setAppointments
+  } = useDashboardStore();
 
   const realBots = chatbots.filter(b => b.id !== '00000000-0000-0000-0000-000000000000' && b.id !== 'global');
   const [targetChatbotId, setTargetChatbotId] = useState(realBots[0]?.id || '');
+
+  const staffTabsRef = useRef<HTMLDivElement | null>(null);
 
   React.useEffect(() => {
     if (!targetChatbotId && realBots.length > 0) {
@@ -102,7 +130,7 @@ export default function SchedulingView() {
   };
 
   const createEmptySchedule = (weekDate?: string): WeeklySchedule => ({
-    weekCommencingDate: weekDate || new Date().toISOString().split('T')[0],
+    weekCommencingDate: weekDate ? getMondayDate(weekDate) : getMondayDate(),
     monday: { unavailable: false, am: null, pm: null },
     tuesday: { unavailable: false, am: null, pm: null },
     wednesday: { unavailable: false, am: null, pm: null },
@@ -112,13 +140,9 @@ export default function SchedulingView() {
     sunday: { unavailable: false, am: null, pm: null },
   });
 
-  const [newStaffSchedule, setNewStaffSchedule] = useState<{weeks: WeeklySchedule[]}>({
-    weeks: [
-      createEmptySchedule(),
-      createEmptySchedule(),
-      createEmptySchedule(),
-      createEmptySchedule()
-    ]
+  const [newStaffSchedule, setNewStaffSchedule] = useState<{weeks: WeeklySchedule[]}>(() => {
+    const rolling = generateRollingSchedule([], maxAdvanceWeeks || 4, createEmptySchedule);
+    return { weeks: rolling.weeks };
   });
 
   const handleAddService = async (e: React.FormEvent) => {
@@ -203,47 +227,53 @@ export default function SchedulingView() {
       newWeeks[activeWeekIndex] = newSched;
       return { weeks: newWeeks };
     });
-  }
+  };
 
   const handleDateChange = (dateStr: string) => {
-    const selectedDate = new Date(dateStr);
-    // Enforce Monday selection (getDay() === 1)
-    if (selectedDate.getDay() !== 1) {
-      alert('Please select a Monday for the week commencing date.');
-      return;
-    }
+    const mondayStr = getMondayDate(dateStr);
     
     setNewStaffSchedule(prev => {
       const newWeeks = [...prev.weeks];
-      newWeeks[activeWeekIndex] = { ...newWeeks[activeWeekIndex], weekCommencingDate: dateStr };
+      newWeeks[activeWeekIndex] = { ...newWeeks[activeWeekIndex], weekCommencingDate: mondayStr };
       return { weeks: newWeeks };
     });
-  }
+  };
 
   const copyToNextWeek = () => {
-    if (activeWeekIndex >= 3) {
-      alert('You can only copy to the next week within the 4-week window.');
+    if (activeWeekIndex >= newStaffSchedule.weeks.length - 1) {
+      alert(`You have reached the end of the ${maxAdvanceWeeks || 4}-week booking window.`);
       return;
     }
     setNewStaffSchedule(prev => {
       const newWeeks = [...prev.weeks];
       const currentWeek = newWeeks[activeWeekIndex];
+      const nextWeekDate = newWeeks[activeWeekIndex + 1].weekCommencingDate;
       
-      // Calculate next week's date (+7 days)
-      const currentDate = new Date(currentWeek.weekCommencingDate);
-      currentDate.setDate(currentDate.getDate() + 7);
-      const nextWeekDateStr = currentDate.toISOString().split('T')[0];
-      
-      // Copy structure but not the weekCommencingDate
+      // Copy schedule structure while preserving the next week's Monday date
       newWeeks[activeWeekIndex + 1] = {
         ...JSON.parse(JSON.stringify(currentWeek)),
-        weekCommencingDate: nextWeekDateStr
+        weekCommencingDate: nextWeekDate
       };
       
       return { weeks: newWeeks };
     });
     // Auto switch to the next week tab
     setActiveWeekIndex(activeWeekIndex + 1);
+  };
+
+  const openAddStaff = () => {
+    setEditingStaffId(null);
+    setNewStaffName('');
+    setNewStaffEmail('');
+    setNewStaffCalId('');
+    setNewStaffImageUrl('');
+    setNewStaffSpecialistProduct('');
+    setNewStaffBio('');
+
+    const rolling = generateRollingSchedule([], maxAdvanceWeeks || 4, createEmptySchedule);
+    setNewStaffSchedule({ weeks: rolling.weeks });
+    setActiveWeekIndex(rolling.currentWeekIndex);
+    setShowStaffModal(true);
   };
 
   const openEditStaff = (staffMember: any) => {
@@ -255,19 +285,12 @@ export default function SchedulingView() {
     setNewStaffSpecialistProduct(staffMember.specialist_product || '');
     setNewStaffBio(staffMember.bio || '');
     
-    // Load existing weeks or create empty ones
+    // Load existing weeks using rolling schedule calculation
     const existingWeeks = staffMember.working_days?.weeks || [];
-    const weeksToLoad = [];
-    for (let i = 0; i < 4; i++) {
-      if (existingWeeks[i]) {
-        weeksToLoad.push(existingWeeks[i]);
-      } else {
-        weeksToLoad.push(createEmptySchedule());
-      }
-    }
+    const rolling = generateRollingSchedule(existingWeeks, maxAdvanceWeeks || 4, createEmptySchedule);
     
-    setNewStaffSchedule({ weeks: weeksToLoad });
-    setActiveWeekIndex(0);
+    setNewStaffSchedule({ weeks: rolling.weeks });
+    setActiveWeekIndex(rolling.currentWeekIndex);
     setShowStaffModal(true);
   };
 
@@ -311,12 +334,12 @@ export default function SchedulingView() {
         setNewStaffImageUrl('');
         setNewStaffSpecialistProduct('');
         setNewStaffBio('');
-        setNewStaffSchedule({
-          weeks: [createEmptySchedule(), createEmptySchedule(), createEmptySchedule(), createEmptySchedule()]
-        });
-        setActiveWeekIndex(0);
+        const rolling = generateRollingSchedule([], maxAdvanceWeeks || 4, createEmptySchedule);
+        setNewStaffSchedule({ weeks: rolling.weeks });
+        setActiveWeekIndex(rolling.currentWeekIndex);
       } else {
-        alert(isUpdate ? 'Failed to update staff' : 'Failed to add staff');
+        const errData = await res.json().catch(() => ({}));
+        alert(errData.error || (isUpdate ? 'Failed to update staff' : 'Failed to add staff'));
       }
     } catch (err) {
       console.error(err);
@@ -335,16 +358,6 @@ export default function SchedulingView() {
       console.error(err);
     }
   };
-
-  // Policy controls state
-  const {
-    generalOperatingHours, setGeneralOperatingHours,
-    flexibleBreaks, setFlexibleBreaks,
-    is247, setIs247,
-    openPublicHolidays, setOpenPublicHolidays,
-    maxAdvanceWeeks, setMaxAdvanceWeeks,
-    appointments, setAppointments
-  } = useDashboardStore();
 
   const [selectedRotaDate, setSelectedRotaDate] = useState<string>(new Date().toISOString().split('T')[0]);
   const [selectedApptForInspection, setSelectedApptForInspection] = useState<any | null>(null);
@@ -459,7 +472,8 @@ export default function SchedulingView() {
         alert('Appointment amended successfully! Confirmation email and iCal (.ics) attachment generated.');
         setSelectedApptForInspection(null);
       } else {
-        alert('Failed to amend appointment.');
+        const errData = await res.json().catch(() => ({}));
+        alert(`Failed to amend appointment: ${errData.error || 'Server returned status ' + res.status}`);
       }
     } catch (err: any) {
       alert('Error amending appointment: ' + err.message);
@@ -558,20 +572,11 @@ export default function SchedulingView() {
           <div className="flex items-center justify-between">
             <div>
               <h3 className="text-lg font-bold text-[var(--awb-color8)]">Staff Members & Rotas</h3>
-              <p className="text-xs text-[var(--awb-color6)] mt-0.5">Manage team members, individual Google Calendar IDs, and 4-week shift rotas.</p>
+              <p className="text-xs text-[var(--awb-color6)] mt-0.5">Manage team members, individual Google Calendar IDs, and {maxAdvanceWeeks || 4}-week rolling shift & holiday rotas.</p>
             </div>
             <button
               type="button"
-              onClick={() => {
-                setEditingStaffId(null);
-                setNewStaffName('');
-                setNewStaffEmail('');
-                setNewStaffCalId('');
-                setNewStaffImageUrl('');
-                setNewStaffSpecialistProduct('');
-                setNewStaffBio('');
-                setShowStaffModal(true);
-              }}
+              onClick={openAddStaff}
               className="bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold px-4 py-2.5 rounded-xl shadow-sm transition-colors flex items-center gap-1.5"
             >
               <span>+ Add Staff Member</span>
@@ -998,59 +1003,113 @@ export default function SchedulingView() {
                     />
                   </div>
 
-                  {/* 4-Week Shift Rota & Working Hours Editor */}
+                  {/* Dynamic Rolling Shift Rota & Holiday Planner */}
                   <div className="pt-4 border-t border-slate-200 space-y-4">
                     <div className="flex items-center justify-between">
                       <div>
-                        <h4 className="text-sm font-bold text-slate-900">📅 4-Week Shift Rota & Working Hours</h4>
-                        <p className="text-[11px] text-slate-500">Configure AM and PM shift hours across 4 rolling weeks.</p>
+                        <h4 className="text-sm font-bold text-slate-900">📅 Rolling Shift Rota & Colleague Holidays ({maxAdvanceWeeks || 4} Weeks)</h4>
+                        <p className="text-[11px] text-slate-500">Configure AM/PM shift hours and mark booked holiday/time off across the {maxAdvanceWeeks || 4}-week booking window.</p>
                       </div>
                       <button
                         type="button"
                         onClick={copyToNextWeek}
-                        className="px-3 py-1.5 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 text-xs font-semibold rounded-lg border border-indigo-200 transition-colors"
+                        className="px-3 py-1.5 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 text-xs font-semibold rounded-lg border border-indigo-200 transition-colors shrink-0"
                       >
                         Copy to Next Week →
                       </button>
                     </div>
 
-                    {/* Week Tabs */}
-                    <div className="flex gap-2 border-b border-slate-200 pb-2">
-                      {[0, 1, 2, 3].map((weekIdx) => (
-                        <button
-                          key={weekIdx}
-                          type="button"
-                          onClick={() => setActiveWeekIndex(weekIdx)}
-                          className={`px-3.5 py-1.5 text-xs font-bold rounded-lg transition-all ${
-                            activeWeekIndex === weekIdx
-                              ? 'bg-indigo-600 text-white shadow-sm'
-                              : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
-                          }`}
-                        >
-                          Week {weekIdx + 1}
-                        </button>
-                      ))}
+                    {/* Scrollable Week Tabs with Arrow Navigation */}
+                    <div className="relative flex items-center gap-1.5 border-b border-slate-200 pb-2">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          if (staffTabsRef.current) {
+                            staffTabsRef.current.scrollBy({ left: -200, behavior: 'smooth' });
+                          }
+                        }}
+                        className="w-7 h-7 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold flex items-center justify-center shrink-0 transition-colors text-sm shadow-sm"
+                        title="Scroll to previous weeks"
+                      >
+                        ‹
+                      </button>
+
+                      <div
+                        ref={staffTabsRef}
+                        className="flex gap-2 overflow-x-auto scroll-smooth py-1 px-1 flex-1 no-scrollbar"
+                        style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}
+                      >
+                        {newStaffSchedule.weeks.map((week, weekIdx) => {
+                          const currentMonday = getMondayDate();
+                          const isCurrent = week.weekCommencingDate === currentMonday;
+                          const isPast = Boolean(week.weekCommencingDate && week.weekCommencingDate < currentMonday);
+                          const isSelected = activeWeekIndex === weekIdx;
+
+                          return (
+                            <button
+                              key={week.weekCommencingDate || weekIdx}
+                              type="button"
+                              onClick={() => setActiveWeekIndex(weekIdx)}
+                              className={`px-3.5 py-1.5 text-xs font-bold rounded-lg whitespace-nowrap transition-all flex items-center gap-1.5 shrink-0 ${
+                                isSelected
+                                  ? 'bg-indigo-600 text-white shadow-md ring-2 ring-indigo-300'
+                                  : isPast
+                                  ? 'bg-slate-100 text-slate-400 hover:bg-slate-200 hover:text-slate-600'
+                                  : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
+                              }`}
+                            >
+                              <span>{formatMondayTabLabel(week.weekCommencingDate)}</span>
+                              {isCurrent && (
+                                <span className={`text-[9px] px-1.5 py-0.5 rounded font-semibold ${isSelected ? 'bg-indigo-700 text-indigo-100' : 'bg-indigo-100 text-indigo-700'}`}>
+                                  Current
+                                </span>
+                              )}
+                              {isPast && (
+                                <span className="text-[9px] text-slate-400 font-normal">(Past)</span>
+                              )}
+                            </button>
+                          );
+                        })}
+                      </div>
+
+                      <button
+                        type="button"
+                        onClick={() => {
+                          if (staffTabsRef.current) {
+                            staffTabsRef.current.scrollBy({ left: 200, behavior: 'smooth' });
+                          }
+                        }}
+                        className="w-7 h-7 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold flex items-center justify-center shrink-0 transition-colors text-sm shadow-sm"
+                        title="Scroll to next weeks"
+                      >
+                        ›
+                      </button>
                     </div>
 
                     {/* Active Week Table */}
                     {newStaffSchedule.weeks && newStaffSchedule.weeks[activeWeekIndex] && (
                       <div className="bg-slate-50 border border-slate-200 rounded-xl p-3.5 space-y-3">
-                        <div className="flex items-center gap-3">
-                          <label className="text-xs font-bold text-slate-700">Week Commencing (Monday):</label>
-                          <input
-                            type="date"
-                            value={newStaffSchedule.weeks[activeWeekIndex].weekCommencingDate || ''}
-                            onChange={(e) => handleDateChange(e.target.value)}
-                            className="px-3 py-1.5 bg-white border border-slate-300 rounded-lg text-xs font-mono text-slate-800"
-                          />
+                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 bg-white px-3 py-2 rounded-lg border border-slate-200">
+                          <div className="flex items-center gap-3">
+                            <label className="text-xs font-bold text-slate-700">Week Commencing (Monday):</label>
+                            <input
+                              type="date"
+                              value={newStaffSchedule.weeks[activeWeekIndex].weekCommencingDate || ''}
+                              onChange={(e) => handleDateChange(e.target.value)}
+                              className="px-3 py-1.5 bg-slate-50 border border-slate-300 rounded-lg text-xs font-mono text-slate-800 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                            />
+                          </div>
+                          <span className="text-xs text-indigo-700 font-medium">
+                            {formatMondayFull(newStaffSchedule.weeks[activeWeekIndex].weekCommencingDate)}
+                          </span>
                         </div>
 
                         <div className="divide-y divide-slate-200 border border-slate-200 rounded-xl bg-white overflow-hidden">
                           {(['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'] as const).map((day) => {
                             const daySched = newStaffSchedule.weeks[activeWeekIndex][day] || { unavailable: false, am: null, pm: null };
                             return (
-                              <div key={day} className="p-2.5 flex flex-col md:flex-row md:items-center justify-between gap-2.5 text-xs">
-                                <div className="w-28 font-bold capitalize text-slate-800 flex items-center gap-2">
+                              <div key={day} className={`p-2.5 flex flex-col md:flex-row md:items-center justify-between gap-2.5 text-xs transition-colors ${daySched.unavailable ? 'bg-rose-50/40' : ''}`}>
+                                <div className="w-32 font-bold capitalize text-slate-800 flex items-center gap-2">
                                   <input
                                     type="checkbox"
                                     checked={!daySched.unavailable}
@@ -1061,7 +1120,11 @@ export default function SchedulingView() {
                                 </div>
 
                                 {daySched.unavailable ? (
-                                  <span className="text-slate-400 italic text-[11px]">Day Off / Unavailable</span>
+                                  <div className="flex items-center gap-2 flex-1">
+                                    <span className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-rose-100 text-rose-700 text-xs font-semibold rounded-md border border-rose-200">
+                                      <span>🌴</span> Holiday / Day Off (Unavailable)
+                                    </span>
+                                  </div>
                                 ) : (
                                   <div className="flex flex-wrap items-center gap-3 flex-1">
                                     {/* AM Shift */}
@@ -1167,8 +1230,15 @@ export default function SchedulingView() {
                       <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">Start Time (ISO)</label>
                       <input
                         type="datetime-local"
-                        value={editApptStartTime ? new Date(editApptStartTime).toISOString().slice(0, 16) : ''}
-                        onChange={e => setEditApptStartTime(new Date(e.target.value).toISOString())}
+                        value={editApptStartTime && !isNaN(new Date(editApptStartTime).getTime()) ? new Date(new Date(editApptStartTime).getTime() - new Date().getTimezoneOffset() * 60000).toISOString().slice(0, 16) : ''}
+                        onChange={e => {
+                          if (e.target.value) {
+                            const d = new Date(e.target.value);
+                            if (!isNaN(d.getTime())) setEditApptStartTime(d.toISOString());
+                          } else {
+                            setEditApptStartTime('');
+                          }
+                        }}
                         className="w-full h-11 px-3 bg-slate-50 border border-slate-200 rounded-xl text-xs font-medium text-slate-900"
                       />
                     </div>
@@ -1176,8 +1246,15 @@ export default function SchedulingView() {
                       <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">End Time (ISO)</label>
                       <input
                         type="datetime-local"
-                        value={editApptEndTime ? new Date(editApptEndTime).toISOString().slice(0, 16) : ''}
-                        onChange={e => setEditApptEndTime(new Date(e.target.value).toISOString())}
+                        value={editApptEndTime && !isNaN(new Date(editApptEndTime).getTime()) ? new Date(new Date(editApptEndTime).getTime() - new Date().getTimezoneOffset() * 60000).toISOString().slice(0, 16) : ''}
+                        onChange={e => {
+                          if (e.target.value) {
+                            const d = new Date(e.target.value);
+                            if (!isNaN(d.getTime())) setEditApptEndTime(d.toISOString());
+                          } else {
+                            setEditApptEndTime('');
+                          }
+                        }}
                         className="w-full h-11 px-3 bg-slate-50 border border-slate-200 rounded-xl text-xs font-medium text-slate-900"
                       />
                     </div>

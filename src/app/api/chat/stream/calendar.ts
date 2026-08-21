@@ -80,19 +80,26 @@ export async function checkAvailability(tenantId: string, staffId: string, servi
     if (mapping && mapping.custom_duration) {
       serviceDuration = mapping.custom_duration + (service.buffer_minutes || 0);
     }
-    // 1. Enforce 2-week limit
+    // 1. Enforce max advance booking window limit
+    const { data: tenantData } = await getSupabaseAdmin()
+      .from('tenants')
+      .select('max_advance_weeks')
+      .eq('id', tenantId)
+      .single();
+
+    const maxWeeks = tenantData?.max_advance_weeks || 12;
     const now = new Date();
-    const twoWeeksFromNow = new Date();
-    twoWeeksFromNow.setDate(twoWeeksFromNow.getDate() + 14);
+    const maxAdvanceDate = new Date();
+    maxAdvanceDate.setDate(maxAdvanceDate.getDate() + (maxWeeks * 7));
 
     let start = new Date(startDateStr);
     let end = new Date(endDateStr);
 
     if (start < now) start = now;
-    if (end > twoWeeksFromNow) end = twoWeeksFromNow;
+    if (end > maxAdvanceDate) end = maxAdvanceDate;
     
     if (start >= end) {
-      return "Cannot check availability: Dates must be in the future and within the next 14 days.";
+      return `Cannot check availability: Dates must be in the future and within the next ${maxWeeks} weeks.`;
     }
 
     // 2. Fetch Staff Details (Working days, Google Calendar ID)
