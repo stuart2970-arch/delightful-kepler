@@ -835,364 +835,370 @@ export default function SchedulingView() {
 
         {/* Add Service Modal */}
         {showAddService && (
-          <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-            <div className="bg-white rounded-2xl max-w-md w-full p-6 space-y-4 shadow-2xl border border-gray-100">
-              <div className="flex items-center justify-between border-b border-gray-100 pb-3">
-                <h3 className="text-base font-bold text-gray-800">Add New Service</h3>
-                <button type="button" onClick={() => setShowAddService(false)} className="text-gray-400 hover:text-gray-600 font-bold">✕</button>
-              </div>
-              <form onSubmit={handleAddService} className="space-y-4">
-                <div>
-                  <label className="block text-xs font-semibold text-gray-600 mb-1">Service Name</label>
-                  <input
-                    type="text"
-                    required
-                    value={newServiceName}
-                    onChange={e => setNewServiceName(e.target.value)}
-                    placeholder="e.g. Cut & Blow Dry"
-                    className="w-full bg-gray-50 border border-gray-300 rounded px-3 py-2 text-xs font-semibold text-gray-800"
-                  />
+          <div className="fixed inset-0 z-[9999] overflow-y-auto bg-black/75 backdrop-blur-md">
+            <div className="min-h-full flex items-center justify-center p-4 sm:p-6 text-center">
+              <div className="w-full max-w-md bg-white rounded-3xl p-6 sm:p-8 space-y-5 shadow-2xl border border-slate-200 text-left my-8 transform transition-all">
+                <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+                  <h3 className="text-base font-bold text-slate-900">Add New Service</h3>
+                  <button type="button" onClick={() => setShowAddService(false)} className="w-7 h-7 rounded-full bg-slate-100 text-slate-500 hover:bg-slate-200 font-bold text-xs flex items-center justify-center">✕</button>
                 </div>
-                <div className="grid grid-cols-2 gap-4">
+                <form onSubmit={handleAddService} className="space-y-4">
                   <div>
-                    <label className="block text-xs font-semibold text-gray-600 mb-1">Duration (mins)</label>
+                    <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">Service Name</label>
                     <input
-                      type="number"
+                      type="text"
                       required
-                      min={5}
-                      max={480}
-                      value={newServiceDuration}
-                      onChange={e => setNewServiceDuration(Number(e.target.value))}
-                      className="w-full bg-gray-50 border border-gray-300 rounded px-3 py-2 text-xs font-semibold text-gray-800"
+                      value={newServiceName}
+                      onChange={e => setNewServiceName(e.target.value)}
+                      placeholder="e.g. Cut & Blow Dry"
+                      className="w-full h-11 px-4 bg-slate-50 border border-slate-200 rounded-xl text-sm font-medium text-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-600"
                     />
                   </div>
-                  <div>
-                    <label className="block text-xs font-semibold text-gray-600 mb-1">Buffer Time (mins)</label>
-                    <input
-                      type="number"
-                      min={0}
-                      max={120}
-                      value={newServiceBuffer}
-                      onChange={e => setNewServiceBuffer(Number(e.target.value))}
-                      className="w-full bg-gray-50 border border-gray-300 rounded px-3 py-2 text-xs font-semibold text-gray-800"
-                    />
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">Duration (mins)</label>
+                      <input
+                        type="number"
+                        required
+                        min={5}
+                        max={480}
+                        value={newServiceDuration}
+                        onChange={e => setNewServiceDuration(Number(e.target.value))}
+                        className="w-full h-11 px-4 bg-slate-50 border border-slate-200 rounded-xl text-sm font-medium text-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-600"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">Buffer (mins)</label>
+                      <input
+                        type="number"
+                        min={0}
+                        max={120}
+                        value={newServiceBuffer}
+                        onChange={e => setNewServiceBuffer(Number(e.target.value))}
+                        className="w-full h-11 px-4 bg-slate-50 border border-slate-200 rounded-xl text-sm font-medium text-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-600"
+                      />
+                    </div>
                   </div>
-                </div>
-                <div className="pt-2 flex items-center justify-end gap-3 border-t border-gray-100">
-                  <button type="button" onClick={() => setShowAddService(false)} className="px-4 py-2 text-xs text-gray-600 font-semibold">Cancel</button>
-                  <button type="submit" className="px-5 py-2 text-xs bg-indigo-600 hover:bg-indigo-500 text-white font-bold rounded-lg shadow transition-colors">Create Service</button>
-                </div>
-              </form>
+                  <div className="pt-3 flex items-center justify-end gap-3 border-t border-slate-100">
+                    <button type="button" onClick={() => setShowAddService(false)} className="px-4 py-2.5 text-xs text-slate-600 font-semibold hover:text-slate-800">Cancel</button>
+                    <button type="submit" className="px-5 py-2.5 text-xs bg-indigo-600 hover:bg-indigo-500 text-white font-bold rounded-xl shadow-md transition-colors">Create Service</button>
+                  </div>
+                </form>
+              </div>
             </div>
           </div>
         )}
 
         {/* Add / Edit Staff & Rota Modal */}
         {showStaffModal && (
-          <div className="fixed inset-0 z-[100] bg-black/70 backdrop-blur-md flex items-center justify-center p-4 sm:p-6 overflow-y-auto">
-            <div className="bg-white rounded-3xl max-w-2xl w-full p-6 sm:p-8 space-y-6 shadow-2xl border border-slate-200 max-h-[88vh] overflow-y-auto">
-              <div className="flex items-center justify-between border-b border-slate-100 pb-4">
-                <div>
-                  <h3 className="text-xl font-bold text-slate-900">{editingStaffId ? '✏️ Edit Staff & Shift Rota' : '👤 Add New Staff Member'}</h3>
-                  <p className="text-xs text-slate-500 mt-0.5">Configure colleague profile, photo avatar, bio, and 4-week shift rota.</p>
-                </div>
-                <button type="button" onClick={() => setShowStaffModal(false)} className="w-8 h-8 rounded-full bg-slate-100 text-slate-500 hover:bg-slate-200 font-bold text-sm flex items-center justify-center transition-colors">✕</button>
-              </div>
-
-              <form onSubmit={handleSaveStaff} className="space-y-6">
-                {/* Basic Info: Name & Email */}
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div className="fixed inset-0 z-[9999] overflow-y-auto bg-black/75 backdrop-blur-md">
+            <div className="min-h-full flex items-center justify-center p-4 sm:p-6 text-center">
+              <div className="w-full max-w-2xl bg-white rounded-3xl p-6 sm:p-8 space-y-6 shadow-2xl border border-slate-200 text-left my-8 transform transition-all">
+                <div className="flex items-center justify-between border-b border-slate-100 pb-4">
                   <div>
-                    <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">Staff Member Name</label>
-                    <input
-                      type="text"
-                      required
-                      value={newStaffName}
-                      onChange={e => setNewStaffName(e.target.value)}
-                      placeholder="e.g. Jessica Taylor"
-                      className="w-full h-11 px-4 bg-slate-50 border border-slate-200 rounded-xl text-sm font-medium text-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-600"
-                    />
+                    <h3 className="text-xl font-bold text-slate-900">{editingStaffId ? '✏️ Edit Staff & Shift Rota' : '👤 Add New Staff Member'}</h3>
+                    <p className="text-xs text-slate-500 mt-0.5">Configure colleague profile, photo avatar, bio, and 4-week shift rota.</p>
                   </div>
-                  <div>
-                    <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">Email Address</label>
-                    <input
-                      type="email"
-                      value={newStaffEmail}
-                      onChange={e => setNewStaffEmail(e.target.value)}
-                      placeholder="jessica@salon.com"
-                      className="w-full h-11 px-4 bg-slate-50 border border-slate-200 rounded-xl text-sm font-medium text-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-600"
-                    />
-                  </div>
+                  <button type="button" onClick={() => setShowStaffModal(false)} className="w-8 h-8 rounded-full bg-slate-100 text-slate-500 hover:bg-slate-200 font-bold text-sm flex items-center justify-center transition-colors">✕</button>
                 </div>
 
-                {/* Profile Photo / Image Upload */}
-                <div>
-                  <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">Profile Photo / Avatar</label>
-                  <div className="flex items-center gap-4">
-                    <div className="w-14 h-14 rounded-full overflow-hidden bg-slate-100 border-2 border-slate-200 flex-shrink-0 flex items-center justify-center text-xl font-bold text-slate-400">
-                      {newStaffImageUrl ? (
-                        <img src={newStaffImageUrl} alt="Preview" className="w-full h-full object-cover" />
-                      ) : (
-                        newStaffName?.[0] || 'S'
-                      )}
-                    </div>
-                    <div className="flex-1 space-y-2">
-                      <input
-                        type="url"
-                        placeholder="https://example.com/avatar.jpg"
-                        value={newStaffImageUrl}
-                        onChange={(e) => setNewStaffImageUrl(e.target.value)}
-                        className="w-full px-4 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-medium text-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-600"
-                      />
-                      <input
-                        type="file"
-                        accept="image/*"
-                        onChange={handleStaffImageUpload}
-                        disabled={isUploadingImage}
-                        className="text-xs text-slate-500 file:mr-3 file:py-1 file:px-3 file:rounded-lg file:border-0 file:text-xs file:font-semibold file:bg-indigo-50 file:text-indigo-700 hover:file:bg-indigo-100"
-                      />
-                    </div>
-                  </div>
-                </div>
-
-                {/* Google Calendar ID */}
-                <div>
-                  <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">Google Calendar ID</label>
-                  <input
-                    type="text"
-                    value={newStaffCalId}
-                    onChange={e => setNewStaffCalId(e.target.value)}
-                    placeholder="primary or calendar-id@group.calendar.google.com"
-                    className="w-full h-11 px-4 bg-slate-50 border border-slate-200 rounded-xl text-xs font-mono font-medium text-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-600"
-                  />
-                  <p className="text-[10px] text-slate-400 mt-1">Leave empty to use primary default Google Calendar.</p>
-                </div>
-
-                {/* Specialist Products / Services */}
-                <div>
-                  <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">Specialist Services & Specialties</label>
-                  <input
-                    type="text"
-                    value={newStaffSpecialistProduct}
-                    onChange={e => setNewStaffSpecialistProduct(e.target.value)}
-                    placeholder="e.g. Balayage, Precision Cutting, Extensions"
-                    className="w-full h-11 px-4 bg-slate-50 border border-slate-200 rounded-xl text-sm font-medium text-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-600"
-                  />
-                </div>
-
-                {/* Professional Bio */}
-                <div>
-                  <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">Professional Bio</label>
-                  <textarea
-                    rows={3}
-                    value={newStaffBio}
-                    onChange={e => setNewStaffBio(e.target.value)}
-                    placeholder="Describe qualifications, stylist experience, and client specialisms..."
-                    className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl text-xs font-medium text-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-600"
-                  />
-                </div>
-
-                {/* 4-Week Shift Rota & Working Hours Editor */}
-                <div className="pt-4 border-t border-slate-200 space-y-4">
-                  <div className="flex items-center justify-between">
+                <form onSubmit={handleSaveStaff} className="space-y-6">
+                  {/* Basic Info: Name & Email */}
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div>
-                      <h4 className="text-sm font-bold text-slate-900">📅 4-Week Shift Rota & Working Hours</h4>
-                      <p className="text-[11px] text-slate-500">Configure AM and PM shift hours across 4 rolling weeks.</p>
+                      <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">Staff Member Name</label>
+                      <input
+                        type="text"
+                        required
+                        value={newStaffName}
+                        onChange={e => setNewStaffName(e.target.value)}
+                        placeholder="e.g. Jessica Taylor"
+                        className="w-full h-11 px-4 bg-slate-50 border border-slate-200 rounded-xl text-sm font-medium text-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-600"
+                      />
                     </div>
-                    <button
-                      type="button"
-                      onClick={copyToNextWeek}
-                      className="px-3 py-1.5 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 text-xs font-semibold rounded-lg border border-indigo-200 transition-colors"
-                    >
-                      Copy to Next Week →
-                    </button>
+                    <div>
+                      <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">Email Address</label>
+                      <input
+                        type="email"
+                        value={newStaffEmail}
+                        onChange={e => setNewStaffEmail(e.target.value)}
+                        placeholder="jessica@salon.com"
+                        className="w-full h-11 px-4 bg-slate-50 border border-slate-200 rounded-xl text-sm font-medium text-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-600"
+                      />
+                    </div>
                   </div>
 
-                  {/* Week Tabs */}
-                  <div className="flex gap-2 border-b border-slate-200 pb-2">
-                    {[0, 1, 2, 3].map((weekIdx) => (
-                      <button
-                        key={weekIdx}
-                        type="button"
-                        onClick={() => setActiveWeekIndex(weekIdx)}
-                        className={`px-3.5 py-1.5 text-xs font-bold rounded-lg transition-all ${
-                          activeWeekIndex === weekIdx
-                            ? 'bg-indigo-600 text-white shadow-sm'
-                            : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
-                        }`}
-                      >
-                        Week {weekIdx + 1}
-                      </button>
-                    ))}
-                  </div>
-
-                  {/* Active Week Table */}
-                  {newStaffSchedule.weeks && newStaffSchedule.weeks[activeWeekIndex] && (
-                    <div className="bg-slate-50 border border-slate-200 rounded-xl p-3.5 space-y-3">
-                      <div className="flex items-center gap-3">
-                        <label className="text-xs font-bold text-slate-700">Week Commencing (Monday):</label>
+                  {/* Profile Photo / Image Upload */}
+                  <div>
+                    <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">Profile Photo / Avatar</label>
+                    <div className="flex items-center gap-4">
+                      <div className="w-14 h-14 rounded-full overflow-hidden bg-slate-100 border-2 border-slate-200 flex-shrink-0 flex items-center justify-center text-xl font-bold text-slate-400">
+                        {newStaffImageUrl ? (
+                          <img src={newStaffImageUrl} alt="Preview" className="w-full h-full object-cover" />
+                        ) : (
+                          newStaffName?.[0] || 'S'
+                        )}
+                      </div>
+                      <div className="flex-1 space-y-2">
                         <input
-                          type="date"
-                          value={newStaffSchedule.weeks[activeWeekIndex].weekCommencingDate || ''}
-                          onChange={(e) => handleDateChange(e.target.value)}
-                          className="px-3 py-1.5 bg-white border border-slate-300 rounded-lg text-xs font-mono text-slate-800"
+                          type="url"
+                          placeholder="https://example.com/avatar.jpg"
+                          value={newStaffImageUrl}
+                          onChange={(e) => setNewStaffImageUrl(e.target.value)}
+                          className="w-full px-4 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-medium text-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-600"
+                        />
+                        <input
+                          type="file"
+                          accept="image/*"
+                          onChange={handleStaffImageUpload}
+                          disabled={isUploadingImage}
+                          className="text-xs text-slate-500 file:mr-3 file:py-1 file:px-3 file:rounded-lg file:border-0 file:text-xs file:font-semibold file:bg-indigo-50 file:text-indigo-700 hover:file:bg-indigo-100"
                         />
                       </div>
-
-                      <div className="divide-y divide-slate-200 border border-slate-200 rounded-xl bg-white overflow-hidden">
-                        {(['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'] as const).map((day) => {
-                          const daySched = newStaffSchedule.weeks[activeWeekIndex][day] || { unavailable: false, am: null, pm: null };
-                          return (
-                            <div key={day} className="p-2.5 flex flex-col md:flex-row md:items-center justify-between gap-2.5 text-xs">
-                              <div className="w-28 font-bold capitalize text-slate-800 flex items-center gap-2">
-                                <input
-                                  type="checkbox"
-                                  checked={!daySched.unavailable}
-                                  onChange={(e) => handleUnavailableChange(day, !e.target.checked)}
-                                  className="w-4 h-4 text-indigo-600 rounded border-slate-300"
-                                />
-                                <span>{day}</span>
-                              </div>
-
-                              {daySched.unavailable ? (
-                                <span className="text-slate-400 italic text-[11px]">Day Off / Unavailable</span>
-                              ) : (
-                                <div className="flex flex-wrap items-center gap-3 flex-1">
-                                  {/* AM Shift */}
-                                  <div className="flex items-center gap-1.5">
-                                    <span className="text-[10px] font-semibold text-slate-500">AM:</span>
-                                    <input
-                                      type="time"
-                                      value={daySched.am?.start || '09:00'}
-                                      onChange={(e) => handleScheduleChange(day, 'am', 'start', e.target.value)}
-                                      className="px-2 py-1 bg-slate-50 border border-slate-300 rounded text-[11px]"
-                                    />
-                                    <span className="text-slate-400">-</span>
-                                    <input
-                                      type="time"
-                                      value={daySched.am?.end || '13:00'}
-                                      onChange={(e) => handleScheduleChange(day, 'am', 'end', e.target.value)}
-                                      className="px-2 py-1 bg-slate-50 border border-slate-300 rounded text-[11px]"
-                                    />
-                                  </div>
-
-                                  {/* PM Shift */}
-                                  <div className="flex items-center gap-1.5">
-                                    <span className="text-[10px] font-semibold text-slate-500">PM:</span>
-                                    <input
-                                      type="time"
-                                      value={daySched.pm?.start || '14:00'}
-                                      onChange={(e) => handleScheduleChange(day, 'pm', 'start', e.target.value)}
-                                      className="px-2 py-1 bg-slate-50 border border-slate-300 rounded text-[11px]"
-                                    />
-                                    <span className="text-slate-400">-</span>
-                                    <input
-                                      type="time"
-                                      value={daySched.pm?.end || '18:00'}
-                                      onChange={(e) => handleScheduleChange(day, 'pm', 'end', e.target.value)}
-                                      className="px-2 py-1 bg-slate-50 border border-slate-300 rounded text-[11px]"
-                                    />
-                                  </div>
-                                </div>
-                              )}
-                            </div>
-                          );
-                        })}
-                      </div>
                     </div>
-                  )}
-                </div>
+                  </div>
 
-                <div className="pt-4 border-t border-slate-100 flex items-center justify-end gap-3">
-                  <button type="button" onClick={() => setShowStaffModal(false)} className="px-4 py-2.5 text-xs text-slate-600 hover:text-slate-800 font-semibold">Cancel</button>
-                  <button type="submit" className="px-6 py-2.5 text-xs bg-indigo-600 hover:bg-indigo-500 text-white font-bold rounded-xl shadow-md transition-colors">
-                    {editingStaffId ? 'Save Staff & Rota Changes' : 'Add Staff Member'}
-                  </button>
-                </div>
-              </form>
+                  {/* Google Calendar ID */}
+                  <div>
+                    <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">Google Calendar ID</label>
+                    <input
+                      type="text"
+                      value={newStaffCalId}
+                      onChange={e => setNewStaffCalId(e.target.value)}
+                      placeholder="primary or calendar-id@group.calendar.google.com"
+                      className="w-full h-11 px-4 bg-slate-50 border border-slate-200 rounded-xl text-xs font-mono font-medium text-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-600"
+                    />
+                    <p className="text-[10px] text-slate-400 mt-1">Leave empty to use primary default Google Calendar.</p>
+                  </div>
+
+                  {/* Specialist Products / Services */}
+                  <div>
+                    <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">Specialist Services & Specialties</label>
+                    <input
+                      type="text"
+                      value={newStaffSpecialistProduct}
+                      onChange={e => setNewStaffSpecialistProduct(e.target.value)}
+                      placeholder="e.g. Balayage, Precision Cutting, Extensions"
+                      className="w-full h-11 px-4 bg-slate-50 border border-slate-200 rounded-xl text-sm font-medium text-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-600"
+                    />
+                  </div>
+
+                  {/* Professional Bio */}
+                  <div>
+                    <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">Professional Bio</label>
+                    <textarea
+                      rows={3}
+                      value={newStaffBio}
+                      onChange={e => setNewStaffBio(e.target.value)}
+                      placeholder="Describe qualifications, stylist experience, and client specialisms..."
+                      className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl text-xs font-medium text-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-600"
+                    />
+                  </div>
+
+                  {/* 4-Week Shift Rota & Working Hours Editor */}
+                  <div className="pt-4 border-t border-slate-200 space-y-4">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <h4 className="text-sm font-bold text-slate-900">📅 4-Week Shift Rota & Working Hours</h4>
+                        <p className="text-[11px] text-slate-500">Configure AM and PM shift hours across 4 rolling weeks.</p>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={copyToNextWeek}
+                        className="px-3 py-1.5 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 text-xs font-semibold rounded-lg border border-indigo-200 transition-colors"
+                      >
+                        Copy to Next Week →
+                      </button>
+                    </div>
+
+                    {/* Week Tabs */}
+                    <div className="flex gap-2 border-b border-slate-200 pb-2">
+                      {[0, 1, 2, 3].map((weekIdx) => (
+                        <button
+                          key={weekIdx}
+                          type="button"
+                          onClick={() => setActiveWeekIndex(weekIdx)}
+                          className={`px-3.5 py-1.5 text-xs font-bold rounded-lg transition-all ${
+                            activeWeekIndex === weekIdx
+                              ? 'bg-indigo-600 text-white shadow-sm'
+                              : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                          }`}
+                        >
+                          Week {weekIdx + 1}
+                        </button>
+                      ))}
+                    </div>
+
+                    {/* Active Week Table */}
+                    {newStaffSchedule.weeks && newStaffSchedule.weeks[activeWeekIndex] && (
+                      <div className="bg-slate-50 border border-slate-200 rounded-xl p-3.5 space-y-3">
+                        <div className="flex items-center gap-3">
+                          <label className="text-xs font-bold text-slate-700">Week Commencing (Monday):</label>
+                          <input
+                            type="date"
+                            value={newStaffSchedule.weeks[activeWeekIndex].weekCommencingDate || ''}
+                            onChange={(e) => handleDateChange(e.target.value)}
+                            className="px-3 py-1.5 bg-white border border-slate-300 rounded-lg text-xs font-mono text-slate-800"
+                          />
+                        </div>
+
+                        <div className="divide-y divide-slate-200 border border-slate-200 rounded-xl bg-white overflow-hidden">
+                          {(['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'] as const).map((day) => {
+                            const daySched = newStaffSchedule.weeks[activeWeekIndex][day] || { unavailable: false, am: null, pm: null };
+                            return (
+                              <div key={day} className="p-2.5 flex flex-col md:flex-row md:items-center justify-between gap-2.5 text-xs">
+                                <div className="w-28 font-bold capitalize text-slate-800 flex items-center gap-2">
+                                  <input
+                                    type="checkbox"
+                                    checked={!daySched.unavailable}
+                                    onChange={(e) => handleUnavailableChange(day, !e.target.checked)}
+                                    className="w-4 h-4 text-indigo-600 rounded border-slate-300"
+                                  />
+                                  <span>{day}</span>
+                                </div>
+
+                                {daySched.unavailable ? (
+                                  <span className="text-slate-400 italic text-[11px]">Day Off / Unavailable</span>
+                                ) : (
+                                  <div className="flex flex-wrap items-center gap-3 flex-1">
+                                    {/* AM Shift */}
+                                    <div className="flex items-center gap-1.5">
+                                      <span className="text-[10px] font-semibold text-slate-500">AM:</span>
+                                      <input
+                                        type="time"
+                                        value={daySched.am?.start || '09:00'}
+                                        onChange={(e) => handleScheduleChange(day, 'am', 'start', e.target.value)}
+                                        className="px-2 py-1 bg-slate-50 border border-slate-300 rounded text-[11px]"
+                                      />
+                                      <span className="text-slate-400">-</span>
+                                      <input
+                                        type="time"
+                                        value={daySched.am?.end || '13:00'}
+                                        onChange={(e) => handleScheduleChange(day, 'am', 'end', e.target.value)}
+                                        className="px-2 py-1 bg-slate-50 border border-slate-300 rounded text-[11px]"
+                                      />
+                                    </div>
+
+                                    {/* PM Shift */}
+                                    <div className="flex items-center gap-1.5">
+                                      <span className="text-[10px] font-semibold text-slate-500">PM:</span>
+                                      <input
+                                        type="time"
+                                        value={daySched.pm?.start || '14:00'}
+                                        onChange={(e) => handleScheduleChange(day, 'pm', 'start', e.target.value)}
+                                        className="px-2 py-1 bg-slate-50 border border-slate-300 rounded text-[11px]"
+                                      />
+                                      <span className="text-slate-400">-</span>
+                                      <input
+                                        type="time"
+                                        value={daySched.pm?.end || '18:00'}
+                                        onChange={(e) => handleScheduleChange(day, 'pm', 'end', e.target.value)}
+                                        className="px-2 py-1 bg-slate-50 border border-slate-300 rounded text-[11px]"
+                                      />
+                                    </div>
+                                  </div>
+                                )}
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="pt-4 border-t border-slate-100 flex items-center justify-end gap-3">
+                    <button type="button" onClick={() => setShowStaffModal(false)} className="px-4 py-2.5 text-xs text-slate-600 hover:text-slate-800 font-semibold">Cancel</button>
+                    <button type="submit" className="px-6 py-2.5 text-xs bg-indigo-600 hover:bg-indigo-500 text-white font-bold rounded-xl shadow-md transition-colors">
+                      {editingStaffId ? 'Save Staff & Rota Changes' : 'Add Staff Member'}
+                    </button>
+                  </div>
+                </form>
+              </div>
             </div>
           </div>
         )}
 
         {/* Appointment Inspection & Edit Modal */}
         {selectedApptForInspection && (
-          <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-            <div className="bg-white rounded-2xl max-w-lg w-full p-6 space-y-6 shadow-2xl border border-gray-100 max-h-[90vh] overflow-y-auto">
-              <div className="flex items-center justify-between border-b border-gray-100 pb-3">
-                <h3 className="text-lg font-bold text-gray-800">Inspect & Amend Appointment</h3>
-                <button onClick={() => setSelectedApptForInspection(null)} className="text-gray-400 hover:text-gray-600 text-lg font-bold">✕</button>
+          <div className="fixed inset-0 z-[9999] overflow-y-auto bg-black/75 backdrop-blur-md">
+            <div className="min-h-full flex items-center justify-center p-4 sm:p-6 text-center">
+              <div className="w-full max-w-lg bg-white rounded-3xl p-6 sm:p-8 space-y-6 shadow-2xl border border-slate-200 text-left my-8 transform transition-all">
+                <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+                  <h3 className="text-lg font-bold text-slate-900">Inspect & Amend Appointment</h3>
+                  <button type="button" onClick={() => setSelectedApptForInspection(null)} className="w-8 h-8 rounded-full bg-slate-100 text-slate-500 hover:bg-slate-200 font-bold text-sm flex items-center justify-center transition-colors">✕</button>
+                </div>
+
+                <form onSubmit={handleSaveAmendedAppointment} className="space-y-4">
+                  <div>
+                    <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">Customer Name</label>
+                    <input type="text" readOnly value={selectedApptForInspection.customer_name || 'N/A'} className="w-full h-11 px-4 bg-slate-100 border border-slate-200 rounded-xl text-xs font-semibold text-slate-700" />
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">Customer Mobile Phone Number</label>
+                    <input
+                      type="tel"
+                      value={editApptCustomerPhone}
+                      onChange={e => setEditApptCustomerPhone(e.target.value)}
+                      className="w-full h-11 px-4 bg-slate-50 border border-slate-200 rounded-xl text-xs font-medium text-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-600"
+                      placeholder="e.g. +44 7123 456789"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">Assigned Colleague</label>
+                    <select
+                      value={editApptStaffId}
+                      onChange={e => setEditApptStaffId(e.target.value)}
+                      className="w-full h-11 px-4 bg-slate-50 border border-slate-200 rounded-xl text-xs font-medium text-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-600"
+                    >
+                      <option value="">Select staff...</option>
+                      {staff.map(stf => (
+                        <option key={stf.id} value={stf.id}>{stf.name}</option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">Start Time (ISO)</label>
+                      <input
+                        type="datetime-local"
+                        value={editApptStartTime ? new Date(editApptStartTime).toISOString().slice(0, 16) : ''}
+                        onChange={e => setEditApptStartTime(new Date(e.target.value).toISOString())}
+                        className="w-full h-11 px-3 bg-slate-50 border border-slate-200 rounded-xl text-xs font-medium text-slate-900"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">End Time (ISO)</label>
+                      <input
+                        type="datetime-local"
+                        value={editApptEndTime ? new Date(editApptEndTime).toISOString().slice(0, 16) : ''}
+                        onChange={e => setEditApptEndTime(new Date(e.target.value).toISOString())}
+                        className="w-full h-11 px-3 bg-slate-50 border border-slate-200 rounded-xl text-xs font-medium text-slate-900"
+                      />
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">Customer Requested Comments & Notes</label>
+                    <textarea
+                      rows={3}
+                      value={editApptNotes}
+                      onChange={e => setEditApptNotes(e.target.value)}
+                      className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-900"
+                      placeholder="Customer requested notes or staff instructions..."
+                    />
+                  </div>
+
+                  <div className="pt-3 flex items-center justify-end gap-3 border-t border-slate-100">
+                    <button type="button" onClick={() => setSelectedApptForInspection(null)} className="px-4 py-2.5 text-xs text-slate-600 font-semibold hover:text-slate-800">Cancel</button>
+                    <button type="submit" disabled={isSavingAppointment} className="px-5 py-2.5 text-xs bg-indigo-600 hover:bg-indigo-500 text-white font-bold rounded-xl shadow-md transition-colors">
+                      {isSavingAppointment ? 'Saving Amendment...' : 'Amend & Send iCal Confirmation'}
+                    </button>
+                  </div>
+                </form>
               </div>
-
-              <form onSubmit={handleSaveAmendedAppointment} className="space-y-4">
-                <div>
-                  <label className="block text-xs font-semibold text-gray-600 mb-1">Customer Name</label>
-                  <input type="text" readOnly value={selectedApptForInspection.customer_name || 'N/A'} className="w-full bg-gray-100 border border-gray-200 rounded px-3 py-2 text-xs font-semibold text-gray-700" />
-                </div>
-
-                <div>
-                  <label className="block text-xs font-semibold text-gray-600 mb-1">Customer Mobile Phone Number</label>
-                  <input
-                    type="tel"
-                    value={editApptCustomerPhone}
-                    onChange={e => setEditApptCustomerPhone(e.target.value)}
-                    className="w-full bg-gray-50 border border-gray-300 rounded px-3 py-2 text-xs font-semibold text-gray-800"
-                    placeholder="e.g. +44 7123 456789"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-xs font-semibold text-gray-600 mb-1">Assigned Colleague</label>
-                  <select
-                    value={editApptStaffId}
-                    onChange={e => setEditApptStaffId(e.target.value)}
-                    className="w-full bg-gray-50 border border-gray-300 rounded px-3 py-2 text-xs font-semibold text-gray-800"
-                  >
-                    <option value="">Select staff...</option>
-                    {staff.map(stf => (
-                      <option key={stf.id} value={stf.id}>{stf.name}</option>
-                    ))}
-                  </select>
-                </div>
-
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-xs font-semibold text-gray-600 mb-1">Start Time (ISO)</label>
-                    <input
-                      type="datetime-local"
-                      value={editApptStartTime ? new Date(editApptStartTime).toISOString().slice(0, 16) : ''}
-                      onChange={e => setEditApptStartTime(new Date(e.target.value).toISOString())}
-                      className="w-full bg-gray-50 border border-gray-300 rounded px-3 py-2 text-xs font-semibold text-gray-800"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-xs font-semibold text-gray-600 mb-1">End Time (ISO)</label>
-                    <input
-                      type="datetime-local"
-                      value={editApptEndTime ? new Date(editApptEndTime).toISOString().slice(0, 16) : ''}
-                      onChange={e => setEditApptEndTime(new Date(e.target.value).toISOString())}
-                      className="w-full bg-gray-50 border border-gray-300 rounded px-3 py-2 text-xs font-semibold text-gray-800"
-                    />
-                  </div>
-                </div>
-
-                <div>
-                  <label className="block text-xs font-semibold text-gray-600 mb-1">Customer Requested Comments & Notes</label>
-                  <textarea
-                    rows={3}
-                    value={editApptNotes}
-                    onChange={e => setEditApptNotes(e.target.value)}
-                    className="w-full bg-gray-50 border border-gray-300 rounded px-3 py-2 text-xs text-gray-800"
-                    placeholder="Customer requested notes or staff instructions..."
-                  />
-                </div>
-
-                <div className="pt-2 flex items-center justify-end gap-3 border-t border-gray-100">
-                  <button type="button" onClick={() => setSelectedApptForInspection(null)} className="px-4 py-2 text-xs text-gray-600 hover:text-gray-800 font-semibold">Cancel</button>
-                  <button type="submit" disabled={isSavingAppointment} className="px-5 py-2 text-xs bg-indigo-600 hover:bg-indigo-500 text-white font-bold rounded-lg shadow-lg transition-colors">
-                    {isSavingAppointment ? 'Saving Amendment...' : 'Amend & Send iCal Confirmation'}
-                  </button>
-                </div>
-              </form>
             </div>
           </div>
         )}
