@@ -116,7 +116,7 @@ export async function PATCH(req: NextRequest) {
 
     // Attempt 2: If Attempt 1 failed due to missing columns, retry with Baseline + Advanced Policies
     if (error) {
-      console.warn('[Tenant Settings] Attempt 1 (All Tiers) failed, retrying Attempt 2 (Baseline + Policies):', error.message);
+      console.warn('[Tenant Settings] Attempt 1 failed, retrying Attempt 2:', error.message);
       const res2 = await supabase
         .from('tenants')
         .upsert({
@@ -129,10 +129,12 @@ export async function PATCH(req: NextRequest) {
       if (!res2.error) {
         data = res2.data;
         error = null;
+      } else {
+        error = res2.error;
       }
     }
 
-    // Attempt 3: If Attempt 2 failed (e.g. flexible_breaks column missing in schema cache), retry with Baseline ONLY
+    // Attempt 3: If Attempt 2 failed (e.g. flexible_breaks missing), retry with Baseline ONLY
     if (error) {
       console.warn('[Tenant Settings] Attempt 2 failed, retrying Attempt 3 (Guaranteed Baseline ONLY):', error.message);
       const res3 = await supabase
@@ -144,6 +146,8 @@ export async function PATCH(req: NextRequest) {
       if (!res3.error) {
         data = res3.data;
         error = null;
+      } else {
+        error = res3.error;
       }
     }
 
