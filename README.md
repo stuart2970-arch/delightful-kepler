@@ -657,9 +657,9 @@ ame, irstMessage, and 	ranscriber) rather than relying on ssistantOverrides de
      - **Attempt 1**: All fields (Baseline + Advanced Policies + Extended Address).
      - **Attempt 2**: Baseline + Advanced Policies.
      - **Attempt 3**: Guaranteed Baseline ONLY (`booking_mode`, `booking_url`, `general_operating_hours`).
-     Updated error variable assignments (`res2.error` and `res3.error`) so Attempt 3 clears Attempt 1 error state on success.
-  5. **Supabase SQL Migration Script**: Created `supabase/migrations/20260821143000_add_calendar_policy_columns.sql` adding `flexible_breaks`, `is_24_7`, `open_public_holidays`, `max_advance_weeks`, `operating_hours_overrides`, and `holiday_settings` columns to the `tenants` table.
+     Removed non-existent `updated_at` column from `baselineUpdate` so PostgREST never fails baseline queries, and updated error variable assignments (`res2.error` and `res3.error`) so Attempt 3 clears Attempt 1 error state on success.
+  5. **Supabase SQL Migration Script**: Created `supabase/migrations/20260821143000_add_calendar_policy_columns.sql` adding `updated_at`, `flexible_breaks`, `is_24_7`, `open_public_holidays`, `max_advance_weeks`, `operating_hours_overrides`, and `holiday_settings` columns to the `tenants` table.
   6. **Playwright End-to-End Test Suite**: Updated `tests/scheduling-verification.spec.ts` covering calendar policy saving, Google Calendar connection status, services catalog, and staff POST creation payloads with avatar URLs, bio, specialist products, and 4-week shift rotas.
-  7. **Build & Release Verification**: Verified local build (`npm run build`), compiling **34 static routes in 23.1s with 0 errors**. Pushed commits `ee98666`, `543217e`, `4e55265`, `260e723`, `04b6029`, and `1a8a285` to `origin/main`.
+  7. **Build & Release Verification**: Verified local build (`npm run build`), compiling **34 static routes in 23.1s with 0 errors**. Pushed commits `ee98666`, `543217e`, `4e55265`, `260e723`, `04b6029`, `1a8a285`, and `251886a` to `origin/main`.
 
 
