@@ -499,22 +499,22 @@ export default function SchedulingView() {
     <>
       <div className="space-y-6">
         {/* Google Calendar Authorization Banner */}
-        <div className="bg-gradient-to-r from-slate-900 to-indigo-950 p-6 rounded-2xl text-white shadow-xl flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
-          <div>
-            <div className="flex items-center gap-2.5 mb-1">
+        <div className="bg-gradient-to-r from-slate-900 to-indigo-950 p-6 rounded-2xl text-white shadow-xl flex flex-col xl:flex-row items-start xl:items-center justify-between gap-5">
+          <div className="space-y-2 flex-1">
+            <div className="flex items-center gap-2.5">
               <span className="text-2xl">📅</span>
-              <h3 className="text-lg font-bold">Google Calendar Integration</h3>
+              <h3 className="text-lg font-bold text-white tracking-tight">Google Calendar Integration</h3>
             </div>
-            <p className="text-xs text-slate-300 max-w-xl">
+            <p className="text-xs text-slate-300 max-w-xl leading-relaxed">
               Synchronize appointments two-way with Google Calendar in real-time. Prevents double-booking and updates staff rotas automatically.
             </p>
             {isGoogleConnected ? (
-              <div className="mt-3 inline-flex items-center gap-2 px-3 py-1 bg-emerald-500/20 text-emerald-300 rounded-full text-xs font-semibold border border-emerald-500/30">
+              <div className="mt-2 inline-flex items-center gap-2 px-3 py-1 bg-emerald-500/20 text-emerald-300 rounded-full text-xs font-semibold border border-emerald-500/30">
                 <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
                 Connected to Google Calendar API
               </div>
             ) : (
-              <div className="mt-3 inline-flex items-center gap-2 px-3 py-1 bg-amber-500/20 text-amber-300 rounded-full text-xs font-semibold border border-amber-500/30">
+              <div className="mt-2 inline-flex items-center gap-2 px-3 py-1 bg-amber-500/20 text-amber-300 rounded-full text-xs font-semibold border border-amber-500/30">
                 <span className="w-2 h-2 rounded-full bg-amber-400"></span>
                 Not Connected to Google Calendar
               </div>
@@ -525,7 +525,7 @@ export default function SchedulingView() {
             href="/api/integrations/google/authorize"
             target="_top"
             rel="noopener noreferrer"
-            className="px-5 py-3 bg-indigo-600 hover:bg-indigo-500 text-white font-bold rounded-xl shadow-md transition-all flex items-center gap-2 text-sm whitespace-nowrap shrink-0"
+            className="w-full sm:w-auto px-5 py-3 bg-indigo-600 hover:bg-indigo-500 text-white font-bold rounded-xl shadow-md transition-all flex items-center justify-center gap-2 text-sm whitespace-nowrap shrink-0 self-stretch sm:self-start xl:self-center"
           >
             <span>{isGoogleConnected ? '🔄 Re-authorize Google Calendar' : '🔗 Connect Google Calendar'}</span>
           </a>
@@ -533,7 +533,7 @@ export default function SchedulingView() {
 
         {/* Services & Treatment Catalog */}
         <div className="bg-[var(--awb-color1)] border border-[var(--awb-color3)] p-6 rounded-2xl shadow-xl space-y-4">
-          <div className="flex items-center justify-between">
+          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
             <div>
               <h3 className="text-lg font-bold text-[var(--awb-color8)]">Services & Treatment Catalog</h3>
               <p className="text-xs text-[var(--awb-color6)] mt-0.5">Manage services, durations, and buffer times available for AI booking.</p>
@@ -541,29 +541,29 @@ export default function SchedulingView() {
             <button
               type="button"
               onClick={() => setShowAddService(true)}
-              className="bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold px-4 py-2.5 rounded-xl shadow-sm transition-colors flex items-center gap-1.5"
+              className="w-full sm:w-auto bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold px-4 py-2.5 rounded-xl shadow-sm transition-colors flex items-center justify-center gap-1.5 shrink-0"
             >
               <span>+ Add Service</span>
             </button>
           </div>
 
           {/* Services List */}
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4">
             {filteredServices.length === 0 ? (
               <div className="col-span-full py-8 text-center text-xs text-gray-400 italic bg-white border border-[#f2f3f5] rounded-xl">
                 No services configured yet. Click "+ Add Service" to create your first service.
               </div>
             ) : (
               filteredServices.map(service => (
-                <div key={service.id} className="bg-white border border-[#f2f3f5] p-4 rounded-xl shadow-sm flex items-center justify-between">
-                  <div>
-                    <h4 className="text-sm font-bold text-gray-800">{service.name}</h4>
+                <div key={service.id} className="bg-white border border-[#f2f3f5] p-4 rounded-xl shadow-sm flex items-center justify-between gap-2">
+                  <div className="min-w-0 flex-1">
+                    <h4 className="text-sm font-bold text-gray-800 truncate">{service.name}</h4>
                     <p className="text-xs text-gray-500 mt-0.5">⏱️ {service.duration_minutes || 30} mins {service.buffer_minutes ? `(+${service.buffer_minutes}m buffer)` : ''}</p>
                   </div>
                   <button
                     type="button"
                     onClick={() => handleDeleteService(service.id)}
-                    className="text-rose-500 hover:text-rose-700 text-xs font-semibold px-2 py-1 rounded hover:bg-rose-50 transition-colors"
+                    className="text-rose-500 hover:text-rose-700 text-xs font-semibold px-2 py-1 rounded hover:bg-rose-50 transition-colors shrink-0"
                   >
                     Delete
                   </button>
@@ -575,7 +575,7 @@ export default function SchedulingView() {
 
         {/* Staff Members & Rotas */}
         <div className="bg-[var(--awb-color1)] border border-[var(--awb-color3)] p-6 rounded-2xl shadow-xl space-y-4">
-          <div className="flex items-center justify-between">
+          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
             <div>
               <h3 className="text-lg font-bold text-[var(--awb-color8)]">Staff Members & Rotas</h3>
               <p className="text-xs text-[var(--awb-color6)] mt-0.5">Manage team members, individual Google Calendar IDs, and {maxAdvanceWeeks || 4}-week rolling shift & holiday rotas.</p>
@@ -583,14 +583,14 @@ export default function SchedulingView() {
             <button
               type="button"
               onClick={openAddStaff}
-              className="bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold px-4 py-2.5 rounded-xl shadow-sm transition-colors flex items-center gap-1.5"
+              className="w-full sm:w-auto bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold px-4 py-2.5 rounded-xl shadow-sm transition-colors flex items-center justify-center gap-1.5 shrink-0"
             >
               <span>+ Add Staff Member</span>
             </button>
           </div>
 
           {/* Staff Cards */}
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4">
             {filteredStaff.length === 0 ? (
               <div className="col-span-full py-8 text-center text-xs text-gray-400 italic bg-white border border-[#f2f3f5] rounded-xl">
                 No staff members added yet. Click "+ Add Staff Member" to add your team.
@@ -606,14 +606,14 @@ export default function SchedulingView() {
                         member.name?.[0] || 'S'
                       )}
                     </div>
-                    <div>
-                      <h4 className="text-sm font-bold text-gray-800">{member.name}</h4>
-                      <p className="text-xs text-gray-500">{member.email || 'No email'}</p>
+                    <div className="min-w-0 flex-1">
+                      <h4 className="text-sm font-bold text-gray-800 truncate">{member.name}</h4>
+                      <p className="text-xs text-gray-500 truncate">{member.email || 'No email'}</p>
                     </div>
                   </div>
                   <div className="flex items-center justify-between pt-2 border-t border-gray-100 text-xs">
-                    <span className="text-gray-500">Calendar: <strong className="text-slate-700">{member.google_calendar_id || 'primary'}</strong></span>
-                    <div className="flex items-center gap-2">
+                    <span className="text-gray-500 truncate mr-2">Calendar: <strong className="text-slate-700">{member.google_calendar_id || 'primary'}</strong></span>
+                    <div className="flex items-center gap-2 shrink-0">
                       <button type="button" onClick={() => openEditStaff(member)} className="text-indigo-600 hover:text-indigo-800 font-semibold">Edit Rota</button>
                       <button type="button" onClick={() => handleDeleteStaff(member.id)} className="text-rose-500 hover:text-rose-700 font-semibold">Delete</button>
                     </div>
@@ -632,8 +632,8 @@ export default function SchedulingView() {
           </div>
 
           <div className="bg-white border border-[#f2f3f5] p-4 rounded-xl">
-            <h4 className="text-sm font-bold text-gray-200 mb-3">Operating Booking Mode</h4>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mb-4">
+            <h4 className="text-sm font-bold text-slate-900 mb-3">Operating Booking Mode</h4>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-4">
               {[
                 { id: 'walk_in_only', label: 'Walk-ins Only', desc: 'No appointments. Bots tell users to just walk in.' },
                 { id: 'single_calendar', label: 'Single Unified Calendar', desc: 'All bookings drop into one central Google Calendar.' },
@@ -645,7 +645,7 @@ export default function SchedulingView() {
                 }`}>
                   <div className="flex items-center gap-2 mb-1">
                     <input type="radio" name="bookingMode" value={mode.id} checked={bookingMode === mode.id} onChange={(e) => setBookingMode(e.target.value)} className="text-indigo-600 focus:ring-indigo-600" />
-                    <span className="text-sm font-bold text-gray-200">{mode.label}</span>
+                    <span className="text-sm font-bold text-slate-900">{mode.label}</span>
                   </div>
                   <span className="text-[10px] text-[var(--awb-color6)] pl-6">{mode.desc}</span>
                 </label>
@@ -676,12 +676,12 @@ export default function SchedulingView() {
             {daysOfWeek.map(day => {
               const dayData = generalOperatingHours[day] || { closed: false, open: '09:00', close: '17:00' };
               return (
-                <div key={day} className="py-3 flex flex-col md:flex-row items-center justify-between gap-4">
+                <div key={day} className="py-3 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
                   <div className="w-32 flex items-center gap-2">
                     <span className="text-sm font-bold text-gray-700 capitalize">{day}</span>
                   </div>
 
-                  <div className="flex items-center gap-4">
+                  <div className="flex flex-wrap items-center gap-4">
                     <label className="flex items-center gap-1.5 text-xs text-gray-600 font-semibold cursor-pointer">
                       <input
                         type="checkbox"
@@ -693,7 +693,7 @@ export default function SchedulingView() {
                     </label>
 
                     {!dayData.closed && (
-                      <div className="flex items-center gap-2">
+                      <div className="flex flex-wrap items-center gap-2">
                         <span className="text-xs text-gray-500 font-semibold">Open:</span>
                         <select
                           value={dayData.open || '09:00'}
@@ -726,7 +726,7 @@ export default function SchedulingView() {
           {/* Secondary Calendar Policy Dropdowns */}
           <div className="bg-white border border-[#f2f3f5] p-4 rounded-xl space-y-4">
             <h4 className="text-sm font-bold text-gray-800">Advanced Calendar Policies</h4>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
                 <label className="block text-xs font-semibold text-gray-600 mb-1">Flexible Personal Breaks</label>
                 <select
@@ -789,7 +789,7 @@ export default function SchedulingView() {
 
         {/* Daily Rota Calendar Grid & Appointment Inspection */}
         <div className="bg-[var(--awb-color1)] border border-[var(--awb-color3)] p-6 rounded-2xl shadow-xl space-y-4">
-          <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
+          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
             <div>
               <h3 className="text-lg font-bold text-[var(--awb-color8)]">Daily Bookings Rota</h3>
               <p className="text-xs text-[var(--awb-color6)] mt-0.5">View and inspect customer appointments for any date.</p>
@@ -811,7 +811,7 @@ export default function SchedulingView() {
                 No appointments scheduled for {selectedRotaDate}.
               </div>
             ) : (
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4">
                 {rotaAppointments.map((appt) => {
                   const staffMember = staff.find(s => s.id === appt.staff_id);
                   const startTimeStr = appt.start_time ? new Date(appt.start_time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '';
