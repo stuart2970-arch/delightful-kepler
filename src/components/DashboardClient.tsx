@@ -1,4 +1,3 @@
-// @ts-nocheck
 'use client';
 
 import React, { useState, useEffect } from 'react';
@@ -68,21 +67,21 @@ interface DashboardClientProps {
   userName: string;
   role?: 'owner' | 'admin' | 'member';
   initialChatbots: Chatbot[];
-  initialConversations: any[];
+  initialConversations: import('../lib/store').Conversation[];
   initialMetrics: Metrics;
   isSuperAdmin: boolean;
   initialDomain?: string;
-  initialServices?: any[];
-  initialStaff?: any[];
-  initialRwgConfig?: any;
+  initialServices?: Record<string, unknown>[];
+  initialStaff?: Record<string, unknown>[];
+  initialRwgConfig?: Record<string, unknown>;
   initialBookingMode?: string;
   initialBookingUrl?: string;
-  initialGeneralOperatingHours?: any;
-  initialOperatingHoursOverrides?: any;
-  initialHolidaySettings?: any;
+  initialGeneralOperatingHours?: Record<string, unknown>;
+  initialOperatingHoursOverrides?: Record<string, unknown>[];
+  initialHolidaySettings?: Record<string, unknown>;
   initialGlobalVoiceDisclaimer?: string;
-  billingData?: any;
-  superadminData?: any;
+  billingData?: Record<string, unknown>;
+  superadminData?: Record<string, unknown>;
   isImpersonating?: boolean;
   initialGoogleConnected?: boolean;
   initialBusinessAddress?: string;
@@ -101,7 +100,7 @@ interface DashboardClientProps {
   initialIsRegisteredCompany?: boolean;
   initialRegisteredAddressSameAsTrading?: boolean;
   initialRwgAddressSameAsTrading?: boolean;
-  initialAppointments?: any[];
+  initialAppointments?: Record<string, unknown>[];
 }
 
 export default function DashboardClient({
@@ -326,8 +325,8 @@ export default function DashboardClient({
       }
 
       alert('Account settings saved successfully!');
-    } catch (err: any) {
-      alert('Error: ' + err.message);
+    } catch (err: unknown) {
+      alert('Error: ' + (err instanceof Error ? err.message : String(err)));
     } finally {
       setIsSavingAccountSettings(false);
     }
@@ -433,13 +432,13 @@ const globalBotId = '00000000-0000-0000-0000-000000000000';
         throw new Error(errData.error || response.statusText);
       }
       successfullySaved = true;
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error('Failed to save chatbot to database:', err);
       if (!supabase) {
         console.warn('Operating in visual-only mode, mockup saving locally.');
         successfullySaved = true;
       } else {
-        alert(`Failed to save to database: ${err.message}`);
+        alert(`Failed to save to database: ${err instanceof Error ? err.message : String(err)}`);
       }
     }
 
@@ -488,13 +487,13 @@ const globalBotId = '00000000-0000-0000-0000-000000000000';
         throw new Error(errData.error || response.statusText);
       }
       successfullySaved = true;
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error('Failed to update chatbot in database:', err);
       if (!supabase) {
         console.warn('Operating in visual-only mode, mockup saving locally.');
         successfullySaved = true;
       } else {
-        alert(`Failed to save to database: ${err.message}`);
+        alert(`Failed to save to database: ${err instanceof Error ? err.message : String(err)}`);
       }
     }
 
@@ -567,8 +566,8 @@ const globalBotId = '00000000-0000-0000-0000-000000000000';
         }];
       });
       alert('Global branding saved successfully!');
-    } catch (err: any) {
-      alert('Failed to save global branding: ' + err.message);
+    } catch (err: unknown) {
+      alert('Failed to save global branding: ' + (err instanceof Error ? err.message : String(err)));
     } finally {
       setIsSavingGlobal(false);
     }
@@ -624,8 +623,8 @@ const globalBotId = '00000000-0000-0000-0000-000000000000';
         }];
       });
       alert('Global disclaimer saved successfully!');
-    } catch (err: any) {
-      alert('Failed to save global disclaimer: ' + err.message);
+    } catch (err: unknown) {
+      alert('Failed to save global disclaimer: ' + (err instanceof Error ? err.message : String(err)));
     } finally {
       setIsSavingGlobal(false);
     }
@@ -670,7 +669,7 @@ const globalBotId = '00000000-0000-0000-0000-000000000000';
                     { id: 'my-profile', label: 'My Profile & Calendar', icon: <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" /> }
                   ]
                 : [
-                    { id: 'chatbots', label: 'Chatbots', icon: <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 002-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />, count: (chatbots || []).filter(b => b.id !== globalBotId).length },
+                    { id: 'chatbots', label: 'Chatbot', icon: <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 002-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />, count: (chatbots || []).filter(b => b.id !== globalBotId).length },
                     { id: 'scheduling', label: 'Scheduling & Staff', icon: <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" /> },
                     { id: 'conversations', label: 'Communications', icon: <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z" />, count: (conversations || []).filter(c => c && !c.is_phone_call).length },
                     { id: 'crawler', label: 'Knowledge Base', icon: <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" /> },
@@ -681,7 +680,7 @@ const globalBotId = '00000000-0000-0000-0000-000000000000';
                     { id: 'account', label: 'Account Settings', icon: <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" /> },
                   ]
               ).map(tab => (
-                 <button key={tab.id} onClick={() => { setActiveTab(tab.id as any); setIsMobileMenuOpen(false); }} className={`w-full flex items-center justify-between px-3 py-3 rounded-xl text-sm font-semibold transition-all duration-200 border ${activeTab === tab.id ? 'bg-[var(--awb-color1)] text-[var(--awb-color8)] border-[var(--awb-color3)] shadow-sm' : 'text-[var(--awb-color6)] hover:text-[var(--awb-color7)] hover:bg-[var(--awb-color1)]/60 border-transparent'}`}>
+                 <button key={tab.id} onClick={() => { setActiveTab(tab.id as ReturnType<typeof useDashboardStore.getState>['activeTab']); setIsMobileMenuOpen(false); }} className={`w-full flex items-center justify-between px-3 py-3 rounded-xl text-sm font-semibold transition-all duration-200 border ${activeTab === tab.id ? 'bg-[var(--awb-color1)] text-[var(--awb-color8)] border-[var(--awb-color3)] shadow-sm' : 'text-[var(--awb-color6)] hover:text-[var(--awb-color7)] hover:bg-[var(--awb-color1)]/60 border-transparent'}`}>
                     <div className="flex items-center gap-3">
                        <svg className={`w-5 h-5 ${activeTab === tab.id ? 'text-[var(--awb-color5)]' : 'opacity-70'}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">{tab.icon}</svg>
                        {tab.label}
@@ -722,7 +721,7 @@ const globalBotId = '00000000-0000-0000-0000-000000000000';
                  </button>
                  <div className="flex-1">
                     <h1 className="text-2xl md:text-3xl font-extrabold text-[#260475] capitalize truncate">
-                   {activeTab === 'chatbots' ? 'Chatbots Manager' : 
+                   {activeTab === 'chatbots' ? 'Chatbot Manager' : 
                     activeTab === 'scheduling' ? 'Scheduling & Staff' :
                     activeTab === 'conversations' ? 'Web Chat & Voice' :
                     activeTab === 'telephony' ? 'Phone Calls & AI Receptionist' :
@@ -775,11 +774,11 @@ const globalBotId = '00000000-0000-0000-0000-000000000000';
                     <div className="flex justify-between text-xs text-[var(--awb-color6)] mb-2">
                       <span>{billingData?.usage?.chunks || 0} used</span>
                       <span>
-                        {billingData?.entitlements?.find((e: any) => e.feature_id === 'knowledge_data_chunks')?.limit_value || 0} total
+                        {billingData?.entitlements?.find((e: { feature_id: string; limit_value: number }) => e.feature_id === 'knowledge_data_chunks')?.limit_value || 0} total
                       </span>
                     </div>
                     <div className="w-full bg-[var(--awb-color3)] rounded-full h-2.5">
-                      <div className="bg-[var(--awb-color4)] h-2.5 rounded-full" style={{ width: `${Math.min(100, ((billingData?.usage?.chunks || 0) / (billingData?.entitlements?.find((e: any) => e.feature_id === 'knowledge_data_chunks')?.limit_value || 1)) * 100)}%`}}></div>
+                      <div className="bg-[var(--awb-color4)] h-2.5 rounded-full" style={{ width: `${Math.min(100, ((billingData?.usage?.chunks || 0) / (billingData?.entitlements?.find((e: { feature_id: string; limit_value: number }) => e.feature_id === 'knowledge_data_chunks')?.limit_value || 1)) * 100)}%`}}></div>
                     </div>
                   </div>
 
@@ -789,11 +788,11 @@ const globalBotId = '00000000-0000-0000-0000-000000000000';
                     <div className="flex justify-between text-xs text-[var(--awb-color6)] mb-2">
                       <span>{billingData?.usage?.messages || 0} messages used this month</span>
                       <span>
-                        {billingData?.entitlements?.find((e: any) => e.feature_id === 'message_allowance')?.limit_value === -1 ? 'Unlimited' : (billingData?.entitlements?.find((e: any) => e.feature_id === 'message_allowance')?.limit_value || 0) + ' total'}
+                        {billingData?.entitlements?.find((e: { feature_id: string; limit_value: number }) => e.feature_id === 'message_allowance')?.limit_value === -1 ? 'Unlimited' : (billingData?.entitlements?.find((e: { feature_id: string; limit_value: number }) => e.feature_id === 'message_allowance')?.limit_value || 0) + ' total'}
                       </span>
                     </div>
                     <div className="w-full bg-[var(--awb-color3)] rounded-full h-2.5">
-                      <div className="bg-[var(--awb-color5)] h-2.5 rounded-full" style={{ width: `${billingData?.entitlements?.find((e: any) => e.feature_id === 'message_allowance')?.limit_value === -1 ? 100 : Math.min(100, ((billingData?.usage?.messages || 0) / (billingData?.entitlements?.find((e: any) => e.feature_id === 'message_allowance')?.limit_value || 1)) * 100)}%`}}></div>
+                      <div className="bg-[var(--awb-color5)] h-2.5 rounded-full" style={{ width: `${billingData?.entitlements?.find((e: { feature_id: string; limit_value: number }) => e.feature_id === 'message_allowance')?.limit_value === -1 ? 100 : Math.min(100, ((billingData?.usage?.messages || 0) / (billingData?.entitlements?.find((e: { feature_id: string; limit_value: number }) => e.feature_id === 'message_allowance')?.limit_value || 1)) * 100)}%`}}></div>
                     </div>
                   </div>
                 </div>
@@ -845,7 +844,7 @@ const globalBotId = '00000000-0000-0000-0000-000000000000';
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-[var(--awb-color3)]">
-                        {superadminData.tenants?.map((t: any) => (
+                        {superadminData.tenants?.map((t: { company_name: string; id: string; [key: string]: unknown }) => (
                           <tr key={t.id} className="hover:bg-[var(--awb-color2)]/50 transition-colors">
                             <td className="px-4 py-3 font-bold text-[var(--awb-color8)]">{t.company_name}</td>
                             <td className="px-4 py-3 font-mono text-xs text-[var(--awb-color6)]">{t.id}</td>

@@ -188,6 +188,21 @@ import Vapi from '@vapi-ai/web';
       box-shadow: 0 4px 20px rgba(239, 68, 68, 0.6) !important;
       color: white !important;
     }
+    #styleflo-messages {
+      display: flex !important;
+      flex-direction: column !important;
+      gap: 16px !important;
+      flex: 1 1 0% !important;
+      min-height: 0px !important;
+      overflow-y: auto !important;
+      padding: 16px !important;
+      box-sizing: border-box !important;
+      background-color: #f9fafb !important;
+    }
+    #styleflo-messages > div {
+      box-sizing: border-box !important;
+      width: 100% !important;
+    }
   `;
   shadowRoot.appendChild(styleTag);
 
@@ -449,6 +464,7 @@ import Vapi from '@vapi-ai/web';
         }
         onboardingContainer.style.display = 'none';
         messagesContainer.style.display = 'flex';
+        messagesContainer.style.flexDirection = 'column';
         chatForm.style.display = 'flex';
         inputField.focus();
       }
@@ -558,7 +574,7 @@ import Vapi from '@vapi-ai/web';
     // Helper to append a message node to UI
     function appendMessage(sender: 'user' | 'bot', text: string = ''): HTMLDivElement {
       const wrapper = document.createElement('div');
-      wrapper.className = sender === 'user' ? 'flex justify-end w-full' : 'flex items-start gap-2.5 w-full';
+      wrapper.className = sender === 'user' ? 'flex justify-end w-full styleflo-msg-wrapper-user' : 'flex items-start gap-2.5 w-full styleflo-msg-wrapper-bot';
       
       if (sender === 'bot') {
         const avatarImg = document.createElement('img');
@@ -570,8 +586,8 @@ import Vapi from '@vapi-ai/web';
       
       const msgDiv = document.createElement('div');
       msgDiv.className = sender === 'user'
-        ? 'p-3 text-white rounded-2xl rounded-tr-none styleflo-text-15 styleflo-mw-85 shadow-sm leading-relaxed w-full'
-        : 'p-3 bg-white border border-gray-100 text-gray-800 rounded-2xl rounded-tl-none styleflo-text-15 shadow-sm leading-relaxed w-full';
+        ? 'p-3 text-white rounded-2xl rounded-tr-none styleflo-text-15 styleflo-mw-85 shadow-sm leading-relaxed styleflo-msg-bubble-user'
+        : 'p-3 bg-white border border-gray-100 text-gray-800 rounded-2xl rounded-tl-none styleflo-text-15 shadow-sm leading-relaxed styleflo-msg-bubble-bot';
       
       if (sender === 'user') {
         msgDiv.style.backgroundColor = primaryColor;
@@ -580,6 +596,7 @@ import Vapi from '@vapi-ai/web';
       } else {
         const col = document.createElement('div');
         col.className = 'flex flex-col min-w-0 styleflo-mw-75';
+        col.style.width = '100%';
         msgDiv.textContent = text;
         col.appendChild(msgDiv);
         wrapper.appendChild(col);
@@ -660,7 +677,7 @@ import Vapi from '@vapi-ai/web';
               name: `${agentName} Assistant`,
               model: {
                 provider: "custom-llm",
-                url: `${apiHost}/api/voice/${chatbotId}`,
+                url: `${apiHost}/api/voice/${chatbotId}/`,
                 model: "gemini-3.5-flash",
                 messages: [
                   {

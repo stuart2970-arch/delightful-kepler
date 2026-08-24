@@ -5,8 +5,8 @@ import Mailgun from 'mailgun.js';
 
 // Helper to lazily initialize Supabase Admin to prevent build errors when env vars are missing in CI/CD
 function getSupabaseAdmin() {
-  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || 'https://tkoasyjvrgaglofpzduq.supabase.co';
-  const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InRrb2FzeWp2cmdhZ2xvZnB6ZHVxIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc4MTU5NTcwNSwiZXhwIjoyMDk3MTcxNzA1fQ.VyWIQX2CFUUsAyDakbIEX805sz35TxHnjcAxBPWxliw';
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
   if (!supabaseUrl || !serviceRoleKey) {
     throw new Error('Supabase admin environment variables are missing');
@@ -293,19 +293,18 @@ export async function bookMeeting(tenantId: string, staffId: string, serviceId: 
       return `Error: The requested time slot is no longer available. It was just booked by someone else.`;
     }
 
-    // 2. Proceed with booking
     const event = {
-      summary: `[StyleFlo] ${serviceName} with ${customerName}`,
-      description: `Customer Email: ${customerEmail}\nCustomer Phone: ${customerPhone}\nBooked via StyleFlo AI.`,
+      summary: `[StyleFlo] ${serviceName} - ${customerName}`,
+      description: `Customer Name: ${customerName}\nEmail: ${customerEmail}\nPhone: ${customerPhone}\nService: ${serviceName}\nStaff: ${staff.name}\n\nBooked via StyleFlo AI`,
       start: {
         dateTime: new Date(startTimeStr).toISOString(),
       },
       end: {
         dateTime: new Date(endTimeStr).toISOString(),
       },
-      attendees: [
-        { email: customerEmail }
-      ],
+      attendees: customerEmail && customerEmail.includes('@') ? [
+        { email: customerEmail, displayName: customerName }
+      ] : [],
     };
 
     const res = await calendar.events.insert({

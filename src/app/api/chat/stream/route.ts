@@ -1,4 +1,4 @@
-// @ts-nocheck
+
 import { NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import { streamText, embed, tool } from 'ai';
@@ -32,8 +32,8 @@ const ChatRequestSchema = z.object({
 
 // Initialize Supabase Admin Client using service role key (bypasses RLS for service logic)
 function getSupabaseAdmin() {
-  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || 'https://tkoasyjvrgaglofpzduq.supabase.co';
-  const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InRrb2FzeWp2cmdhZ2xvZnB6ZHVxIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc4MTU5NTcwNSwiZXhwIjoyMDk3MTcxNzA1fQ.VyWIQX2CFUUsAyDakbIEX805sz35TxHnjcAxBPWxliw';
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
   if (!supabaseUrl || !serviceRoleKey) {
     throw new Error('Supabase admin environment variables are missing');
@@ -96,9 +96,9 @@ export async function POST(request: Request) {
     }
 
     const tenantId = chatbot.tenant_id;
-    const configData = chatbot.configuration_json as any || {};
-    const timezone = configData.timezone || 'Europe/London';
-    const currency = configData.currency || 'GBP';
+    const configData = (chatbot.configuration_json as Record<string, unknown>) || {};
+    const timezone = (configData.timezone as string) || 'Europe/London';
+    const currency = (configData.currency as string) || 'GBP';
     console.log(`[Chat Stream][${requestId}] Resolved Tenant ID: ${tenantId}, TZ: ${timezone}`);
 
     // 4. Generate user message embedding (Gemini text-embedding-004)
@@ -115,9 +115,10 @@ export async function POST(request: Request) {
         },
       });
       queryEmbedding = embedding;
-    } catch (embeddingErr: any) {
+    } catch (embeddingErr: unknown) {
       console.error(`[Chat Stream][${requestId}] Gemini embedding creation failed:`, embeddingErr);
-      return NextResponse.json({ error: `Embedding failed: ${embeddingErr.message}` }, { status: 200, headers: corsHeaders });
+      const errorMessage = embeddingErr instanceof Error ? embeddingErr.message : String(embeddingErr);
+      return NextResponse.json({ error: `Embedding failed: ${errorMessage}` }, { status: 200, headers: corsHeaders });
     }
 
     // 5. Query matching documents using the match_documents RPC (strictly filtered by tenant_id & chatbot_id)
@@ -136,7 +137,7 @@ export async function POST(request: Request) {
     }
 
     const contextText = matchedDocuments && matchedDocuments.length > 0
-      ? matchedDocuments.map((doc: any) => `- ${doc.content}`).join('\n\n')
+      ? matchedDocuments.map((doc: { content: string }) => `- ${doc.content}`).join('\n\n')
       : 'No context available.';
     
     // Fetch Services, Staff and Tenant Booking Mode for Calendar integration
@@ -246,7 +247,7 @@ ${servicesContext}
 [STAFF CONFIGURATION (JSON)]
 ${staffContext}`;
 
-    const formattedMessages: any[] = [];
+    const formattedMessages: { role: 'user' | 'assistant', content: string }[] = [];
     if (chatHistory && chatHistory.length > 0) {
       chatHistory.forEach((msg) => {
         formattedMessages.push({
@@ -271,9 +272,9 @@ ${staffContext}`;
       model: google('gemini-3.5-flash'),
       system: systemPrompt,
       messages: formattedMessages,
-      onError: (err: any) => {
+      onError: (err: unknown) => {
         console.error(`[Chat Stream][${requestId}] API Stream Error:`, err);
-        lastApiError = err?.error?.message || err?.error?.toString() || err?.toString() || "Unknown API Error";
+        lastApiError = err instanceof Error ? err.message : String(err);
       },
       onFinish: async (event) => {
         console.log(`[Chat Stream][${requestId}] AI stream finished. Logging conversation in background...`);
@@ -293,7 +294,7 @@ ${staffContext}`;
 
           const cleanBotText = event.text.replace(/\[LEAD_CAPTURED:.*?\]/g, '').replace(/\[CHECK_AVAILABILITY:.*?\]/g, '').replace(/\[BOOK_MEETING:.*?\]/g, '').trim();
           
-          let assistantInsertRes: any = { error: null };
+          let assistantInsertRes: { error: unknown | null } = { error: null };
           if (cleanBotText) {
             assistantInsertRes = await supabaseAdmin.from('messages').insert({
               tenant_id: tenantId,
@@ -311,7 +312,7 @@ ${staffContext}`;
             console.log(`[Chat Stream][${requestId}] Extracted Lead Info: ${contactInfo}`);
             
             try {
-              await sendConsolidatedLeadEmail({
+               await sendConsolidatedLeadEmail({
                 tenantId,
                 chatbotId,
                 conversationId,
@@ -319,14 +320,14 @@ ${staffContext}`;
                 channelType: 'chat',
                 customerName: clientName,
               });
-            } catch (err: any) {
+            } catch (err: unknown) {
               console.error(`[Chat Stream][${requestId}] Background lead notification failed:`, err);
             }
           }
 
           if (userInsertRes.error) console.error(`[Chat Stream][${requestId}] Failed to log user message:`, userInsertRes.error);
           if (assistantInsertRes.error) console.error(`[Chat Stream][${requestId}] Failed to log assistant response:`, assistantInsertRes.error);
-        } catch (dbErr) {
+        } catch (dbErr: unknown) {
           console.error(`[Chat Stream][${requestId}] Background DB logging failed:`, dbErr);
         }
       },
@@ -437,7 +438,7 @@ Current time/date: ${new Date().toLocaleString('en-US', { timeZone: timezone })}
 Currency: ${currency}
 User identity context: ${clientName ? 'Client Name: ' + clientName : 'Anonymous'}
 `,
-                messages: pass2Messages as any,
+                messages: pass2Messages as Parameters<typeof streamText>[0]['messages'],
                 tools: (bookingMode === 'single_calendar' || bookingMode === 'multi_calendar') ? {
                   checkAvailability: tool({
                     description: 'Check available times for a specific date, service, and staff member.',
@@ -510,7 +511,7 @@ User identity context: ${clientName ? 'Client Name: ' + clientName : 'Anonymous'
             const result2 = await streamText({
               model: google('gemini-1.5-flash'),
               system: systemPrompt,
-              messages: pass2Messages as any,
+              messages: pass2Messages as Parameters<typeof streamText>[0]['messages'],
               onFinish: async (event2) => {
                 await supabaseAdmin.from('messages').insert({
                   tenant_id: tenantId,
@@ -525,9 +526,10 @@ User identity context: ${clientName ? 'Client Name: ' + clientName : 'Anonymous'
               controller.enqueue(encoder.encode(chunk));
             }
           }
-        } catch (err: any) {
+        } catch (err: unknown) {
           console.error(`[Chat Stream][${requestId}] In-stream generation error:`, err);
-          controller.enqueue(encoder.encode(`\n[STREAM ERROR: ${err.message}]`));
+          const errorMessage = err instanceof Error ? err.message : String(err);
+          controller.enqueue(encoder.encode(`\n[STREAM ERROR: ${errorMessage}]`));
         } finally {
           controller.close();
         }
@@ -542,10 +544,11 @@ User identity context: ${clientName ? 'Client Name: ' + clientName : 'Anonymous'
       },
     });
 
-  } catch (err: any) {
+  } catch (err: unknown) {
     console.error(`[Chat Stream][${requestId}] Unexpected route failure:`, err);
+    const errorMessage = err instanceof Error ? err.message : String(err);
     return NextResponse.json(
-      { error: `Unexpected failure: ${err.message}` },
+      { error: `Unexpected failure: ${errorMessage}` },
       { status: 200, headers: corsHeaders }
     );
   }

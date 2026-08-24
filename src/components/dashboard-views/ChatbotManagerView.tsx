@@ -356,8 +356,9 @@ export default function ChatbotManagerView() {
                   </div>
                 </div>
               </div>
-              {/* Create Chatbot Card */}
-              <div className="bg-[var(--awb-color1)] border border-[var(--awb-color3)] p-6 rounded-2xl shadow-sm">
+              {/* Create / Edit Chatbot Form Card (Only shown if 0 chatbots exist or if editing an existing chatbot) */}
+              {(!chatbots.filter(b => b.id !== globalBotId).length || editingBotId) && (
+                <div className="bg-[var(--awb-color1)] border border-[var(--awb-color3)] p-6 rounded-2xl shadow-sm">
                 <h3 className="text-lg font-bold text-[var(--awb-color8)] mb-6">
                   {editingBotId ? `Edit Chatbot: ${newBotName}` : 'Create New Chatbot'}
                 </h3>
@@ -687,177 +688,209 @@ export default function ChatbotManagerView() {
                     </div>
                   )}
 
-                  {/* Navigation Controls */}
-                  <div className="pt-6 mt-6 border-t border-[var(--awb-color3)] flex justify-between items-center">
-                    {!editingBotId && (
-                      <div className="flex gap-2">
-                        <button
-                          type="button"
-                          onClick={() => setWizardStep(Math.max(1, wizardStep - 1))}
-                          disabled={wizardStep === 1}
-                          className="px-[29px] py-[13px] rounded-[4px] border border-[var(--awb-color3)] bg-[var(--awb-color1)] text-[var(--awb-color8)] text-sm font-semibold hover:bg-[var(--awb-color2)] transition-colors disabled:opacity-50"
-                        >
-                          Back
-                        </button>
-                        {wizardStep < 4 && (
+                    {/* Step Navigation Buttons */}
+                    <div className="flex items-center justify-between pt-4 border-t border-[var(--awb-color3)]">
+                      {!editingBotId ? (
+                        <>
                           <button
                             type="button"
-                            onClick={() => setWizardStep(Math.min(4, wizardStep + 1))}
-                            disabled={wizardStep === 1 && !newBotName.trim()}
-                            className="awb-btn text-sm shadow-md disabled:opacity-50"
+                            onClick={() => setWizardStep(Math.max(1, wizardStep - 1))}
+                            disabled={wizardStep === 1}
+                            className="bg-[var(--awb-color2)] text-[var(--awb-color7)] px-5 py-2.5 rounded-xl text-xs font-bold hover:bg-[var(--awb-color3)] transition-colors disabled:opacity-40"
                           >
-                            Next Step
+                            Back
                           </button>
-                        )}
-                      </div>
-                    )}
 
-                    {(editingBotId || wizardStep === 4) && (
-                      <button
-                        type="submit"
-                        disabled={isCreatingBot || !newBotName}
-                        className="bg-emerald-600 hover:bg-emerald-500 text-[var(--awb-color8)] text-sm font-semibold py-2 px-6 rounded-xl shadow-lg shadow-emerald-500/20 transition-all ml-auto disabled:opacity-50"
-                      >
-                        {isCreatingBot ? 'Saving...' : (editingBotId ? 'Update Chatbot' : 'Finish & Save Chatbot')}
-                      </button>
-                    )}
-                    
-                    {editingBotId && (
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setEditingBotId(null);
-                          setNewBotName('');
-                          setNewBotWelcome('Hello! How can I help you today?');
-                          setNewAgentName('');
-                          setNewAgentRole('AI Assistant');
-                          setNewAgentAvatar('/avatars/avatar1.png');
-                          setNewVoiceEnabled(false);
-                          setNewVoiceId('');
-                        }}
-                        className="bg-[var(--awb-color2)] text-[var(--awb-color8)] hover:bg-gray-700 text-[var(--awb-color7)] text-sm font-semibold py-2 px-5 rounded-xl transition-colors"
-                      >
-                        Cancel
-                      </button>
-                    )}
-                  </div>
-                </form>
-              </div>
-
-              {/* Chatbots Grid */}
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {chatbots.filter(b => b.id !== globalBotId).map((bot) => (
-                  <div key={bot.id} className="bg-[var(--awb-color1)] border border-[var(--awb-color3)] p-5 rounded-2xl shadow-sm space-y-4 hover:border-[var(--awb-color4)] transition-colors relative overflow-hidden group">
-                    <div className="absolute top-0 left-0 w-1.5 h-full" style={{ backgroundColor: bot.primary_color }} />
-                    <div className="flex items-start justify-between">
-                      <div>
-                        <div className="flex items-center gap-2">
-                          <h4 className="font-bold text-[var(--awb-color8)] text-base">{bot.name}</h4>
-                          {bot.voice_enabled ? (
-                            <span className="px-2 py-0.5 rounded-full text-[10px] font-extrabold bg-blue-100 text-[#198fd9] border border-blue-200 inline-flex items-center gap-1 shadow-sm">
-                              📞 Voice Active
-                            </span>
+                          {wizardStep < 4 ? (
+                            <button
+                              type="button"
+                              onClick={() => setWizardStep(Math.min(4, wizardStep + 1))}
+                              className="bg-[#198fd9] hover:bg-[#157ab9] text-white px-6 py-2.5 rounded-xl text-xs font-bold transition-all shadow-sm"
+                            >
+                              Next Step
+                            </button>
                           ) : (
-                            <span className="px-2 py-0.5 rounded-full text-[10px] font-medium bg-gray-100 text-gray-500 border border-gray-200">
-                              💬 Text Only
-                            </span>
+                            <button
+                              type="submit"
+                              disabled={isCreatingBot}
+                              className="bg-[#198fd9] hover:bg-[#157ab9] text-white px-7 py-2.5 rounded-xl text-xs font-bold transition-all shadow-md disabled:opacity-50"
+                            >
+                              {isCreatingBot ? 'Creating...' : 'Finish & Launch Chatbot'}
+                            </button>
                           )}
+                        </>
+                      ) : (
+                        <div className="flex gap-3">
+                          <button
+                            type="submit"
+                            disabled={isCreatingBot}
+                            className="bg-[#198fd9] hover:bg-[#157ab9] text-white px-6 py-2.5 rounded-xl text-xs font-bold transition-all shadow-md disabled:opacity-50"
+                          >
+                            {isCreatingBot ? 'Saving...' : 'Save Changes'}
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setEditingBotId(null);
+                              setWizardStep(1);
+                              setNewBotName('');
+                              setNewBotColor('#5e17eb');
+                              setNewBotWelcome('Hello! How can I help you today?');
+                              setNewAgentName('AI Assistant');
+                              setNewAgentRole('AI Concierge');
+                              setNewAgentAvatar('/avatars/avatar1.png');
+                              setNewVoiceEnabled(false);
+                              setNewVoiceId('');
+                            }}
+                            className="bg-[var(--awb-color2)] text-[var(--awb-color8)] hover:bg-gray-200 text-sm font-semibold py-2 px-5 rounded-xl transition-colors"
+                          >
+                            Cancel
+                          </button>
                         </div>
-                        <p className="text-[10px] text-[var(--awb-color6)] font-mono mt-0.5">{bot.id}</p>
-                      </div>
-                      <span className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: bot.primary_color }} />
+                      )}
                     </div>
-                    <div className="bg-[var(--awb-color2)] p-3 rounded-xl text-xs text-[var(--awb-color7)] italic border border-[var(--awb-color3)]">
-                      "{bot.configuration_json?.welcome_message || 'Hello!'}"
-                    </div>
+                  </form>
+                </div>
+              )}
 
-                    <div className="flex items-center gap-3 bg-[var(--awb-color2)]/60 p-2.5 rounded-xl border border-[var(--awb-color3)]">
-                      <img
-                        src={bot.configuration_json?.agent_avatar_url || '/avatars/avatar1.png'}
-                        alt="Agent Avatar"
-                        className="w-9 h-9 rounded-full border bg-white object-cover"
-                        style={{ borderColor: bot.primary_color }}
-                      />
-                      <div>
-                        <div className="text-xs font-semibold text-[var(--awb-color8)]">
-                          {bot.configuration_json?.agent_name || bot.name}
+              {/* Chatbot Display Card & Embed Code Snippet (Displayed adjacent when chatbot exists) */}
+              {!editingBotId && chatbots.filter(b => b.id !== globalBotId).length > 0 && (
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 items-start">
+                  {chatbots.filter(b => b.id !== globalBotId).map((bot) => (
+                    <React.Fragment key={bot.id}>
+                      {/* Left Card: Chatbot Configuration */}
+                      <div className="bg-[var(--awb-color1)] border border-[var(--awb-color3)] p-6 rounded-2xl shadow-sm space-y-5 relative overflow-hidden">
+                        <div className="absolute top-0 left-0 w-2 h-full" style={{ backgroundColor: bot.primary_color }} />
+                        
+                        <div className="flex items-start justify-between">
+                          <div>
+                            <span className="text-[10px] tracking-wider uppercase font-bold text-gray-400 block mb-1">Active Chatbot</span>
+                            <div className="flex items-center gap-2">
+                              <h4 className="font-bold text-[var(--awb-color8)] text-xl">{bot.name}</h4>
+                              {bot.voice_enabled ? (
+                                <span className="px-2.5 py-0.5 rounded-full text-[10px] font-extrabold bg-blue-100 text-[#198fd9] border border-blue-200 inline-flex items-center gap-1 shadow-sm">
+                                  📞 Voice Active
+                                </span>
+                              ) : (
+                                <span className="px-2.5 py-0.5 rounded-full text-[10px] font-medium bg-gray-100 text-gray-500 border border-gray-200">
+                                  💬 Text Only
+                                </span>
+                              )}
+                            </div>
+                            <p className="text-xs text-[var(--awb-color6)] font-mono mt-1 select-all">ID: {bot.id}</p>
+                          </div>
+                          <span className="w-3.5 h-3.5 rounded-full shadow-sm" style={{ backgroundColor: bot.primary_color }} />
                         </div>
-                        <div className="text-[10px] text-[var(--awb-color6)]">
-                          {bot.configuration_json?.agent_role || 'AI Assistant'}
+
+                        <div className="bg-[var(--awb-color2)] p-4 rounded-xl text-xs text-[var(--awb-color7)] italic border border-[var(--awb-color3)] leading-relaxed">
+                          "{bot.configuration_json?.welcome_message || 'Hello! How can I help you today?'}"
+                        </div>
+
+                        <div className="flex items-center gap-3 bg-white p-3 rounded-xl border border-[var(--awb-color3)] shadow-sm">
+                          <img
+                            src={bot.configuration_json?.agent_avatar_url || '/avatars/avatar1.png'}
+                            alt="Agent Avatar"
+                            className="w-10 h-10 rounded-full border bg-white object-cover shadow-sm"
+                            style={{ borderColor: bot.primary_color }}
+                          />
+                          <div>
+                            <div className="text-sm font-bold text-[var(--awb-color8)]">
+                              {bot.configuration_json?.agent_name || bot.name}
+                            </div>
+                            <div className="text-xs text-[var(--awb-color6)]">
+                              {bot.configuration_json?.agent_role || 'AI Assistant'}
+                            </div>
+                          </div>
+                        </div>
+
+                        <div className="grid grid-cols-2 gap-3 pt-2">
+                          <button
+                            onClick={() => {
+                              const config = bot.configuration_json || {};
+                              setEditingBotId(bot.id);
+                              setNewBotName(bot.name);
+                              setNewBotColor(bot.primary_color);
+                              setNewBotWelcome(config.welcome_message || 'Hello!');
+                              setNewAgentName(config.agent_name || bot.name);
+                              setNewAgentRole(config.agent_role || 'AI Assistant');
+                              setNewAgentAvatar(config.agent_avatar_url || '/avatars/avatar1.png');
+                              setNewVoiceEnabled(bot.voice_enabled || false);
+                              setNewVoiceId(config.voice_id || '');
+                              setNewAdminEmail(config.admin_email || config.notification_email || '');
+                              window.scrollTo({ top: 0, behavior: 'smooth' });
+                            }}
+                            className="bg-[#198fd9] hover:bg-[#157ab9] text-white border border-[#198fd9] py-2.5 px-4 rounded-xl text-xs font-bold transition-all shadow-sm text-center"
+                          >
+                            ✏️ Edit Persona
+                          </button>
+                          <button
+                            onClick={() => setActiveTab('telephony')}
+                            className="bg-blue-50 hover:bg-blue-100 text-[#198fd9] border border-blue-200 py-2.5 px-4 rounded-xl text-xs font-bold transition-all text-center"
+                          >
+                            📞 Voice Setup
+                          </button>
                         </div>
                       </div>
-                    </div>
 
-                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-                      <button
-                        onClick={() => setTestWidgetBotId(testWidgetBotId === bot.id ? null : bot.id)}
-                        className="bg-[var(--awb-color2)] hover:bg-[var(--awb-color3)] text-[var(--awb-color8)] border border-[var(--awb-color3)] py-1.5 px-2.5 rounded-xl text-xs font-semibold transition-colors text-center truncate"
-                      >
-                        {testWidgetBotId === bot.id ? 'Hide Embed' : 'Embed Code'}
-                      </button>
-                      <button
-                        onClick={() => setActiveTab('telephony')}
-                        className="bg-blue-50 hover:bg-blue-100 text-[#198fd9] border border-blue-200 py-1.5 px-2.5 rounded-xl text-xs font-bold transition-colors text-center truncate"
-                        title="Configure AI Voice Receptionist & Phone Numbers"
-                      >
-                        📞 Voice Setup
-                      </button>
-                      <button
-                        onClick={() => {
-                          const config = bot.configuration_json || {};
-                          setEditingBotId(bot.id);
-                          setNewBotName(bot.name);
-                          setNewBotColor(bot.primary_color);
-                          setNewBotWelcome(config.welcome_message || 'Hello!');
-                          setNewAgentName(config.agent_name || bot.name);
-                          setNewAgentRole(config.agent_role || 'AI Assistant');
-                          setNewAgentAvatar(config.agent_avatar_url || '/avatars/avatar1.png');
-                          setNewVoiceEnabled(bot.voice_enabled || false);
-                          setNewVoiceId(config.voice_id || '');
-                          setNewAdminEmail(config.admin_email || config.notification_email || '');
-                          
-                          // Scroll form into view
-                          window.scrollTo({ top: 0, behavior: 'smooth' });
-                        }}
-                        className="bg-[#198fd9] hover:bg-[#157ab9] text-white border border-[#198fd9] py-1.5 px-2.5 rounded-xl text-xs font-semibold transition-colors text-center truncate"
-                      >
-                        Edit Persona
-                      </button>
-                      <button
-                        onClick={() => setShowDeleteModal(bot.id)}
-                        className="bg-red-50 hover:bg-red-100 text-red-700 border border-red-200 py-1.5 px-2.5 rounded-xl text-xs font-semibold transition-colors text-center truncate"
-                      >
-                        Delete
-                      </button>
-                    </div>
-
-                    {/* Embed Code Section */}
-                    {testWidgetBotId === bot.id && (
-                      <div className="pt-2 text-left space-y-4 border-t border-[var(--awb-color3)] mt-2">
-                        <div>
-                          <label className="block text-[10px] font-semibold text-[var(--awb-color7)] mb-1">Popup Widget Snippet:</label>
-                          <pre className="p-2.5 bg-[var(--awb-color2)] border border-[var(--awb-color3)] text-[10px] rounded-xl overflow-x-auto text-[var(--awb-color8)] font-mono leading-relaxed select-all">
-                            {`<!-- StyleFlo Widget Injection -->\n<script\n  src="${window.location.origin}/widget.js"\n  data-api-host="${window.location.origin}"\n  data-bot-id="${bot.id}">\n</script>`}
-                          </pre>
-                          <p className="text-[9px] text-[var(--awb-color6)] mt-1">
-                            Paste this tag inside any website's <code>&lt;body&gt;</code> container to inject the floating chatbot.
-                          </p>
+                      {/* Right Card: Website Embed Snippet (Adjacent!) */}
+                      <div className="bg-[var(--awb-color1)] border border-[var(--awb-color3)] p-6 rounded-2xl shadow-sm space-y-4">
+                        <div className="flex items-center justify-between">
+                          <h4 className="font-bold text-[var(--awb-color8)] text-base flex items-center gap-2">
+                            <span>⚡ Website Embed Snippet</span>
+                          </h4>
+                          <span className="text-[10px] bg-emerald-100 text-emerald-700 px-2.5 py-0.5 rounded-full font-bold border border-emerald-200">
+                            Ready to Embed
+                          </span>
                         </div>
-                        <div>
-                          <label className="block text-[10px] font-semibold text-[var(--awb-color7)] mb-1">Inline Embed Snippet:</label>
-                          <pre className="p-2.5 bg-[var(--awb-color2)] border border-[var(--awb-color3)] text-[10px] rounded-xl overflow-x-auto text-[var(--awb-color8)] font-mono leading-relaxed select-all">
-                            {`<!-- StyleFlo Inline Embed -->\n<div id="styleflo-chatbot-container" style="width: 100%; height: 500px;"></div>\n<script\n  src="${window.location.origin}/embed.js"\n  data-api-host="${window.location.origin}"\n  data-bot-id="${bot.id}"\n  data-container-id="styleflo-chatbot-container">\n</script>`}
-                          </pre>
-                          <p className="text-[9px] text-[var(--awb-color6)] mt-1">
-                            Paste this tag where you want the chatbot to appear on your page.
-                          </p>
+                        <p className="text-xs text-[var(--awb-color6)] leading-relaxed">
+                          Copy and paste these script tags into your website HTML to launch your chatbot widget instantly.
+                        </p>
+
+                        <div className="space-y-4 pt-1">
+                          <div>
+                            <div className="flex items-center justify-between mb-1.5">
+                              <label className="text-xs font-bold text-[var(--awb-color7)]">Floating Popup Widget</label>
+                              <button
+                                onClick={() => {
+                                  const snippet = `<!-- StyleFlo Widget Injection -->\n<script\n  src="${window.location.origin}/widget.js"\n  data-api-host="${window.location.origin}"\n  data-bot-id="${bot.id}">\n</script>`;
+                                  navigator.clipboard.writeText(snippet);
+                                  alert('Popup Widget snippet copied to clipboard!');
+                                }}
+                                className="text-[11px] text-[#198fd9] hover:underline font-bold"
+                              >
+                                Copy Snippet 📋
+                              </button>
+                            </div>
+                            <pre className="p-3 bg-[var(--awb-color2)] border border-[var(--awb-color3)] text-[11px] rounded-xl overflow-x-auto text-[var(--awb-color8)] font-mono leading-relaxed select-all">
+                              {`<!-- StyleFlo Widget Injection -->\n<script\n  src="${window.location.origin}/widget.js"\n  data-api-host="${window.location.origin}"\n  data-bot-id="${bot.id}">\n</script>`}
+                            </pre>
+                          </div>
+
+                          <div>
+                            <div className="flex items-center justify-between mb-1.5">
+                              <label className="text-xs font-bold text-[var(--awb-color7)]">Inline Page Embed</label>
+                              <button
+                                onClick={() => {
+                                  const snippet = `<!-- StyleFlo Inline Embed -->\n<div id="styleflo-chatbot-container" style="width: 100%; height: 500px;"></div>\n<script\n  src="${window.location.origin}/embed.js"\n  data-api-host="${window.location.origin}"\n  data-bot-id="${bot.id}"\n  data-container-id="styleflo-chatbot-container">\n</script>`;
+                                  navigator.clipboard.writeText(snippet);
+                                  alert('Inline Embed snippet copied to clipboard!');
+                                }}
+                                className="text-[11px] text-[#198fd9] hover:underline font-bold"
+                              >
+                                Copy Snippet 📋
+                              </button>
+                            </div>
+                            <pre className="p-3 bg-[var(--awb-color2)] border border-[var(--awb-color3)] text-[11px] rounded-xl overflow-x-auto text-[var(--awb-color8)] font-mono leading-relaxed select-all">
+                              {`<!-- StyleFlo Inline Embed -->\n<div id="styleflo-chatbot-container" style="width: 100%; height: 500px;"></div>\n<script\n  src="${window.location.origin}/embed.js"\n  data-api-host="${window.location.origin}"\n  data-bot-id="${bot.id}"\n  data-container-id="styleflo-chatbot-container">\n</script>`}
+                            </pre>
+                          </div>
                         </div>
                       </div>
-                    )}
-                  </div>
-                ))}
+                    </React.Fragment>
+                  ))}
+                </div>
+              )}
               </div>
-            </div>
 
             {/* Delete Confirmation Modal */}
             {showDeleteModal && (

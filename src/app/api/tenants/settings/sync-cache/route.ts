@@ -47,7 +47,10 @@ export async function POST(req: NextRequest) {
 
     const wordpressSiteUrl = process.env.WORDPRESS_SITE_URL || 'https://styleflo.test';
     const wpApiUrl = `${wordpressSiteUrl}/wp-json/styleflo/v1/clear-cache`;
-    const sharedSecret = process.env.STYLEFLO_WP_API_SECRET || 'your_fallback_shared_secret';
+    const sharedSecret = process.env.STYLEFLO_WP_API_SECRET;
+    if (!sharedSecret) {
+      return NextResponse.json({ success: false, error: 'STYLEFLO_WP_API_SECRET is not configured' }, { status: 500 });
+    }
     
     const payload = JSON.stringify({ tenant_slug });
 

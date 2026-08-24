@@ -1,7 +1,8 @@
 import { NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
-import { streamText } from 'ai';
-import { google } from '@ai-sdk/google';
+import { streamText, generateText } from 'ai';
+import { createGoogleGenerativeAI } from '@ai-sdk/google';
+import { checkAvailability, bookMeeting } from '@/app/api/chat/stream/calendar';
 
 export const maxDuration = 300;
 
@@ -27,9 +28,8 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: 'Missing chatbotId in query' }, { status: 400, headers: corsHeaders });
     }
 
-    if (process.env.GEMINI_API_KEY && !process.env.GOOGLE_GENERATIVE_AI_API_KEY) {
-      process.env.GOOGLE_GENERATIVE_AI_API_KEY = process.env.GEMINI_API_KEY;
-    }
+    const apiKey = process.env.GOOGLE_GENERATIVE_AI_API_KEY || process.env.GEMINI_API_KEY || '';
+    const googleProvider = createGoogleGenerativeAI({ apiKey });
 
     const body = await req.json();
     const { messages } = body;
@@ -40,9 +40,12 @@ export async function POST(req: Request) {
 
     const sessionId = body.call?.id || body.sessionId || req.headers.get('x-vapi-call-id') || req.headers.get('x-session-id') || `voice_${chatbotId.substring(0, 8)}_${Date.now()}`;
 
-    // 1. Initialize Supabase Admin with fallback environment variables
-    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.SUPABASE_URL || 'https://tkoasyjvrgaglofpzduq.supabase.co';
-    const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InRrb2FzeWp2cmdhZ2xvZnB6ZHVxIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc4MTU5NTcwNSwiZXhwIjoyMDk3MTcxNzA1fQ.VyWIQX2CFUUsAyDakbIEX805sz35TxHnjcAxBPWxliw';
+    // 1. Initialize Supabase Admin
+    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+    const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+    if (!supabaseUrl || !serviceRoleKey) {
+      throw new Error('Supabase admin environment variables are missing');
+    }
 
     const supabaseAdmin = createClient(supabaseUrl, serviceRoleKey, {
       auth: { persistSession: false, autoRefreshToken: false }
@@ -59,6 +62,36 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: 'Chatbot not found' }, { status: 404, headers: corsHeaders });
     }
 
+    const tenantId = chatbot.tenant_id;
+    const configData = (chatbot.configuration_json || {}) as Record<string, any>;
+
+    const { data: tenantRes } = await supabaseAdmin
+      .from('tenants')
+      .select('id, name, booking_mode, booking_url, currency, timezone')
+      .eq('id', tenantId)
+      .single();
+
+    const bookingMode = tenantRes?.booking_mode || 'single_calendar';
+    const bookingUrl = tenantRes?.booking_url || '';
+    const timezone = tenantRes?.timezone || 'Europe/London';
+    const currency = tenantRes?.currency || '£';
+    const businessName = configData.businessName || tenantRes?.name || 'our business';
+
+    const { data: servicesRes } = await supabaseAdmin
+      .from('services')
+      .select('id, name, base_price, duration_minutes, buffer_minutes, description')
+      .eq('tenant_id', tenantId)
+      .eq('chatbot_id', chatbotId);
+
+    const { data: staffRes } = await supabaseAdmin
+      .from('staff')
+      .select('id, name, role, google_calendar_id, working_days, staff_services(service_id, custom_price, custom_duration)')
+      .eq('tenant_id', tenantId)
+      .eq('chatbot_id', chatbotId);
+
+    const servicesContext = servicesRes ? JSON.stringify(servicesRes, null, 2) : '[]';
+    const staffContext = staffRes ? JSON.stringify(staffRes, null, 2) : '[]';
+
     let globalDisclaimer = '';
     const { data: globalBot } = await supabaseAdmin
       .from('chatbots')
@@ -70,7 +103,7 @@ export async function POST(req: Request) {
       globalDisclaimer = (globalBot.configuration_json as any).global_voice_disclaimer || '';
     }
 
-    // 3. Extract the latest user message for RAG embedding
+    // 3. Extract latest user message for RAG
     const latestUserMessage = messages.slice().reverse().find((m: any) => m.role === 'user');
     let ragContext = '';
     let queryText = '';
@@ -78,7 +111,7 @@ export async function POST(req: Request) {
     if (latestUserMessage && typeof latestUserMessage.content === 'string') {
       queryText = latestUserMessage.content;
       try {
-        const embeddingRes = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/text-embedding-004:embedContent?key=${process.env.GOOGLE_GENERATIVE_AI_API_KEY}`, {
+        const embeddingRes = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/text-embedding-004:embedContent?key=${apiKey}`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
@@ -95,7 +128,7 @@ export async function POST(req: Request) {
             query_embedding: embedding,
             match_threshold: 0.2,
             match_count: 5,
-            targeting_tenant_id: chatbot.tenant_id,
+            targeting_tenant_id: tenantId,
             targeting_chatbot_id: chatbotId
           });
 
@@ -109,50 +142,126 @@ export async function POST(req: Request) {
     }
 
     // 4. Construct System Persona Prompt
+    const schedulingRules = (bookingMode === 'single_calendar' || bookingMode === 'multi_calendar') ? `
+CRITICAL SCHEDULING RULES FOR VOICE CALLS:
+- RULE 1: First identify the Service and Staff member the caller wants. Consult the SERVICES and STAFF JSON configs for exact UUIDs and durations.
+- RULE 2: Once you know the Staff ID and Service ID, you MUST check availability before offering or confirming any time slot. Reply politely (e.g. "Let me check availability for that day for you"), and append EXACTLY: [CHECK_AVAILABILITY: StaffID, ServiceID, StartDate, EndDate]. StartDate and EndDate should be ISO strings WITH the ${timezone} offset (e.g. +01:00).
+- RULE 3: Once an available slot is confirmed by checking availability, you MUST ask the caller for BOTH their email address AND their mobile phone number before confirming the booking. You are STRICTLY FORBIDDEN from confirming a booking without both email and phone number.
+- RULE 4: Once you have BOTH their email and mobile phone number, execute the booking by outputting EXACTLY: [BOOK_MEETING: StaffID, ServiceID, CustomerName, CustomerEmail, CustomerPhone, StartTime, EndTime].
+- RULE 5: Use exact UUID strings for StaffID and ServiceID from the JSON configurations.
+` : '';
+
+    const systemPromptHeader = `You are a friendly, conversational AI phone representative speaking on behalf of "${businessName}".
+Write in a natural, warm, spoken conversational tone. Speak clearly and concisely.
+DO NOT use markdown formatting, asterisks, bullet points, or special characters. Speak naturally in plain text.
+
+The current date and time is: ${new Date().toISOString()}. Use this to resolve relative dates like "tomorrow" or "next Sunday".
+
+${bookingMode === 'walk_in_only' ? 'We DO NOT accept appointments. We are walk-ins only. If the caller asks to book, politely inform them they can walk in at any time.' : ''}
+${bookingMode === 'external_platform' ? `We use an external booking platform. If the caller asks to book, direct them to ${bookingUrl}` : ''}
+${schedulingRules}
+
+BUSINESS KNOWLEDGE:
+${ragContext}
+
+SERVICES CONFIGURATION (JSON):
+${servicesContext}
+
+STAFF CONFIGURATION (JSON):
+${staffContext}
+
+REGULATORY DISCLAIMER:
+${globalDisclaimer}`;
+
     const enhancedMessages = messages.map((msg: any) => {
+      let contentStr = typeof msg.content === 'string' ? msg.content : '';
       if (msg.role === 'system') {
         return {
           role: 'system',
-          content: `${msg.content}\n\nIMPORTANT INSTRUCTION: You are speaking through a Text-to-Speech engine. DO NOT use any markdown formatting, asterisks, bullet points, or special characters. Speak naturally in plain text.\n\nBUSINESS KNOWLEDGE:\n${ragContext}\n\nREGULATORY DISCLAIMER:\n${globalDisclaimer}`
+          content: `${contentStr}\n\n${systemPromptHeader}`
         };
       }
       return msg;
     });
 
-    // 5. LLM Generation
-    const result = streamText({
-      model: google('gemini-3.5-flash'),
+    if (!enhancedMessages.some((m: any) => m.role === 'system')) {
+      enhancedMessages.unshift({ role: 'system', content: systemPromptHeader });
+    }
+
+    // 5. Generate LLM Pass 1
+    const { text: rawText } = await generateText({
+      model: googleProvider('gemini-3.5-flash'),
       messages: enhancedMessages,
       temperature: 0.7,
     });
 
-    let fullAiResponse = '';
+    let finalSpokenText = rawText;
 
-    // 6. Stream back to Vapi in OpenAI format & Log to Supabase
+    // 6. Handle Tool Execution Interceptors (Check Availability / Book Meeting)
+    const availMatch = rawText.match(/\[CHECK_AVAILABILITY:\s*(.+?),\s*(.+?),\s*(.+?),\s*(.+?)\]/);
+    if (availMatch) {
+      const staffId = availMatch[1].trim().replace(/['"]/g, '');
+      const serviceId = availMatch[2].trim().replace(/['"]/g, '');
+      const startStr = availMatch[3].trim().replace(/['"]/g, '');
+      const endStr = availMatch[4].trim().replace(/['"]/g, '');
+
+      console.log(`[Vapi Custom LLM Legacy] Executing checkAvailability for staff ${staffId}, service ${serviceId}`);
+      const availResult = await checkAvailability(tenantId, staffId, serviceId, startStr, endStr, timezone);
+      
+      const { text: pass2Text } = await generateText({
+        model: googleProvider('gemini-3.5-flash'),
+        messages: [
+          ...enhancedMessages,
+          { role: 'assistant', content: rawText },
+          { role: 'user', content: `[SYSTEM AVAILABILITY RESULT]:\n${availResult}\nSpeak the result naturally to the caller in plain conversational English without markdown or bracket tags.` }
+        ],
+        temperature: 0.7,
+      });
+      finalSpokenText = pass2Text;
+    }
+
+    const bookMatch = rawText.match(/\[BOOK_MEETING:\s*(.+?),\s*(.+?),\s*(.+?),\s*(.+?),\s*(.+?),\s*(.+?),\s*(.+?)\]/);
+    if (bookMatch) {
+      const staffId = bookMatch[1].trim().replace(/['"]/g, '');
+      const serviceId = bookMatch[2].trim().replace(/['"]/g, '');
+      const custName = bookMatch[3].trim().replace(/['"]/g, '');
+      const custEmail = bookMatch[4].trim().replace(/['"]/g, '');
+      const custPhone = bookMatch[5].trim().replace(/['"]/g, '');
+      const startStr = bookMatch[6].trim().replace(/['"]/g, '');
+      const endStr = bookMatch[7].trim().replace(/['"]/g, '');
+
+      console.log(`[Vapi Custom LLM Legacy] Executing bookMeeting for ${custName} (${custEmail}, ${custPhone})`);
+      const bookResult = await bookMeeting(tenantId, staffId, serviceId, custName, custEmail, custPhone, startStr, endStr, timezone);
+
+      const { text: pass2Text } = await generateText({
+        model: googleProvider('gemini-3.5-flash'),
+        messages: [
+          ...enhancedMessages,
+          { role: 'assistant', content: rawText },
+          { role: 'user', content: `[SYSTEM BOOKING RESULT]:\n${bookResult}\nInform the caller naturally of the result in plain conversational English without markdown or bracket tags.` }
+        ],
+        temperature: 0.7,
+      });
+      finalSpokenText = pass2Text;
+    }
+
+    // Clean any remaining bracket tags from spoken text
+    finalSpokenText = finalSpokenText.replace(/\[(CHECK_AVAILABILITY|BOOK_MEETING|TIME_SLOTS|LEAD_CAPTURED|LOOKUP_APPOINTMENTS):?[^\]]*\]/gi, '').trim();
+
+    // 7. Stream back to Vapi
     const encoder = new TextEncoder();
     const stream = new ReadableStream({
       async start(controller) {
         try {
-          for await (const textDelta of result.textStream) {
-            if (textDelta) {
-              fullAiResponse += textDelta;
-              const chunk = {
-                id: 'chatcmpl-vapi',
-                object: 'chat.completion.chunk',
-                created: Math.floor(Date.now() / 1000),
-                model: 'gemini-3.5-flash',
-                choices: [
-                  {
-                    delta: { content: textDelta },
-                    index: 0,
-                    finish_reason: null
-                  }
-                ]
-              };
-              controller.enqueue(encoder.encode(`data: ${JSON.stringify(chunk)}\n\n`));
-            }
-          }
-          
+          const roleChunk = {
+            id: 'chatcmpl-vapi',
+            object: 'chat.completion.chunk',
+            created: Math.floor(Date.now() / 1000),
+            model: 'gemini-3.5-flash',
+            choices: [{ delta: { role: 'assistant', content: finalSpokenText }, index: 0, finish_reason: null }]
+          };
+          controller.enqueue(encoder.encode(`data: ${JSON.stringify(roleChunk)}\n\n`));
+
           const finishChunk = {
             id: 'chatcmpl-vapi',
             object: 'chat.completion.chunk',
@@ -161,15 +270,15 @@ export async function POST(req: Request) {
             choices: [{ delta: {}, index: 0, finish_reason: 'stop' }]
           };
           controller.enqueue(encoder.encode(`data: ${JSON.stringify(finishChunk)}\n\n`));
-          controller.encode(`data: [DONE]\n\n`);
+          controller.encode ? controller.enqueue(encoder.encode(`data: [DONE]\n\n`)) : null;
           controller.close();
 
-          // Save voice session and speech messages to Supabase after stream finishes
+          // Log session
           try {
             let { data: conv } = await supabaseAdmin
               .from('conversations')
               .select('id')
-              .eq('tenant_id', chatbot.tenant_id)
+              .eq('tenant_id', tenantId)
               .eq('user_session_id', sessionId)
               .maybeSingle();
 
@@ -177,7 +286,7 @@ export async function POST(req: Request) {
               const { data: newConv } = await supabaseAdmin
                 .from('conversations')
                 .insert({
-                  tenant_id: chatbot.tenant_id,
+                  tenant_id: tenantId,
                   chatbot_id: chatbotId,
                   user_session_id: sessionId,
                   is_voice_call: true
@@ -191,29 +300,28 @@ export async function POST(req: Request) {
               const now = Date.now();
               if (queryText) {
                 await supabaseAdmin.from('messages').insert({
-                  tenant_id: chatbot.tenant_id,
+                  tenant_id: tenantId,
                   conversation_id: conv.id,
                   sender_type: 'user',
                   text_content: queryText,
                   created_at: new Date(now - 1000).toISOString()
                 });
               }
-              if (fullAiResponse) {
+              if (finalSpokenText) {
                 await supabaseAdmin.from('messages').insert({
-                  tenant_id: chatbot.tenant_id,
+                  tenant_id: tenantId,
                   conversation_id: conv.id,
                   sender_type: 'bot',
-                  text_content: fullAiResponse,
+                  text_content: finalSpokenText,
                   created_at: new Date(now).toISOString()
                 });
               }
             }
           } catch (dbErr) {
-            console.error('[Vapi Custom LLM] Database voice logging error:', dbErr);
+            console.error('[Vapi Custom LLM Legacy] DB logging error:', dbErr);
           }
-
         } catch (err) {
-          console.error('[Vapi Custom LLM] Stream error:', err);
+          console.error('[Vapi Custom LLM Legacy] Stream error:', err);
           controller.error(err);
         }
       }
@@ -229,7 +337,7 @@ export async function POST(req: Request) {
     });
 
   } catch (error: any) {
-    console.error('[Vapi Custom LLM] Unexpected failure:', error);
+    console.error('[Vapi Custom LLM Legacy] Unexpected failure:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500, headers: corsHeaders });
   }
 }
