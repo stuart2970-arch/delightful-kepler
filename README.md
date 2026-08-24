@@ -746,7 +746,11 @@ ame, irstMessage, and 	ranscriber) rather than relying on ssistantOverrides de
     1. **Service Synonym & Pricing System Prompt Rules (`route.ts` & `stream/route.ts`)**: Added Rule 1c instructing Gemini to match user requests like "assisted build" or "assisted setup" directly to `"Assisted Setup"` (not `"30 min consultation"`), and to check `staff_services` for custom staff pricing/duration (e.g. Stuart £75 / 45 mins vs Jane 60 mins).
     2. **Pass 2 Stream Tag Sanitization (`route.ts`)**: Added `cleanDelta` regex sanitization to Pass 2 `textStream` loop (`replace(/\[(CHECK_AVAILABILITY|BOOK_MEETING...):?[^\]]*\]/gi, '')`), guaranteeing that even if Gemini repeats a bracket tag on retry turns, it is stripped from speech synthesis.
     3. **Log Access Locations**: Documented that full call transcripts and audio logs are available in **Vapi Dashboard** (`dashboard.vapi.ai` -> Calls tab) and database text logs in **StyleFlo Dashboard** -> Conversations tab.
-    4. Verified Next.js build (`npm run build`), committed (`6b06eed`), and pushed directly to `main` branch.
+* **User**: "i think the bot should have requested confirmation and looked for a text pattern similar to the one requested as customers will always get this wrong"
+  * **Fix**: Added Rule 1c (Fuzzy Service Pattern Matching) and Rule 1d (Mandatory Service & Staff Confirmation) to system prompts across voice and text routes:
+    1. **Fuzzy Service Pattern Matching (`Rule 1c` in `route.ts` & `stream/route.ts`)**: System prompt now explicitly requires Gemini to match informal customer phrasing (e.g. "assisted build", "build help", "setup assistance") to the most relevant service in `SERVICES CONFIGURATION` (`"Assisted Setup"`).
+    2. **Mandatory Service & Staff Confirmation (`Rule 1d` in `route.ts` & `stream/route.ts`)**: Enforced an explicit confirmation step before checking availability or executing bookings. The bot states the exact service name, duration, and staff pricing options (e.g., *"Just to confirm, you would like to book an Assisted Setup session? We have Jane available for 60 minutes, or Stuart for £75 for a 45-minute session. Which would you prefer?"*).
+    3. Verified Next.js build (`npm run build`), committed (`a4c00e3`), and pushed directly to `main` branch.
 
 
 
