@@ -81,23 +81,51 @@ export default function SchedulingView() {
   const [showAddService, setShowAddService] = useState(false);
   const [editingServiceId, setEditingServiceId] = useState<string | null>(null);
   const [newServiceName, setNewServiceName] = useState('');
+  const [newServiceDescription, setNewServiceDescription] = useState('');
   const [newServiceDuration, setNewServiceDuration] = useState(30);
   const [newServiceBuffer, setNewServiceBuffer] = useState(0);
+  const [newServicePrice, setNewServicePrice] = useState(0);
+  const [newServiceStaff, setNewServiceStaff] = useState<any[]>([]);
 
   const openAddService = () => {
     setEditingServiceId(null);
     setNewServiceName('');
+    setNewServiceDescription('');
     setNewServiceDuration(30);
     setNewServiceBuffer(0);
+    setNewServicePrice(0);
+    setNewServiceStaff(staff.map(st => ({ staff_id: st.id, custom_price: '', custom_duration: '' })));
     setShowAddService(true);
   };
 
   const openEditService = (service: any) => {
     setEditingServiceId(service.id);
     setNewServiceName(service.name);
+    setNewServiceDescription(service.description || '');
     setNewServiceDuration(service.duration_minutes || 30);
     setNewServiceBuffer(service.buffer_minutes || 0);
+    setNewServicePrice(service.price || 0);
+    setNewServiceStaff(service.staff_services || []);
     setShowAddService(true);
+  };
+
+  const handleToggleStaff = (staffId: string) => {
+    setNewServiceStaff(prev => {
+      if (prev.find(s => s.staff_id === staffId)) {
+        return prev.filter(s => s.staff_id !== staffId);
+      } else {
+        return [...prev, { staff_id: staffId, custom_price: '', custom_duration: '' }];
+      }
+    });
+  };
+
+  const handleUpdateStaffMapping = (staffId: string, field: string, value: string) => {
+    setNewServiceStaff(prev => prev.map(s => {
+      if (s.staff_id === staffId) {
+        return { ...s, [field]: value };
+      }
+      return s;
+    }));
   };
 
   const [showStaffModal, setShowStaffModal] = useState(false);
@@ -177,8 +205,15 @@ export default function SchedulingView() {
         tenant_id: tenantId,
         chatbot_id: targetChatbotId,
         name: newServiceName,
+        description: newServiceDescription || null,
         duration_minutes: newServiceDuration,
-        buffer_minutes: newServiceBuffer
+        buffer_minutes: newServiceBuffer,
+        price: newServicePrice || 0,
+        assigned_staff: newServiceStaff.map(s => ({
+          staff_id: s.staff_id,
+          custom_price: s.custom_price ? parseFloat(String(s.custom_price)) : null,
+          custom_duration: s.custom_duration ? parseInt(String(s.custom_duration), 10) : null
+        }))
       };
       if (isUpdate) {
         bodyPayload.id = editingServiceId;
@@ -199,8 +234,11 @@ export default function SchedulingView() {
         setShowAddService(false);
         setEditingServiceId(null);
         setNewServiceName('');
+        setNewServiceDescription('');
         setNewServiceDuration(30);
         setNewServiceBuffer(0);
+        setNewServicePrice(0);
+        setNewServiceStaff([]);
       } else {
         const err = await res.json().catch(() => ({}));
         alert(err.error || (isUpdate ? 'Failed to update service' : 'Failed to add service'));
@@ -584,30 +622,52 @@ export default function SchedulingView() {
                 No services configured yet. Click "+ Add Service" to create your first service.
               </div>
             ) : (
-              filteredServices.map(service => (
-                <div key={service.id} className="bg-white border border-[#f2f3f5] p-4 rounded-xl shadow-sm flex items-center justify-between gap-2">
-                  <div className="min-w-0 flex-1">
-                    <h4 className="text-sm font-bold text-gray-800 truncate">{service.name}</h4>
-                    <p className="text-xs text-gray-500 mt-0.5">⏱️ {service.duration_minutes || 30} mins {service.buffer_minutes ? `(+${service.buffer_minutes}m buffer)` : ''}</p>
+              filteredServices.map(service => {
+                const assignedStaffIds = (service.staff_services || []).map((ss: any) => ss.staff_id);
+                const assignedStaffMembers = staff.filter(st => assignedStaffIds.includes(st.id));
+
+                return (
+                  <div key={service.id} className="bg-white border border-[#f2f3f5] p-4 rounded-xl shadow-sm space-y-3">
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="min-w-0 flex-1">
+                        <h4 className="text-sm font-bold text-gray-800 truncate">{service.name}</h4>
+                        <p className="text-xs text-gray-500 mt-0.5">⏱️ {service.duration_minutes || 30} mins {service.buffer_minutes ? `(+${service.buffer_minutes}m buffer)` : ''} {service.price ? `• £${service.price}` : ''}</p>
+                      </div>
+                      <div className="flex items-center gap-2 shrink-0">
+                        <button
+                          type="button"
+                          onClick={() => openEditService(service)}
+                          className="text-indigo-600 hover:text-indigo-800 text-xs font-semibold px-2 py-1 rounded hover:bg-indigo-50 transition-colors"
+                        >
+                          Edit
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => handleDeleteService(service.id)}
+                          className="text-rose-500 hover:text-rose-700 text-xs font-semibold px-2 py-1 rounded hover:bg-rose-50 transition-colors"
+                        >
+                          Delete
+                        </button>
+                      </div>
+                    </div>
+
+                    <div className="pt-2 border-t border-gray-100 flex items-center gap-1.5 text-xs text-slate-600">
+                      <span className="text-[11px] font-semibold text-slate-400">Assigned:</span>
+                      {assignedStaffMembers.length === 0 ? (
+                        <span className="text-[11px] text-indigo-600 font-medium bg-indigo-50 px-2 py-0.5 rounded-full">All Colleagues</span>
+                      ) : (
+                        <div className="flex flex-wrap gap-1">
+                          {assignedStaffMembers.map(st => (
+                            <span key={st.id} className="text-[11px] bg-slate-100 text-slate-700 font-medium px-2 py-0.5 rounded-full">
+                              {st.name}
+                            </span>
+                          ))}
+                        </div>
+                      )}
+                    </div>
                   </div>
-                  <div className="flex items-center gap-2 shrink-0">
-                    <button
-                      type="button"
-                      onClick={() => openEditService(service)}
-                      className="text-indigo-600 hover:text-indigo-800 text-xs font-semibold px-2 py-1 rounded hover:bg-indigo-50 transition-colors"
-                    >
-                      Edit
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => handleDeleteService(service.id)}
-                      className="text-rose-500 hover:text-rose-700 text-xs font-semibold px-2 py-1 rounded hover:bg-rose-50 transition-colors"
-                    >
-                      Delete
-                    </button>
-                  </div>
-                </div>
-              ))
+                );
+              })
             )}
           </div>
         </div>
@@ -890,11 +950,15 @@ export default function SchedulingView() {
         {mounted && showAddService && createPortal(
           <div className="fixed inset-0 z-[99999] overflow-y-auto bg-black/75 backdrop-blur-md">
             <div className="min-h-full flex items-center justify-center p-4 sm:p-6 text-center">
-              <div className="w-full max-w-md bg-white rounded-3xl p-6 sm:p-8 space-y-5 shadow-2xl border border-slate-200 text-left my-8 transform transition-all max-h-[90vh] overflow-y-auto styleflo-scrollbar">
+              <div className="w-full max-w-lg bg-white rounded-3xl p-6 sm:p-8 space-y-5 shadow-2xl border border-slate-200 text-left my-8 transform transition-all max-h-[90vh] overflow-y-auto styleflo-scrollbar">
                 <div className="flex items-center justify-between border-b border-slate-100 pb-3">
-                  <h3 className="text-base font-bold text-slate-900">{editingServiceId ? '✏️ Edit Service & Duration' : 'Add New Service'}</h3>
+                  <div>
+                    <h3 className="text-lg font-bold text-slate-900">{editingServiceId ? '✏️ Edit Service' : '✨ Add New Service'}</h3>
+                    <p className="text-xs text-slate-500 mt-0.5">Configure service duration, price, and assign qualified colleagues.</p>
+                  </div>
                   <button type="button" onClick={() => setShowAddService(false)} className="w-7 h-7 rounded-full bg-slate-100 text-slate-500 hover:bg-slate-200 font-bold text-xs flex items-center justify-center">✕</button>
                 </div>
+
                 <form onSubmit={handleSaveService} className="space-y-4">
                   <div>
                     <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">Service Name</label>
@@ -907,7 +971,19 @@ export default function SchedulingView() {
                       className="w-full h-11 px-4 bg-slate-50 border border-slate-200 rounded-xl text-sm font-medium text-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-600"
                     />
                   </div>
-                  <div className="grid grid-cols-2 gap-4">
+
+                  <div>
+                    <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">Brief Description (Optional)</label>
+                    <input
+                      type="text"
+                      value={newServiceDescription}
+                      onChange={e => setNewServiceDescription(e.target.value)}
+                      placeholder="e.g. Complete styling session with wash and blow dry"
+                      className="w-full h-11 px-4 bg-slate-50 border border-slate-200 rounded-xl text-xs font-medium text-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-600"
+                    />
+                  </div>
+
+                  <div className="grid grid-cols-3 gap-3">
                     <div>
                       <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">Duration (mins)</label>
                       <input
@@ -917,7 +993,7 @@ export default function SchedulingView() {
                         max={480}
                         value={newServiceDuration}
                         onChange={e => setNewServiceDuration(Number(e.target.value))}
-                        className="w-full h-11 px-4 bg-slate-50 border border-slate-200 rounded-xl text-sm font-medium text-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-600"
+                        className="w-full h-11 px-3 bg-slate-50 border border-slate-200 rounded-xl text-xs font-medium text-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-600"
                       />
                     </div>
                     <div>
@@ -928,10 +1004,82 @@ export default function SchedulingView() {
                         max={120}
                         value={newServiceBuffer}
                         onChange={e => setNewServiceBuffer(Number(e.target.value))}
-                        className="w-full h-11 px-4 bg-slate-50 border border-slate-200 rounded-xl text-sm font-medium text-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-600"
+                        className="w-full h-11 px-3 bg-slate-50 border border-slate-200 rounded-xl text-xs font-medium text-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-600"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">Base Price (£)</label>
+                      <input
+                        type="number"
+                        min={0}
+                        value={newServicePrice}
+                        onChange={e => setNewServicePrice(Number(e.target.value))}
+                        className="w-full h-11 px-3 bg-slate-50 border border-slate-200 rounded-xl text-xs font-medium text-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-600"
                       />
                     </div>
                   </div>
+
+                  {/* Assigned Staff Members Checklist */}
+                  <div className="pt-3 border-t border-slate-100 space-y-2.5">
+                    <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider">
+                      👥 Assigned Colleagues & Specialists
+                    </label>
+                    <p className="text-[11px] text-slate-500">Check which colleagues provide this service. If none are selected, all colleagues will be eligible.</p>
+
+                    {staff.length === 0 ? (
+                      <div className="p-3 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-500 italic">
+                        No colleagues added yet. Add team members below to assign them.
+                      </div>
+                    ) : (
+                      <div className="space-y-2 max-h-48 overflow-y-auto pr-1">
+                        {staff.map(st => {
+                          const isAssigned = newServiceStaff.find(s => s.staff_id === st.id);
+                          return (
+                            <div key={st.id} className={`p-2.5 rounded-xl border transition-colors ${isAssigned ? 'bg-indigo-50/50 border-indigo-200' : 'bg-slate-50 border-slate-200'}`}>
+                              <label className="flex items-center justify-between cursor-pointer">
+                                <div className="flex items-center gap-2.5">
+                                  <input
+                                    type="checkbox"
+                                    checked={Boolean(isAssigned)}
+                                    onChange={() => handleToggleStaff(st.id)}
+                                    className="w-4 h-4 text-indigo-600 rounded border-slate-300 focus:ring-indigo-500"
+                                  />
+                                  <span className="text-xs font-bold text-slate-800">{st.name}</span>
+                                </div>
+                                <span className="text-[10px] text-slate-400">{st.email || 'Staff member'}</span>
+                              </label>
+
+                              {isAssigned && (
+                                <div className="mt-2 pl-6 grid grid-cols-2 gap-2 text-xs">
+                                  <div>
+                                    <label className="block text-[10px] text-slate-500 mb-0.5">Custom Price (£)</label>
+                                    <input
+                                      type="number"
+                                      placeholder="Default price"
+                                      value={isAssigned.custom_price || ''}
+                                      onChange={e => handleUpdateStaffMapping(st.id, 'custom_price', e.target.value)}
+                                      className="w-full h-8 px-2 bg-white border border-slate-200 rounded-lg text-xs"
+                                    />
+                                  </div>
+                                  <div>
+                                    <label className="block text-[10px] text-slate-500 mb-0.5">Custom Duration (mins)</label>
+                                    <input
+                                      type="number"
+                                      placeholder="Default duration"
+                                      value={isAssigned.custom_duration || ''}
+                                      onChange={e => handleUpdateStaffMapping(st.id, 'custom_duration', e.target.value)}
+                                      className="w-full h-8 px-2 bg-white border border-slate-200 rounded-lg text-xs"
+                                    />
+                                  </div>
+                                </div>
+                              )}
+                            </div>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </div>
+
                   <div className="pt-3 flex items-center justify-end gap-3 border-t border-slate-100">
                     <button type="button" onClick={() => setShowAddService(false)} className="px-4 py-2.5 text-xs text-slate-600 font-semibold hover:text-slate-800">Cancel</button>
                     <button type="submit" className="px-5 py-2.5 text-xs bg-indigo-600 hover:bg-indigo-500 text-white font-bold rounded-xl shadow-md transition-colors">
