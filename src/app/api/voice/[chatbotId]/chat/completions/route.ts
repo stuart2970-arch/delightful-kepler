@@ -225,6 +225,7 @@ CRITICAL SCHEDULING RULES FOR VOICE CALLS:
 - RULE 2: Once you know the Staff ID (or 'ANY') and Service ID, you MUST check availability before offering or confirming any slot. Reply politely (e.g. "Let me check availability for that day for you"), and append EXACTLY: [CHECK_AVAILABILITY: StaffID, ServiceID, StartDate, EndDate]. StartDate and EndDate should be ISO strings WITH the ${timezone} offset (e.g. +01:00).
 - RULE 3: Once an available slot is confirmed by checking availability, you MUST ask the caller for BOTH their email address AND their mobile phone number before confirming the booking. You are STRICTLY FORBIDDEN from confirming a booking without both email and phone number.
 - RULE 4: Once you have BOTH their email and mobile phone number, execute the booking by outputting EXACTLY: [BOOK_MEETING: StaffID, ServiceID, CustomerName, CustomerEmail, CustomerPhone, StartTime, EndTime].
+- RULE 4b (SUCCESSFUL BOOKING LOCK): Once a booking has been executed by [BOOK_MEETING], the appointment is LOCKED AND CONFIRMED. You are STRICTLY FORBIDDEN from running [CHECK_AVAILABILITY] again for the same booking turn, or claiming the slot was taken by someone else.
 - RULE 5: Use exact UUID strings for StaffID and ServiceID from JSON configs (or 'ANY' for StaffID).
 ` : '';
 
@@ -348,6 +349,20 @@ ${globalDisclaimer}`;
           const bookMatch = fullText.match(/\[BOOK_MEETING:\s*(.+?),\s*(.+?),\s*(.+?),\s*(.+?),\s*(.+?),\s*(.+?),\s*(.+?)\]/);
 
           if (availMatch || bookMatch) {
+            // Stream immediate vocal filler phrase so caller hears zero dead silence while Google Calendar runs
+            const fillerPhrase = availMatch 
+              ? 'Let me check availability for that slot for you right now... '
+              : 'Thank you! Processing your booking confirmation now... ';
+
+            const fillerChunk = {
+              id: 'chatcmpl-vapi',
+              object: 'chat.completion.chunk',
+              created: Math.floor(Date.now() / 1000),
+              model: 'gemini-3.6-flash',
+              choices: [{ delta: { content: fillerPhrase }, index: 0, finish_reason: null }]
+            };
+            controller.enqueue(encoder.encode(`data: ${JSON.stringify(fillerChunk)}\n\n`));
+
             let toolResult = '';
             if (availMatch) {
               const staffId = availMatch[1].trim().replace(/['"]/g, '');
@@ -366,14 +381,19 @@ ${globalDisclaimer}`;
               toolResult = await bookMeeting(tenantId, staffId, serviceId, custName, custEmail, custPhone, startStr, endStr, timezone);
             }
 
+            const isBookingSuccess = bookMatch && (toolResult.toLowerCase().includes('confirmed') || toolResult.toLowerCase().includes('success'));
+            const pass2Prompt = isBookingSuccess
+              ? `[SYSTEM BOOKING SUCCESS RESULT]:\n${toolResult}\nCRITICAL INSTRUCTION: The booking WAS EXECUTED SUCCESSFULLY and IS CONFIRMED. DO NOT check availability again. DO NOT say the slot was taken or unavailable. Enthusiastically and politely confirm to the customer that their appointment is booked!`
+              : `[SYSTEM RESULT]:\n${toolResult}\nSpeak the result naturally to the caller in plain conversational English without markdown, codes, or bracket tags.`;
+
             const preBracketText = fullText.split('[')[0].trim();
 
             const pass2Result = streamText({
               model: googleProvider('gemini-3.6-flash'),
               messages: [
                 ...enhancedMessages,
-                { role: 'assistant', content: preBracketText || 'Let me check that for you.' },
-                { role: 'user', content: `[SYSTEM RESULT]:\n${toolResult}\nSpeak the result naturally to the caller in plain conversational English without markdown, codes, or bracket tags.` }
+                { role: 'assistant', content: preBracketText || fillerPhrase },
+                { role: 'user', content: pass2Prompt }
               ],
               temperature: 0.7,
             });
