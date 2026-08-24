@@ -161,6 +161,10 @@ export async function checkAvailability(tenantId: string, staffId: string, servi
           const shifts = [];
           if (dayConfig.am && dayConfig.am.start && dayConfig.am.end) shifts.push(dayConfig.am);
           if (dayConfig.pm && dayConfig.pm.start && dayConfig.pm.end) shifts.push(dayConfig.pm);
+          if (shifts.length === 0) {
+            shifts.push({ start: '09:00', end: '13:00' });
+            shifts.push({ start: '14:00', end: '18:00' });
+          }
 
           for (const shift of shifts) {
             // Build start and end Date objects for the shift
@@ -190,6 +194,40 @@ export async function checkAvailability(tenantId: string, staffId: string, servi
                 }
               }
               // Increment by 30 mins
+              slotTime = new Date(slotTime.getTime() + 30 * 60000);
+            }
+          }
+        }
+      } else {
+        // Fallback for weekdays if weekConfig not yet created (Sunday is day 0)
+        if (currentDay.getDay() !== 0) {
+          const shifts = [
+            { start: '09:00', end: '13:00' },
+            { start: '14:00', end: '18:00' }
+          ];
+          for (const shift of shifts) {
+            const shiftStart = new Date(currentDay);
+            const [startH, startM] = shift.start.split(':');
+            shiftStart.setHours(parseInt(startH, 10), parseInt(startM, 10), 0, 0);
+
+            const shiftEnd = new Date(currentDay);
+            const [endH, endM] = shift.end.split(':');
+            shiftEnd.setHours(parseInt(endH, 10), parseInt(endM, 10), 0, 0);
+
+            let slotTime = new Date(shiftStart);
+            while (slotTime < shiftEnd) {
+              const slotEndTime = new Date(slotTime.getTime() + serviceDuration * 60000);
+              if (slotEndTime <= shiftEnd && slotTime >= now) {
+                const isBusy = busySlots.some((busy: any) => {
+                  const busyStart = new Date(busy.start);
+                  const busyEnd = new Date(busy.end);
+                  return (slotTime < busyEnd && slotEndTime > busyStart);
+                });
+
+                if (!isBusy) {
+                  availableSlots.push(slotTime.toISOString());
+                }
+              }
               slotTime = new Date(slotTime.getTime() + 30 * 60000);
             }
           }

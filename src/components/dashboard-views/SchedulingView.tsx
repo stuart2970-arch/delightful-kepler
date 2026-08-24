@@ -79,9 +79,26 @@ export default function SchedulingView() {
   const [isFetchingScheduling, setIsFetchingScheduling] = useState(false);
 
   const [showAddService, setShowAddService] = useState(false);
+  const [editingServiceId, setEditingServiceId] = useState<string | null>(null);
   const [newServiceName, setNewServiceName] = useState('');
   const [newServiceDuration, setNewServiceDuration] = useState(30);
   const [newServiceBuffer, setNewServiceBuffer] = useState(0);
+
+  const openAddService = () => {
+    setEditingServiceId(null);
+    setNewServiceName('');
+    setNewServiceDuration(30);
+    setNewServiceBuffer(0);
+    setShowAddService(true);
+  };
+
+  const openEditService = (service: any) => {
+    setEditingServiceId(service.id);
+    setNewServiceName(service.name);
+    setNewServiceDuration(service.duration_minutes || 30);
+    setNewServiceBuffer(service.buffer_minutes || 0);
+    setShowAddService(true);
+  };
 
   const [showStaffModal, setShowStaffModal] = useState(false);
   const [editingStaffId, setEditingStaffId] = useState<string | null>(null);
@@ -137,13 +154,13 @@ export default function SchedulingView() {
 
   const createEmptySchedule = (weekDate?: string): WeeklySchedule => ({
     weekCommencingDate: weekDate ? getMondayDate(weekDate) : getMondayDate(),
-    monday: { unavailable: false, am: null, pm: null },
-    tuesday: { unavailable: false, am: null, pm: null },
-    wednesday: { unavailable: false, am: null, pm: null },
-    thursday: { unavailable: false, am: null, pm: null },
-    friday: { unavailable: false, am: null, pm: null },
-    saturday: { unavailable: false, am: null, pm: null },
-    sunday: { unavailable: false, am: null, pm: null },
+    monday: { unavailable: false, am: { start: '09:00', end: '13:00' }, pm: { start: '14:00', end: '18:00' } },
+    tuesday: { unavailable: false, am: { start: '09:00', end: '13:00' }, pm: { start: '14:00', end: '18:00' } },
+    wednesday: { unavailable: false, am: { start: '09:00', end: '13:00' }, pm: { start: '14:00', end: '18:00' } },
+    thursday: { unavailable: false, am: { start: '09:00', end: '13:00' }, pm: { start: '14:00', end: '18:00' } },
+    friday: { unavailable: false, am: { start: '09:00', end: '13:00' }, pm: { start: '14:00', end: '18:00' } },
+    saturday: { unavailable: false, am: { start: '09:00', end: '13:00' }, pm: { start: '14:00', end: '18:00' } },
+    sunday: { unavailable: true, am: null, pm: null },
   });
 
   const [newStaffSchedule, setNewStaffSchedule] = useState<{weeks: WeeklySchedule[]}>(() => {
@@ -151,33 +168,46 @@ export default function SchedulingView() {
     return { weeks: rolling.weeks };
   });
 
-  const handleAddService = async (e: React.FormEvent) => {
+  const handleSaveService = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
+      const isUpdate = !!editingServiceId;
+      const method = isUpdate ? 'PUT' : 'POST';
+      const bodyPayload: any = {
+        tenant_id: tenantId,
+        chatbot_id: targetChatbotId,
+        name: newServiceName,
+        duration_minutes: newServiceDuration,
+        buffer_minutes: newServiceBuffer
+      };
+      if (isUpdate) {
+        bodyPayload.id = editingServiceId;
+      }
+
       const res = await fetch('/api/services', {
-        method: 'POST',
+        method,
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          tenant_id: tenantId,
-          chatbot_id: targetChatbotId,
-          name: newServiceName,
-          duration_minutes: newServiceDuration,
-          buffer_minutes: newServiceBuffer
-        })
+        body: JSON.stringify(bodyPayload)
       });
       if (res.ok) {
         const data = await res.json();
-        setServices([...services, data.service]);
+        if (isUpdate) {
+          setServices(services.map(s => s.id === editingServiceId ? (data.service || { ...s, ...bodyPayload }) : s));
+        } else {
+          setServices([...services, data.service]);
+        }
         setShowAddService(false);
+        setEditingServiceId(null);
         setNewServiceName('');
         setNewServiceDuration(30);
         setNewServiceBuffer(0);
       } else {
-        alert('Failed to add service');
+        const err = await res.json().catch(() => ({}));
+        alert(err.error || (isUpdate ? 'Failed to update service' : 'Failed to add service'));
       }
     } catch (err) {
       console.error(err);
-      alert('Error adding service');
+      alert('Error saving service');
     }
   };
 
@@ -540,7 +570,7 @@ export default function SchedulingView() {
             </div>
             <button
               type="button"
-              onClick={() => setShowAddService(true)}
+              onClick={openAddService}
               className="w-full sm:w-auto bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold px-4 py-2.5 rounded-xl shadow-sm transition-colors flex items-center justify-center gap-1.5 shrink-0"
             >
               <span>+ Add Service</span>
@@ -560,13 +590,22 @@ export default function SchedulingView() {
                     <h4 className="text-sm font-bold text-gray-800 truncate">{service.name}</h4>
                     <p className="text-xs text-gray-500 mt-0.5">⏱️ {service.duration_minutes || 30} mins {service.buffer_minutes ? `(+${service.buffer_minutes}m buffer)` : ''}</p>
                   </div>
-                  <button
-                    type="button"
-                    onClick={() => handleDeleteService(service.id)}
-                    className="text-rose-500 hover:text-rose-700 text-xs font-semibold px-2 py-1 rounded hover:bg-rose-50 transition-colors shrink-0"
-                  >
-                    Delete
-                  </button>
+                  <div className="flex items-center gap-2 shrink-0">
+                    <button
+                      type="button"
+                      onClick={() => openEditService(service)}
+                      className="text-indigo-600 hover:text-indigo-800 text-xs font-semibold px-2 py-1 rounded hover:bg-indigo-50 transition-colors"
+                    >
+                      Edit
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleDeleteService(service.id)}
+                      className="text-rose-500 hover:text-rose-700 text-xs font-semibold px-2 py-1 rounded hover:bg-rose-50 transition-colors"
+                    >
+                      Delete
+                    </button>
+                  </div>
                 </div>
               ))
             )}
@@ -847,16 +886,16 @@ export default function SchedulingView() {
           </div>
         </div>
 
-        {/* Add Service Modal */}
+        {/* Add / Edit Service Modal */}
         {mounted && showAddService && createPortal(
           <div className="fixed inset-0 z-[99999] overflow-y-auto bg-black/75 backdrop-blur-md">
             <div className="min-h-full flex items-center justify-center p-4 sm:p-6 text-center">
               <div className="w-full max-w-md bg-white rounded-3xl p-6 sm:p-8 space-y-5 shadow-2xl border border-slate-200 text-left my-8 transform transition-all max-h-[90vh] overflow-y-auto styleflo-scrollbar">
                 <div className="flex items-center justify-between border-b border-slate-100 pb-3">
-                  <h3 className="text-base font-bold text-slate-900">Add New Service</h3>
+                  <h3 className="text-base font-bold text-slate-900">{editingServiceId ? '✏️ Edit Service & Duration' : 'Add New Service'}</h3>
                   <button type="button" onClick={() => setShowAddService(false)} className="w-7 h-7 rounded-full bg-slate-100 text-slate-500 hover:bg-slate-200 font-bold text-xs flex items-center justify-center">✕</button>
                 </div>
-                <form onSubmit={handleAddService} className="space-y-4">
+                <form onSubmit={handleSaveService} className="space-y-4">
                   <div>
                     <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">Service Name</label>
                     <input
@@ -895,7 +934,9 @@ export default function SchedulingView() {
                   </div>
                   <div className="pt-3 flex items-center justify-end gap-3 border-t border-slate-100">
                     <button type="button" onClick={() => setShowAddService(false)} className="px-4 py-2.5 text-xs text-slate-600 font-semibold hover:text-slate-800">Cancel</button>
-                    <button type="submit" className="px-5 py-2.5 text-xs bg-indigo-600 hover:bg-indigo-500 text-white font-bold rounded-xl shadow-md transition-colors">Create Service</button>
+                    <button type="submit" className="px-5 py-2.5 text-xs bg-indigo-600 hover:bg-indigo-500 text-white font-bold rounded-xl shadow-md transition-colors">
+                      {editingServiceId ? 'Save Service Changes' : 'Create Service'}
+                    </button>
                   </div>
                 </form>
               </div>
