@@ -31,12 +31,9 @@ jobs:
         uses: google-github-actions/auth@v2
         with:
           token_format: access_token
-          # Configure these variables in GitHub Secrets after setting up GCP Workload Identity Pool
           workload_identity_provider: ${{ secrets.GCP_WIP_PROVIDER_ID }}
           service_account: ${{ secrets.GCP_SA_EMAIL }}
-          
-          # ALTERNATIVE: Static Service Account Key fallback (uncomment below if not using federation)
-          # credentials_json: ${{ secrets.GCP_SA_KEY_JSON }}
+          credentials_json: ${{ secrets.GCP_SA_KEY_JSON }}
 
       # 3. Authenticate Docker cli against Google Artifact Registry
       - name: Authenticate Docker Registry
