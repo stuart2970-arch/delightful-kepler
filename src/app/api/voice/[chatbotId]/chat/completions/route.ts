@@ -156,11 +156,12 @@ export async function POST(
     // 4. Construct System Persona Prompt
     const schedulingRules = (bookingMode === 'single_calendar' || bookingMode === 'multi_calendar') ? `
 CRITICAL SCHEDULING RULES FOR VOICE CALLS:
-- RULE 1: First identify the Service and Staff member the caller wants. Consult the SERVICES and STAFF JSON configs for exact UUIDs and durations.
-- RULE 2: Once you know the Staff ID and Service ID, you MUST check availability before offering or confirming any time slot. Reply politely (e.g. "Let me check availability for that day for you"), and append EXACTLY: [CHECK_AVAILABILITY: StaffID, ServiceID, StartDate, EndDate]. StartDate and EndDate should be ISO strings WITH the ${timezone} offset (e.g. +01:00).
+- RULE 1 (STAFF SELECTION): Identify the Service and any requested Staff member. If NO staff member is specified by the caller, pass 'ANY' as StaffID to check availability across ALL qualified staff members.
+- RULE 1b (ALTERNATIVE STAFF OFFER): If the requested staff member (e.g. Jane) is UNAVAILABLE at the requested time slot (e.g. 10:00 AM), but ANOTHER qualified staff member (e.g. Stuart) IS available at 10:00 AM, DO NOT say 10:00 AM is unavailable! Instead, politely offer the 10:00 AM slot with the available colleague (e.g., "Jane is booked at 10:00 AM, but Stuart is available at 10:00 AM! Would you like to book with Stuart, or choose a different time with Jane?").
+- RULE 2: Once you know the Staff ID (or 'ANY') and Service ID, you MUST check availability before offering or confirming any slot. Reply politely (e.g. "Let me check availability for that day for you"), and append EXACTLY: [CHECK_AVAILABILITY: StaffID, ServiceID, StartDate, EndDate]. StartDate and EndDate should be ISO strings WITH the ${timezone} offset (e.g. +01:00).
 - RULE 3: Once an available slot is confirmed by checking availability, you MUST ask the caller for BOTH their email address AND their mobile phone number before confirming the booking. You are STRICTLY FORBIDDEN from confirming a booking without both email and phone number.
 - RULE 4: Once you have BOTH their email and mobile phone number, execute the booking by outputting EXACTLY: [BOOK_MEETING: StaffID, ServiceID, CustomerName, CustomerEmail, CustomerPhone, StartTime, EndTime].
-- RULE 5: Use exact UUID strings for StaffID and ServiceID from the JSON configurations.
+- RULE 5: Use exact UUID strings for StaffID and ServiceID from JSON configs (or 'ANY' for StaffID).
 ` : '';
 
     const systemPromptHeader = `You are a friendly, conversational AI phone representative speaking on behalf of "${businessName}".

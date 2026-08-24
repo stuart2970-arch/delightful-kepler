@@ -60,26 +60,16 @@ export async function checkAvailability(tenantId: string, staffId: string, servi
   try {
     console.log(`[Calendar] Checking availability for staff ${staffId}, service ${serviceId} from ${startDateStr} to ${endDateStr} (TZ: ${timezone})`);
     
-    // 0. Fetch Service and Staff Mapping Duration
+    // 0. Fetch Service
     const { data: service, error: srvError } = await getSupabaseAdmin()
       .from('services')
-      .select('duration_minutes, buffer_minutes')
+      .select('name, duration_minutes, buffer_minutes')
       .eq('id', serviceId)
       .single();
     if (srvError || !service) return "Error: Service not found.";
     
-    let serviceDuration = service.duration_minutes + (service.buffer_minutes || 0);
+    const baseDuration = service.duration_minutes + (service.buffer_minutes || 0);
 
-    // Check for staff override
-    const { data: mapping } = await getSupabaseAdmin()
-      .from('staff_services')
-      .select('custom_duration')
-      .eq('staff_id', staffId)
-      .eq('service_id', serviceId)
-      .single();
-    if (mapping && mapping.custom_duration) {
-      serviceDuration = mapping.custom_duration + (service.buffer_minutes || 0);
-    }
     // 1. Enforce max advance booking window limit
     const { data: tenantData } = await getSupabaseAdmin()
       .from('tenants')
@@ -102,150 +92,201 @@ export async function checkAvailability(tenantId: string, staffId: string, servi
       return `Cannot check availability: Dates must be in the future and within the next ${maxWeeks} weeks.`;
     }
 
-    // 2. Fetch Staff Details (Working days, Google Calendar ID)
-    const { data: staff, error: staffError } = await getSupabaseAdmin()
+    // 2. Resolve target staff list (Fetch all staff for tenant)
+    const { data: allStaff, error: staffError } = await getSupabaseAdmin()
       .from('staff')
-      .select('name, working_days, google_calendar_id')
-      .eq('id', staffId)
-      .eq('tenant_id', tenantId)
-      .single();
+      .select('id, name, working_days, google_calendar_id')
+      .eq('tenant_id', tenantId);
 
-    if (staffError || !staff) {
-      return `Error: Staff member not found or misconfigured.`;
+    if (staffError || !allStaff || allStaff.length === 0) {
+      return `Error: No staff members found or misconfigured for this business.`;
     }
 
-    const calendarId = staff.google_calendar_id || 'primary';
+    // Fetch staff_services mappings to know who offers serviceId
+    const { data: staffServices } = await getSupabaseAdmin()
+      .from('staff_services')
+      .select('staff_id, custom_duration')
+      .eq('service_id', serviceId);
 
-    // 3. Query Google Calendar Free/Busy
+    const qualifiedStaffIds = (staffServices && staffServices.length > 0)
+      ? staffServices.map(ss => ss.staff_id)
+      : allStaff.map(s => s.id);
+
+    let targetStaffList = allStaff.filter(s => qualifiedStaffIds.includes(s.id));
+    if (targetStaffList.length === 0) {
+      targetStaffList = allStaff;
+    }
+
+    const isSpecificStaffRequested = staffId && staffId !== 'ANY' && staffId !== 'ALL' && staffId !== 'any' && staffId !== 'all';
+    const requestedStaff = targetStaffList.find(s => s.id === staffId);
+
+    // 3. Query Google Calendar & calculate slots per qualified staff member
     const calendar = await getCalendarClient(tenantId);
-    
-    const freeBusyRes = await calendar.freebusy.query({
-      requestBody: {
-        timeMin: start.toISOString(),
-        timeMax: end.toISOString(),
-        timeZone: 'UTC',
-        items: [{ id: calendarId }],
-      },
-    });
-
-    const busySlots = freeBusyRes.data.calendars?.[calendarId]?.busy || [];
-
-    // 4. Calculate Available Slots
-    let availableSlots: string[] = [];
-    let currentDay = new Date(start);
     const dayNames = ["sunday", "monday", "tuesday", "wednesday", "thursday", "friday", "saturday"];
 
-    // parse weeks config
-    const weeksConfig = (staff.working_days as any)?.weeks || [];
+    const staffResults: { staffId: string; name: string; availableSlots: string[]; customDuration: number }[] = [];
 
-    while (currentDay <= end) {
-      const currentDayStr = currentDay.toISOString().split('T')[0];
-      
-      // Find the appropriate week configuration for currentDay
-      let activeWeekConfig = null;
-      for (const week of weeksConfig) {
-        const weekStart = new Date(week.weekCommencingDate);
-        const weekEnd = new Date(week.weekCommencingDate);
-        weekEnd.setDate(weekEnd.getDate() + 7); // Exclusive end
-        if (currentDay >= weekStart && currentDay < weekEnd) {
-          activeWeekConfig = week;
-          break;
-        }
+    for (const staffMember of targetStaffList) {
+      const mapping = staffServices?.find(ss => ss.staff_id === staffMember.id);
+      const serviceDuration = mapping?.custom_duration 
+        ? mapping.custom_duration + (service.buffer_minutes || 0) 
+        : baseDuration;
+
+      const calendarId = staffMember.google_calendar_id || 'primary';
+      let busySlots: any[] = [];
+      try {
+        const freeBusyRes = await calendar.freebusy.query({
+          requestBody: {
+            timeMin: start.toISOString(),
+            timeMax: end.toISOString(),
+            timeZone: 'UTC',
+            items: [{ id: calendarId }],
+          },
+        });
+        busySlots = freeBusyRes.data.calendars?.[calendarId]?.busy || [];
+      } catch (fbErr) {
+        console.warn(`[Calendar] Failed to query Google Calendar freebusy for staff ${staffMember.name}:`, fbErr);
       }
 
-      if (activeWeekConfig) {
-        const dayName = dayNames[currentDay.getDay()];
-        const dayConfig = activeWeekConfig[dayName];
-        
-        if (dayConfig && !dayConfig.unavailable) {
-          const shifts = [];
-          if (dayConfig.am && dayConfig.am.start && dayConfig.am.end) shifts.push(dayConfig.am);
-          if (dayConfig.pm && dayConfig.pm.start && dayConfig.pm.end) shifts.push(dayConfig.pm);
-          if (shifts.length === 0) {
-            shifts.push({ start: '09:00', end: '13:00' });
-            shifts.push({ start: '14:00', end: '18:00' });
+      const availableSlots: string[] = [];
+      let currentDay = new Date(start);
+      const weeksConfig = (staffMember.working_days as any)?.weeks || [];
+
+      while (currentDay <= end) {
+        let activeWeekConfig = null;
+        for (const week of weeksConfig) {
+          const weekStart = new Date(week.weekCommencingDate);
+          const weekEnd = new Date(week.weekCommencingDate);
+          weekEnd.setDate(weekEnd.getDate() + 7);
+          if (currentDay >= weekStart && currentDay < weekEnd) {
+            activeWeekConfig = week;
+            break;
           }
+        }
 
-          for (const shift of shifts) {
-            // Build start and end Date objects for the shift
-            const shiftStart = new Date(currentDay);
-            const [startH, startM] = shift.start.split(':');
-            shiftStart.setHours(parseInt(startH, 10), parseInt(startM, 10), 0, 0);
+        if (activeWeekConfig) {
+          const dayName = dayNames[currentDay.getDay()];
+          const dayConfig = activeWeekConfig[dayName];
+          
+          if (dayConfig && !dayConfig.unavailable) {
+            const shifts = [];
+            if (dayConfig.am && dayConfig.am.start && dayConfig.am.end) shifts.push(dayConfig.am);
+            if (dayConfig.pm && dayConfig.pm.start && dayConfig.pm.end) shifts.push(dayConfig.pm);
+            if (shifts.length === 0) {
+              shifts.push({ start: '09:00', end: '13:00' });
+              shifts.push({ start: '14:00', end: '18:00' });
+            }
 
-            const shiftEnd = new Date(currentDay);
-            const [endH, endM] = shift.end.split(':');
-            shiftEnd.setHours(parseInt(endH, 10), parseInt(endM, 10), 0, 0);
+            for (const shift of shifts) {
+              const shiftStart = new Date(currentDay);
+              const [startH, startM] = shift.start.split(':');
+              shiftStart.setHours(parseInt(startH, 10), parseInt(startM, 10), 0, 0);
 
-            // Step through shift in 30 min increments
-            let slotTime = new Date(shiftStart);
-            while (slotTime < shiftEnd) {
-              const slotEndTime = new Date(slotTime.getTime() + serviceDuration * 60000);
-              
-              if (slotEndTime <= shiftEnd && slotTime >= now) {
-                // Check against busy slots from Google Calendar
-                const isBusy = busySlots.some((busy: any) => {
-                  const busyStart = new Date(busy.start);
-                  const busyEnd = new Date(busy.end);
-                  return (slotTime < busyEnd && slotEndTime > busyStart); // Overlap condition
-                });
+              const shiftEnd = new Date(currentDay);
+              const [endH, endM] = shift.end.split(':');
+              shiftEnd.setHours(parseInt(endH, 10), parseInt(endM, 10), 0, 0);
 
-                if (!isBusy) {
-                  availableSlots.push(slotTime.toISOString());
+              let slotTime = new Date(shiftStart);
+              while (slotTime < shiftEnd) {
+                const slotEndTime = new Date(slotTime.getTime() + serviceDuration * 60000);
+                if (slotEndTime <= shiftEnd && slotTime >= now) {
+                  const isBusy = busySlots.some((busy: any) => {
+                    const busyStart = new Date(busy.start);
+                    const busyEnd = new Date(busy.end);
+                    return (slotTime < busyEnd && slotEndTime > busyStart);
+                  });
+
+                  if (!isBusy) {
+                    availableSlots.push(slotTime.toISOString());
+                  }
                 }
+                slotTime = new Date(slotTime.getTime() + 30 * 60000);
               }
-              // Increment by 30 mins
-              slotTime = new Date(slotTime.getTime() + 30 * 60000);
+            }
+          }
+        } else {
+          // Fallback if weekConfig not set
+          if (currentDay.getDay() !== 0) {
+            const shifts = [
+              { start: '09:00', end: '13:00' },
+              { start: '14:00', end: '18:00' }
+            ];
+            for (const shift of shifts) {
+              const shiftStart = new Date(currentDay);
+              const [startH, startM] = shift.start.split(':');
+              shiftStart.setHours(parseInt(startH, 10), parseInt(startM, 10), 0, 0);
+
+              const shiftEnd = new Date(currentDay);
+              const [endH, endM] = shift.end.split(':');
+              shiftEnd.setHours(parseInt(endH, 10), parseInt(endM, 10), 0, 0);
+
+              let slotTime = new Date(shiftStart);
+              while (slotTime < shiftEnd) {
+                const slotEndTime = new Date(slotTime.getTime() + serviceDuration * 60000);
+                if (slotEndTime <= shiftEnd && slotTime >= now) {
+                  const isBusy = busySlots.some((busy: any) => {
+                    const busyStart = new Date(busy.start);
+                    const busyEnd = new Date(busy.end);
+                    return (slotTime < busyEnd && slotEndTime > busyStart);
+                  });
+
+                  if (!isBusy) {
+                    availableSlots.push(slotTime.toISOString());
+                  }
+                }
+                slotTime = new Date(slotTime.getTime() + 30 * 60000);
+              }
             }
           }
         }
+        currentDay.setDate(currentDay.getDate() + 1);
+        currentDay.setHours(0,0,0,0);
+      }
+
+      staffResults.push({
+        staffId: staffMember.id,
+        name: staffMember.name,
+        availableSlots,
+        customDuration: serviceDuration,
+      });
+    }
+
+    // 4. Format detailed multi-staff availability breakdown for the AI
+    let outputLines = [`Availability Breakdown for "${service.name}":\n`];
+
+    if (isSpecificStaffRequested && requestedStaff) {
+      const requestedResult = staffResults.find(r => r.staffId === requestedStaff.id);
+      if (requestedResult && requestedResult.availableSlots.length > 0) {
+        outputLines.push(`Requested Staff Member: ${requestedStaff.name} (ID: ${requestedStaff.id}):`);
+        outputLines.push(requestedResult.availableSlots.slice(0, 10).map(s => `- ${new Date(s).toLocaleString('en-GB', { timeZone: timezone })}`).join('\n'));
       } else {
-        // Fallback for weekdays if weekConfig not yet created (Sunday is day 0)
-        if (currentDay.getDay() !== 0) {
-          const shifts = [
-            { start: '09:00', end: '13:00' },
-            { start: '14:00', end: '18:00' }
-          ];
-          for (const shift of shifts) {
-            const shiftStart = new Date(currentDay);
-            const [startH, startM] = shift.start.split(':');
-            shiftStart.setHours(parseInt(startH, 10), parseInt(startM, 10), 0, 0);
+        outputLines.push(`Requested Staff Member: ${requestedStaff.name} (ID: ${requestedStaff.id}) has NO available slots in this timeframe.`);
+      }
 
-            const shiftEnd = new Date(currentDay);
-            const [endH, endM] = shift.end.split(':');
-            shiftEnd.setHours(parseInt(endH, 10), parseInt(endM, 10), 0, 0);
-
-            let slotTime = new Date(shiftStart);
-            while (slotTime < shiftEnd) {
-              const slotEndTime = new Date(slotTime.getTime() + serviceDuration * 60000);
-              if (slotEndTime <= shiftEnd && slotTime >= now) {
-                const isBusy = busySlots.some((busy: any) => {
-                  const busyStart = new Date(busy.start);
-                  const busyEnd = new Date(busy.end);
-                  return (slotTime < busyEnd && slotEndTime > busyStart);
-                });
-
-                if (!isBusy) {
-                  availableSlots.push(slotTime.toISOString());
-                }
-              }
-              slotTime = new Date(slotTime.getTime() + 30 * 60000);
-            }
-          }
+      const otherResults = staffResults.filter(r => r.staffId !== requestedStaff.id && r.availableSlots.length > 0);
+      if (otherResults.length > 0) {
+        outputLines.push(`\nALTERNATIVE QUALIFIED STAFF MEMBERS AVAILABLE FOR THIS SERVICE:`);
+        for (const other of otherResults) {
+          outputLines.push(`- ${other.name} (ID: ${other.staffId}):`);
+          outputLines.push(other.availableSlots.slice(0, 10).map(s => `  * ${new Date(s).toLocaleString('en-GB', { timeZone: timezone })}`).join('\n'));
         }
       }
-      currentDay.setDate(currentDay.getDate() + 1);
-      currentDay.setHours(0,0,0,0);
+    } else {
+      outputLines.push(`All Qualified Staff Availability:`);
+      for (const result of staffResults) {
+        if (result.availableSlots.length > 0) {
+          outputLines.push(`- ${result.name} (ID: ${result.staffId}):`);
+          outputLines.push(result.availableSlots.slice(0, 10).map(s => `  * ${new Date(s).toLocaleString('en-GB', { timeZone: timezone })}`).join('\n'));
+        } else {
+          outputLines.push(`- ${result.name} (ID: ${result.staffId}): No available slots.`);
+        }
+      }
     }
 
-    if (availableSlots.length === 0) {
-      return `No available slots found for ${staff.name} between those dates. Please ask the user for a different date or different staff member.`;
-    }
-
-    // Return a summary of slots (limit to 10 to not overwhelm the AI)
-    return `Available slots for ${staff.name}:\n` + availableSlots.slice(0, 10).map(s => `- ${new Date(s).toLocaleString('en-GB', { timeZone: timezone })}`).join('\n');
+    return outputLines.join('\n');
 
   } catch (error: any) {
-    console.error('[Calendar] Error checking availability:', error);
+    console.error('[Calendar] Error checking multi-staff availability:', error);
     return `Failed to check availability: ${error.message}`;
   }
 }
