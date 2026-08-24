@@ -319,16 +319,26 @@ ${globalDisclaimer}`;
           });
 
           let fullText = '';
+          let pendingChunks: string[] = [];
+          let containsBracketTag = false;
+
           for await (const textDelta of result.textStream) {
             fullText += textDelta;
-            const deltaChunk = {
-              id: 'chatcmpl-vapi',
-              object: 'chat.completion.chunk',
-              created: Math.floor(Date.now() / 1000),
-              model: 'gemini-3.6-flash',
-              choices: [{ delta: { content: textDelta }, index: 0, finish_reason: null }]
-            };
-            controller.enqueue(encoder.encode(`data: ${JSON.stringify(deltaChunk)}\n\n`));
+
+            if (fullText.includes('[') || containsBracketTag) {
+              containsBracketTag = true;
+              pendingChunks.push(textDelta);
+            } else {
+              // Safe normal speech — stream chunk immediately to Vapi
+              const deltaChunk = {
+                id: 'chatcmpl-vapi',
+                object: 'chat.completion.chunk',
+                created: Math.floor(Date.now() / 1000),
+                model: 'gemini-3.6-flash',
+                choices: [{ delta: { content: textDelta }, index: 0, finish_reason: null }]
+              };
+              controller.enqueue(encoder.encode(`data: ${JSON.stringify(deltaChunk)}\n\n`));
+            }
           }
 
           // Check if calendar tool interceptor was triggered
@@ -354,18 +364,19 @@ ${globalDisclaimer}`;
               toolResult = await bookMeeting(tenantId, staffId, serviceId, custName, custEmail, custPhone, startStr, endStr, timezone);
             }
 
+            const preBracketText = fullText.split('[')[0].trim();
+
             const pass2Result = streamText({
               model: googleProvider('gemini-3.6-flash'),
               messages: [
                 ...enhancedMessages,
-                { role: 'assistant', content: fullText },
-                { role: 'user', content: `[SYSTEM RESULT]:\n${toolResult}\nSpeak the result naturally to the caller in plain conversational English without markdown or bracket tags.` }
+                { role: 'assistant', content: preBracketText || 'Let me check that for you.' },
+                { role: 'user', content: `[SYSTEM RESULT]:\n${toolResult}\nSpeak the result naturally to the caller in plain conversational English without markdown, codes, or bracket tags.` }
               ],
               temperature: 0.7,
             });
 
             for await (const textDelta of pass2Result.textStream) {
-              fullText += textDelta;
               const deltaChunk = {
                 id: 'chatcmpl-vapi',
                 object: 'chat.completion.chunk',
@@ -375,6 +386,17 @@ ${globalDisclaimer}`;
               };
               controller.enqueue(encoder.encode(`data: ${JSON.stringify(deltaChunk)}\n\n`));
             }
+          } else if (containsBracketTag && pendingChunks.length > 0) {
+            // Bracket was not a tool tag — flush pending chunks safely
+            const remainingCleanText = pendingChunks.join('');
+            const deltaChunk = {
+              id: 'chatcmpl-vapi',
+              object: 'chat.completion.chunk',
+              created: Math.floor(Date.now() / 1000),
+              model: 'gemini-3.6-flash',
+              choices: [{ delta: { content: remainingCleanText }, index: 0, finish_reason: null }]
+            };
+            controller.enqueue(encoder.encode(`data: ${JSON.stringify(deltaChunk)}\n\n`));
           }
 
           const finishChunk = {
