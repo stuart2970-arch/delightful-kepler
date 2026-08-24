@@ -720,7 +720,12 @@ ame, irstMessage, and 	ranscriber) rather than relying on ssistantOverrides de
     2. **Prompt Instructions for Text & Voice (`stream/route.ts` & `voice/[chatbotId]/chat/completions/route.ts`)**:
        - **Rule 1 (Staff Selection)**: If no staff member is specified by the customer, passes `staffId = 'ANY'` to check availability across all qualified colleagues.
        - **Rule 1b (Alternative Staff Offer)**: If the requested colleague is unavailable at the desired time (e.g. Jane at 10:00 AM), but another qualified colleague (e.g. Stuart) IS free at 10:00 AM, the bot is FORBIDDEN from declaring 10:00 AM unavailable. Instead, it offers 10:00 AM with the available colleague (e.g. *"Jane is booked at 10:00 AM, but Stuart is available at 10:00 AM! Would you like to book with Stuart, or choose a different time with Jane?"*).
-    3. Verified Next.js build (`npm run build`), committed (`a0c2a7a`), and pushed directly to `main` branch to trigger Google Cloud Build production deployment.
+* **User**: "i then tried to speak to the voice chat, who introduced herself then could not hear me, eventually dissconnecting, no web chat recorded in back end"
+  * **Fix**: Resolved Web Voice Speech-To-Text (STT) microphone capture, live UI transcript rendering, and database conversation logging:
+    1. **Web Voice Transcriber & Timeout Config (`src/widget/index.ts` & `src/widget/embed.ts`)**: Added explicit Deepgram Speech-To-Text transcriber configuration (`transcriber: { provider: 'deepgram', model: 'nova-2', language: 'en-US' }`) and `silenceTimeoutSeconds: 30` to `vapiInstance.start()`. Without the explicit transcriber definition, Vapi's WebRTC microphone audio stream was unparsed, causing the bot to introduce herself, hear no user input, and drop the call.
+    2. **Live UI Transcript Listener (`src/widget/index.ts` & `src/widget/embed.ts`)**: Added `vapiInstance.on('message')` listener for `transcript` events (`transcriptType === 'final'`). Automatically appends spoken user inputs and AI voice responses directly into the chat window bubbles in real time.
+    3. **Instant Database Session Logging (`src/widget/index.ts` & `src/widget/embed.ts`)**: Added instant conversation session initialization on `vapiInstance.on('call-start')` to persist the voice session and greeting message into Supabase (`conversations` and `messages` tables), guaranteeing that all voice calls are recorded in the dashboard even if disconnected early.
+    4. Verified Next.js build (`npm run build`), updated widget bundles (`public/widget.js` & `public/embed.js`), committed (`9e0465a`), and pushed directly to `main` branch to trigger Google Cloud Build production deployment.
 
 
 
