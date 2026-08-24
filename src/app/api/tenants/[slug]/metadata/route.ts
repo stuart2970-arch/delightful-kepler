@@ -166,18 +166,17 @@ const corsHeaders = {
 
 /**
  * Real-Time Shift Status Calculator Engine
- * Evaluates AM/PM schedules against the current local date and time.
- * Supports both database formats: { am_start, am_finish } and { am: { start, end } }.
+ * Evaluates AM/PM schedules against current local date and time in Europe/London (UK timezone).
+ * Supports rolling weekly schedules { weeks: [...] }, flat array schedules, and flat day maps.
  */
-function calculateStaffStatus(workingDays: any[]): 'on-shift' | 'on-break' | 'off-duty' {
-  if (!workingDays || !Array.isArray(workingDays)) return 'off-duty';
+function calculateStaffStatus(workingDays: any): 'on-shift' | 'on-break' | 'off-duty' {
+  if (!workingDays) return 'off-duty';
 
   const now = new Date();
-  // Adjust to local timezone string (e.g., Europe/London for UK GDPR salons)
   const options: Intl.DateTimeFormatOptions = { weekday: 'long', timeZone: 'Europe/London' };
   const currentDay = new Intl.DateTimeFormat('en-US', options).format(now).toLowerCase();
 
-  // Format current HH:MM
+  // Format current HH:MM in Europe/London (24hr format)
   const currentHHMM = now.toLocaleTimeString('en-US', {
     hour12: false,
     hour: '2-digit',
@@ -185,18 +184,50 @@ function calculateStaffStatus(workingDays: any[]): 'on-shift' | 'on-break' | 'of
     timeZone: 'Europe/London'
   });
 
-  // Find active schedule block matching current weekday
-  const todaySchedule = workingDays.find(
-    (d: any) => d.day?.toLowerCase() === currentDay && !d.unavailable
-  );
+  let todaySchedule: any = null;
 
-  if (!todaySchedule) return 'off-duty';
+  // Case 1: Rolling weekly schedule object { weeks: [ { weekCommencingDate, monday, tuesday, ... } ] }
+  if (workingDays && Array.isArray(workingDays.weeks) && workingDays.weeks.length > 0) {
+    const todayMonday = getMondayDate(now);
+    let matchedWeek = workingDays.weeks.find((w: any) => w && w.weekCommencingDate === todayMonday);
+    if (!matchedWeek) {
+      matchedWeek = workingDays.weeks[0];
+    }
+    if (matchedWeek && matchedWeek[currentDay]) {
+      todaySchedule = matchedWeek[currentDay];
+    }
+  } 
+  // Case 2: Array of days [{ day: 'monday', am, pm, unavailable }, ...]
+  else if (Array.isArray(workingDays)) {
+    todaySchedule = workingDays.find(
+      (d: any) => d && (d.day?.toLowerCase() === currentDay || d.name?.toLowerCase() === currentDay)
+    );
+  } 
+  // Case 3: Flat day object { monday: { am, pm, unavailable }, ... }
+  else if (typeof workingDays === 'object') {
+    if (workingDays[currentDay]) {
+      todaySchedule = workingDays[currentDay];
+    }
+  }
 
-  // Support both snake_case flat format and nested object format
-  const am_start = todaySchedule.am_start || todaySchedule.am?.start;
-  const am_finish = todaySchedule.am_finish || todaySchedule.am?.end;
-  const pm_start = todaySchedule.pm_start || todaySchedule.pm?.start;
-  const pm_finish = todaySchedule.pm_finish || todaySchedule.pm?.end;
+  // If marked explicitly unavailable or holiday
+  if (todaySchedule && todaySchedule.unavailable) {
+    return 'off-duty';
+  }
+
+  // Extract AM / PM shift times
+  let am_start = todaySchedule?.am_start || todaySchedule?.am?.start;
+  let am_finish = todaySchedule?.am_finish || todaySchedule?.am?.end;
+  let pm_start = todaySchedule?.pm_start || todaySchedule?.pm?.start;
+  let pm_finish = todaySchedule?.pm_finish || todaySchedule?.pm?.end;
+
+  // Fallback defaults if weekday (Mon-Sat) and not explicitly marked unavailable
+  if (!am_start && !pm_start && currentDay !== 'sunday') {
+    am_start = '09:00';
+    am_finish = '13:00';
+    pm_start = '14:00';
+    pm_finish = '18:00';
+  }
 
   // 1. Evaluate AM Shift boundaries
   if (am_start && am_finish && currentHHMM >= am_start && currentHHMM <= am_finish) {
@@ -352,7 +383,7 @@ export async function GET(req: Request, { params }: { params: Promise<{ slug: st
         staffList = staff.map((member: any) => ({
           id: member.id,
           name: member.name,
-          role: member.role || 'Specialist',
+          role: member.role || '',
           email: member.email,
           status: calculateStaffStatus(member.working_days),
           image_url: member.image_url,
