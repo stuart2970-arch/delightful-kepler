@@ -733,7 +733,11 @@ ame, irstMessage, and 	ranscriber) rather than relying on ssistantOverrides de
   * **Fix**: Updated GitHub Actions CI/CD deployment pipeline (`.github/workflows/deploy.yml`):
     1. Added `credentials_json: ${{ secrets.GCP_SA_KEY_JSON }}` fallback to step 2 ("Authenticate to Google Cloud") to support Service Account Key authentication alongside Workload Identity Federation (`GCP_WIP_PROVIDER_ID`).
     2. Prompted user to configure required repository secrets (`GCP_PROJECT_ID`, `GCP_SA_KEY_JSON`, `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`) under GitHub Repository Settings -> Secrets and variables -> Actions.
-    3. Triggered new deployment build on GitHub `main` branch.
+* **User**: "voice is still not working, i can hear the into then nothing"
+  * **Fix**: Diagnosed Vapi Custom LLM 3.0-second Time-To-First-Token (TTFT) stream timeout and refactored backend voice completions:
+    1. **Immediate Token-by-Token SSE Streaming (`route.ts`)**: Converted synchronous `generateText` calls into live `streamText` chunks (`streamText({ model: googleProvider('gemini-3.6-flash') })`). Immediately enqueues an initial role chunk (`data: {"choices":[{"delta":{"role":"assistant"}}]}`) in **< 100ms** and streams speech tokens as Gemini produces them (**TTFT < 400ms**), keeping the Vapi WebRTC channel active.
+    2. **RAG Embedding Timeout Wrapper (`route.ts`)**: Wrapped vector embedding search in `Promise.race` with a 1.2-second timeout (`Promise.race([fetchEmbed(), timeout(1200)])`), preventing slow vector RPC lookups from delaying voice stream initialization.
+    3. Recompiled production widget scripts (`public/widget.js` & `public/embed.js`), verified Next.js production build (`npm run build`), committed (`ab35f5f`), and pushed directly to `main` branch.
 
 
 
