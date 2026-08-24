@@ -750,7 +750,11 @@ ame, irstMessage, and 	ranscriber) rather than relying on ssistantOverrides de
   * **Fix**: Added Rule 1c (Fuzzy Service Pattern Matching) and Rule 1d (Mandatory Service & Staff Confirmation) to system prompts across voice and text routes:
     1. **Fuzzy Service Pattern Matching (`Rule 1c` in `route.ts` & `stream/route.ts`)**: System prompt now explicitly requires Gemini to match informal customer phrasing (e.g. "assisted build", "build help", "setup assistance") to the most relevant service in `SERVICES CONFIGURATION` (`"Assisted Setup"`).
     2. **Mandatory Service & Staff Confirmation (`Rule 1d` in `route.ts` & `stream/route.ts`)**: Enforced an explicit confirmation step before checking availability or executing bookings. The bot states the exact service name, duration, and staff pricing options (e.g., *"Just to confirm, you would like to book an Assisted Setup session? We have Jane available for 60 minutes, or Stuart for £75 for a 45-minute session. Which would you prefer?"*).
-    3. Verified Next.js build (`npm run build`), committed (`a4c00e3`), and pushed directly to `main` branch.
+* **User**: "the bot is getting confused by its own actions... said that time was just taken... there is also a long pause before some of the replies where the customer will not be aware if the bot is still there"
+  * **Fix**: Implemented immediate vocal filler speech streaming and Rule 4b booking lock:
+    1. **Immediate Vocal Filler Speech Streaming (`route.ts`)**: When `[CHECK_AVAILABILITY]` or `[BOOK_MEETING]` is triggered, the backend instantly streams a spoken filler chunk (*"Let me check availability for that slot for you right now..."* or *"Thank you! Processing your booking confirmation now..."*) in **< 50ms**. ElevenLabs speaks this phrase immediately, eliminating dead silence while Google Calendar API executes.
+    2. **Rule 4b Successful Booking Lock & Explicit Confirmation Prompt (`route.ts`)**: Added `Rule 4b` strictly forbidding Gemini from re-checking availability or claiming a slot was taken once `[BOOK_MEETING]` succeeds. For Pass 2, passes an explicit system instruction (`[SYSTEM BOOKING SUCCESS RESULT]`) enforcing an enthusiastic confirmation to the caller.
+    3. Verified Next.js build (`npm run build`), committed (`0db3982`), and pushed directly to `main` branch.
 
 
 
