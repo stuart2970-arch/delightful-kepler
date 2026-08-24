@@ -759,20 +759,6 @@ import Vapi from '@vapi-ai/web';
         vapiInstance.on('call-start', () => {
           isVapiActive = true;
           vapiBtn.style.backgroundColor = primaryColor;
-
-          // Immediately log voice conversation session & welcome message to backend database
-          fetch(`${apiHost}/api/voice/${chatbotId}/chat/completions`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              stream: false,
-              sessionId: sessionId,
-              messages: [
-                { role: 'system', content: 'Web voice call connected.' },
-                { role: 'assistant', content: getFormattedWelcomeMessage(storedName) }
-              ]
-            })
-          }).catch(err => console.error('[StyleFlo Widget] Voice session init error:', err));
         });
         vapiInstance.on('call-end', () => {
           isVapiActive = false;
@@ -787,10 +773,14 @@ import Vapi from '@vapi-ai/web';
         });
         vapiInstance.on('message', (msg: any) => {
           if (msg?.type === 'transcript' && msg?.transcriptType === 'final') {
-            if (msg.role === 'user' && msg.transcript) {
-              appendMessage('user', msg.transcript);
-            } else if (msg.role === 'assistant' && msg.transcript) {
-              appendMessage('bot', msg.transcript);
+            if (msg.role === 'user' && msg.transcript && msg.transcript.trim()) {
+              appendMessage('user', msg.transcript.trim());
+            } else if (msg.role === 'assistant' && msg.transcript && msg.transcript.trim()) {
+              const welcome = getFormattedWelcomeMessage(storedName).toLowerCase();
+              const text = msg.transcript.trim().toLowerCase();
+              if (!welcome.includes(text) && !text.includes(welcome.substring(0, 20))) {
+                appendMessage('bot', msg.transcript.trim());
+              }
             }
           }
         });
@@ -821,6 +811,9 @@ import Vapi from '@vapi-ai/web';
         } else if (vapiInstance) {
           try {
             const actualVoiceId = voiceId && voiceId.length >= 15 ? voiceId : '49TtX0KZLnuzDrAizTkN';
+            const isLocalHost = apiHost.includes('localhost') || apiHost.includes('127.0.0.1') || apiHost.includes('.test');
+            const targetVoiceHost = isLocalHost ? 'https://app.styleflo.ai' : apiHost;
+
             await vapiInstance.start({
               name: `${agentName} Assistant`,
               transcriber: {
@@ -832,7 +825,7 @@ import Vapi from '@vapi-ai/web';
               maxDurationSeconds: 600,
               model: {
                 provider: "custom-llm",
-                url: `${apiHost}/api/voice/${chatbotId}/`,
+                url: `${targetVoiceHost}/api/voice/${chatbotId}/`,
                 model: "gemini-3.5-flash",
                 messages: [
                   {
