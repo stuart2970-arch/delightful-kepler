@@ -220,6 +220,7 @@ export async function POST(
 CRITICAL SCHEDULING RULES FOR VOICE CALLS:
 - RULE 1 (STAFF SELECTION): Identify the Service and any requested Staff member. If NO staff member is specified by the caller, pass 'ANY' as StaffID to check availability across ALL qualified staff members.
 - RULE 1b (ALTERNATIVE STAFF OFFER): If the requested staff member (e.g. Jane) is UNAVAILABLE at the requested time slot (e.g. 10:00 AM), but ANOTHER qualified staff member (e.g. Stuart) IS available at 10:00 AM, DO NOT say 10:00 AM is unavailable! Instead, politely offer the 10:00 AM slot with the available colleague (e.g., "Jane is booked at 10:00 AM, but Stuart is available at 10:00 AM! Would you like to book with Stuart, or choose a different time with Jane?").
+- RULE 1c (SERVICE MATCHING & PRICING): Match the caller's requested service carefully to the SERVICES CONFIGURATION (e.g. "assisted build", "assisted setup", "build appointment" maps to "Assisted Setup", NOT "30 min consultation"). Check each colleague's staff_services array in STAFF CONFIGURATION for custom_price and custom_duration. If a colleague has custom pricing or duration for a service (e.g., Stuart at £75 for 45 minutes vs Jane for 60 minutes), inform the caller of the difference if helpful.
 - RULE 2: Once you know the Staff ID (or 'ANY') and Service ID, you MUST check availability before offering or confirming any slot. Reply politely (e.g. "Let me check availability for that day for you"), and append EXACTLY: [CHECK_AVAILABILITY: StaffID, ServiceID, StartDate, EndDate]. StartDate and EndDate should be ISO strings WITH the ${timezone} offset (e.g. +01:00).
 - RULE 3: Once an available slot is confirmed by checking availability, you MUST ask the caller for BOTH their email address AND their mobile phone number before confirming the booking. You are STRICTLY FORBIDDEN from confirming a booking without both email and phone number.
 - RULE 4: Once you have BOTH their email and mobile phone number, execute the booking by outputting EXACTLY: [BOOK_MEETING: StaffID, ServiceID, CustomerName, CustomerEmail, CustomerPhone, StartTime, EndTime].
@@ -377,14 +378,17 @@ ${globalDisclaimer}`;
             });
 
             for await (const textDelta of pass2Result.textStream) {
-              const deltaChunk = {
-                id: 'chatcmpl-vapi',
-                object: 'chat.completion.chunk',
-                created: Math.floor(Date.now() / 1000),
-                model: 'gemini-3.6-flash',
-                choices: [{ delta: { content: textDelta }, index: 0, finish_reason: null }]
-              };
-              controller.enqueue(encoder.encode(`data: ${JSON.stringify(deltaChunk)}\n\n`));
+              const cleanDelta = textDelta.replace(/\[(CHECK_AVAILABILITY|BOOK_MEETING|TIME_SLOTS|LEAD_CAPTURED|LOOKUP_APPOINTMENTS):?[^\]]*\]/gi, '');
+              if (cleanDelta) {
+                const deltaChunk = {
+                  id: 'chatcmpl-vapi',
+                  object: 'chat.completion.chunk',
+                  created: Math.floor(Date.now() / 1000),
+                  model: 'gemini-3.6-flash',
+                  choices: [{ delta: { content: cleanDelta }, index: 0, finish_reason: null }]
+                };
+                controller.enqueue(encoder.encode(`data: ${JSON.stringify(deltaChunk)}\n\n`));
+              }
             }
           } else if (containsBracketTag && pendingChunks.length > 0) {
             // Bracket was not a tool tag — flush pending chunks safely
