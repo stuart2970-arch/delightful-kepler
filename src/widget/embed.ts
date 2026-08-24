@@ -648,14 +648,26 @@ import Vapi from '@vapi-ai/web';
         });
         vapiInstance.on('message', (msg: any) => {
           if (msg?.type === 'transcript' && msg?.transcriptType === 'final') {
-            if (msg.role === 'user' && msg.transcript && msg.transcript.trim()) {
-              appendMessage('user', msg.transcript.trim());
-            } else if (msg.role === 'assistant' && msg.transcript && msg.transcript.trim()) {
-              const welcome = getFormattedWelcomeMessage(storedName).toLowerCase();
-              const text = msg.transcript.trim().toLowerCase();
-              if (!welcome.includes(text) && !text.includes(welcome.substring(0, 20))) {
-                appendMessage('bot', msg.transcript.trim());
-              }
+            const rawText = (msg.transcript || '').trim();
+            if (!rawText) return;
+
+            const lowerText = rawText.toLowerCase();
+            const welcome = getFormattedWelcomeMessage(storedName).toLowerCase();
+            const isEchoedGreeting = 
+              lowerText.includes("you're through to") || 
+              lowerText.includes("you are through to") || 
+              lowerText.includes("flowchat") || 
+              lowerText.includes("flochat") || 
+              lowerText.includes("can i help you today") || 
+              lowerText.includes("how can i help you today") ||
+              (welcome.length > 5 && (welcome.includes(lowerText) || lowerText.includes(welcome.substring(0, 15))));
+
+            if (isEchoedGreeting) return;
+
+            if (msg.role === 'user') {
+              appendMessage('user', rawText);
+            } else if (msg.role === 'assistant') {
+              appendMessage('bot', rawText);
             }
           }
         });
@@ -705,11 +717,10 @@ import Vapi from '@vapi-ai/web';
                 messages: [
                   {
                     role: "system",
-                    content: `You are ${agentName}, ${agentRole}. The user's name is ${storedName || 'there'}. ${getFormattedWelcomeMessage(storedName)}`
+                    content: `You are ${agentName}, ${agentRole}. The user's name is ${storedName || 'there'}.`
                   }
                 ]
               },
-              firstMessage: getFormattedWelcomeMessage(storedName),
               voice: {
                 provider: "11labs",
                 voiceId: actualVoiceId,

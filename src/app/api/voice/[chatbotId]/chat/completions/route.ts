@@ -119,6 +119,56 @@ export async function POST(
       }
     }
 
+    const lowerQuery = queryText.toLowerCase();
+    const isEchoedGreeting = 
+      lowerQuery.includes("you're through to") || 
+      lowerQuery.includes("you are through to") || 
+      lowerQuery.includes("flowchat") || 
+      lowerQuery.includes("flochat") || 
+      lowerQuery.includes("can i help you today") || 
+      lowerQuery.includes("how can i help you today");
+
+    if (isEchoedGreeting) {
+      console.log('[Vapi Custom LLM] Ignoring echoed assistant greeting turn:', queryText);
+      const isStream = body.stream !== false;
+      if (!isStream) {
+        return NextResponse.json({
+          id: 'chatcmpl-vapi',
+          object: 'chat.completion',
+          created: Math.floor(Date.now() / 1000),
+          model: 'gemini-3.5-flash',
+          choices: [{ message: { role: 'assistant', content: '' }, finish_reason: 'stop', index: 0 }]
+        }, { headers: corsHeaders });
+      }
+
+      const encoder = new TextEncoder();
+      const stream = new ReadableStream({
+        async start(controller) {
+          const roleChunk = {
+            id: 'chatcmpl-vapi',
+            object: 'chat.completion.chunk',
+            created: Math.floor(Date.now() / 1000),
+            model: 'gemini-3.5-flash',
+            choices: [{ delta: { role: 'assistant', content: '' }, index: 0, finish_reason: null }]
+          };
+          controller.enqueue(encoder.encode(`data: ${JSON.stringify(roleChunk)}\n\n`));
+          const finishChunk = {
+            id: 'chatcmpl-vapi',
+            object: 'chat.completion.chunk',
+            created: Math.floor(Date.now() / 1000),
+            model: 'gemini-3.5-flash',
+            choices: [{ delta: {}, index: 0, finish_reason: 'stop' }]
+          };
+          controller.enqueue(encoder.encode(`data: ${JSON.stringify(finishChunk)}\n\n`));
+          controller.enqueue(encoder.encode(`data: [DONE]\n\n`));
+          controller.close();
+        }
+      });
+      return new Response(stream, {
+        headers: { 'Content-Type': 'text/event-stream', 'Cache-Control': 'no-cache', 'Connection': 'keep-alive', ...corsHeaders }
+      });
+    }
+
     if (queryText && apiKey) {
       try {
         const embeddingRes = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/text-embedding-004:embedContent?key=${apiKey}`, {
