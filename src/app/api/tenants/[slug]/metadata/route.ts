@@ -164,6 +164,26 @@ const corsHeaders = {
   'Cache-Control': 'no-store, max-age=0, must-revalidate'
 };
 
+function getMondayDate(inputDate?: Date | string): string {
+  const d = inputDate ? new Date(typeof inputDate === 'string' && !inputDate.includes('T') ? inputDate + 'T00:00:00' : inputDate) : new Date();
+  if (isNaN(d.getTime())) {
+    const fallback = new Date();
+    const day = fallback.getDay();
+    const diff = fallback.getDate() - day + (day === 0 ? -6 : 1);
+    fallback.setDate(diff);
+    return fallback.toISOString().split('T')[0];
+  }
+  
+  const day = d.getDay(); // 0 is Sunday, 1 is Monday, ...
+  const diff = d.getDate() - day + (day === 0 ? -6 : 1);
+  const monday = new Date(d.getFullYear(), d.getMonth(), diff);
+  
+  const year = monday.getFullYear();
+  const month = String(monday.getMonth() + 1).padStart(2, '0');
+  const dateNum = String(monday.getDate()).padStart(2, '0');
+  return `${year}-${month}-${dateNum}`;
+}
+
 /**
  * Real-Time Shift Status Calculator Engine
  * Evaluates AM/PM schedules against current local date and time in Europe/London (UK timezone).
@@ -380,16 +400,20 @@ export async function GET(req: Request, { params }: { params: Promise<{ slug: st
 
       if (staff) {
         // 3. Inject computed on-shift/break/off-duty statuses
-        staffList = staff.map((member: any) => ({
-          id: member.id,
-          name: member.name,
-          role: member.role || '',
-          email: member.email,
-          status: calculateStaffStatus(member.working_days),
-          image_url: member.image_url,
-          specialist_product: member.specialist_product,
-          bio: member.bio
-        }));
+        staffList = staff.map((member: any) => {
+          const rawRole = (member.role || '').trim();
+          const cleanRole = rawRole.toLowerCase() === 'specialist' ? '' : rawRole;
+          return {
+            id: member.id,
+            name: member.name,
+            role: cleanRole,
+            email: member.email,
+            status: calculateStaffStatus(member.working_days),
+            image_url: member.image_url,
+            specialist_product: member.specialist_product,
+            bio: member.bio
+          };
+        });
       }
 
       if (services) {
