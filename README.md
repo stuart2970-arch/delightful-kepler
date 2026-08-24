@@ -714,7 +714,13 @@ ame, irstMessage, and 	ranscriber) rather than relying on ssistantOverrides de
     1. **Menu Renaming (`SidebarNavigation.tsx` & `DashboardClient.tsx`)**: Renamed sidebar navigation item label from "Chatbots / Chatbots Manager" to **"Chatbot"** and main section header to **"Chatbot Manager"**.
     2. **B2B Chatbot Limit Enforcement (`ChatbotManagerView.tsx`)**: Enforced a single chatbot limit per tenant. When 1 chatbot already exists for the account, the 4-step "Create New Chatbot" creation wizard card is automatically hidden from view.
     3. **Adjacent Embed Code Card Layout (`ChatbotManagerView.tsx`)**: When a chatbot exists, the view displays the active Chatbot Profile Card on the left alongside its **Website Embed Snippet Card** directly on the right in a 2-column grid (`grid grid-cols-1 lg:grid-cols-2 gap-6`). Includes one-click **Copy Snippet** buttons for both Popup Widget and Inline Embed script tags.
-    4. Verified Next.js production build (`npm run build`), which compiled in 29.7s with 0 errors across 34 routes and updated widget production bundles (`public/widget.js` & `public/embed.js`).
+* **User**: "so, as a customer via chat, i requested a meeting for 10am (knowing that Jane was booked already, and the bot did not check availability for all staff allocated to the service until prompted to do so by the customer"
+  * **Fix**: Upgraded calendar engine and system prompts for multi-staff availability checking:
+    1. **Multi-Staff Availability Engine (`src/app/api/chat/stream/calendar.ts`)**: Rewrote `checkAvailability()` to fetch all staff members qualified for the requested service (`staff_services`). Evaluates free/busy schedules and rotas across **ALL** qualified colleagues. If a customer requests a specific staff member who is booked at the requested time (e.g. Jane at 10:00 AM), `checkAvailability()` automatically checks alternative qualified staff members (e.g. Stuart) and returns both the requested staff member's availability AND available alternative colleagues for that exact service.
+    2. **Prompt Instructions for Text & Voice (`stream/route.ts` & `voice/[chatbotId]/chat/completions/route.ts`)**:
+       - **Rule 1 (Staff Selection)**: If no staff member is specified by the customer, passes `staffId = 'ANY'` to check availability across all qualified colleagues.
+       - **Rule 1b (Alternative Staff Offer)**: If the requested colleague is unavailable at the desired time (e.g. Jane at 10:00 AM), but another qualified colleague (e.g. Stuart) IS free at 10:00 AM, the bot is FORBIDDEN from declaring 10:00 AM unavailable. Instead, it offers 10:00 AM with the available colleague (e.g. *"Jane is booked at 10:00 AM, but Stuart is available at 10:00 AM! Would you like to book with Stuart, or choose a different time with Jane?"*).
+    3. Verified Next.js build (`npm run build`), committed (`a0c2a7a`), and pushed directly to `main` branch to trigger Google Cloud Build production deployment.
 
 
 
