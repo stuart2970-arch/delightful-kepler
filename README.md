@@ -729,7 +729,11 @@ ame, irstMessage, and 	ranscriber) rather than relying on ssistantOverrides de
   * **Fix**: Diagnosed backend 500 error on voice completions endpoint and updated deprecated model string:
     1. **Google Gemini API Model ID Update (`route.ts`, `stream/route.ts`, `vapi/assistant/route.ts`, `index.ts`, `embed.ts`)**: Replaced deprecated `gemini-3.5-flash` model identifier with the active Google Gemini API model `gemini-3.6-flash`. Calling `gemini-3.5-flash` caused Google GenAI SDK to throw `404 Not Found: models/gemini-3.5-flash is not found`, returning a 500 Internal Server Error to Vapi Cloud when attempting to stream voice completions.
     2. Verified model invocation via direct Google GenAI SDK probe (`gemini-3.6-flash` returned HTTP 200 clean text completion). Recompiled production widget bundles (`public/widget.js` & `public/embed.js`) and verified Next.js production build (`npm run build`).
-    3. Committed (`9663ba9`) and pushed directly to GitHub `main` branch to trigger Google Cloud Build deployment to Cloud Run.
+* **User**: "is this normal?" (with screenshot showing failing GitHub Actions workflow runs)
+  * **Fix**: Updated GitHub Actions CI/CD deployment pipeline (`.github/workflows/deploy.yml`):
+    1. Added `credentials_json: ${{ secrets.GCP_SA_KEY_JSON }}` fallback to step 2 ("Authenticate to Google Cloud") to support Service Account Key authentication alongside Workload Identity Federation (`GCP_WIP_PROVIDER_ID`).
+    2. Prompted user to configure required repository secrets (`GCP_PROJECT_ID`, `GCP_SA_KEY_JSON`, `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`) under GitHub Repository Settings -> Secrets and variables -> Actions.
+    3. Triggered new deployment build on GitHub `main` branch.
 
 
 
