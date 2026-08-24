@@ -29,6 +29,9 @@ export async function POST(
     }
 
     const apiKey = process.env.GOOGLE_GENERATIVE_AI_API_KEY || process.env.GEMINI_API_KEY || '';
+    if (!apiKey) {
+      throw new Error('GOOGLE_GENERATIVE_AI_API_KEY / GEMINI_API_KEY environment variable is missing');
+    }
     const googleProvider = createGoogleGenerativeAI({ apiKey });
 
     const body = await req.json();
@@ -452,6 +455,6 @@ ${globalDisclaimer}`;
 
   } catch (error: any) {
     console.error('[Vapi Custom LLM] Unexpected failure:', error);
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500, headers: corsHeaders });
+    return NextResponse.json({ error: 'Internal server error', details: error?.message || String(error) }, { status: 500, headers: corsHeaders });
   }
 }
