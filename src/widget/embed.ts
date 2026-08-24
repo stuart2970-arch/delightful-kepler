@@ -726,6 +726,7 @@ import Vapi from '@vapi-ai/web';
                 voiceId: actualVoiceId,
                 model: "eleven_turbo_v2_5"
               },
+              firstMessage: getFormattedWelcomeMessage(storedName),
               metadata: {
                 tenant_id: tenantId || chatbotId,
                 chatbot_id: chatbotId,

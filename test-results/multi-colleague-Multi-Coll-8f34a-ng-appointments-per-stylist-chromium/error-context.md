@@ -23,7 +23,7 @@ Call log:
     5 × locator resolved to <html lang="en" class="poppins_a9eef06b-module__e3suya__variable inter_4d9b5f00-module__5ifLia__variable antialiased">…</html>
       - unexpected value "http://localhost:3000/login"
     - waiting for "https://styleflo.test/app" navigation to finish...
-    4 × locator resolved to <html>…</html>
+    3 × locator resolved to <html>…</html>
       - unexpected value "chrome-error://chromewebdata/"
 
 ```
