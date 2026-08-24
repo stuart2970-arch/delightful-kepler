@@ -759,6 +759,20 @@ import Vapi from '@vapi-ai/web';
         vapiInstance.on('call-start', () => {
           isVapiActive = true;
           vapiBtn.style.backgroundColor = primaryColor;
+
+          // Immediately log voice conversation session & welcome message to backend database
+          fetch(`${apiHost}/api/voice/${chatbotId}/chat/completions`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              stream: false,
+              sessionId: sessionId,
+              messages: [
+                { role: 'system', content: 'Web voice call connected.' },
+                { role: 'assistant', content: getFormattedWelcomeMessage(storedName) }
+              ]
+            })
+          }).catch(err => console.error('[StyleFlo Widget] Voice session init error:', err));
         });
         vapiInstance.on('call-end', () => {
           isVapiActive = false;
@@ -770,6 +784,15 @@ import Vapi from '@vapi-ai/web';
         });
         vapiInstance.on('speech-end', () => {
           vapiBtn.classList.remove('styleflo-animate-pulse');
+        });
+        vapiInstance.on('message', (msg: any) => {
+          if (msg?.type === 'transcript' && msg?.transcriptType === 'final') {
+            if (msg.role === 'user' && msg.transcript) {
+              appendMessage('user', msg.transcript);
+            } else if (msg.role === 'assistant' && msg.transcript) {
+              appendMessage('bot', msg.transcript);
+            }
+          }
         });
         vapiInstance.on('error', (e: any) => {
           console.error('[StyleFlo Widget] Vapi error:', e);
@@ -800,6 +823,13 @@ import Vapi from '@vapi-ai/web';
             const actualVoiceId = voiceId && voiceId.length >= 15 ? voiceId : '49TtX0KZLnuzDrAizTkN';
             await vapiInstance.start({
               name: `${agentName} Assistant`,
+              transcriber: {
+                provider: "deepgram",
+                model: "nova-2",
+                language: "en-US"
+              },
+              silenceTimeoutSeconds: 30,
+              maxDurationSeconds: 600,
               model: {
                 provider: "custom-llm",
                 url: `${apiHost}/api/voice/${chatbotId}/`,
