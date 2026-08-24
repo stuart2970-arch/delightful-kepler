@@ -11,6 +11,8 @@ export default function MyProfileView() {
   
   const [staffData, setStaffData] = useState<any>(null);
   const [name, setName] = useState('');
+  const [role, setRole] = useState('');
+  const [specialistProduct, setSpecialistProduct] = useState('');
   const [bio, setBio] = useState('');
   const [avatarUrl, setAvatarUrl] = useState('');
   const [googleCalendarId, setGoogleCalendarId] = useState('');
@@ -46,6 +48,8 @@ export default function MyProfileView() {
         const data = await res.json();
         setStaffData(data);
         setName(data.name || userName || '');
+        setRole(data.role && data.role.toLowerCase() !== 'specialist' ? data.role : '');
+        setSpecialistProduct(data.specialist_product || '');
         setBio(data.bio || '');
         setAvatarUrl(data.avatar_url || data.image_url || '');
         setGoogleCalendarId(data.google_calendar_id || 'primary');
@@ -106,6 +110,8 @@ export default function MyProfileView() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           name,
+          role: role || null,
+          specialist_product: specialistProduct || null,
           bio,
           avatar_url: avatarUrl,
           working_days: rotaSchedule,
@@ -133,68 +139,51 @@ export default function MyProfileView() {
   if (loading) {
     return (
       <div className="p-8 text-center text-slate-500">
-        <div className="animate-spin w-8 h-8 border-4 border-indigo-600 border-t-transparent rounded-full mx-auto mb-4"></div>
+        <div className="animate-spin w-8 h-8 border-4 border-indigo-600 border-t-transparent rounded-full mx-auto mb-3"></div>
         Loading your colleague profile...
       </div>
     );
   }
 
   return (
-    <div className="max-w-4xl mx-auto space-y-6">
-      <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-200">
-        <div className="flex items-center justify-between border-b pb-4 mb-6">
-          <div>
-            <h2 className="text-2xl font-bold text-slate-900">👤 My Profile & Personal Calendar</h2>
-            <p className="text-sm text-slate-500">Manage your shift rota, bio, avatar, and individual Google Calendar integration.</p>
-          </div>
-          {staffData?.tenant?.company_name && (
-            <span className="px-3 py-1 bg-indigo-50 text-indigo-700 font-semibold rounded-full text-xs border border-indigo-200">
-              Workspace: {staffData.tenant.company_name}
-            </span>
+    <div className="max-w-5xl mx-auto space-y-6 pb-12">
+      {/* Header Banner */}
+      <div className="bg-[var(--awb-color1)] border border-[var(--awb-color3)] p-6 rounded-2xl shadow-xl flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
+        <div>
+          <h2 className="text-xl font-bold text-[var(--awb-color8)]">My Colleague Profile & Shift Rota</h2>
+          <p className="text-xs text-[var(--awb-color6)] mt-1">
+            Manage your personal profile details, Google Calendar integration, and rolling availability rota.
+          </p>
+        </div>
+        <div className="flex items-center gap-3">
+          {isGoogleConnected ? (
+            <div className="inline-flex items-center gap-2 px-3 py-1.5 bg-emerald-500/10 text-emerald-600 rounded-full text-xs font-semibold border border-emerald-500/20">
+              <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
+              Google Calendar Connected
+            </div>
+          ) : (
+            <a
+              href={`/api/integrations/google/authorize?staffId=${staffData?.id}`}
+              className="inline-flex items-center gap-2 px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-bold shadow-sm transition-all"
+            >
+              🔗 Connect Google Calendar
+            </a>
           )}
         </div>
+      </div>
 
-        {message && (
-          <div className={`p-4 rounded-xl mb-6 text-sm font-semibold ${message.type === 'success' ? 'bg-emerald-50 text-emerald-800 border border-emerald-200' : 'bg-rose-50 text-rose-800 border border-rose-200'}`}>
-            {message.text}
-          </div>
-        )}
-
-        {/* Google Calendar Authorization Card */}
-        <div className="bg-gradient-to-r from-slate-900 to-indigo-950 p-6 rounded-xl text-white mb-8 shadow-lg flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
-          <div>
-            <div className="flex items-center gap-2 mb-1">
-              <span className="text-xl">📅</span>
-              <h3 className="text-lg font-bold">Personal Google Calendar OAuth Integration</h3>
-            </div>
-            <p className="text-xs text-slate-300 max-w-xl">
-              Connect your personal Google Calendar so that appointments are dynamically synchronized to your schedule without exposing company finances or platform settings.
-            </p>
-            {isGoogleConnected ? (
-              <div className="mt-3 inline-flex items-center gap-2 px-3 py-1 bg-emerald-500/20 text-emerald-300 rounded-full text-xs font-semibold border border-emerald-500/30">
-                <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
-                Connected to Google Calendar API
-              </div>
-            ) : (
-              <div className="mt-3 inline-flex items-center gap-2 px-3 py-1 bg-amber-500/20 text-amber-300 rounded-full text-xs font-semibold border border-amber-500/30">
-                <span className="w-2 h-2 rounded-full bg-amber-400"></span>
-                Not Connected
-              </div>
-            )}
-          </div>
-
-          <a
-            href={`/api/integrations/google/authorize?staffId=${staffData?.id}`}
-            target="_top"
-            rel="noopener noreferrer"
-            className="px-5 py-3 bg-indigo-600 hover:bg-indigo-500 text-white font-bold rounded-xl shadow-md transition-all flex items-center gap-2 text-sm whitespace-nowrap"
-          >
-            <span>{isGoogleConnected ? '🔄 Re-authorize Google Calendar' : '🔗 Connect Google Calendar'}</span>
-          </a>
+      {message && (
+        <div className={`p-4 rounded-xl text-sm font-medium border ${
+          message.type === 'success' ? 'bg-emerald-50 text-emerald-800 border-emerald-200' : 'bg-rose-50 text-rose-800 border-rose-200'
+        }`}>
+          {message.text}
         </div>
+      )}
 
+      {/* Main Profile & Settings Form */}
+      <div className="bg-[var(--awb-color1)] border border-[var(--awb-color3)] p-6 rounded-2xl shadow-xl">
         <form onSubmit={handleSave} className="space-y-6">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
             {/* Name */}
             <div>
               <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-2">Display Name</label>
@@ -203,6 +192,18 @@ export default function MyProfileView() {
                 value={name}
                 onChange={(e) => setName(e.target.value)}
                 required
+                className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+              />
+            </div>
+
+            {/* Job Title / Role */}
+            <div>
+              <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-2">Job Title / Role</label>
+              <input
+                type="text"
+                value={role}
+                onChange={(e) => setRole(e.target.value)}
+                placeholder="e.g. Senior Stylist, Technical Lead, Barber"
                 className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
               />
             </div>
@@ -217,6 +218,18 @@ export default function MyProfileView() {
                 className="w-full px-4 py-3 bg-slate-100 border border-slate-200 rounded-xl text-sm text-slate-500 cursor-not-allowed"
               />
             </div>
+          </div>
+
+          {/* Specialist Products / Services */}
+          <div>
+            <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-2">Specialist Services & Specialties</label>
+            <input
+              type="text"
+              value={specialistProduct}
+              onChange={(e) => setSpecialistProduct(e.target.value)}
+              placeholder="e.g. Finance & Customer Services, Balayage, Precision Cutting"
+              className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+            />
           </div>
 
           {/* Avatar Upload / URL */}

@@ -36,7 +36,7 @@ export async function GET(request: Request) {
 export async function POST(request: Request) {
   try {
     const body = await request.json();
-    const { tenant_id, chatbot_id, name, email, google_calendar_id, working_days, image_url, specialist_product, bio } = body;
+    const { tenant_id, chatbot_id, name, role, email, google_calendar_id, working_days, image_url, specialist_product, bio } = body;
 
     if (!tenant_id || !name || !email) {
       return NextResponse.json({ error: 'Missing required fields' }, { status: 400 });
@@ -49,6 +49,7 @@ export async function POST(request: Request) {
         tenant_id,
         chatbot_id,
         name,
+        role: role || null,
         email,
         google_calendar_id: google_calendar_id || 'primary',
         working_days: working_days || {},
@@ -71,7 +72,7 @@ export async function POST(request: Request) {
 export async function PUT(request: Request) {
   try {
     const body = await request.json();
-    const { id, tenant_id, chatbot_id, name, email, google_calendar_id, working_days, image_url, specialist_product, bio } = body;
+    const { id, tenant_id, chatbot_id, name, role, email, google_calendar_id, working_days, image_url, specialist_product, bio } = body;
 
     if (!id || !tenant_id || !name || !email) {
       return NextResponse.json({ error: 'Missing required fields' }, { status: 400 });
@@ -83,6 +84,7 @@ export async function PUT(request: Request) {
       .update({
         chatbot_id,
         name,
+        role: role || null,
         email,
         google_calendar_id: google_calendar_id || 'primary',
         working_days: working_days || {},

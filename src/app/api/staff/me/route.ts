@@ -35,13 +35,16 @@ export async function PATCH(request: NextRequest) {
     const payload = await request.json();
 
     // Explicitly sanitize inputs: Colleague cannot mutate security, tenant boundaries, or permissions
-    const safePayload = {
+    const safePayload: any = {
       name: payload.name,
+      role: payload.role !== undefined ? payload.role : undefined,
+      specialist_product: payload.specialist_product !== undefined ? payload.specialist_product : undefined,
       bio: payload.bio,
       avatar_url: payload.avatar_url,
       working_days: payload.working_days, // Manage local rota shifts
       google_calendar_id: payload.google_calendar_id,
     };
+    Object.keys(safePayload).forEach(key => safePayload[key] === undefined && delete safePayload[key]);
 
     const { data, error } = await supabase
       .from('staff')

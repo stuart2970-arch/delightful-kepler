@@ -131,6 +131,7 @@ export default function SchedulingView() {
   const [showStaffModal, setShowStaffModal] = useState(false);
   const [editingStaffId, setEditingStaffId] = useState<string | null>(null);
   const [newStaffName, setNewStaffName] = useState('');
+  const [newStaffRole, setNewStaffRole] = useState('');
   const [newStaffEmail, setNewStaffEmail] = useState('');
   const [newStaffCalId, setNewStaffCalId] = useState('');
   const [newStaffImageUrl, setNewStaffImageUrl] = useState('');
@@ -338,6 +339,7 @@ export default function SchedulingView() {
   const openAddStaff = () => {
     setEditingStaffId(null);
     setNewStaffName('');
+    setNewStaffRole('');
     setNewStaffEmail('');
     setNewStaffCalId('');
     setNewStaffImageUrl('');
@@ -353,6 +355,7 @@ export default function SchedulingView() {
   const openEditStaff = (staffMember: any) => {
     setEditingStaffId(staffMember.id);
     setNewStaffName(staffMember.name);
+    setNewStaffRole(staffMember.role && staffMember.role.toLowerCase() !== 'specialist' ? staffMember.role : '');
     setNewStaffEmail(staffMember.email);
     setNewStaffCalId(staffMember.google_calendar_id === 'primary' ? '' : staffMember.google_calendar_id);
     setNewStaffImageUrl(staffMember.image_url || '');
@@ -377,6 +380,7 @@ export default function SchedulingView() {
         tenant_id: tenantId,
         chatbot_id: targetChatbotId,
         name: newStaffName,
+        role: newStaffRole || null,
         email: newStaffEmail,
         google_calendar_id: newStaffCalId || 'primary',
         working_days: newStaffSchedule,
@@ -403,6 +407,7 @@ export default function SchedulingView() {
         setShowStaffModal(false);
         setEditingStaffId(null);
         setNewStaffName('');
+        setNewStaffRole('');
         setNewStaffEmail('');
         setNewStaffCalId('');
         setNewStaffImageUrl('');
@@ -1107,8 +1112,8 @@ export default function SchedulingView() {
                 </div>
 
                 <form onSubmit={handleSaveStaff} className="space-y-6">
-                  {/* Basic Info: Name & Email */}
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  {/* Basic Info: Name, Role & Email */}
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                     <div>
                       <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">Staff Member Name</label>
                       <input
@@ -1117,6 +1122,16 @@ export default function SchedulingView() {
                         value={newStaffName}
                         onChange={e => setNewStaffName(e.target.value)}
                         placeholder="e.g. Jessica Taylor"
+                        className="w-full h-11 px-4 bg-slate-50 border border-slate-200 rounded-xl text-sm font-medium text-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-600"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">Job Title / Role</label>
+                      <input
+                        type="text"
+                        value={newStaffRole}
+                        onChange={e => setNewStaffRole(e.target.value)}
+                        placeholder="e.g. Senior Stylist, Barber, Director"
                         className="w-full h-11 px-4 bg-slate-50 border border-slate-200 rounded-xl text-sm font-medium text-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-600"
                       />
                     </div>
