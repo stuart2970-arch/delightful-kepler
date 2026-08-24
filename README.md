@@ -741,7 +741,12 @@ ame, irstMessage, and 	ranscriber) rather than relying on ssistantOverrides de
   * **Fix**: Implemented tool bracket tag & UUID voice suppression filter in backend completions stream:
     1. **Tool Bracket Tag Stream Suppression (`route.ts`)**: Added a streaming buffer check in `streamText` loop. When Gemini generates `[CHECK_AVAILABILITY: ...]` or `[BOOK_MEETING: ...]`, the raw bracket characters and UUID strings are completely held back from the SSE stream.
     2. **Clean Natural Voice Generation (`route.ts`)**: The backend executes the calendar tool silently and streams **ONLY** Pass 2's clean conversational English response to Vapi and ElevenLabs text-to-speech. Prevents raw UUIDs (e.g. `485cbf91...`) and dates from ever leaking into speech synthesis or chat bubbles.
-    3. Verified Next.js build (`npm run build`), committed (`8e18b97`), and pushed directly to `main` branch.
+* **User**: "in the first part of the call the bot worked fine without reading out the bracketed content, it then got confused... booked the wrong appointment type (assigned 30 min consultation instead of assisted build)... can i get logs from anywhere"
+  * **Fix**: Resolved service synonym matching, custom staff pricing rules, Pass 2 stream tag sanitization, and documented log locations:
+    1. **Service Synonym & Pricing System Prompt Rules (`route.ts` & `stream/route.ts`)**: Added Rule 1c instructing Gemini to match user requests like "assisted build" or "assisted setup" directly to `"Assisted Setup"` (not `"30 min consultation"`), and to check `staff_services` for custom staff pricing/duration (e.g. Stuart £75 / 45 mins vs Jane 60 mins).
+    2. **Pass 2 Stream Tag Sanitization (`route.ts`)**: Added `cleanDelta` regex sanitization to Pass 2 `textStream` loop (`replace(/\[(CHECK_AVAILABILITY|BOOK_MEETING...):?[^\]]*\]/gi, '')`), guaranteeing that even if Gemini repeats a bracket tag on retry turns, it is stripped from speech synthesis.
+    3. **Log Access Locations**: Documented that full call transcripts and audio logs are available in **Vapi Dashboard** (`dashboard.vapi.ai` -> Calls tab) and database text logs in **StyleFlo Dashboard** -> Conversations tab.
+    4. Verified Next.js build (`npm run build`), committed (`6b06eed`), and pushed directly to `main` branch.
 
 
 
