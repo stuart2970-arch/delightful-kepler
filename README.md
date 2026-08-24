@@ -737,7 +737,11 @@ ame, irstMessage, and 	ranscriber) rather than relying on ssistantOverrides de
   * **Fix**: Diagnosed Vapi Custom LLM 3.0-second Time-To-First-Token (TTFT) stream timeout and refactored backend voice completions:
     1. **Immediate Token-by-Token SSE Streaming (`route.ts`)**: Converted synchronous `generateText` calls into live `streamText` chunks (`streamText({ model: googleProvider('gemini-3.6-flash') })`). Immediately enqueues an initial role chunk (`data: {"choices":[{"delta":{"role":"assistant"}}]}`) in **< 100ms** and streams speech tokens as Gemini produces them (**TTFT < 400ms**), keeping the Vapi WebRTC channel active.
     2. **RAG Embedding Timeout Wrapper (`route.ts`)**: Wrapped vector embedding search in `Promise.race` with a 1.2-second timeout (`Promise.race([fetchEmbed(), timeout(1200)])`), preventing slow vector RPC lookups from delaying voice stream initialization.
-    3. Recompiled production widget scripts (`public/widget.js` & `public/embed.js`), verified Next.js production build (`npm run build`), committed (`ab35f5f`), and pushed directly to `main` branch.
+* **User**: "okay voice is working again, but the bot is speaking the calendar codes as well and the conversation"
+  * **Fix**: Implemented tool bracket tag & UUID voice suppression filter in backend completions stream:
+    1. **Tool Bracket Tag Stream Suppression (`route.ts`)**: Added a streaming buffer check in `streamText` loop. When Gemini generates `[CHECK_AVAILABILITY: ...]` or `[BOOK_MEETING: ...]`, the raw bracket characters and UUID strings are completely held back from the SSE stream.
+    2. **Clean Natural Voice Generation (`route.ts`)**: The backend executes the calendar tool silently and streams **ONLY** Pass 2's clean conversational English response to Vapi and ElevenLabs text-to-speech. Prevents raw UUIDs (e.g. `485cbf91...`) and dates from ever leaking into speech synthesis or chat bubbles.
+    3. Verified Next.js build (`npm run build`), committed (`8e18b97`), and pushed directly to `main` branch.
 
 
 
