@@ -171,33 +171,42 @@ export async function POST(
 
     if (queryText && apiKey) {
       try {
-        const embeddingRes = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/text-embedding-004:embedContent?key=${apiKey}`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            model: 'models/text-embedding-004',
-            content: { parts: [{ text: queryText }] }
-          })
-        });
+        const fetchEmbed = async () => {
+          const embeddingRes = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/text-embedding-004:embedContent?key=${apiKey}`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              model: 'models/text-embedding-004',
+              content: { parts: [{ text: queryText }] }
+            })
+          });
 
-        if (embeddingRes.ok) {
-          const embedData = await embeddingRes.json();
-          const embedding = embedData.embedding?.values;
+          if (embeddingRes.ok) {
+            const embedData = await embeddingRes.json();
+            const embedding = embedData.embedding?.values;
 
-          if (embedding) {
-            const { data: matchedChunks, error: matchError } = await supabaseAdmin.rpc('match_documents', {
-              query_embedding: embedding,
-              match_threshold: 0.2,
-              match_count: 5,
-              targeting_tenant_id: tenantId,
-              targeting_chatbot_id: chatbotId
-            });
+            if (embedding) {
+              const { data: matchedChunks, error: matchError } = await supabaseAdmin.rpc('match_documents', {
+                query_embedding: embedding,
+                match_threshold: 0.2,
+                match_count: 5,
+                targeting_tenant_id: tenantId,
+                targeting_chatbot_id: chatbotId
+              });
 
-            if (!matchError && matchedChunks && matchedChunks.length > 0) {
-              ragContext = matchedChunks.map((chunk: any) => chunk.content).join('\n\n');
+              if (!matchError && matchedChunks && matchedChunks.length > 0) {
+                return matchedChunks.map((chunk: any) => chunk.content).join('\n\n');
+              }
             }
           }
-        }
+          return '';
+        };
+
+        // Race RAG embedding fetch with a 1.2s timeout so voice streams never delay
+        ragContext = await Promise.race([
+          fetchEmbed(),
+          new Promise<string>((resolve) => setTimeout(() => resolve(''), 1200))
+        ]);
       } catch (e) {
         console.error('[Vapi Custom LLM] RAG embedding/match error:', e);
       }
@@ -261,114 +270,15 @@ ${globalDisclaimer}`;
       enhancedMessages.unshift({ role: 'system', content: systemPromptHeader });
     }
 
-    // 5. Generate LLM Pass 1
-    const { text: rawText } = await generateText({
-      model: googleProvider('gemini-3.6-flash'),
-      messages: enhancedMessages,
-      temperature: 0.7,
-    });
-
-    let finalSpokenText = rawText;
-
-    // 6. Handle Tool Execution Interceptors (Check Availability / Book Meeting)
-    const availMatch = rawText.match(/\[CHECK_AVAILABILITY:\s*(.+?),\s*(.+?),\s*(.+?),\s*(.+?)\]/);
-    if (availMatch) {
-      const staffId = availMatch[1].trim().replace(/['"]/g, '');
-      const serviceId = availMatch[2].trim().replace(/['"]/g, '');
-      const startStr = availMatch[3].trim().replace(/['"]/g, '');
-      const endStr = availMatch[4].trim().replace(/['"]/g, '');
-
-      console.log(`[Vapi Custom LLM] Executing checkAvailability for staff ${staffId}, service ${serviceId}`);
-      const availResult = await checkAvailability(tenantId, staffId, serviceId, startStr, endStr, timezone);
-      
-      const { text: pass2Text } = await generateText({
-        model: googleProvider('gemini-3.6-flash'),
-        messages: [
-          ...enhancedMessages,
-          { role: 'assistant', content: rawText },
-          { role: 'user', content: `[SYSTEM AVAILABILITY RESULT]:\n${availResult}\nSpeak the result naturally to the caller in plain conversational English without markdown or bracket tags.` }
-        ],
-        temperature: 0.7,
-      });
-      finalSpokenText = pass2Text;
-    }
-
-    const bookMatch = rawText.match(/\[BOOK_MEETING:\s*(.+?),\s*(.+?),\s*(.+?),\s*(.+?),\s*(.+?),\s*(.+?),\s*(.+?)\]/);
-    if (bookMatch) {
-      const staffId = bookMatch[1].trim().replace(/['"]/g, '');
-      const serviceId = bookMatch[2].trim().replace(/['"]/g, '');
-      const custName = bookMatch[3].trim().replace(/['"]/g, '');
-      const custEmail = bookMatch[4].trim().replace(/['"]/g, '');
-      const custPhone = bookMatch[5].trim().replace(/['"]/g, '');
-      const startStr = bookMatch[6].trim().replace(/['"]/g, '');
-      const endStr = bookMatch[7].trim().replace(/['"]/g, '');
-
-      console.log(`[Vapi Custom LLM] Executing bookMeeting for ${custName} (${custEmail}, ${custPhone})`);
-      const bookResult = await bookMeeting(tenantId, staffId, serviceId, custName, custEmail, custPhone, startStr, endStr, timezone);
-
-      const { text: pass2Text } = await generateText({
-        model: googleProvider('gemini-3.6-flash'),
-        messages: [
-          ...enhancedMessages,
-          { role: 'assistant', content: rawText },
-          { role: 'user', content: `[SYSTEM BOOKING RESULT]:\n${bookResult}\nInform the caller naturally of the result in plain conversational English without markdown or bracket tags.` }
-        ],
-        temperature: 0.7,
-      });
-      finalSpokenText = pass2Text;
-    }
-
-    // Clean any remaining bracket tags from spoken text
-    finalSpokenText = finalSpokenText.replace(/\[(CHECK_AVAILABILITY|BOOK_MEETING|TIME_SLOTS|LEAD_CAPTURED|LOOKUP_APPOINTMENTS):?[^\]]*\]/gi, '').trim();
-
-    // 7. Stream back to Vapi in OpenAI format & Log to Supabase
+    // 5. High-Speed Streaming Response (< 400ms TTFT to prevent Vapi timeout)
     const isStream = body.stream !== false;
 
     if (!isStream) {
-      // Non-streaming response
-      try {
-        let { data: conv } = await supabaseAdmin
-          .from('conversations')
-          .select('id')
-          .eq('tenant_id', tenantId)
-          .eq('user_session_id', sessionId)
-          .maybeSingle();
-
-        if (!conv) {
-          const { data: newConv } = await supabaseAdmin
-            .from('conversations')
-            .insert({
-              tenant_id: tenantId,
-              chatbot_id: chatbotId,
-              user_session_id: sessionId,
-              is_voice_call: true
-            })
-            .select('id')
-            .single();
-          conv = newConv;
-        }
-
-        if (conv?.id) {
-          if (queryText) {
-            await supabaseAdmin.from('messages').insert({
-              tenant_id: tenantId,
-              conversation_id: conv.id,
-              sender_type: 'user',
-              text_content: queryText
-            });
-          }
-          if (finalSpokenText) {
-            await supabaseAdmin.from('messages').insert({
-              tenant_id: tenantId,
-              conversation_id: conv.id,
-              sender_type: 'bot',
-              text_content: finalSpokenText
-            });
-          }
-        }
-      } catch (logErr) {
-        console.error('[Vapi Non-stream] Error logging voice conversation:', logErr);
-      }
+      const { text: rawText } = await generateText({
+        model: googleProvider('gemini-3.6-flash'),
+        messages: enhancedMessages,
+        temperature: 0.7,
+      });
 
       return NextResponse.json({
         id: 'chatcmpl-vapi',
@@ -377,7 +287,7 @@ ${globalDisclaimer}`;
         model: 'gemini-3.6-flash',
         choices: [
           {
-            message: { role: 'assistant', content: finalSpokenText },
+            message: { role: 'assistant', content: rawText },
             finish_reason: 'stop',
             index: 0
           }
@@ -385,19 +295,84 @@ ${globalDisclaimer}`;
       }, { headers: corsHeaders });
     }
 
-    // Stream output to Vapi
     const encoder = new TextEncoder();
     const stream = new ReadableStream({
       async start(controller) {
         try {
-          const roleChunk = {
+          // Send initial role chunk immediately so Vapi receives TTFT < 100ms
+          const startRoleChunk = {
             id: 'chatcmpl-vapi',
             object: 'chat.completion.chunk',
             created: Math.floor(Date.now() / 1000),
             model: 'gemini-3.6-flash',
-            choices: [{ delta: { role: 'assistant', content: finalSpokenText }, index: 0, finish_reason: null }]
+            choices: [{ delta: { role: 'assistant' }, index: 0, finish_reason: null }]
           };
-          controller.enqueue(encoder.encode(`data: ${JSON.stringify(roleChunk)}\n\n`));
+          controller.enqueue(encoder.encode(`data: ${JSON.stringify(startRoleChunk)}\n\n`));
+
+          const result = streamText({
+            model: googleProvider('gemini-3.6-flash'),
+            messages: enhancedMessages,
+            temperature: 0.7,
+          });
+
+          let fullText = '';
+          for await (const textDelta of result.textStream) {
+            fullText += textDelta;
+            const deltaChunk = {
+              id: 'chatcmpl-vapi',
+              object: 'chat.completion.chunk',
+              created: Math.floor(Date.now() / 1000),
+              model: 'gemini-3.6-flash',
+              choices: [{ delta: { content: textDelta }, index: 0, finish_reason: null }]
+            };
+            controller.enqueue(encoder.encode(`data: ${JSON.stringify(deltaChunk)}\n\n`));
+          }
+
+          // Check if calendar tool interceptor was triggered
+          const availMatch = fullText.match(/\[CHECK_AVAILABILITY:\s*(.+?),\s*(.+?),\s*(.+?),\s*(.+?)\]/);
+          const bookMatch = fullText.match(/\[BOOK_MEETING:\s*(.+?),\s*(.+?),\s*(.+?),\s*(.+?),\s*(.+?),\s*(.+?),\s*(.+?)\]/);
+
+          if (availMatch || bookMatch) {
+            let toolResult = '';
+            if (availMatch) {
+              const staffId = availMatch[1].trim().replace(/['"]/g, '');
+              const serviceId = availMatch[2].trim().replace(/['"]/g, '');
+              const startStr = availMatch[3].trim().replace(/['"]/g, '');
+              const endStr = availMatch[4].trim().replace(/['"]/g, '');
+              toolResult = await checkAvailability(tenantId, staffId, serviceId, startStr, endStr, timezone);
+            } else if (bookMatch) {
+              const staffId = bookMatch[1].trim().replace(/['"]/g, '');
+              const serviceId = bookMatch[2].trim().replace(/['"]/g, '');
+              const custName = bookMatch[3].trim().replace(/['"]/g, '');
+              const custEmail = bookMatch[4].trim().replace(/['"]/g, '');
+              const custPhone = bookMatch[5].trim().replace(/['"]/g, '');
+              const startStr = bookMatch[6].trim().replace(/['"]/g, '');
+              const endStr = bookMatch[7].trim().replace(/['"]/g, '');
+              toolResult = await bookMeeting(tenantId, staffId, serviceId, custName, custEmail, custPhone, startStr, endStr, timezone);
+            }
+
+            const pass2Result = streamText({
+              model: googleProvider('gemini-3.6-flash'),
+              messages: [
+                ...enhancedMessages,
+                { role: 'assistant', content: fullText },
+                { role: 'user', content: `[SYSTEM RESULT]:\n${toolResult}\nSpeak the result naturally to the caller in plain conversational English without markdown or bracket tags.` }
+              ],
+              temperature: 0.7,
+            });
+
+            for await (const textDelta of pass2Result.textStream) {
+              fullText += textDelta;
+              const deltaChunk = {
+                id: 'chatcmpl-vapi',
+                object: 'chat.completion.chunk',
+                created: Math.floor(Date.now() / 1000),
+                model: 'gemini-3.6-flash',
+                choices: [{ delta: { content: textDelta }, index: 0, finish_reason: null }]
+              };
+              controller.enqueue(encoder.encode(`data: ${JSON.stringify(deltaChunk)}\n\n`));
+            }
+          }
 
           const finishChunk = {
             id: 'chatcmpl-vapi',
@@ -434,6 +409,7 @@ ${globalDisclaimer}`;
             }
 
             if (conv?.id) {
+              const cleanSpoken = fullText.replace(/\[(CHECK_AVAILABILITY|BOOK_MEETING|TIME_SLOTS|LEAD_CAPTURED|LOOKUP_APPOINTMENTS):?[^\]]*\]/gi, '').trim();
               const now = Date.now();
               if (queryText) {
                 await supabaseAdmin.from('messages').insert({
@@ -444,12 +420,12 @@ ${globalDisclaimer}`;
                   created_at: new Date(now - 1000).toISOString()
                 });
               }
-              if (finalSpokenText) {
+              if (cleanSpoken) {
                 await supabaseAdmin.from('messages').insert({
                   tenant_id: tenantId,
                   conversation_id: conv.id,
                   sender_type: 'bot',
-                  text_content: finalSpokenText,
+                  text_content: cleanSpoken,
                   created_at: new Date(now).toISOString()
                 });
               }
@@ -459,7 +435,7 @@ ${globalDisclaimer}`;
           }
 
         } catch (err) {
-          console.error('[Vapi Custom LLM] Stream error:', err);
+          console.error('[Vapi Custom LLM Stream Error]:', err);
           controller.error(err);
         }
       }
