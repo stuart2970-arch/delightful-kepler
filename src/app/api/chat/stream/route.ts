@@ -270,7 +270,7 @@ ${staffContext}`;
     
     // 9. Invoke streamText and setup async database transaction logging
     const result = await streamText({
-      model: google('gemini-3.5-flash'),
+      model: google('gemini-3.6-flash'),
       system: systemPrompt,
       messages: formattedMessages,
       onError: (err: unknown) => {

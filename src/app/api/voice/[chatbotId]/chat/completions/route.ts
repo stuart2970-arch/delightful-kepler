@@ -136,7 +136,7 @@ export async function POST(
           id: 'chatcmpl-vapi',
           object: 'chat.completion',
           created: Math.floor(Date.now() / 1000),
-          model: 'gemini-3.5-flash',
+          model: 'gemini-3.6-flash',
           choices: [{ message: { role: 'assistant', content: '' }, finish_reason: 'stop', index: 0 }]
         }, { headers: corsHeaders });
       }
@@ -148,7 +148,7 @@ export async function POST(
             id: 'chatcmpl-vapi',
             object: 'chat.completion.chunk',
             created: Math.floor(Date.now() / 1000),
-            model: 'gemini-3.5-flash',
+            model: 'gemini-3.6-flash',
             choices: [{ delta: { role: 'assistant', content: '' }, index: 0, finish_reason: null }]
           };
           controller.enqueue(encoder.encode(`data: ${JSON.stringify(roleChunk)}\n\n`));
@@ -156,7 +156,7 @@ export async function POST(
             id: 'chatcmpl-vapi',
             object: 'chat.completion.chunk',
             created: Math.floor(Date.now() / 1000),
-            model: 'gemini-3.5-flash',
+            model: 'gemini-3.6-flash',
             choices: [{ delta: {}, index: 0, finish_reason: 'stop' }]
           };
           controller.enqueue(encoder.encode(`data: ${JSON.stringify(finishChunk)}\n\n`));
@@ -263,7 +263,7 @@ ${globalDisclaimer}`;
 
     // 5. Generate LLM Pass 1
     const { text: rawText } = await generateText({
-      model: googleProvider('gemini-3.5-flash'),
+      model: googleProvider('gemini-3.6-flash'),
       messages: enhancedMessages,
       temperature: 0.7,
     });
@@ -282,7 +282,7 @@ ${globalDisclaimer}`;
       const availResult = await checkAvailability(tenantId, staffId, serviceId, startStr, endStr, timezone);
       
       const { text: pass2Text } = await generateText({
-        model: googleProvider('gemini-3.5-flash'),
+        model: googleProvider('gemini-3.6-flash'),
         messages: [
           ...enhancedMessages,
           { role: 'assistant', content: rawText },
@@ -307,7 +307,7 @@ ${globalDisclaimer}`;
       const bookResult = await bookMeeting(tenantId, staffId, serviceId, custName, custEmail, custPhone, startStr, endStr, timezone);
 
       const { text: pass2Text } = await generateText({
-        model: googleProvider('gemini-3.5-flash'),
+        model: googleProvider('gemini-3.6-flash'),
         messages: [
           ...enhancedMessages,
           { role: 'assistant', content: rawText },
@@ -374,7 +374,7 @@ ${globalDisclaimer}`;
         id: 'chatcmpl-vapi',
         object: 'chat.completion',
         created: Math.floor(Date.now() / 1000),
-        model: 'gemini-3.5-flash',
+        model: 'gemini-3.6-flash',
         choices: [
           {
             message: { role: 'assistant', content: finalSpokenText },
@@ -394,7 +394,7 @@ ${globalDisclaimer}`;
             id: 'chatcmpl-vapi',
             object: 'chat.completion.chunk',
             created: Math.floor(Date.now() / 1000),
-            model: 'gemini-3.5-flash',
+            model: 'gemini-3.6-flash',
             choices: [{ delta: { role: 'assistant', content: finalSpokenText }, index: 0, finish_reason: null }]
           };
           controller.enqueue(encoder.encode(`data: ${JSON.stringify(roleChunk)}\n\n`));
@@ -403,7 +403,7 @@ ${globalDisclaimer}`;
             id: 'chatcmpl-vapi',
             object: 'chat.completion.chunk',
             created: Math.floor(Date.now() / 1000),
-            model: 'gemini-3.5-flash',
+            model: 'gemini-3.6-flash',
             choices: [{ delta: {}, index: 0, finish_reason: 'stop' }]
           };
           controller.enqueue(encoder.encode(`data: ${JSON.stringify(finishChunk)}\n\n`));
