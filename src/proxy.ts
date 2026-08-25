@@ -7,10 +7,19 @@ const PUBLIC_TURNSTILE_ROUTES = ['/api/auth/signup', '/api/chat/public-init'];
 // Authenticated chat stream routes requiring session JWT authorization
 const CHAT_STREAM_ROUTES = ['/api/chat/stream'];
 
+const corsHeaders = {
+  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
+  'Access-Control-Allow-Headers': 'Content-Type, x-session-token, x-turnstile-token, authorization',
+};
+
 export async function proxy(request: NextRequest) {
   // 0. Always allow CORS OPTIONS preflight requests to pass through cleanly
   if (request.method === 'OPTIONS') {
-    return NextResponse.next();
+    return new NextResponse(null, {
+      status: 200,
+      headers: corsHeaders,
+    });
   }
 
   const pathname = request.nextUrl.pathname;
@@ -29,7 +38,7 @@ export async function proxy(request: NextRequest) {
         }),
         {
           status: 401,
-          headers: { 'Content-Type': 'application/json' },
+          headers: { 'Content-Type': 'application/json', ...corsHeaders },
         }
       );
     }
@@ -64,7 +73,7 @@ export async function proxy(request: NextRequest) {
           }),
           {
             status: 403,
-            headers: { 'Content-Type': 'application/json' },
+            headers: { 'Content-Type': 'application/json', ...corsHeaders },
           }
         );
       }
@@ -80,7 +89,7 @@ export async function proxy(request: NextRequest) {
         }),
         {
           status: 502,
-          headers: { 'Content-Type': 'application/json' },
+          headers: { 'Content-Type': 'application/json', ...corsHeaders },
         }
       );
     }
@@ -99,7 +108,7 @@ export async function proxy(request: NextRequest) {
         }),
         {
           status: 401,
-          headers: { 'Content-Type': 'application/json' },
+          headers: { 'Content-Type': 'application/json', ...corsHeaders },
         }
       );
     }

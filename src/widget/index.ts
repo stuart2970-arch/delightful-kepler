@@ -899,7 +899,9 @@ import Vapi from '@vapi-ai/web';
         typingIndicator.remove();
 
         if (!response.ok) {
-          throw new Error(`Server returned HTTP ${response.status}`);
+          const errData = await response.json().catch(() => ({}));
+          const detail = errData.error || errData.message || `Server returned HTTP ${response.status}`;
+          throw new Error(detail);
         }
 
         const reader = response.body?.getReader();
@@ -1077,7 +1079,8 @@ import Vapi from '@vapi-ai/web';
       } catch (err: any) {
         console.error('[StyleFlo Widget] Chat Stream fetch error:', err);
         typingIndicator.remove();
-        appendMessage('bot', 'An error occurred. Please try again or refresh the page.');
+        const msg = err && err.message ? err.message : 'An error occurred. Please try again or refresh the page.';
+        appendMessage('bot', `⚠️ ${msg}`);
       }
     });
   }
