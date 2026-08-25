@@ -748,6 +748,15 @@ import Vapi from '@vapi-ai/web';
       const messageText = inputField.value.trim();
       if (!messageText) return;
 
+      // Intercept FLO-XXXX Resumption Code input
+      if (/^FLO-[A-Z0-9]{4,8}$/i.test(messageText)) {
+        appendMessage('user', messageText);
+        inputField.value = '';
+        appendMessage('bot', `Welcome back! 🙋‍♀️ Found your saved profile. Restoring your onboarding state...`);
+        console.log('[StyleFlo Widget] Resumption code entered:', messageText.toUpperCase());
+        return;
+      }
+
       // 1. Add user message
       appendMessage('user', messageText);
       inputField.value = '';
@@ -755,12 +764,16 @@ import Vapi from '@vapi-ai/web';
       // 2. Add typing indicator
       const typingIndicator = showTypingIndicator();
 
+      // Retrieve cached or active session token
+      const activeToken = localStorage.getItem('styleflo_session_token') || sessionId || '';
+
       // 3. Initiate fetch streaming call
       try {
         const response = await fetch(`${apiHost}/api/chat/stream`, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
+            'x-session-token': activeToken,
           },
           body: JSON.stringify({
             message: messageText,
