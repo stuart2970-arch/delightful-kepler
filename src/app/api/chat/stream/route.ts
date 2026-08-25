@@ -12,7 +12,7 @@ import { sendConsolidatedLeadEmail } from '@/lib/lead-notifier';
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Methods': 'POST, OPTIONS',
-  'Access-Control-Allow-Headers': 'Content-Type',
+  'Access-Control-Allow-Headers': 'Content-Type, x-session-token, x-turnstile-token, authorization',
 };
 
 export async function OPTIONS() {

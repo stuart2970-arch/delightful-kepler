@@ -8,6 +8,11 @@ const PUBLIC_TURNSTILE_ROUTES = ['/api/auth/signup', '/api/chat/public-init'];
 const CHAT_STREAM_ROUTES = ['/api/chat/stream'];
 
 export async function proxy(request: NextRequest) {
+  // 0. Always allow CORS OPTIONS preflight requests to pass through cleanly
+  if (request.method === 'OPTIONS') {
+    return NextResponse.next();
+  }
+
   const pathname = request.nextUrl.pathname;
 
   // 1. FRONT-DOOR BOT PROTECTION: Turnstile verification for unauthenticated signup & widget init
