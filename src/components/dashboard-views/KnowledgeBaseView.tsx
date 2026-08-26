@@ -44,6 +44,7 @@ export default function KnowledgeBaseView() {
   const [rulesInputMode, setRulesInputMode] = useState<'list' | 'text'>('list');
   const [bulkRulesText, setBulkRulesText] = useState('');
   const [isSavingRules, setIsSavingRules] = useState(false);
+  const [isRulesSavedRecently, setIsRulesSavedRecently] = useState(false);
   const [rulesSavedMessage, setRulesSavedMessage] = useState<{ type: 'success' | 'error', text: string } | null>(null);
 
   const loadIngestedUrls = async (botId: string) => {
@@ -92,6 +93,7 @@ export default function KnowledgeBaseView() {
       setBulkRulesText('');
     }
     setRulesSavedMessage(null);
+    setIsRulesSavedRecently(false);
   }, [crawlBotId, chatbots]);
 
   const handleAddRule = () => {
@@ -125,6 +127,7 @@ export default function KnowledgeBaseView() {
     if (!crawlBotId) return;
     setIsSavingRules(true);
     setRulesSavedMessage(null);
+    setIsRulesSavedRecently(false);
     try {
       const bot = chatbots.find(b => b.id === crawlBotId);
       const currentConfig = (bot?.configuration_json as any) || {};
@@ -149,6 +152,10 @@ export default function KnowledgeBaseView() {
 
       setChatbots(chatbots.map(b => b.id === crawlBotId ? { ...b, configuration_json: newConfig } : b));
       setRulesSavedMessage({ type: 'success', text: 'Chatbot rules saved successfully!' });
+      setIsRulesSavedRecently(true);
+      setTimeout(() => {
+        setIsRulesSavedRecently(false);
+      }, 3000);
     } catch (err: any) {
       console.error(err);
       setRulesSavedMessage({ type: 'error', text: err.message || 'Failed to save chatbot rules.' });
@@ -877,20 +884,39 @@ export default function KnowledgeBaseView() {
                 </div>
               )}
 
+              {rulesSavedMessage && (
+                <div className={`p-3 rounded-xl border text-xs font-semibold flex items-center gap-2 ${
+                  rulesSavedMessage.type === 'success'
+                    ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-400'
+                    : 'bg-red-500/10 border-red-500/30 text-red-400'
+                }`}>
+                  <span>{rulesSavedMessage.type === 'success' ? '✓' : '⚠️'}</span>
+                  <span>{rulesSavedMessage.text}</span>
+                </div>
+              )}
+
               <div className="flex items-center justify-between pt-2 border-t border-[var(--awb-color3)]">
-                {rulesSavedMessage ? (
-                  <span className={`text-xs font-medium ${rulesSavedMessage.type === 'success' ? 'text-emerald-800 font-semibold' : 'text-red-400'}`}>
-                    {rulesSavedMessage.text}
-                  </span>
-                ) : <span />}
+                <span className="text-xs text-[var(--awb-color6)]">
+                  {rulesList.length} {rulesList.length === 1 ? 'rule' : 'rules'} active
+                </span>
 
                 <button
                   type="button"
                   onClick={handleSaveRules}
                   disabled={isSavingRules || !crawlBotId}
-                  className="bg-[#198fd9] text-white font-semibold text-xs px-5 py-2.5 rounded-xl hover:bg-[#167bbd] disabled:opacity-50 transition-colors shadow-md flex items-center gap-2"
+                  className={`font-semibold text-xs px-5 py-2.5 rounded-xl transition-all shadow-md flex items-center gap-2 ${
+                    isRulesSavedRecently 
+                      ? 'bg-emerald-600 text-white' 
+                      : 'bg-[#198fd9] hover:bg-[#167bbd] text-white disabled:opacity-50'
+                  }`}
                 >
-                  {isSavingRules ? 'Saving Rules...' : 'Save Chatbot Rules'}
+                  {isSavingRules ? (
+                    'Saving Rules...'
+                  ) : isRulesSavedRecently ? (
+                    '✓ Rules Saved!'
+                  ) : (
+                    'Save Chatbot Rules'
+                  )}
                 </button>
               </div>
             </div>
