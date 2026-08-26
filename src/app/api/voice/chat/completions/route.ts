@@ -151,9 +151,22 @@ CRITICAL SCHEDULING RULES FOR VOICE CALLS:
 - RULE 5: Use exact UUID strings for StaffID and ServiceID from the JSON configurations.
 ` : '';
 
+    // Extract Chatbot Rules
+    const rawRules = configData.chatbot_rules;
+    let chatbotRules: string[] = [];
+    if (Array.isArray(rawRules)) {
+      chatbotRules = rawRules.map((r: any) => String(r).trim()).filter(Boolean);
+    } else if (typeof rawRules === 'string') {
+      chatbotRules = rawRules.split('\n').map((r: string) => r.trim()).filter(Boolean);
+    }
+
+    const voiceRulesSection = chatbotRules.length > 0
+      ? `\n\nMANDATORY BUSINESS RULES:\nYou MUST strictly adhere to and enforce all of the following rules set by the business in your spoken response:\n${chatbotRules.map((r, i) => `${i + 1}. ${r}`).join('\n')}`
+      : '';
+
     const systemPromptHeader = `You are a friendly, conversational AI phone representative speaking on behalf of "${businessName}".
 Write in a natural, warm, spoken conversational tone. Speak clearly and concisely.
-DO NOT use markdown formatting, asterisks, bullet points, or special characters. Speak naturally in plain text.
+DO NOT use markdown formatting, asterisks, bullet points, or special characters. Speak naturally in plain text.${voiceRulesSection}
 
 The current date and time is: ${new Date().toISOString()}. Use this to resolve relative dates like "tomorrow" or "next Sunday".
 

@@ -3,7 +3,7 @@ import React, { useState, useEffect } from 'react';
 import { useDashboardStore } from '../../lib/store';
 
 export default function KnowledgeBaseView() {
-  const { chatbots, setMetrics, billingData } = useDashboardStore();
+  const { chatbots, setChatbots, setMetrics, billingData } = useDashboardStore();
   const planTier = billingData?.planTier || 'basic';
   const [crawlBotId, setCrawlBotId] = useState(chatbots.filter(b => b.id !== '00000000-0000-0000-0000-000000000000')[0]?.id || '');
   const [crawlUrl, setCrawlUrl] = useState('');
@@ -38,6 +38,14 @@ export default function KnowledgeBaseView() {
   const [crawlSchedule, setCrawlSchedule] = useState('none');
   const [isSavingSchedule, setIsSavingSchedule] = useState(false);
 
+  // Chatbot Rules State
+  const [rulesList, setRulesList] = useState<string[]>([]);
+  const [newRuleInput, setNewRuleInput] = useState('');
+  const [rulesInputMode, setRulesInputMode] = useState<'list' | 'text'>('list');
+  const [bulkRulesText, setBulkRulesText] = useState('');
+  const [isSavingRules, setIsSavingRules] = useState(false);
+  const [rulesSavedMessage, setRulesSavedMessage] = useState<{ type: 'success' | 'error', text: string } | null>(null);
+
   const loadIngestedUrls = async (botId: string) => {
     setIsLoadingUrls(true);
     try {
@@ -66,11 +74,88 @@ export default function KnowledgeBaseView() {
       if (bot) {
         const config = bot.configuration_json as any || {};
         setCrawlSchedule(config.crawl_schedule || 'none');
+
+        // Parse Chatbot Rules
+        const rules = config.chatbot_rules;
+        let parsedRules: string[] = [];
+        if (Array.isArray(rules)) {
+          parsedRules = rules;
+        } else if (typeof rules === 'string') {
+          parsedRules = rules.split('\n').map(r => r.trim()).filter(Boolean);
+        }
+        setRulesList(parsedRules);
+        setBulkRulesText(parsedRules.join('\n'));
       }
     } else {
       setIngestedUrls([]);
+      setRulesList([]);
+      setBulkRulesText('');
     }
+    setRulesSavedMessage(null);
   }, [crawlBotId, chatbots]);
+
+  const handleAddRule = () => {
+    if (!newRuleInput.trim()) return;
+    const updated = [...rulesList, newRuleInput.trim()];
+    setRulesList(updated);
+    setBulkRulesText(updated.join('\n'));
+    setNewRuleInput('');
+  };
+
+  const handleUpdateRuleItem = (index: number, val: string) => {
+    const updated = [...rulesList];
+    updated[index] = val;
+    setRulesList(updated);
+    setBulkRulesText(updated.filter(Boolean).join('\n'));
+  };
+
+  const handleDeleteRuleItem = (index: number) => {
+    const updated = rulesList.filter((_, i) => i !== index);
+    setRulesList(updated);
+    setBulkRulesText(updated.join('\n'));
+  };
+
+  const handleBulkTextChange = (text: string) => {
+    setBulkRulesText(text);
+    const lines = text.split('\n').map(l => l.trim()).filter(Boolean);
+    setRulesList(lines);
+  };
+
+  const handleSaveRules = async () => {
+    if (!crawlBotId) return;
+    setIsSavingRules(true);
+    setRulesSavedMessage(null);
+    try {
+      const bot = chatbots.find(b => b.id === crawlBotId);
+      const currentConfig = (bot?.configuration_json as any) || {};
+      const finalRules = rulesInputMode === 'text' 
+        ? bulkRulesText.split('\n').map(r => r.trim()).filter(Boolean)
+        : rulesList.map(r => r.trim()).filter(Boolean);
+
+      const newConfig = {
+        ...currentConfig,
+        chatbot_rules: finalRules
+      };
+
+      const res = await fetch(`/api/chatbots/${crawlBotId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ configuration_json: newConfig })
+      });
+
+      if (!res.ok) {
+        throw new Error('Failed to save chatbot rules');
+      }
+
+      setChatbots(chatbots.map(b => b.id === crawlBotId ? { ...b, configuration_json: newConfig } : b));
+      setRulesSavedMessage({ type: 'success', text: 'Chatbot rules saved successfully!' });
+    } catch (err: any) {
+      console.error(err);
+      setRulesSavedMessage({ type: 'error', text: err.message || 'Failed to save chatbot rules.' });
+    } finally {
+      setIsSavingRules(false);
+    }
+  };
 
   const handleSaveSchedule = async (schedule: string) => {
     setCrawlSchedule(schedule);
@@ -689,6 +774,125 @@ export default function KnowledgeBaseView() {
                   {crawlResult.message}
                 </div>
               )}
+            </div>
+
+            {/* Chatbot Rules & Business Directives Section */}
+            <div className="bg-[var(--awb-color1)] border border-[var(--awb-color3)] p-6 rounded-2xl shadow-xl space-y-6">
+              <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+                <div>
+                  <h3 className="text-lg font-bold text-[var(--awb-color8)] flex items-center gap-2">
+                    <svg className="w-5 h-5 text-[#198fd9]" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" />
+                    </svg>
+                    Chatbot Rules & Directives
+                  </h3>
+                  <p className="text-xs text-[var(--awb-color6)] mt-0.5">
+                    Define specific business instructions, guidelines, and constraints for this chatbot. The chatbot will strictly adhere to these rules in all responses.
+                  </p>
+                </div>
+                <div className="flex bg-[var(--awb-color1)] text-[var(--awb-color8)] border border-[var(--awb-color3)] rounded-xl overflow-hidden self-start md:self-auto shrink-0">
+                  <button
+                    type="button"
+                    onClick={() => setRulesInputMode('list')}
+                    className={`py-1.5 px-3.5 text-xs font-semibold ${rulesInputMode === 'list' ? 'bg-[#198fd9] text-white' : 'text-[var(--awb-color6)] hover:bg-white/5'}`}
+                  >
+                    List View
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setRulesInputMode('text')}
+                    className={`py-1.5 px-3.5 text-xs font-semibold border-l border-[var(--awb-color3)] ${rulesInputMode === 'text' ? 'bg-[#198fd9] text-white' : 'text-[var(--awb-color6)] hover:bg-white/5'}`}
+                  >
+                    Text Area View
+                  </button>
+                </div>
+              </div>
+
+              {rulesInputMode === 'list' ? (
+                <div className="space-y-4">
+                  {rulesList.length === 0 ? (
+                    <div className="text-xs text-[var(--awb-color6)] italic py-2">
+                      No custom rules added yet for this chatbot. Add your business instructions below.
+                    </div>
+                  ) : (
+                    <div className="space-y-2.5 max-h-80 overflow-y-auto styleflo-scrollbar pr-1">
+                      {rulesList.map((rule, idx) => (
+                        <div key={idx} className="flex items-center gap-2">
+                          <span className="text-xs font-mono font-bold text-[var(--awb-color5)] w-6 text-right shrink-0">
+                            #{idx + 1}
+                          </span>
+                          <input
+                            type="text"
+                            value={rule}
+                            onChange={(e) => handleUpdateRuleItem(idx, e.target.value)}
+                            placeholder="Enter business rule or constraint..."
+                            className="flex-1 bg-white border border-[#f2f3f5] rounded-xl px-3.5 py-2 text-sm text-[var(--awb-color8)] focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                          />
+                          <button
+                            type="button"
+                            onClick={() => handleDeleteRuleItem(idx)}
+                            className="p-2 text-gray-400 hover:text-red-400 hover:bg-white/5 rounded-lg transition-colors shrink-0"
+                            title="Delete rule"
+                          >
+                            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                            </svg>
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+
+                  <div className="flex gap-2 pt-2">
+                    <input
+                      type="text"
+                      value={newRuleInput}
+                      onChange={(e) => setNewRuleInput(e.target.value)}
+                      onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); handleAddRule(); } }}
+                      placeholder="e.g. Always state that prices exclude VAT, or Never discuss competitor products"
+                      className="flex-1 bg-white border border-[#f2f3f5] rounded-xl px-3.5 py-2 text-sm text-[var(--awb-color8)] focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                    />
+                    <button
+                      type="button"
+                      onClick={handleAddRule}
+                      disabled={!newRuleInput.trim()}
+                      className="bg-[#198fd9] text-white font-semibold text-xs px-4 py-2 rounded-xl hover:bg-[#167bbd] disabled:opacity-50 transition-colors shrink-0 flex items-center gap-1"
+                    >
+                      <span>+</span> Add Rule
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <div className="space-y-2">
+                  <label className="block text-xs font-semibold text-[var(--awb-color6)]">
+                    All Chatbot Rules (One rule per line)
+                  </label>
+                  <textarea
+                    value={bulkRulesText}
+                    onChange={(e) => handleBulkTextChange(e.target.value)}
+                    placeholder="Rule 1: Always check stock before confirming availability&#10;Rule 2: Never give out private staff phone numbers&#10;Rule 3: Support queries must be directed to support@example.com"
+                    rows={6}
+                    className="w-full bg-white border border-[#f2f3f5] rounded-xl px-3.5 py-2.5 text-sm text-[var(--awb-color8)] focus:outline-none focus:ring-1 focus:ring-indigo-500 min-h-[140px] resize-y styleflo-scrollbar"
+                  />
+                </div>
+              )}
+
+              <div className="flex items-center justify-between pt-2 border-t border-[var(--awb-color3)]">
+                {rulesSavedMessage ? (
+                  <span className={`text-xs font-medium ${rulesSavedMessage.type === 'success' ? 'text-emerald-800 font-semibold' : 'text-red-400'}`}>
+                    {rulesSavedMessage.text}
+                  </span>
+                ) : <span />}
+
+                <button
+                  type="button"
+                  onClick={handleSaveRules}
+                  disabled={isSavingRules || !crawlBotId}
+                  className="bg-[#198fd9] text-white font-semibold text-xs px-5 py-2.5 rounded-xl hover:bg-[#167bbd] disabled:opacity-50 transition-colors shadow-md flex items-center gap-2"
+                >
+                  {isSavingRules ? 'Saving Rules...' : 'Save Chatbot Rules'}
+                </button>
+              </div>
             </div>
 
             {/* Ingested URLs List */}

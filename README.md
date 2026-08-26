@@ -756,6 +756,26 @@ ame, irstMessage, and 	ranscriber) rather than relying on ssistantOverrides de
     2. **Rule 4b Successful Booking Lock & Explicit Confirmation Prompt (`route.ts`)**: Added `Rule 4b` strictly forbidding Gemini from re-checking availability or claiming a slot was taken once `[BOOK_MEETING]` succeeds. For Pass 2, passes an explicit system instruction (`[SYSTEM BOOKING SUCCESS RESULT]`) enforcing an enthusiastic confirmation to the caller.
     3. Verified Next.js build (`npm run build`), committed (`0db3982`), and pushed directly to `main` branch.
 
+### 24. Chatbot Rules & Directives (Knowledge Base Management)
+* **Problem**: B2B clients needed a way in the dashboard to set specific instructions, restrictions, and policies for their business ("Chatbot Rules") that the AI chatbot must strictly follow in all text and voice conversations.
+* **Solution**:
+  - Added `chatbot_rules?: string[] | string` to the `Chatbot` interface in `src/lib/store.ts`.
+  - Added a **"Chatbot Rules & Directives"** card section to `src/components/dashboard-views/KnowledgeBaseView.tsx`.
+  - Implemented dual editing modes: an interactive repeating list editor (with individual input boxes, Add Rule, and delete actions) and a bulk multi-line Text Area view.
+  - Connected rules to the selected chatbot (`crawlBotId`), saving changes directly to Supabase via `PATCH /api/chatbots/[id]` and syncing with Zustand store (`setChatbots`).
+  - Updated AI system prompt generation in `src/app/api/chat/stream/route.ts` and voice completion routes (`src/app/api/voice/[chatbotId]/chat/completions/route.ts` and `src/app/api/voice/chat/completions/route.ts`) to inject a high-priority `[MANDATORY CHATBOT RULES & DIRECTIVES]` section, enforcing adherence across all channels.
+
+---
+
+### Session 11 (August 26, 2026)
+* **User**: "I would like to add a text area in the dashboard where b2b users can add instructions for their specific business, lets call it Chatbot Rules. This can either be 1 text box that holds all rules, or a repeating form field that saves the rules in a list. The rules must be visible to the chatbot admin. The rules must be editable. The chatbot must adhere to the rules at all times as part of its instructions. This must be housed in the knowledge base area of the dashboard"
+  * **Fix**: Implemented the Chatbot Rules feature housed inside `KnowledgeBaseView.tsx`.
+    1. Added `chatbot_rules` field to `Chatbot` type in `src/lib/store.ts`.
+    2. Added a new UI section "Chatbot Rules & Directives" in `KnowledgeBaseView.tsx` with List View (repeating form fields with add, edit, delete buttons) and Text Area View (bulk multi-line text input).
+    3. Implemented `handleSaveRules` calling `PATCH /api/chatbots/[id]` to persist rules into `configuration_json.chatbot_rules` and updated Zustand state.
+    4. Updated `/api/chat/stream/route.ts`, `/api/voice/[chatbotId]/chat/completions/route.ts`, and `/api/voice/chat/completions/route.ts` to extract `chatbot_rules` and inject `[MANDATORY CHATBOT RULES & DIRECTIVES]` into system prompts for mandatory enforcement.
+
+
 
 
 

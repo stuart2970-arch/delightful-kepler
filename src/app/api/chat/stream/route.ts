@@ -99,7 +99,21 @@ export async function POST(request: Request) {
     const configData = (chatbot.configuration_json as Record<string, unknown>) || {};
     const timezone = (configData.timezone as string) || 'Europe/London';
     const currency = (configData.currency as string) || 'GBP';
-    console.log(`[Chat Stream][${requestId}] Resolved Tenant ID: ${tenantId}, TZ: ${timezone}`);
+    
+    // Extract Chatbot Rules
+    const rawRules = configData.chatbot_rules;
+    let chatbotRules: string[] = [];
+    if (Array.isArray(rawRules)) {
+      chatbotRules = rawRules.map((r: any) => String(r).trim()).filter(Boolean);
+    } else if (typeof rawRules === 'string') {
+      chatbotRules = rawRules.split('\n').map((r: string) => r.trim()).filter(Boolean);
+    }
+
+    const rulesSection = chatbotRules.length > 0
+      ? `\n\n[MANDATORY CHATBOT RULES & DIRECTIVES]\nYou MUST strictly adhere to and enforce all of the following rules set by the business in every response:\n${chatbotRules.map((r, i) => `${i + 1}. ${r}`).join('\n')}`
+      : '';
+
+    console.log(`[Chat Stream][${requestId}] Resolved Tenant ID: ${tenantId}, TZ: ${timezone}, Rules count: ${chatbotRules.length}`);
 
     // 4. Generate user message embedding (Gemini text-embedding-004)
     console.log(`[Chat Stream][${requestId}] Creating user message embedding...`);
@@ -214,7 +228,7 @@ export async function POST(request: Request) {
 Use ONLY the following context to answer the user's query about "${businessName}". 
 If you do not know the answer, politely state that you represent "${businessName}" and ask them to drop their email or phone number so a human agent can follow up.
 
-STRICT BRAND PROTECTION RULE: You strictly represent "${businessName}". You are strictly forbidden from recommending, mentioning, or providing information about competitor businesses, competitor brands, or third-party alternatives under any circumstances.
+STRICT BRAND PROTECTION RULE: You strictly represent "${businessName}". You are strictly forbidden from recommending, mentioning, or providing information about competitor businesses, competitor brands, or third-party alternatives under any circumstances.${rulesSection}
 
 The current date and time is: ${new Date().toISOString()}. Use this to resolve relative dates like "tomorrow" or "next Sunday".
 
