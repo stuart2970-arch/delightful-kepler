@@ -92,39 +92,35 @@ function OnboardContent() {
   }, [resumeCode]);
 
   return (
-    <main className="min-h-screen flex flex-col bg-gray-950 text-white font-sans relative overflow-hidden">
-      {/* Background Decor Ambient Glow */}
-      <div className="absolute top-[-10%] left-[-10%] w-[500px] h-[500px] bg-indigo-600/15 rounded-full blur-[140px] pointer-events-none"></div>
-      <div className="absolute bottom-[-10%] right-[-10%] w-[500px] h-[500px] bg-purple-600/15 rounded-full blur-[140px] pointer-events-none"></div>
-
-      {/* Header Bar (Hidden in iframe embed mode) */}
+    <main className="min-h-screen flex flex-col bg-[#f2f3f5] text-[#212326] font-sans relative overflow-hidden">
+      {/* Header Bar (Styled matching app.styleflo.ai/dashboard) */}
       {!isEmbed && (
-        <header className="h-16 border-b border-gray-800/80 bg-gray-900/60 backdrop-blur-xl px-6 flex items-center justify-between shrink-0 z-20">
+        <header className="h-16 bg-[#260475] px-6 flex items-center justify-between shrink-0 z-20 shadow-md">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-indigo-600 via-purple-600 to-pink-500 flex items-center justify-center font-bold text-white shadow-lg shadow-indigo-500/30 ring-1 ring-white/20">
+            <div className="w-10 h-10 rounded-xl bg-white/10 border border-white/20 flex items-center justify-center font-bold text-white shadow-sm">
               ⚡
             </div>
             <div>
               <h1 className="font-bold text-sm tracking-tight text-white flex items-center gap-2">
                 StyleFlo Assistant Builder
-                <span className="text-[10px] bg-purple-500/20 text-purple-300 px-2.5 py-0.5 rounded-full border border-purple-500/30 font-mono font-extrabold uppercase tracking-wider">
+                <span className="text-[10px] bg-white/15 text-white px-2.5 py-0.5 rounded-full border border-white/20 font-mono font-extrabold uppercase tracking-wider">
                   FloBot AI
                 </span>
               </h1>
-              <p className="text-[11px] text-gray-400">Official Salon AI Receptionist Builder</p>
+              <p className="text-[11px] text-white/70">Official Salon AI Receptionist Builder</p>
             </div>
           </div>
 
           <div className="flex items-center gap-4">
             <Link
               href="/register"
-              className="text-xs font-semibold text-gray-300 hover:text-white transition-colors"
+              className="text-xs font-semibold text-white/80 hover:text-white transition-colors"
             >
               Direct Register
             </Link>
             <Link
               href="/login"
-              className="text-xs font-bold text-indigo-400 hover:text-indigo-300 bg-indigo-500/10 px-3.5 py-2 rounded-xl border border-indigo-500/30 transition-all hover:bg-indigo-500/20"
+              className="text-xs font-bold text-white bg-[#198fd9] hover:bg-[#1478b8] px-3.5 py-2 rounded-xl transition-all shadow-sm"
             >
               Sign In ↗
             </Link>
@@ -132,15 +128,15 @@ function OnboardContent() {
         </header>
       )}
 
-      {/* Main Conversational & Google Auth Container */}
+      {/* Main Conversational & Google Auth Container (Dashboard Theme) */}
       <div className="flex-1 flex flex-col items-center justify-center p-4 md:p-6 relative z-10">
-        <div className="w-full max-w-2xl h-[82vh] bg-gray-900/80 border border-gray-800/90 rounded-3xl shadow-2xl overflow-hidden flex flex-col relative backdrop-blur-2xl ring-1 ring-white/10">
+        <div className="w-full max-w-2xl h-[82vh] bg-white border border-[#e2e8f0] rounded-3xl shadow-xl overflow-hidden flex flex-col relative">
           
           {/* Quick 1-Click Google OAuth Top Banner */}
-          <div className="bg-gray-950/80 border-b border-gray-800 px-5 py-3.5 flex flex-col sm:flex-row items-center justify-between gap-3 shrink-0">
+          <div className="bg-[#f9f9fb] border-b border-[#e2e8f0] px-5 py-3.5 flex flex-col sm:flex-row items-center justify-between gap-3 shrink-0">
             <div className="flex items-center gap-2.5">
-              <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse"></span>
-              <span className="text-xs font-bold text-gray-200">1-Click Fast Track:</span>
+              <span className="w-2.5 h-2.5 rounded-full bg-[#65bd7d] animate-pulse"></span>
+              <span className="text-xs font-bold text-[#212326]">1-Click Fast Track:</span>
             </div>
 
             <div className="flex items-center gap-3 w-full sm:w-auto">
@@ -148,9 +144,9 @@ function OnboardContent() {
                 type="button"
                 onClick={handleGoogleSignIn}
                 disabled={loading}
-                className="w-full sm:w-auto px-4 py-2 bg-white hover:bg-gray-100 text-gray-900 font-bold text-xs rounded-xl shadow-md flex items-center justify-center gap-2 transition-all active:scale-[0.98] border border-gray-200"
+                className="w-full sm:w-auto px-4 py-2 bg-[#260475] hover:bg-[#1f0360] text-white font-bold text-xs rounded-xl shadow-md flex items-center justify-center gap-2 transition-all active:scale-[0.98]"
               >
-                <svg className="w-4 h-4" viewBox="0 0 24 24">
+                <svg className="w-4 h-4 bg-white rounded-full p-0.5" viewBox="0 0 24 24">
                   <path
                     fill="#4285F4"
                     d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"
@@ -171,38 +167,38 @@ function OnboardContent() {
                 <span>Continue with Google</span>
               </button>
 
-              <span className="text-[10px] text-gray-400 hidden md:inline">
+              <span className="text-[10px] text-[#434549] hidden md:inline font-medium">
                 Auto-connects Calendar
               </span>
             </div>
           </div>
 
           {error && (
-            <div className="bg-rose-950/60 border-b border-rose-800 text-rose-300 text-xs px-4 py-2 font-medium">
+            <div className="bg-rose-50 border-b border-rose-200 text-rose-700 text-xs px-4 py-2 font-medium">
               {error}
             </div>
           )}
 
           {/* FloBot Chat Window Container */}
-          <div id="styleflo-widget-container" className="w-full h-full flex flex-col relative">
+          <div id="styleflo-widget-container" className="w-full h-full flex flex-col relative bg-white">
             {!botLoaded && (
               <div className="flex-1 flex flex-col items-center justify-center p-8 text-center space-y-4">
-                <div className="w-12 h-12 border-4 border-indigo-500 border-t-transparent rounded-full animate-spin"></div>
+                <div className="w-12 h-12 border-4 border-[#260475] border-t-transparent rounded-full animate-spin"></div>
                 <div>
-                  <h3 className="text-base font-bold text-white">Initializing FloBot...</h3>
-                  <p className="text-xs text-gray-400 mt-1">Connecting to StyleFlo AI Assistant Builder</p>
+                  <h3 className="text-base font-bold text-[#212326]">Initializing FloBot...</h3>
+                  <p className="text-xs text-[#434549] mt-1">Connecting to StyleFlo AI Assistant Builder</p>
                 </div>
               </div>
             )}
           </div>
 
           {/* Legal Footer */}
-          <div className="px-4 py-2 border-t border-gray-800 bg-gray-950/90 text-center text-[11px] text-gray-400 shrink-0">
+          <div className="px-4 py-2.5 border-t border-[#e2e8f0] bg-[#f9f9fb] text-center text-[11px] text-[#434549] shrink-0 font-medium">
             By proceeding, you agree to StyleFlo's{' '}
             <button
               type="button"
               onClick={() => openLegalModal('Terms & Conditions', 'https://styleflo.ai/terms-conditions/')}
-              className="text-indigo-400 underline hover:text-indigo-300 font-medium"
+              className="text-[#260475] underline hover:text-[#198fd9] font-bold"
             >
               Terms of Service
             </button>{' '}
@@ -210,7 +206,7 @@ function OnboardContent() {
             <button
               type="button"
               onClick={() => openLegalModal('Privacy Policy', 'https://styleflo.ai/privacy/')}
-              className="text-indigo-400 underline hover:text-indigo-300 font-medium"
+              className="text-[#260475] underline hover:text-[#198fd9] font-bold"
             >
               Privacy Policy
             </button>.
@@ -233,8 +229,8 @@ export default function OnboardPage() {
   return (
     <Suspense
       fallback={
-        <div className="min-h-screen bg-gray-950 text-white flex items-center justify-center">
-          <div className="animate-spin w-8 h-8 border-4 border-indigo-500 border-t-transparent rounded-full"></div>
+        <div className="min-h-screen bg-[#f2f3f5] text-[#212326] flex items-center justify-center">
+          <div className="animate-spin w-8 h-8 border-4 border-[#260475] border-t-transparent rounded-full"></div>
         </div>
       }
     >
