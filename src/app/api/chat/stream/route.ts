@@ -154,19 +154,28 @@ Be encouraging, warm, professional, concise, and helpful! Advise them they can a
       return NextResponse.json({ error: `Embedding failed: ${errorMessage}` }, { status: 200, headers: corsHeaders });
     }
 
+    const targetBotUuid = chatbotId === 'styleflo-onboarding-flobot' 
+      ? '00000000-0000-0000-0000-000000000000' 
+      : chatbotId;
+
     // 5. Query matching documents using the match_documents RPC (strictly filtered by tenant_id & chatbot_id)
     console.log(`[Chat Stream][${requestId}] Searching similarity index...`);
-    const { data: matchedDocuments, error: rpcError } = await supabaseAdmin.rpc('match_documents', {
-      query_embedding: queryEmbedding,
-      match_threshold: 0.2, // retrieve broader content if close, similarity score threshold
-      match_count: 4, // pull top 4 context chunks
-      targeting_tenant_id: tenantId,
-      targeting_chatbot_id: chatbotId,
-    });
+    let matchedDocuments: any[] = [];
+    
+    if (chatbotId !== 'styleflo-onboarding-flobot') {
+      const { data: docs, error: rpcError } = await supabaseAdmin.rpc('match_documents', {
+        query_embedding: queryEmbedding,
+        match_threshold: 0.2, // retrieve broader content if close, similarity score threshold
+        match_count: 4, // pull top 4 context chunks
+        targeting_tenant_id: tenantId,
+        targeting_chatbot_id: targetBotUuid,
+      });
 
-    if (rpcError) {
-      console.error(`[Chat Stream][${requestId}] match_documents RPC failed:`, rpcError);
-      return NextResponse.json({ error: `Context retrieval failed: ${rpcError.message}` }, { status: 200, headers: corsHeaders });
+      if (rpcError) {
+        console.error(`[Chat Stream][${requestId}] match_documents RPC failed:`, rpcError);
+        return NextResponse.json({ error: `Context retrieval failed: ${rpcError.message}` }, { status: 200, headers: corsHeaders });
+      }
+      matchedDocuments = docs || [];
     }
 
     const contextText = matchedDocuments && matchedDocuments.length > 0
@@ -175,15 +184,15 @@ Be encouraging, warm, professional, concise, and helpful! Advise them they can a
     
     // Fetch Services, Staff and Tenant Booking Mode for Calendar integration
     const [servicesRes, staffRes, tenantRes] = await Promise.all([
-      supabaseAdmin.from('services').select('id, name, duration_minutes, buffer_minutes, price, staff_services(staff_id, custom_price, custom_duration)').eq('tenant_id', tenantId).eq('chatbot_id', chatbotId),
-      supabaseAdmin.from('staff').select('id, name').eq('tenant_id', tenantId).eq('chatbot_id', chatbotId),
-      supabaseAdmin.from('tenants').select('name, booking_mode, booking_url').eq('id', tenantId).single()
+      supabaseAdmin.from('services').select('id, name, duration_minutes, buffer_minutes, price, staff_services(staff_id, custom_price, custom_duration)').eq('tenant_id', tenantId).eq('chatbot_id', targetBotUuid),
+      supabaseAdmin.from('staff').select('id, name').eq('tenant_id', tenantId).eq('chatbot_id', targetBotUuid),
+      supabaseAdmin.from('tenants').select('name, booking_mode, booking_url').eq('id', tenantId).maybeSingle()
     ]);
     const servicesContext = servicesRes.data ? JSON.stringify(servicesRes.data, null, 2) : '[]';
     const staffContext = staffRes.data ? JSON.stringify(staffRes.data, null, 2) : '[]';
     const bookingMode = tenantRes.data?.booking_mode || 'single_calendar';
     const bookingUrl = tenantRes.data?.booking_url || '';
-    const businessName = configData.businessName || tenantRes.data?.name || chatbot.name || 'this business';
+    const businessName = configData.businessName || tenantRes.data?.name || 'this business';
 
     console.log(`[Chat Stream][${requestId}] Retrieved ${matchedDocuments?.length || 0} context documents and calendar config for ${businessName}.`);
 
@@ -194,7 +203,7 @@ Be encouraging, warm, professional, concise, and helpful! Advise them they can a
       .from('conversations')
       .select('id')
       .eq('tenant_id', tenantId)
-      .eq('chatbot_id', chatbotId)
+      .eq('chatbot_id', targetBotUuid)
       .eq('user_session_id', sessionId)
       .maybeSingle();
 
@@ -209,7 +218,7 @@ Be encouraging, warm, professional, concise, and helpful! Advise them they can a
         .from('conversations')
         .insert({
           tenant_id: tenantId,
-          chatbot_id: chatbotId,
+          chatbot_id: targetBotUuid,
           user_session_id: sessionId,
         })
         .select('id')
