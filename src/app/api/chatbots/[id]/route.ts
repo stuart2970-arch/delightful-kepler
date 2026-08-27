@@ -39,9 +39,23 @@ export async function GET(
   try {
     const { id } = await params;
 
+    if (id === 'styleflo-onboarding-flobot') {
+      return NextResponse.json({
+        id: 'styleflo-onboarding-flobot',
+        name: 'FloBot',
+        agentName: 'Flo',
+        agentRole: 'StyleFlo AI Receptionist Builder',
+        primaryColor: '#260475',
+        welcomeMessage: "Hi, I'm Flo! I'm your StyleFlo AI assistant builder. Let's create your account and get your AI receptionist ready in under 60 seconds!",
+        brandingHtml: '<span style="opacity: 0.6; font-size: 11px;">⚡ Powered by <strong>StyleFlo</strong></span>',
+        voiceEnabled: false,
+        requireClientName: false
+      }, { headers: corsHeaders });
+    }
+
     // Validate UUID format
     if (!id || !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id)) {
-      return NextResponse.json({ error: 'Invalid chatbot ID format' }, { status: 400 });
+      return NextResponse.json({ error: 'Invalid chatbot ID format' }, { status: 400, headers: corsHeaders });
     }
 
     const supabaseAdmin = getSupabaseAdmin();

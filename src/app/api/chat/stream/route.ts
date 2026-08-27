@@ -25,7 +25,7 @@ export async function OPTIONS() {
 // Input validation schema
 const ChatRequestSchema = z.object({
   message: z.string().min(1, { message: 'Message cannot be empty' }),
-  chatbotId: z.string().regex(/^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/, { message: 'Invalid chatbot ID format' }),
+  chatbotId: z.string().min(1, { message: 'Chatbot ID cannot be empty' }),
   sessionId: z.string().min(1, { message: 'Session ID cannot be empty' }),
   clientName: z.string().optional(),
 });
@@ -83,20 +83,39 @@ export async function POST(request: Request) {
     const { message, chatbotId, sessionId, clientName } = validation.data;
     console.log(`[Chat Stream][${requestId}] Chatbot ID: ${chatbotId}, Session ID: ${sessionId}, Client: ${clientName || 'Unknown'}`);
 
-    // 3. Resolve tenant_id from chatbotId (CRITICAL to prevent cross-tenant queries)
-    const { data: chatbot, error: chatbotError } = await supabaseAdmin
-      .from('chatbots')
-      .select('tenant_id, configuration_json')
-      .eq('id', chatbotId)
-      .single();
+    // 3. Resolve tenant_id & configuration
+    let tenantId = '00000000-0000-0000-0000-000000000000';
+    let configData: Record<string, unknown> = {};
 
-    if (chatbotError || !chatbot) {
-      console.warn(`[Chat Stream][${requestId}] Chatbot validation failed or not found:`, chatbotError);
-      return NextResponse.json({ error: `Chatbot not found: ${chatbotError?.message}` }, { status: 200, headers: corsHeaders });
+    if (chatbotId === 'styleflo-onboarding-flobot') {
+      configData = {
+        agent_name: 'Flo',
+        agent_role: 'StyleFlo AI Receptionist Builder',
+        welcome_message: "Hi, I'm Flo! I'm your StyleFlo AI assistant builder. Let's create your account and get your AI receptionist ready in under 60 seconds!",
+        system_instruction: `You are Flo, the official AI onboarding assistant for StyleFlo.ai. 
+Your goal is to guide new salon/spa owners through a fast, friendly 60-second conversational onboarding journey.
+Help them specify:
+1. Business/Salon Name
+2. Salon Services offered (e.g., Haircuts, Coloring, Styling, Nails, Balayage)
+3. Owner's Name & Contact Details
+
+Be encouraging, warm, professional, concise, and helpful! Advise them they can also click the "Continue with Google" button above for instant 1-Click calendar connection!`,
+      };
+    } else {
+      const { data: chatbot, error: chatbotError } = await supabaseAdmin
+        .from('chatbots')
+        .select('tenant_id, configuration_json')
+        .eq('id', chatbotId)
+        .single();
+
+      if (chatbotError || !chatbot) {
+        console.warn(`[Chat Stream][${requestId}] Chatbot validation failed or not found:`, chatbotError);
+        return NextResponse.json({ error: `Chatbot not found: ${chatbotError?.message}` }, { status: 200, headers: corsHeaders });
+      }
+
+      tenantId = chatbot.tenant_id;
+      configData = (chatbot.configuration_json as Record<string, unknown>) || {};
     }
-
-    const tenantId = chatbot.tenant_id;
-    const configData = (chatbot.configuration_json as Record<string, unknown>) || {};
     const timezone = (configData.timezone as string) || 'Europe/London';
     const currency = (configData.currency as string) || 'GBP';
     
