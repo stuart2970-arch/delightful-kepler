@@ -179,7 +179,7 @@ In order to be iterable, non-array objects must have a [Symbol.iterator]() metho
       <button id="styleflo-menu-call" class="flex items-center gap-3 w-full text-left px-4 py-3 rounded-lg text-blue-400 hover:bg-gray-800 transition-colors text-sm font-medium focus:outline-none">
         \u{1F4DE} Voice Call
       </button>
-    `,J.appendChild(Me);let ue=document.createElement("div");ue.className="fixed bottom-7 right-24 bg-gray-900 text-blue-400 border border-gray-800 px-4 py-2 rounded-full text-xs font-medium shadow-lg transition-all duration-300 opacity-0 pointer-events-none z-50",ue.textContent="Connecting agent...",J.appendChild(ue);let Ye=document.createElement("div");Ye.className="w-full h-full flex flex-col bg-white overflow-hidden rounded-2xl border border-gray-100 shadow-xl styleflo-chat-window",Ye.innerHTML=`
+    `,J.appendChild(Me);let ue=document.createElement("div");ue.className="fixed bottom-7 right-24 bg-gray-900 text-blue-400 border border-gray-800 px-4 py-2 rounded-full text-xs font-medium shadow-lg transition-all duration-300 opacity-0 pointer-events-none z-50",ue.textContent="Connecting agent...",J.appendChild(ue);let Ye=document.createElement("div");Ye.className="w-full h-full flex-1 min-h-0 flex flex-col bg-white overflow-hidden styleflo-chat-window",Ye.innerHTML=`
       <!-- Header -->
       <div class="p-4 text-white flex items-center justify-between shadow-md shrink-0 z-10" style="background-color: ${D};">
         <div class="flex items-center gap-3">

@@ -300,7 +300,7 @@ import Vapi from '@vapi-ai/web';
 
     // Chat Window
     const chatWindow = document.createElement('div');
-    chatWindow.className = 'w-full h-full flex flex-col bg-white overflow-hidden rounded-2xl border border-gray-100 shadow-xl styleflo-chat-window';
+    chatWindow.className = 'w-full h-full flex-1 min-h-0 flex flex-col bg-white overflow-hidden styleflo-chat-window';
     chatWindow.innerHTML = `
       <!-- Header -->
       <div class="p-4 text-white flex items-center justify-between shadow-md shrink-0 z-10" style="background-color: ${primaryColor};">
