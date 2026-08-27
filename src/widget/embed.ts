@@ -1,12 +1,15 @@
 import Vapi from '@vapi-ai/web';
 
 (function () {
+  if (typeof document === 'undefined') return;
+
   // 1. Identify the script element and extract configuration
-  const scriptEl = (document.currentScript as HTMLScriptElement) ||
-    document.getElementById('styleflo-onboard-widget-script') ||
-    document.querySelector('script[data-bot-id]') ||
-    document.querySelector('script[data-chatbot-id]') ||
-    document.querySelector('script[src*="embed.js"]');
+  const currentDoc = document;
+  const scriptEl = (currentDoc.currentScript as HTMLScriptElement | null) ||
+    currentDoc.getElementById('styleflo-onboard-widget-script') ||
+    currentDoc.querySelector('script[data-bot-id]') ||
+    currentDoc.querySelector('script[data-chatbot-id]') ||
+    currentDoc.querySelector('script[src*="embed.js"]');
 
   if (!scriptEl) {
     console.error('[StyleFlo Widget] Current script context not found.');
