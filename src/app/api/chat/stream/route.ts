@@ -241,7 +241,7 @@ Be encouraging, warm, professional, concise, and helpful! Advise them they can a
     // 7. Retrieve chat history (last 20 messages)
     let recentHistory: any[] | null = null;
     if (chatbotId !== 'styleflo-onboarding-flobot') {
-      const { data: history } = await supabaseAdmin
+      const { data: history, error: historyError } = await supabaseAdmin
         .from('messages')
         .select('sender_type, text_content')
         .eq('conversation_id', conversationId)
@@ -249,14 +249,13 @@ Be encouraging, warm, professional, concise, and helpful! Advise them they can a
         .order('created_at', { ascending: false })
         .limit(20);
       recentHistory = history;
+
+      if (historyError) {
+        console.error(`[Chat Stream][${requestId}] Failed to fetch history:`, historyError);
+      }
     }
 
     const chatHistory = recentHistory ? recentHistory.reverse() : [];
-
-    if (historyError) {
-      console.error(`[Chat Stream][${requestId}] Failed to fetch history:`, historyError);
-      // Fallback: we will proceed with an empty history rather than failing the chat
-    }
 
     // 8. Build prompt and historical message messages array
     const systemPrompt = `You are a friendly, conversational AI customer support assistant representing "${businessName}".
