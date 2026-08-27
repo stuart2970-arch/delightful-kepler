@@ -238,6 +238,14 @@ import Vapi from '@vapi-ai/web';
 
   // 6. Fetch Chatbot Public Configuration
   async function fetchConfig() {
+    if (chatbotId === 'styleflo-onboarding-flobot') {
+      botName = 'FloBot';
+      agentName = 'Flo';
+      agentRole = 'StyleFlo Assistant Builder';
+      primaryColor = '#4F46E5';
+      welcomeMessage = "Hi, I'm Flo! I'm your StyleFlo AI assistant builder. Let's create your account and get your AI receptionist ready in under 60 seconds!";
+    }
+
     try {
       const response = await fetch(`${apiHost}/api/chatbots/${chatbotId}?t=${Date.now()}`, { cache: 'no-store' });
       if (response.ok) {

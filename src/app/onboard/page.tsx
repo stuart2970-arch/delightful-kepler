@@ -21,6 +21,7 @@ function OnboardContent() {
       script.src = '/embed.js';
       script.setAttribute('data-bot-id', 'styleflo-onboarding-flobot');
       script.setAttribute('data-chatbot-id', 'styleflo-onboarding-flobot');
+      script.setAttribute('data-container-id', 'styleflo-widget-container');
       script.setAttribute('data-mode', 'full-page');
       if (resumeCode) {
         script.setAttribute('data-resume-code', resumeCode);
