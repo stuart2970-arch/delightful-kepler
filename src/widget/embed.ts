@@ -241,8 +241,8 @@ import Vapi from '@vapi-ai/web';
     if (chatbotId === 'styleflo-onboarding-flobot') {
       botName = 'FloBot';
       agentName = 'Flo';
-      agentRole = 'StyleFlo Assistant Builder';
-      primaryColor = '#4F46E5';
+      agentRole = 'StyleFlo AI Receptionist Builder';
+      primaryColor = '#260475';
       welcomeMessage = "Hi, I'm Flo! I'm your StyleFlo AI assistant builder. Let's create your account and get your AI receptionist ready in under 60 seconds!";
     }
 
