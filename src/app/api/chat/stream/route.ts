@@ -198,51 +198,58 @@ Be encouraging, warm, professional, concise, and helpful! Advise them they can a
 
     // 6. Get or create conversation record
     console.log(`[Chat Stream][${requestId}] Resolving conversation session...`);
-    let conversationId: string;
-    const { data: conversation, error: convError } = await supabaseAdmin
-      .from('conversations')
-      .select('id')
-      .eq('tenant_id', tenantId)
-      .eq('chatbot_id', targetBotUuid)
-      .eq('user_session_id', sessionId)
-      .maybeSingle();
+    let conversationId: string = '00000000-0000-0000-0000-000000000000';
 
-    if (convError) {
-      console.error(`[Chat Stream][${requestId}] Conversation query failed:`, convError);
-      return NextResponse.json({ error: `Conversation query failed: ${convError.message}` }, { status: 200, headers: corsHeaders });
-    }
-
-    if (!conversation) {
-      // Create new conversation session
-      const { data: newConv, error: createConvError } = await supabaseAdmin
+    if (chatbotId !== 'styleflo-onboarding-flobot') {
+      const { data: conversation, error: convError } = await supabaseAdmin
         .from('conversations')
-        .insert({
-          tenant_id: tenantId,
-          chatbot_id: targetBotUuid,
-          user_session_id: sessionId,
-        })
         .select('id')
-        .single();
+        .eq('tenant_id', tenantId)
+        .eq('chatbot_id', targetBotUuid)
+        .eq('user_session_id', sessionId)
+        .maybeSingle();
 
-      if (createConvError || !newConv) {
-        console.error(`[Chat Stream][${requestId}] Conversation creation failed:`, createConvError);
-        return NextResponse.json({ error: `Conversation creation failed: ${createConvError?.message}` }, { status: 200, headers: corsHeaders });
+      if (convError) {
+        console.error(`[Chat Stream][${requestId}] Conversation query failed:`, convError);
+        return NextResponse.json({ error: `Conversation query failed: ${convError.message}` }, { status: 200, headers: corsHeaders });
       }
-      conversationId = newConv.id;
-      console.log(`[Chat Stream][${requestId}] Initialized new conversation: ${conversationId}`);
-    } else {
-      conversationId = conversation.id;
-      console.log(`[Chat Stream][${requestId}] Found existing conversation: ${conversationId}`);
+
+      if (!conversation) {
+        // Create new conversation session
+        const { data: newConv, error: createConvError } = await supabaseAdmin
+          .from('conversations')
+          .insert({
+            tenant_id: tenantId,
+            chatbot_id: targetBotUuid,
+            user_session_id: sessionId,
+          })
+          .select('id')
+          .single();
+
+        if (createConvError || !newConv) {
+          console.error(`[Chat Stream][${requestId}] Conversation creation failed:`, createConvError);
+          return NextResponse.json({ error: `Conversation creation failed: ${createConvError?.message}` }, { status: 200, headers: corsHeaders });
+        }
+        conversationId = newConv.id;
+        console.log(`[Chat Stream][${requestId}] Initialized new conversation: ${conversationId}`);
+      } else {
+        conversationId = conversation.id;
+        console.log(`[Chat Stream][${requestId}] Found existing conversation: ${conversationId}`);
+      }
     }
 
     // 7. Retrieve chat history (last 20 messages)
-    const { data: recentHistory, error: historyError } = await supabaseAdmin
-      .from('messages')
-      .select('sender_type, text_content')
-      .eq('conversation_id', conversationId)
-      .eq('tenant_id', tenantId)
-      .order('created_at', { ascending: false })
-      .limit(20);
+    let recentHistory: any[] | null = null;
+    if (chatbotId !== 'styleflo-onboarding-flobot') {
+      const { data: history } = await supabaseAdmin
+        .from('messages')
+        .select('sender_type, text_content')
+        .eq('conversation_id', conversationId)
+        .eq('tenant_id', tenantId)
+        .order('created_at', { ascending: false })
+        .limit(20);
+      recentHistory = history;
+    }
 
     const chatHistory = recentHistory ? recentHistory.reverse() : [];
 
@@ -324,30 +331,35 @@ ${staffContext}`;
       onFinish: async (event) => {
         console.log(`[Chat Stream][${requestId}] AI stream finished. Logging conversation in background...`);
         try {
-          // Explicit timestamps to guarantee order
-          const now = Date.now();
-          const userTime = new Date(now - 1000).toISOString();
-          const botTime = new Date(now).toISOString();
+          if (chatbotId !== 'styleflo-onboarding-flobot') {
+            // Explicit timestamps to guarantee order
+            const now = Date.now();
+            const userTime = new Date(now - 1000).toISOString();
+            const botTime = new Date(now).toISOString();
 
-          const userInsertRes = await supabaseAdmin.from('messages').insert({
-            tenant_id: tenantId,
-            conversation_id: conversationId,
-            sender_type: 'user',
-            text_content: message,
-            created_at: userTime,
-          });
-
-          const cleanBotText = event.text.replace(/\[LEAD_CAPTURED:.*?\]/g, '').replace(/\[CHECK_AVAILABILITY:.*?\]/g, '').replace(/\[BOOK_MEETING:.*?\]/g, '').trim();
-          
-          let assistantInsertRes: { error: unknown | null } = { error: null };
-          if (cleanBotText) {
-            assistantInsertRes = await supabaseAdmin.from('messages').insert({
+            const userInsertRes = await supabaseAdmin.from('messages').insert({
               tenant_id: tenantId,
               conversation_id: conversationId,
-              sender_type: 'bot',
-              text_content: cleanBotText,
-              created_at: botTime,
+              sender_type: 'user',
+              text_content: message,
+              created_at: userTime,
             });
+
+            const cleanBotText = event.text.replace(/\[LEAD_CAPTURED:.*?\]/g, '').replace(/\[CHECK_AVAILABILITY:.*?\]/g, '').replace(/\[BOOK_MEETING:.*?\]/g, '').trim();
+            
+            let assistantInsertRes: { error: unknown | null } = { error: null };
+            if (cleanBotText) {
+              assistantInsertRes = await supabaseAdmin.from('messages').insert({
+                tenant_id: tenantId,
+                conversation_id: conversationId,
+                sender_type: 'bot',
+                text_content: cleanBotText,
+                created_at: botTime,
+              });
+            }
+
+            if (userInsertRes.error) console.error(`[Chat Stream][${requestId}] Failed to log user message:`, userInsertRes.error);
+            if (assistantInsertRes.error) console.error(`[Chat Stream][${requestId}] Failed to log assistant response:`, assistantInsertRes.error);
           }
 
           // Handle consolidated lead capture notification (combining email & phone into 1 email with intent & transcript)
