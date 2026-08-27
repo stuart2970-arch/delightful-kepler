@@ -142,8 +142,8 @@ CREATE POLICY insert_staff ON public.staff
 
 CREATE POLICY update_staff ON public.staff
   FOR UPDATE TO authenticated
-  USING (tenant_id = public.get_auth_tenant_id() AND (user_id = auth.uid() OR public.is_auth_admin()))
-  WITH CHECK (tenant_id = public.get_auth_tenant_id() AND (user_id = auth.uid() OR public.is_auth_admin()));
+  USING (tenant_id = public.get_auth_tenant_id() AND public.is_auth_admin())
+  WITH CHECK (tenant_id = public.get_auth_tenant_id() AND public.is_auth_admin());
 
 CREATE POLICY delete_staff ON public.staff
   FOR DELETE TO authenticated
@@ -232,10 +232,6 @@ BEGIN
   IF matching_staff_record.id IS NOT NULL THEN
     INSERT INTO public.profiles (id, tenant_id, role, is_super_admin) 
     VALUES (NEW.id, matching_staff_record.tenant_id, 'member', false);
-
-    UPDATE public.staff 
-    SET user_id = NEW.id 
-    WHERE id = matching_staff_record.id;
   ELSE
     company_name_input := COALESCE(NEW.raw_user_meta_data->>'company_name', 'My Workspace');
     meta_model := COALESCE(NEW.raw_user_meta_data->>'operational_model', 'physical');
