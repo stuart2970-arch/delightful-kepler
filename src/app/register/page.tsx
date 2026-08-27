@@ -76,64 +76,6 @@ function RegisterContent() {
     return () => clearTimeout(timer);
   }, [companyName, customSlug]);
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setLoading(true);
-    setError(null);
-    setSuccessMessage(null);
-
-    try {
-      if (slugStatus && !slugStatus.available) {
-        throw new Error(`The URL slug "${slugStatus.slug}" is already registered by another business. Please pick one of the available suggestions below.`);
-      }
-
-      const finalSlug = slugStatus?.slug || companyName.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
-
-      const isLocal = typeof window !== 'undefined' && (
-        window.location.hostname === 'localhost' || 
-        window.location.hostname === '127.0.0.1'
-      );
-      const redirectUrl = isLocal 
-        ? `${window.location.origin}/login`
-        : 'https://app.styleflo.ai/login';
-
-      const { data, error } = await supabase.auth.signUp({
-        email,
-        password,
-        options: {
-          emailRedirectTo: redirectUrl,
-          data: {
-            full_name: fullName,
-            company_name: companyName,
-            website_url: websiteUrl,
-            slug: finalSlug,
-            selected_plan: planParam,
-            promo_applied: promoParam,
-          },
-        },
-      });
-      if (error) throw error;
-      
-      if (data?.session === null) {
-        setSuccessMessage("Account created successfully! Please check your email to verify your account and claim your 1st month free.");
-      } else {
-        // Logged in directly
-        router.push(`/dashboard?plan=${planParam}&promo=${promoParam}`);
-      }
-    } catch (err: any) {
-      console.error("Signup error:", err);
-      let errorMsg = 'An error occurred during registration.';
-      if (typeof err === 'string') {
-        errorMsg = err;
-      } else if (err?.message) {
-        errorMsg = err.message;
-      }
-      setError(errorMsg);
-    } finally {
-      setLoading(false);
-    }
-  };
-
   const getPlanBadge = () => {
     switch (planParam.toLowerCase()) {
       case 'basic':
