@@ -18,14 +18,14 @@ import Vapi from '@vapi-ai/web';
     return;
   }
 
-  const chatbotId = currentScript.getAttribute('data-bot-id');
+  const chatbotId = currentScript.getAttribute('data-bot-id') || currentScript.getAttribute('data-chatbot-id');
   if (!chatbotId) {
-    console.error('[StyleFlo Widget] Missing required "data-bot-id" attribute on script tag.');
+    console.error('[StyleFlo Widget] Missing required "data-bot-id" or "data-chatbot-id" attribute on script tag.');
     return;
   }
 
   // Parse host URL from script source, or override if provided
-  const scriptUrl = new URL(currentScript.src);
+  const scriptUrl = currentScript.src ? new URL(currentScript.src, window.location.href) : new URL(window.location.href);
   const apiHost = currentScript.getAttribute('data-api-host') || scriptUrl.origin;
 
   // 2. Generate or retrieve Session ID to preserve chat history

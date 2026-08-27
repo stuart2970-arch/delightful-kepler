@@ -2,21 +2,26 @@ import Vapi from '@vapi-ai/web';
 
 (function () {
   // 1. Identify the script element and extract configuration
-  const currentScript = document.currentScript as HTMLScriptElement;
-  if (!currentScript) {
+  const scriptEl = (document.currentScript as HTMLScriptElement) ||
+    document.getElementById('styleflo-onboard-widget-script') ||
+    document.querySelector('script[data-bot-id]') ||
+    document.querySelector('script[data-chatbot-id]') ||
+    document.querySelector('script[src*="embed.js"]');
+
+  if (!scriptEl) {
     console.error('[StyleFlo Widget] Current script context not found.');
     return;
   }
 
-  const chatbotId = currentScript.getAttribute('data-bot-id');
+  const chatbotId = scriptEl.getAttribute('data-bot-id') || scriptEl.getAttribute('data-chatbot-id');
   if (!chatbotId) {
-    console.error('[StyleFlo Widget] Missing required "data-bot-id" attribute on script tag.');
+    console.error('[StyleFlo Widget] Missing required "data-bot-id" or "data-chatbot-id" attribute on script tag.');
     return;
   }
 
   // Parse host URL from script source, or override if provided
-  const scriptUrl = new URL(currentScript.src);
-  const apiHost = currentScript.getAttribute('data-api-host') || scriptUrl.origin;
+  const scriptUrl = scriptEl.src ? new URL(scriptEl.src, window.location.href) : new URL(window.location.href);
+  const apiHost = scriptEl.getAttribute('data-api-host') || scriptUrl.origin;
 
   // 2. Generate or retrieve Session ID to preserve chat history
   const sessionKey = `styleflo_session_${chatbotId}`;

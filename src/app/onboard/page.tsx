@@ -19,6 +19,7 @@ function OnboardContent() {
       script = document.createElement('script');
       script.id = scriptId;
       script.src = '/embed.js';
+      script.setAttribute('data-bot-id', 'styleflo-onboarding-flobot');
       script.setAttribute('data-chatbot-id', 'styleflo-onboarding-flobot');
       script.setAttribute('data-mode', 'full-page');
       if (resumeCode) {
