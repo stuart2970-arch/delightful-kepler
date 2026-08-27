@@ -3,6 +3,7 @@
 import { useEffect, useState, Suspense } from 'react';
 import { createBrowserClient } from '@supabase/ssr';
 import { useRouter, useSearchParams } from 'next/navigation';
+import LegalModal from '@/components/LegalModal';
 
 function RegisterContent() {
   const router = useRouter();
@@ -148,6 +149,17 @@ function RegisterContent() {
 
   const planInfo = getPlanBadge();
 
+  const [termsAccepted, setTermsAccepted] = useState(false);
+  const [legalModal, setLegalModal] = useState<{ isOpen: boolean; title: string; url: string }>({
+    isOpen: false,
+    title: '',
+    url: '',
+  });
+
+  const openLegalModal = (title: string, url: string) => {
+    setLegalModal({ isOpen: true, title, url });
+  };
+
   const handleGoogleSignIn = async () => {
     setLoading(true);
     setError(null);
@@ -169,12 +181,81 @@ function RegisterContent() {
             access_type: 'offline',
             prompt: 'consent',
           },
+          data: {
+            terms_accepted: true,
+            terms_accepted_at: new Date().toISOString(),
+            terms_version: 'v1.0',
+          },
         },
       });
       if (error) throw error;
     } catch (err: any) {
       console.error("Google signin error:", err);
       setError(err?.message || 'Failed to initiate Google sign-in.');
+      setLoading(false);
+    }
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!termsAccepted) {
+      setError("You must agree to StyleFlo's Terms of Service and Privacy Policy to continue.");
+      return;
+    }
+    setLoading(true);
+    setError(null);
+    setSuccessMessage(null);
+
+    try {
+      if (slugStatus && !slugStatus.available) {
+        throw new Error(`The URL slug "${slugStatus.slug}" is already registered by another business. Please pick one of the available suggestions below.`);
+      }
+
+      const finalSlug = slugStatus?.slug || companyName.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
+
+      const isLocal = typeof window !== 'undefined' && (
+        window.location.hostname === 'localhost' || 
+        window.location.hostname === '127.0.0.1'
+      );
+      const redirectUrl = isLocal 
+        ? `${window.location.origin}/login`
+        : 'https://app.styleflo.ai/login';
+
+      const { data, error } = await supabase.auth.signUp({
+        email,
+        password,
+        options: {
+          emailRedirectTo: redirectUrl,
+          data: {
+            full_name: fullName,
+            company_name: companyName,
+            website_url: websiteUrl,
+            slug: finalSlug,
+            selected_plan: planParam,
+            promo_applied: promoParam,
+            terms_accepted: true,
+            terms_accepted_at: new Date().toISOString(),
+            terms_version: 'v1.0',
+          },
+        },
+      });
+      if (error) throw error;
+      
+      if (data?.session === null) {
+        setSuccessMessage("Account created successfully! Please check your email to verify your account and claim your 1st month free.");
+      } else {
+        router.push(`/dashboard?plan=${planParam}&promo=${promoParam}`);
+      }
+    } catch (err: any) {
+      console.error("Signup error:", err);
+      let errorMsg = 'An error occurred during registration.';
+      if (typeof err === 'string') {
+        errorMsg = err;
+      } else if (err?.message) {
+        errorMsg = err.message;
+      }
+      setError(errorMsg);
+    } finally {
       setLoading(false);
     }
   };
@@ -217,7 +298,7 @@ function RegisterContent() {
           type="button"
           onClick={handleGoogleSignIn}
           disabled={loading}
-          className="w-full h-12 bg-white hover:bg-gray-100 text-gray-900 font-bold text-sm rounded-xl shadow-md flex items-center justify-center gap-3 transition-all active:scale-[0.99] mb-5 border border-gray-200"
+          className="w-full h-12 bg-white hover:bg-gray-100 text-gray-900 font-bold text-sm rounded-xl shadow-md flex items-center justify-center gap-3 transition-all active:scale-[0.99] mb-3 border border-gray-200"
         >
           <svg className="w-5 h-5" viewBox="0 0 24 24">
             <path
@@ -239,6 +320,25 @@ function RegisterContent() {
           </svg>
           <span>Continue with Google</span>
         </button>
+
+        <p className="text-[11px] text-gray-400 text-center mb-5 leading-normal">
+          By continuing with Google, you agree to StyleFlo's{' '}
+          <button
+            type="button"
+            onClick={() => openLegalModal('Terms & Conditions', 'https://styleflo.ai/terms-conditions/')}
+            className="text-indigo-400 underline hover:text-indigo-300 font-medium"
+          >
+            Terms of Service
+          </button>{' '}
+          and acknowledge our{' '}
+          <button
+            type="button"
+            onClick={() => openLegalModal('Privacy Policy', 'https://styleflo.ai/privacy/')}
+            className="text-indigo-400 underline hover:text-indigo-300 font-medium"
+          >
+            Privacy Policy
+          </button>.
+        </p>
 
         <div className="relative flex items-center justify-center my-4">
           <div className="border-t border-gray-800 w-full"></div>
@@ -307,9 +407,39 @@ function RegisterContent() {
             />
           </div>
 
+          {/* REQUIRED TERMS CHECKBOX */}
+          <div className="flex items-start gap-2.5 pt-2">
+            <input
+              type="checkbox"
+              id="termsAccepted"
+              required
+              checked={termsAccepted}
+              onChange={(e) => setTermsAccepted(e.target.checked)}
+              className="w-4 h-4 mt-0.5 rounded border-gray-700 bg-gray-950 text-indigo-600 focus:ring-indigo-500"
+            />
+            <label htmlFor="termsAccepted" className="text-xs text-gray-300 leading-snug">
+              I agree to StyleFlo's{' '}
+              <button
+                type="button"
+                onClick={() => openLegalModal('Terms & Conditions', 'https://styleflo.ai/terms-conditions/')}
+                className="text-indigo-400 underline hover:text-indigo-300 font-bold"
+              >
+                Terms of Service
+              </button>{' '}
+              and{' '}
+              <button
+                type="button"
+                onClick={() => openLegalModal('Privacy Policy', 'https://styleflo.ai/privacy/')}
+                className="text-indigo-400 underline hover:text-indigo-300 font-bold"
+              >
+                Privacy Policy
+              </button>.
+            </label>
+          </div>
+
           <button
             type="submit"
-            disabled={loading}
+            disabled={loading || !termsAccepted}
             className="w-full h-12 bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-500 hover:to-purple-500 text-white font-bold text-sm rounded-xl shadow-lg shadow-indigo-500/20 active:scale-[0.99] transition-all disabled:opacity-50 mt-2"
           >
             {loading ? 'Creating Account & Claiming Free Month...' : `Claim 1st Month Free on ${planInfo.name}`}
@@ -323,6 +453,14 @@ function RegisterContent() {
           </a>
         </div>
       </div>
+
+      {/* LEGAL MODAL */}
+      <LegalModal
+        isOpen={legalModal.isOpen}
+        onClose={() => setLegalModal({ isOpen: false, title: '', url: '' })}
+        title={legalModal.title}
+        url={legalModal.url}
+      />
     </main>
   );
 }

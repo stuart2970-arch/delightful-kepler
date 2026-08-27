@@ -3,11 +3,22 @@
 import { useEffect, useState } from 'react';
 import { createBrowserClient } from '@supabase/ssr';
 import { useRouter } from 'next/navigation';
+import LegalModal from '@/components/LegalModal';
 
 export default function LoginPage() {
   const router = useRouter();
   const [isLogin, setIsLogin] = useState(true);
   const [email, setEmail] = useState('');
+  const [termsAccepted, setTermsAccepted] = useState(false);
+  const [legalModal, setLegalModal] = useState<{ isOpen: boolean; title: string; url: string }>({
+    isOpen: false,
+    title: '',
+    url: '',
+  });
+
+  const openLegalModal = (title: string, url: string) => {
+    setLegalModal({ isOpen: true, title, url });
+  };
   const [password, setPassword] = useState('');
   const [fullName, setFullName] = useState('');
   const [companyName, setCompanyName] = useState('');
@@ -249,7 +260,7 @@ export default function LoginPage() {
           type="button"
           onClick={handleGoogleSignIn}
           disabled={loading}
-          className="w-full h-12 bg-white hover:bg-gray-100 text-gray-900 font-bold text-sm rounded-xl shadow-md flex items-center justify-center gap-3 transition-all active:scale-[0.99] mb-5 border border-gray-200"
+          className="w-full h-12 bg-white hover:bg-gray-100 text-gray-900 font-bold text-sm rounded-xl shadow-md flex items-center justify-center gap-3 transition-all active:scale-[0.99] mb-3 border border-gray-200"
         >
           <svg className="w-5 h-5" viewBox="0 0 24 24">
             <path
@@ -271,6 +282,25 @@ export default function LoginPage() {
           </svg>
           <span>Continue with Google</span>
         </button>
+
+        <p className="text-[11px] text-gray-400 text-center mb-5 leading-normal">
+          By continuing with Google, you agree to StyleFlo's{' '}
+          <button
+            type="button"
+            onClick={() => openLegalModal('Terms & Conditions', 'https://styleflo.ai/terms-conditions/')}
+            className="text-indigo-400 underline hover:text-indigo-300 font-medium"
+          >
+            Terms of Service
+          </button>{' '}
+          and acknowledge our{' '}
+          <button
+            type="button"
+            onClick={() => openLegalModal('Privacy Policy', 'https://styleflo.ai/privacy/')}
+            className="text-indigo-400 underline hover:text-indigo-300 font-medium"
+          >
+            Privacy Policy
+          </button>.
+        </p>
 
         <div className="relative flex items-center justify-center my-4">
           <div className="border-t border-gray-800 w-full"></div>
@@ -313,7 +343,7 @@ export default function LoginPage() {
                   value={fullName}
                   onChange={(e) => setFullName(e.target.value)}
                   className="w-full bg-gray-800 border border-gray-700 text-white rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all"
-                  placeholder="Jane Doe"
+                  placeholder="Sarah Jenkins"
                 />
               </div>
               <div>
@@ -327,7 +357,7 @@ export default function LoginPage() {
                     setCustomSlug('');
                   }}
                   className="w-full bg-gray-800 border border-gray-700 text-white rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all"
-                  placeholder="Wardrobe at the Cross"
+                  placeholder="StyleFlo Lounge"
                 />
 
                 {/* Real-time URL preview & Availability indicator */}
@@ -386,12 +416,41 @@ export default function LoginPage() {
                   placeholder="https://example.com"
                 />
               </div>
+              {/* REQUIRED TERMS CHECKBOX FOR SIGNUP */}
+              <div className="flex items-start gap-2.5 pt-2">
+                <input
+                  type="checkbox"
+                  id="loginTermsAccepted"
+                  required
+                  checked={termsAccepted}
+                  onChange={(e) => setTermsAccepted(e.target.checked)}
+                  className="w-4 h-4 mt-0.5 rounded border-gray-700 bg-gray-950 text-indigo-600 focus:ring-indigo-500"
+                />
+                <label htmlFor="loginTermsAccepted" className="text-xs text-gray-300 leading-snug">
+                  I agree to StyleFlo's{' '}
+                  <button
+                    type="button"
+                    onClick={() => openLegalModal('Terms & Conditions', 'https://styleflo.ai/terms-conditions/')}
+                    className="text-indigo-400 underline hover:text-indigo-300 font-bold"
+                  >
+                    Terms of Service
+                  </button>{' '}
+                  and{' '}
+                  <button
+                    type="button"
+                    onClick={() => openLegalModal('Privacy Policy', 'https://styleflo.ai/privacy/')}
+                    className="text-indigo-400 underline hover:text-indigo-300 font-bold"
+                  >
+                    Privacy Policy
+                  </button>.
+                </label>
+              </div>
             </>
           )}
 
           <button
             type="submit"
-            disabled={loading}
+            disabled={loading || (!isLogin && !termsAccepted)}
             className="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-semibold rounded-xl px-4 py-3 shadow-lg shadow-indigo-500/20 transition-all focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 focus:ring-offset-gray-900 mt-2 disabled:opacity-50 disabled:cursor-not-allowed"
           >
             {loading ? 'Processing...' : isLogin ? 'Sign In' : 'Create Account'}
@@ -411,6 +470,14 @@ export default function LoginPage() {
           </button>
         </div>
       </div>
+
+      {/* LEGAL MODAL */}
+      <LegalModal
+        isOpen={legalModal.isOpen}
+        onClose={() => setLegalModal({ isOpen: false, title: '', url: '' })}
+        title={legalModal.title}
+        url={legalModal.url}
+      />
     </main>
   );
 }
