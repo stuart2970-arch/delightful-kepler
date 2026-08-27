@@ -334,6 +334,7 @@ import Vapi from '@vapi-ai/web';
   let tenantId = '';
   let brandingHtml = '<span style="opacity: 0.6; font-size: 11px;">⚡ Powered by <strong>StyleFlo</strong></span>';
   let voiceEnabled = false;
+  let requireClientName = false;
   let vapiPublicKey = '';
   let vapiAssistantId = '';
   let globalVoiceDisclaimer = '';
@@ -355,6 +356,7 @@ import Vapi from '@vapi-ai/web';
         welcomeMessage = config.welcomeMessage || 'Hello! How can I help you today?';
         brandingHtml = config.brandingHtml || brandingHtml;
         voiceEnabled = config.voiceEnabled || false;
+        requireClientName = config.requireClientName || false;
         vapiPublicKey = config.vapiPublicKey || '';
         vapiAssistantId = config.vapiAssistantId || '';
         globalVoiceDisclaimer = config.globalVoiceDisclaimer || '';
@@ -555,16 +557,22 @@ import Vapi from '@vapi-ai/web';
       welcomeTextEl.innerHTML = getFormattedWelcomeMessage(storedName);
     }
 
-    // If we need a disclaimer but it hasn't been accepted, force onboarding
-    if (!storedName || (globalVoiceDisclaimer && !disclaimerAccepted)) {
-      messagesContainer.style.display = 'none';
-      chatForm.style.display = 'none';
-      onboardingContainer.style.display = 'flex';
+    // Only force pre-chat onboarding if requireClientName is explicitly enabled or a voice disclaimer requires acceptance
+    const needsOnboarding = (requireClientName && !storedName) || (globalVoiceDisclaimer && !disclaimerAccepted);
+
+    if (needsOnboarding) {
+      messagesContainer.style.setProperty('display', 'none', 'important');
+      chatForm.style.setProperty('display', 'none', 'important');
+      onboardingContainer.style.setProperty('display', 'flex', 'important');
       
-      // If we already have a name, prepopulate the name field
       if (storedName && onboardingName) {
         onboardingName.value = storedName;
       }
+    } else {
+      onboardingContainer.style.setProperty('display', 'none', 'important');
+      messagesContainer.style.setProperty('display', 'flex', 'important');
+      messagesContainer.style.setProperty('flex-direction', 'column', 'important');
+      chatForm.style.setProperty('display', 'flex', 'important');
     }
 
     onboardingForm.addEventListener('submit', (e) => {
@@ -577,20 +585,22 @@ import Vapi from '@vapi-ai/web';
         return;
       }
 
-      if (name) {
-        localStorage.setItem('styleflo-client-name', name);
+      if (name || !requireClientName) {
+        if (name) {
+          localStorage.setItem('styleflo-client-name', name);
+          storedName = name;
+        }
         if (globalVoiceDisclaimer) {
           localStorage.setItem('styleflo-disclaimer-accepted', 'true');
           disclaimerAccepted = 'true';
         }
-        storedName = name;
         if (welcomeTextEl) {
-          welcomeTextEl.innerHTML = getFormattedWelcomeMessage(name);
+          welcomeTextEl.innerHTML = getFormattedWelcomeMessage(storedName);
         }
-        onboardingContainer.style.display = 'none';
-        messagesContainer.style.display = 'flex';
-        messagesContainer.style.flexDirection = 'column';
-        chatForm.style.display = 'flex';
+        onboardingContainer.style.setProperty('display', 'none', 'important');
+        messagesContainer.style.setProperty('display', 'flex', 'important');
+        messagesContainer.style.setProperty('flex-direction', 'column', 'important');
+        chatForm.style.setProperty('display', 'flex', 'important');
         inputField.focus();
       }
     });
