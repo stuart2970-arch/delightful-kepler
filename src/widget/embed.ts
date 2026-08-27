@@ -805,7 +805,7 @@ import Vapi from '@vapi-ai/web';
             message: messageText,
             chatbotId: chatbotId,
             sessionId: sessionId,
-            clientName: storedName,
+            clientName: storedName || undefined,
           }),
         });
 

@@ -27,7 +27,7 @@ const ChatRequestSchema = z.object({
   message: z.string().min(1, { message: 'Message cannot be empty' }),
   chatbotId: z.string().min(1, { message: 'Chatbot ID cannot be empty' }),
   sessionId: z.string().min(1, { message: 'Session ID cannot be empty' }),
-  clientName: z.string().optional(),
+  clientName: z.string().optional().nullable(),
 });
 
 // Initialize Supabase Admin Client using service role key (bypasses RLS for service logic)
