@@ -61,8 +61,8 @@ import Vapi from '@vapi-ai/web';
   `;
   host.appendChild(aiGuardrails);
 
-  const containerId = currentScript.getAttribute('data-container-id');
-  const container = containerId ? document.getElementById(containerId) : currentScript.parentElement;
+  const containerId = scriptEl.getAttribute('data-container-id');
+  const container = containerId ? document.getElementById(containerId) : scriptEl.parentElement;
   if (container) {
     container.appendChild(host);
   } else {

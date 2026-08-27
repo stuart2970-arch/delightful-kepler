@@ -2,31 +2,26 @@ import Vapi from '@vapi-ai/web';
 
 (function () {
   // 1. Identify the script element and extract configuration
-  let currentScript = document.currentScript as HTMLScriptElement;
-  if (!currentScript) {
-    const scripts = document.getElementsByTagName('script');
-    for (let i = 0; i < scripts.length; i++) {
-      if (scripts[i].getAttribute('data-bot-id') || scripts[i].src.includes('/widget.js') || scripts[i].src.includes('widget.js')) {
-        currentScript = scripts[i];
-        break;
-      }
-    }
-  }
+  const scriptEl = (document.currentScript as HTMLScriptElement) ||
+    document.getElementById('styleflo-onboard-widget-script') ||
+    document.querySelector('script[data-bot-id]') ||
+    document.querySelector('script[data-chatbot-id]') ||
+    document.querySelector('script[src*="widget.js"]');
 
-  if (!currentScript) {
+  if (!scriptEl) {
     console.error('[StyleFlo Widget] Current script context not found.');
     return;
   }
 
-  const chatbotId = currentScript.getAttribute('data-bot-id') || currentScript.getAttribute('data-chatbot-id');
+  const chatbotId = scriptEl.getAttribute('data-bot-id') || scriptEl.getAttribute('data-chatbot-id');
   if (!chatbotId) {
     console.error('[StyleFlo Widget] Missing required "data-bot-id" or "data-chatbot-id" attribute on script tag.');
     return;
   }
 
   // Parse host URL from script source, or override if provided
-  const scriptUrl = currentScript.src ? new URL(currentScript.src, window.location.href) : new URL(window.location.href);
-  const apiHost = currentScript.getAttribute('data-api-host') || scriptUrl.origin;
+  const scriptUrl = scriptEl.src ? new URL(scriptEl.src, window.location.href) : new URL(window.location.href);
+  const apiHost = scriptEl.getAttribute('data-api-host') || scriptUrl.origin;
 
   // 2. Generate or retrieve Session ID to preserve chat history
   const sessionKey = `styleflo_session_${chatbotId}`;
