@@ -238,34 +238,52 @@ Be encouraging, warm, professional, concise, and helpful! Advise them they can a
       }
     }
 
-    // 7. Retrieve chat history (last 20 messages)
-    let recentHistory: any[] | null = null;
-    if (chatbotId !== 'styleflo-onboarding-flobot') {
-      const { data: history, error: historyError } = await supabaseAdmin
+    // 7. Retrieve chat history (combining DB records + client-passed messages)
+    let chatHistory: any[] = [];
+
+    if (conversationId) {
+      const { data: dbHistory, error: historyError } = await supabaseAdmin
         .from('messages')
         .select('sender_type, text_content')
         .eq('conversation_id', conversationId)
-        .eq('tenant_id', tenantId)
         .order('created_at', { ascending: false })
         .limit(20);
-      recentHistory = history;
 
-      if (historyError) {
+      if (dbHistory && dbHistory.length > 0) {
+        chatHistory = dbHistory.reverse().map((m: any) => ({
+          role: m.sender_type === 'user' ? 'user' : 'assistant',
+          content: m.text_content || '',
+        }));
+      } else if (historyError) {
         console.error(`[Chat Stream][${requestId}] Failed to fetch history:`, historyError);
       }
     }
 
-    const chatHistory = recentHistory ? recentHistory.reverse() : [];
+    // Fallback or augment with client-passed messages array if DB is empty or missing turns
+    if (Array.isArray(clientMessages) && clientMessages.length > chatHistory.length) {
+      chatHistory = clientMessages.map((m: any) => ({
+        role: m.role === 'user' ? 'user' : 'assistant',
+        content: typeof m.content === 'string' ? m.content : JSON.stringify(m.content),
+      }));
+    }
 
-    // Analyze FloBot state memory from transcript
-    const fullHistoryText = chatHistory.map((m: any) => typeof m.content === 'string' ? m.content : JSON.stringify(m.content)).join('\n');
+    // Analyze FloBot state memory from transcript (including current turn message)
+    const fullHistoryText = [
+      ...chatHistory.map((m: any) => m.content || ''),
+      message || ''
+    ].join('\n');
+
     const emailMatch = fullHistoryText.match(/[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/);
     const detectedEmail = emailMatch ? emailMatch[0] : null;
 
     const codeMatch = fullHistoryText.match(/FLO-\d{4}/i);
     const detectedCode = codeMatch ? codeMatch[0].toUpperCase() : null;
 
-    const hasIdentity = /liverpool|halewood|manchester|london|miles|city|radius|dogs|salon|barber|clinic|studio/i.test(fullHistoryText) && (detectedEmail !== null || fullHistoryText.toLowerCase().includes('email'));
+    // Check if business identity/name or location details were provided in transcript
+    const hasIdentity = detectedEmail !== null && (
+      chatHistory.some((m: any) => m.role === 'user' && m.content !== detectedEmail) ||
+      /liverpool|halewood|manchester|london|miles|city|radius|dogs|salon|barber|clinic|studio|inc|ltd|co|service/i.test(fullHistoryText)
+    );
 
     let currentFloStep = 'STEP 1 (ENROLLMENT)';
     if (detectedEmail && hasIdentity) {
@@ -309,8 +327,8 @@ ${hasIdentity ? `- LOCATION & IDENTITY CONFIRMED (DO NOT ask for location or bus
 
 CURRENT STEP TASK INSTRUCTIONS:
 ${currentFloStep === 'STEP 1 (ENROLLMENT)' ? 'Ask whether they prefer to sign up with Google or Email (typing email directly into chat).' : ''}
-${currentFloStep === 'STEP 2 (IDENTITY)' ? 'Location/Business Identity confirmed! Acknowledge their location (e.g. Halewood, Liverpool) and ask for their website URL/sitemap or option to upload a PDF price list to ingest their knowledge base! DO NOT ask for email or signup method.' : ''}
-${currentFloStep === 'STEP 3 (INGESTION)' ? 'Knowledge base ingestion confirmed! Ask which booking operational mode fits best (Single Calendar, Multi Staff, Walk-In Only, or External Link).' : ''}
+${currentFloStep === 'STEP 2 (IDENTITY)' ? 'Email is confirmed! Acknowledge their email registration and ask for their Business Name & City/Location (or service radius in miles). DO NOT ask for email or signup method again.' : ''}
+${currentFloStep === 'STEP 3 (INGESTION)' ? 'Business identity/location is confirmed! Acknowledge their business details and ask for their website URL/sitemap or option to upload a PDF price list to ingest their knowledge base! DO NOT ask for email, Google signup, or business location again.' : ''}
 
 CRITICAL CONVERSATIONAL LAWS:
 1. NEVER REPEAT GREETINGS: Do not say "Welcome to StyleFlo!" or re-introduce yourself.
