@@ -81,6 +81,7 @@ export async function POST(request: Request) {
     }
 
     const { message, chatbotId, sessionId, clientName } = validation.data;
+    const clientMessages = Array.isArray(body.messages) ? body.messages : Array.isArray(body.history) ? body.history : [];
     console.log(`[Chat Stream][${requestId}] Chatbot ID: ${chatbotId}, Session ID: ${sessionId}, Client: ${clientName || 'Unknown'}`);
 
     // 3. Resolve tenant_id & configuration
