@@ -104,13 +104,13 @@ export default function LoginPage() {
       data: { subscription },
     } = supabase.auth.onAuthStateChange((event, session) => {
       if (event === 'SIGNED_IN') {
-        // Bounce the top-level window back to WordPress after login
-        const isLocal = process.env.NODE_ENV === 'development' || process.env.NEXT_PUBLIC_ENV === 'development';
-        const wpAppUrl = isLocal ? 'https://styleflo.test/app' : 'https://styleflo.ai/app';
-        if (window.top) {
+        const isEmbedded = typeof window !== 'undefined' && window.self !== window.top;
+        if (isEmbedded && window.top) {
+          const isLocal = process.env.NODE_ENV === 'development' || process.env.NEXT_PUBLIC_ENV === 'development';
+          const wpAppUrl = isLocal ? 'https://styleflo.test/app' : 'https://styleflo.ai/app';
           window.top.location.href = wpAppUrl;
         } else {
-          window.location.href = wpAppUrl;
+          router.push('/dashboard');
         }
       }
     });
