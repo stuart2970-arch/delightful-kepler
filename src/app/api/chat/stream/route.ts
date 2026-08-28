@@ -274,8 +274,10 @@ Be encouraging, warm, professional, concise, and helpful! Advise them they can a
       currentFloStep = 'STEP 2 (IDENTITY)';
     }
 
+    const magicLinkAlreadySent = fullHistoryText.includes('magic-login') || fullHistoryText.includes('Magic Link') || fullHistoryText.includes('1-Click Instant Login Link');
+
     let generatedMagicLink = '';
-    if (chatbotId === 'styleflo-onboarding-flobot' && detectedEmail) {
+    if (chatbotId === 'styleflo-onboarding-flobot' && detectedEmail && !magicLinkAlreadySent) {
       try {
         const { data: linkRes } = await supabaseAdmin.auth.admin.generateLink({
           type: 'magiclink',
@@ -300,27 +302,23 @@ Your goal is to smoothly guide new business owners through account creation and 
 CONVERSATION STATE MEMORY:
 - CURRENT ACTIVE ONBOARDING STEP: ${currentFloStep}
 ${detectedEmail ? `- CONFIRMED USER EMAIL: ${detectedEmail} (DO NOT ASK FOR EMAIL OR SIGNUP METHOD AGAIN!)` : ''}
-${generatedMagicLink ? `- INSTANT ACCOUNT MAGIC LINK: Include this link in your turn so the user can sign in instantly: [🚀 1-Click Instant Login Link](${generatedMagicLink})` : ''}
+${generatedMagicLink ? `- INSTANT ACCOUNT MAGIC LINK: Include this link in your turn ONCE: [🚀 1-Click Instant Login Link](${generatedMagicLink})` : ''}
+${magicLinkAlreadySent ? `- MAGIC LINK STATUS: Already provided in previous turn. DO NOT send or mention magic link or email signup again!` : ''}
 ${detectedCode ? `- ASSIGNED RESUMPTION CODE: ${detectedCode} (DO NOT GENERATE A NEW RESUMPTION CODE!)` : ''}
 ${hasIdentity ? `- LOCATION & IDENTITY CONFIRMED (DO NOT ask for location or business name again!)` : ''}
 
+CURRENT STEP TASK INSTRUCTIONS:
+${currentFloStep === 'STEP 1 (ENROLLMENT)' ? 'Ask whether they prefer to sign up with Google or Email (typing email directly into chat).' : ''}
+${currentFloStep === 'STEP 2 (IDENTITY)' ? 'Location/Business Identity confirmed! Acknowledge their location (e.g. Halewood, Liverpool) and ask for their website URL/sitemap or option to upload a PDF price list to ingest their knowledge base! DO NOT ask for email or signup method.' : ''}
+${currentFloStep === 'STEP 3 (INGESTION)' ? 'Knowledge base ingestion confirmed! Ask which booking operational mode fits best (Single Calendar, Multi Staff, Walk-In Only, or External Link).' : ''}
+
 CRITICAL CONVERSATIONAL LAWS:
 1. NEVER REPEAT GREETINGS: Do not say "Welcome to StyleFlo!" or re-introduce yourself.
-2. INSTANT ACCOUNT CREATION & MAGIC LINK: As soon as the user provides an email address, acknowledge account creation, include the Instant Login Magic Link above, and immediately move to ${currentFloStep}.
-3. STICK TO ${currentFloStep}: You are STRICTLY FORBIDDEN from asking whether they want to sign up with Google or Email. Email is ALREADY CONFIRMED (${detectedEmail || 'on file'}).
-4. ZERO RE-PROMPTING ON QUESTIONS: If the user asks a question like "how do i add my password", answer concisely (e.g., "We use passwordless sign-in with secure email links, so no password is required! Click your instant login link above to complete setup."), and then IMMEDIATELY continue with ${currentFloStep}.
-5. NO DUPLICATE CODES: Never generate a second resumption code.
-6. LINEAR PROGRESSION: Advance smoothly through Step 1 ➔ Step 2 ➔ Step 3 ➔ Step 4 ➔ Step 5.
-7. CHAT INPUT ONLY (NO SEPARATE EMAIL BOX): There is NO separate email box or form fields on the page. Instruct users to type their email address directly into this chat box (where it says "Type your message..."), or click the "Continue with Google" button at the top of the chat window! NEVER refer to a separate "email box" or "on-screen box".
-
-Onboarding Pipeline Overview:
-- STEP 1 (ENROLLMENT): Sign-up method selection & email capture.
-- STEP 2 (IDENTITY): Business location/city & service radius confirmation.
-- STEP 3 (INGESTION): Website URL / sitemap discovery OR PDF price list / FAQ text upload.
-- STEP 4 (LOGISTICS): Booking operational mode selection (Single Calendar, Multi Staff, Walk-In, or External Link).
-- STEP 5 (LAUNCH): Direct live testing link (https://styleflo.ai/business/[business-slug]) and Dashboard redirection!
-
-User Session State: ${clientName ? `Signed in as ${clientName}` : 'Guest visitor'}`
+2. NO RE-ASKING FOR EMAIL: Email is ALREADY CONFIRMED (${detectedEmail || 'on file'}). You are STRICTLY FORBIDDEN from asking for email address or Google signup again!
+3. ZERO RE-PROMPTING ON QUESTIONS: If the user asks a question like "how do i add my password", answer concisely in 1 sentence, and then IMMEDIATELY execute the CURRENT STEP TASK.
+4. NO DUPLICATE CODES OR LINKS: Never generate a second resumption code or re-send the magic link if already sent.
+5. LINEAR PROGRESSION: Advance smoothly through Step 1 ➔ Step 2 ➔ Step 3 ➔ Step 4 ➔ Step 5.
+6. CHAT INPUT ONLY (NO SEPARATE EMAIL BOX): There is NO separate email box or form fields on the page. Instruct users to type their email address directly into this chat box (where it says "Type your message..."), or click the "Continue with Google" button at the top of the chat window! NEVER refer to a separate "email box" or "on-screen box".`
       : `You are a friendly, conversational AI customer support assistant representing "${businessName}".
 Use ONLY the following context to answer the user's query about "${businessName}". 
 If you do not know the answer, politely state that you represent "${businessName}" and ask them to drop their email or phone number so a human agent can follow up.
