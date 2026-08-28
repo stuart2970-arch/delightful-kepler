@@ -52,7 +52,8 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Missing file or chatbotId' }, { status: 400 });
     }
 
-    if (!/^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/.test(chatbotId)) {
+    const isFloBot = chatbotId === 'styleflo-onboarding-flobot';
+    if (!isFloBot && !/^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/.test(chatbotId)) {
       return NextResponse.json({ error: 'Invalid chatbot ID format' }, { status: 400 });
     }
 
@@ -64,7 +65,10 @@ export async function POST(request: Request) {
       throw new Error('Supabase admin environment variables are missing');
     }
 
-    if (authError || !user) {
+    if (isFloBot) {
+      tenantId = '00000000-0000-0000-0000-000000000000';
+      dbClient = createClient(supabaseUrl, serviceRoleKey);
+    } else if (authError || !user) {
       const adminClient = createClient(supabaseUrl, serviceRoleKey);
       dbClient = adminClient;
       

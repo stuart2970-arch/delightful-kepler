@@ -361,6 +361,18 @@ import Vapi from '@vapi-ai/web';
 
       <!-- Input Area -->
       <form id="styleflo-chat-form" class="p-3 bg-white border-t border-gray-100 flex items-center gap-2 shrink-0 z-10">
+        <input type="file" id="styleflo-file-input" accept=".pdf,.doc,.docx,.txt,.csv,image/*" style="display: none;" />
+        <button 
+          type="button" 
+          id="styleflo-attach-btn"
+          class="rounded-xl text-gray-500 hover:text-gray-700 hover:bg-gray-100 focus:outline-none transition-all flex-shrink-0 flex items-center justify-center cursor-pointer"
+          style="width: 36px; height: 36px; min-width: 36px; min-height: 36px; padding: 0; flex-shrink: 0; display: flex; align-items: center; justify-content: center;"
+          title="Attach PDF or Document"
+        >
+          <svg style="width: 20px; height: 20px; min-width: 20px; min-height: 20px; display: block; fill: none; stroke: #6B7280; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round;" viewBox="0 0 24 24">
+            <path d="M21.44 11.05l-9.19 9.19a6 6 0 01-8.49-8.49l9.19-9.19a4 4 0 015.66 5.66l-9.2 9.19a2 2 0 01-2.83-2.83l8.49-8.48"></path>
+          </svg>
+        </button>
         ${voiceEnabled ? `
         <button 
           type="button" 
@@ -415,6 +427,45 @@ import Vapi from '@vapi-ai/web';
     const vapiBtn = shadowRoot.getElementById('styleflo-vapi-btn') as HTMLButtonElement | null;
     const menuChatBtn = shadowRoot.getElementById('styleflo-menu-chat') as HTMLButtonElement;
     const menuCallBtn = shadowRoot.getElementById('styleflo-menu-call') as HTMLButtonElement;
+    const attachBtn = shadowRoot.getElementById('styleflo-attach-btn') as HTMLButtonElement | null;
+    const fileInput = shadowRoot.getElementById('styleflo-file-input') as HTMLInputElement | null;
+
+    if (attachBtn && fileInput) {
+      attachBtn.addEventListener('click', () => fileInput.click());
+      fileInput.addEventListener('change', async () => {
+        const file = fileInput.files?.[0];
+        if (!file) return;
+
+        appendMessage('user', `📎 Attached file: ${file.name} (${(file.size / 1024).toFixed(1)} KB)`);
+        const typingIndicator = showTypingIndicator();
+
+        try {
+          const formData = new FormData();
+          formData.append('file', file);
+          formData.append('chatbotId', chatbotId);
+
+          const uploadRes = await fetch(`${apiHost}/api/ingest/file`, {
+            method: 'POST',
+            body: formData,
+          });
+
+          typingIndicator.remove();
+
+          if (!uploadRes.ok) {
+            const errData = await uploadRes.json();
+            throw new Error(errData.error || 'Failed to upload document');
+          }
+
+          inputField.value = `I have uploaded the document "${file.name}" containing our business price list/details. Please ingest it into our knowledge base.`;
+          chatForm.dispatchEvent(new Event('submit'));
+        } catch (err: any) {
+          typingIndicator.remove();
+          appendMessage('bot', `⚠️ Failed to upload ${file.name}: ${err.message}`);
+        } finally {
+          fileInput.value = '';
+        }
+      });
+    }
 
     let vapiInstance: Vapi | null = null;
     let isVapiActive = false;

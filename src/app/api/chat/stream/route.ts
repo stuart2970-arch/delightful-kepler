@@ -329,7 +329,7 @@ ${hasIdentity ? `- LOCATION & IDENTITY CONFIRMED (DO NOT ask for location or bus
 CURRENT STEP TASK INSTRUCTIONS:
 ${currentFloStep === 'STEP 1 (ENROLLMENT)' ? 'Ask whether they prefer to sign up with Google or Email (typing email directly into chat).' : ''}
 ${currentFloStep === 'STEP 2 (IDENTITY)' ? 'Email is confirmed! Acknowledge their email registration and ask for their Business Name & City/Location (or service radius in miles). DO NOT ask for email or signup method again.' : ''}
-${currentFloStep === 'STEP 3 (INGESTION)' ? 'Business identity/location is confirmed! Acknowledge their business details and ask for their website URL/sitemap or option to upload a PDF price list to ingest their knowledge base! DO NOT ask for email, Google signup, or business location again.' : ''}
+${currentFloStep === 'STEP 3 (INGESTION)' ? 'Business identity/location is confirmed! Acknowledge their business details and ask for their website URL/sitemap OR instruct them to click the paperclip icon (📎) right next to this chat box to attach/upload their PDF price list or service menu! DO NOT ask for email, Google signup, or business location again.' : ''}
 
 CRITICAL CONVERSATIONAL LAWS:
 1. NEVER REPEAT GREETINGS: Do not say "Welcome to StyleFlo!" or re-introduce yourself.
