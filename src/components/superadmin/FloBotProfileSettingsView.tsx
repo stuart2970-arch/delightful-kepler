@@ -119,7 +119,8 @@ export default function FloBotProfileSettingsView({
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Avatar upload failed');
 
-      setAvatarUrl(data.avatarUrl);
+      const uploadedUrl = data.avatarUrl || data.url;
+      setAvatarUrl(uploadedUrl);
       setMessage({ type: 'success', text: 'Avatar uploaded successfully!' });
     } catch (err: any) {
       setMessage({ type: 'error', text: err?.message || 'Failed to upload avatar' });

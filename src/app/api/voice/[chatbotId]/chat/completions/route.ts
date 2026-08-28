@@ -55,19 +55,32 @@ export async function POST(
       auth: { persistSession: false, autoRefreshToken: false }
     });
 
-    // 2. Fetch Chatbot & Tenant Details
-    const { data: chatbot } = await supabaseAdmin
-      .from('chatbots')
-      .select('tenant_id, configuration_json')
-      .eq('id', chatbotId)
-      .single();
+    let tenantId = '00000000-0000-0000-0000-000000000000';
+    let configData: Record<string, any> = {};
 
-    if (!chatbot) {
-      return NextResponse.json({ error: 'Chatbot not found' }, { status: 404, headers: corsHeaders });
+    if (chatbotId === 'styleflo-onboarding-flobot') {
+      const { data: globalBot } = await supabaseAdmin
+        .from('chatbots')
+        .select('configuration_json')
+        .eq('id', '00000000-0000-0000-0000-000000000000')
+        .maybeSingle();
+      if (globalBot?.configuration_json?.flobot_config) {
+        configData = globalBot.configuration_json.flobot_config;
+      }
+    } else {
+      const { data: chatbot } = await supabaseAdmin
+        .from('chatbots')
+        .select('tenant_id, configuration_json')
+        .eq('id', chatbotId)
+        .single();
+
+      if (!chatbot) {
+        return NextResponse.json({ error: 'Chatbot not found' }, { status: 404, headers: corsHeaders });
+      }
+
+      tenantId = chatbot.tenant_id;
+      configData = (chatbot.configuration_json || {}) as Record<string, any>;
     }
-
-    const tenantId = chatbot.tenant_id;
-    const configData = (chatbot.configuration_json || {}) as Record<string, any>;
 
     const { data: tenantRes } = await supabaseAdmin
       .from('tenants')

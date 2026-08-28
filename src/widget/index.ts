@@ -845,7 +845,7 @@ import Vapi from '@vapi-ai/web';
               maxDurationSeconds: 600,
               model: {
                 provider: "custom-llm",
-                url: `${targetVoiceHost}/api/voice/${chatbotId}`,
+                url: `${targetVoiceHost}/api/voice/${chatbotId}/chat/completions`,
                 model: "gemini-3.6-flash",
                 messages: [
                   {

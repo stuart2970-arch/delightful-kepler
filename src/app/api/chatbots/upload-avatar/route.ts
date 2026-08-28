@@ -110,7 +110,10 @@ export async function POST(request: Request) {
       .from(bucketName)
       .getPublicUrl(filePath);
 
-    return NextResponse.json({ url: publicUrlData.publicUrl });
+    return NextResponse.json({ 
+      url: publicUrlData.publicUrl,
+      avatarUrl: publicUrlData.publicUrl 
+    });
   } catch (err: any) {
     console.error('[Upload Avatar API] Unexpected error:', err);
     return NextResponse.json({ error: err.message || 'Internal server error' }, { status: 500 });
