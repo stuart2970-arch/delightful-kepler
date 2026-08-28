@@ -363,30 +363,33 @@ export default function ChatbotManagerView() {
                   {editingBotId ? `Edit Chatbot: ${newBotName}` : 'Create New Chatbot'}
                 </h3>
 
-                {!editingBotId && (
-                  <div className="mb-8 mt-2 px-2 md:px-8">
-                    <div className="flex justify-between relative">
-                      <div className="absolute top-4 left-0 w-full h-0.5 bg-[var(--awb-color3)] -z-10 rounded-full"></div>
-                      {[
-                        { step: 1, label: 'Basics' },
-                        { step: 2, label: 'Persona' },
-                        { step: 3, label: 'Avatar' },
-                        { step: 4, label: 'Voice' },
-                      ].map((s) => (
-                        <div key={s.step} className="flex flex-col items-center gap-2">
-                          <div className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold transition-all duration-300 ${
-                            wizardStep >= s.step ? 'bg-[#198fd9] text-white font-semibold rounded-[4px] px-[29px] py-[13px] shadow-md' : 'bg-[var(--awb-color1)] border-2 border-[var(--awb-color3)] text-[var(--awb-color6)]'
-                          }`}>
-                            {wizardStep > s.step ? '✓' : s.step}
-                          </div>
-                          <span className={`text-[10px] uppercase tracking-wider font-bold transition-colors duration-300 ${wizardStep >= s.step ? 'text-[var(--awb-color5)]' : 'text-[var(--awb-color6)]'}`}>
-                            {s.label}
-                          </span>
+                <div className="mb-8 mt-2 px-2 md:px-8">
+                  <div className="flex justify-between relative">
+                    <div className="absolute top-4 left-0 w-full h-0.5 bg-[var(--awb-color3)] -z-10 rounded-full"></div>
+                    {[
+                      { step: 1, label: 'Basics' },
+                      { step: 2, label: 'Persona' },
+                      { step: 3, label: 'Avatar' },
+                      { step: 4, label: 'Voice' },
+                    ].map((s) => (
+                      <button
+                        key={s.step}
+                        type="button"
+                        onClick={() => setWizardStep(s.step)}
+                        className="flex flex-col items-center gap-2 cursor-pointer group"
+                      >
+                        <div className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold transition-all duration-300 ${
+                          wizardStep === s.step ? 'bg-[#198fd9] text-white shadow-md ring-4 ring-blue-100' : wizardStep > s.step ? 'bg-[#65bd7d] text-white' : 'bg-[var(--awb-color1)] border-2 border-[var(--awb-color3)] text-[var(--awb-color6)]'
+                        }`}>
+                          {wizardStep > s.step ? '✓' : s.step}
                         </div>
-                      ))}
-                    </div>
+                        <span className={`text-[10px] uppercase tracking-wider font-bold transition-colors duration-300 ${wizardStep === s.step ? 'text-[#198fd9]' : 'text-[var(--awb-color6)] group-hover:text-[var(--awb-color8)]'}`}>
+                          {s.label}
+                        </span>
+                      </button>
+                    ))}
                   </div>
-                )}
+                </div>
 
                 <form onSubmit={(e) => {
                   e.preventDefault();
@@ -803,11 +806,12 @@ export default function ChatbotManagerView() {
                           </div>
                         </div>
 
-                        <div className="grid grid-cols-2 gap-3 pt-2">
+                        <div className="grid grid-cols-3 gap-3 pt-2">
                           <button
                             onClick={() => {
                               const config = bot.configuration_json || {};
                               setEditingBotId(bot.id);
+                              setWizardStep(3);
                               setNewBotName(bot.name);
                               setNewBotColor(bot.primary_color);
                               setNewBotWelcome(config.welcome_message || 'Hello!');
@@ -819,15 +823,35 @@ export default function ChatbotManagerView() {
                               setNewAdminEmail(config.admin_email || config.notification_email || '');
                               window.scrollTo({ top: 0, behavior: 'smooth' });
                             }}
-                            className="bg-[#198fd9] hover:bg-[#157ab9] text-white border border-[#198fd9] py-2.5 px-4 rounded-xl text-xs font-bold transition-all shadow-sm text-center"
+                            className="bg-[#260475] hover:bg-[#1f0360] text-white border border-[#260475] py-2.5 px-3 rounded-xl text-xs font-bold transition-all shadow-sm text-center flex items-center justify-center gap-1.5"
                           >
-                            ✏️ Edit Persona
+                            📷 Avatar
+                          </button>
+                          <button
+                            onClick={() => {
+                              const config = bot.configuration_json || {};
+                              setEditingBotId(bot.id);
+                              setWizardStep(1);
+                              setNewBotName(bot.name);
+                              setNewBotColor(bot.primary_color);
+                              setNewBotWelcome(config.welcome_message || 'Hello!');
+                              setNewAgentName(config.agent_name || bot.name);
+                              setNewAgentRole(config.agent_role || 'AI Assistant');
+                              setNewAgentAvatar(config.agent_avatar_url || '/avatars/avatar1.png');
+                              setNewVoiceEnabled(bot.voice_enabled || false);
+                              setNewVoiceId(config.voice_id || '');
+                              setNewAdminEmail(config.admin_email || config.notification_email || '');
+                              window.scrollTo({ top: 0, behavior: 'smooth' });
+                            }}
+                            className="bg-[#198fd9] hover:bg-[#157ab9] text-white border border-[#198fd9] py-2.5 px-3 rounded-xl text-xs font-bold transition-all shadow-sm text-center flex items-center justify-center gap-1.5"
+                          >
+                            ✏️ Persona
                           </button>
                           <button
                             onClick={() => setActiveTab('telephony')}
-                            className="bg-blue-50 hover:bg-blue-100 text-[#198fd9] border border-blue-200 py-2.5 px-4 rounded-xl text-xs font-bold transition-all text-center"
+                            className="bg-blue-50 hover:bg-blue-100 text-[#198fd9] border border-blue-200 py-2.5 px-3 rounded-xl text-xs font-bold transition-all text-center flex items-center justify-center gap-1.5"
                           >
-                            📞 Voice Setup
+                            📞 Voice
                           </button>
                         </div>
                       </div>

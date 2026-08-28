@@ -255,7 +255,7 @@ import Vapi from '@vapi-ai/web';
         if (config.primaryColor) primaryColor = config.primaryColor;
         agentName = config.agentName || botName;
         agentRole = config.agentRole || 'AI Support Agent';
-        agentAvatarUrl = config.agentAvatarUrl || '/avatars/avatar1.png';
+        agentAvatarUrl = config.agentAvatarUrl || config.avatarUrl || config.agent_avatar_url || '/avatars/avatar1.png';
         welcomeMessage = config.welcomeMessage || 'Hello! How can I help you today?';
         brandingHtml = config.brandingHtml || brandingHtml;
         voiceEnabled = config.voiceEnabled || false;

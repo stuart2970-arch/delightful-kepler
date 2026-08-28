@@ -77,6 +77,19 @@ function OnboardContent() {
     }
   };
 
+  const [botAvatarUrl, setBotAvatarUrl] = useState<string | null>(null);
+
+  useEffect(() => {
+    fetch('/api/chatbots/styleflo-onboarding-flobot')
+      .then((res) => res.json())
+      .then((data) => {
+        if (data?.agentAvatarUrl || data?.avatarUrl) {
+          setBotAvatarUrl(data.agentAvatarUrl || data.avatarUrl);
+        }
+      })
+      .catch((err) => console.error('Failed to fetch bot avatar:', err));
+  }, []);
+
   useEffect(() => {
     const scriptId = 'styleflo-onboard-widget-script';
     let script = document.getElementById(scriptId) as HTMLScriptElement | null;
@@ -105,8 +118,12 @@ function OnboardContent() {
       {!isEmbed && (
         <header className="h-16 bg-[#260475] px-6 flex items-center justify-between shrink-0 z-20 shadow-md">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-white/10 border border-white/20 flex items-center justify-center font-bold text-white shadow-sm">
-              ⚡
+            <div className="w-10 h-10 rounded-xl bg-white/10 border border-white/20 flex items-center justify-center font-bold text-white shadow-sm overflow-hidden">
+              {botAvatarUrl ? (
+                <img src={botAvatarUrl} alt="FloBot Avatar" className="w-full h-full object-cover rounded-xl" />
+              ) : (
+                <span>⚡</span>
+              )}
             </div>
             <div>
               <h1 className="font-bold text-sm tracking-tight text-white flex items-center gap-2">
