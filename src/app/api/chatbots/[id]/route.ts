@@ -66,6 +66,9 @@ export async function GET(
         brandingHtml: '<span style="opacity: 0.6; font-size: 11px;">⚡ Powered by <strong>StyleFlo</strong></span>',
         voiceEnabled: floConfig.voiceEnabled ?? false,
         voiceId: floConfig.voiceId || null,
+        voiceProvider: '11labs',
+        vapiPublicKey: process.env.NEXT_PUBLIC_VAPI_PUBLIC_KEY || process.env.VAPI_PUBLIC_KEY || '3648bdcb-ccac-4acc-aee6-a4f9384743de',
+        vapiAssistantId: process.env.VAPI_MASTER_ASSISTANT_ID || '1bb95940-1cb9-4c54-9b16-ba5bc11daae2',
         requireClientName: false
       }, { headers: corsHeaders });
     }
