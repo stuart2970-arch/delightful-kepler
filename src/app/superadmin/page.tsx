@@ -150,6 +150,7 @@ export default async function SuperadminPage() {
         initialGlobalBrandingHtml={initialGlobalBrandingHtml}
         initialGlobalTrackingUrl={initialGlobalTrackingUrl}
         initialGlobalVoiceDisclaimer={initialGlobalVoiceDisclaimer}
+        initialFloBotConfig={globalBot?.configuration_json?.flobot_config || null}
       />
     </main>
   );

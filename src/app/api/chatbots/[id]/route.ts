@@ -40,15 +40,32 @@ export async function GET(
     const { id } = await params;
 
     if (id === 'styleflo-onboarding-flobot') {
+      let floConfig: any = {};
+      try {
+        const adminSupabase = getSupabaseAdmin();
+        const { data: globalBot } = await adminSupabase
+          .from('chatbots')
+          .select('configuration_json')
+          .eq('id', '00000000-0000-0000-0000-000000000000')
+          .maybeSingle();
+        if (globalBot?.configuration_json?.flobot_config) {
+          floConfig = globalBot.configuration_json.flobot_config;
+        }
+      } catch (e) {
+        console.error('Failed to fetch flobot_config from DB:', e);
+      }
+
       return NextResponse.json({
         id: 'styleflo-onboarding-flobot',
-        name: 'FloBot',
-        agentName: 'Flo',
-        agentRole: 'StyleFlo AI Receptionist Builder',
-        primaryColor: '#260475',
-        welcomeMessage: "Hi, I'm Flo! I'm your StyleFlo AI assistant builder. Let's create your account and get your AI receptionist ready in under 60 seconds!",
+        name: floConfig.name || 'FloBot',
+        agentName: floConfig.agentName || 'Flo',
+        agentRole: floConfig.agentRole || 'StyleFlo AI Receptionist Builder',
+        primaryColor: floConfig.primaryColor || '#260475',
+        avatarUrl: floConfig.avatarUrl || null,
+        welcomeMessage: floConfig.welcomeMessage || "Hi, I'm Flo! I'm your StyleFlo AI assistant builder. Let's create your account and get your AI receptionist ready in under 60 seconds!",
         brandingHtml: '<span style="opacity: 0.6; font-size: 11px;">⚡ Powered by <strong>StyleFlo</strong></span>',
-        voiceEnabled: false,
+        voiceEnabled: floConfig.voiceEnabled ?? false,
+        voiceId: floConfig.voiceId || null,
         requireClientName: false
       }, { headers: corsHeaders });
     }

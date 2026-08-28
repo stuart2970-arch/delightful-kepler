@@ -6,6 +6,7 @@ import SuperAdminEntitlementsView from './SuperAdminEntitlementsView';
 import PlatformSettingsView from '../dashboard-views/PlatformSettingsView';
 import SuperAdminVoiceManagerView from '../dashboard-views/SuperAdminVoiceManagerView';
 import OpenClawMonitorView from '../dashboard-views/OpenClawMonitorView';
+import FloBotProfileSettingsView from './FloBotProfileSettingsView';
 
 type GlobalHoliday = {
   id: string;
@@ -29,12 +30,14 @@ export default function SuperadminClient({
   tenants,
   initialGlobalBrandingHtml,
   initialGlobalTrackingUrl,
-  initialGlobalVoiceDisclaimer
+  initialGlobalVoiceDisclaimer,
+  initialFloBotConfig
 }: { 
   tenants: TenantStat[],
   initialGlobalBrandingHtml?: string,
   initialGlobalTrackingUrl?: string,
-  initialGlobalVoiceDisclaimer?: string
+  initialGlobalVoiceDisclaimer?: string,
+  initialFloBotConfig?: any
 }) {
   const [searchTerm, setSearchTerm] = useState('');
   const [tenantsList, setTenantsList] = useState<TenantStat[]>(tenants);
@@ -100,7 +103,7 @@ export default function SuperadminClient({
   const [newHoliday, setNewHoliday] = useState({ countries: ['UK'], date: new Date().toISOString().split('T')[0], name: '' });
   const [isSavingHoliday, setIsSavingHoliday] = useState(false);
 
-  const [activeTab, setActiveTab] = useState<'overview' | 'pricing' | 'holidays' | 'settings' | 'voices'>('overview');
+  const [activeTab, setActiveTab] = useState<'overview' | 'pricing' | 'holidays' | 'settings' | 'voices' | 'gateways' | 'flobot'>('overview');
 
   const [globalBrandingHtml, setGlobalBrandingHtml] = useState(initialGlobalBrandingHtml || '<span style="opacity: 0.6; font-size: 11px;">⚡ Powered by <strong>StyleFlo</strong></span>');
   const [globalTrackingUrl, setGlobalTrackingUrl] = useState(initialGlobalTrackingUrl || 'https://styleflo.ai');
@@ -294,7 +297,19 @@ export default function SuperadminClient({
         >
           Messaging Gateways
         </button>
+        <button 
+          onClick={() => setActiveTab('flobot')}
+          className={`flex-1 py-2.5 text-sm font-medium rounded-lg transition-colors ${activeTab === 'flobot' ? 'bg-indigo-600 text-white shadow' : 'text-gray-400 hover:text-white hover:bg-gray-800'}`}
+        >
+          ⚡ FloBot Profile
+        </button>
       </div>
+
+      {activeTab === 'flobot' && (
+        <div className="mt-6">
+          <FloBotProfileSettingsView initialConfig={initialFloBotConfig} />
+        </div>
+      )}
 
       {activeTab === 'gateways' && (
         <div className="mt-6">

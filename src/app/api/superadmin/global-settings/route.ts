@@ -37,7 +37,7 @@ export async function POST(req: NextRequest) {
     }
 
     const body = await req.json();
-    const { branding_html, branding_url, global_voice_disclaimer } = body;
+    const { branding_html, branding_url, global_voice_disclaimer, flobot_config } = body;
 
     const adminClient = createClient(supabaseUrl, serviceKey);
     const globalBotId = '00000000-0000-0000-0000-000000000000';
@@ -69,6 +69,12 @@ export async function POST(req: NextRequest) {
       ...(branding_html !== undefined && { branding_html }),
       ...(branding_url !== undefined && { branding_url }),
       ...(global_voice_disclaimer !== undefined && { global_voice_disclaimer }),
+      ...(flobot_config !== undefined && {
+        flobot_config: {
+          ...(existingBot?.configuration_json?.flobot_config || {}),
+          ...flobot_config
+        }
+      }),
     };
 
     // 3. Upsert global chatbot configuration
