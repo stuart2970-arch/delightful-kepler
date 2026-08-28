@@ -278,10 +278,20 @@ Help them specify:
     const codeMatch = fullHistoryText.match(/FLO-\d{4}/i);
     const detectedCode = codeMatch ? codeMatch[0].toUpperCase() : null;
 
+    // Filter out email string from user message history
+    const nonEmailUserTexts = chatHistory
+      .filter((m: any) => m.role === 'user')
+      .map((m: any) => (m.content || '').replace(detectedEmail || '', '').trim())
+      .filter(Boolean);
+
+    const historyWithoutEmail = fullHistoryText.replace(detectedEmail || '', '');
+
     // Check if business identity/name or location details were provided in transcript
     const hasIdentity = detectedEmail !== null && (
-      chatHistory.some((m: any) => m.role === 'user' && m.content !== detectedEmail) ||
-      /liverpool|halewood|manchester|london|miles|city|radius|dogs|salon|barber|clinic|studio|inc|ltd|co|service/i.test(fullHistoryText)
+      nonEmailUserTexts.some((txt: string) => 
+        !/can i do that later|can i do this later|later|pause|what else can i do|help|hello|hi/i.test(txt) && txt.length > 2
+      ) ||
+      /liverpool|halewood|manchester|london|miles|city|radius|salon|barber|clinic|studio|inc|ltd|service/i.test(historyWithoutEmail)
     );
 
     let currentFloStep = 'STEP 1 (ENROLLMENT)';
@@ -408,36 +418,34 @@ ${staffContext}`;
       onFinish: async (event) => {
         console.log(`[Chat Stream][${requestId}] AI stream finished. Logging conversation in background...`);
         try {
-          if (chatbotId !== 'styleflo-onboarding-flobot') {
-            // Explicit timestamps to guarantee order
-            const now = Date.now();
-            const userTime = new Date(now - 1000).toISOString();
-            const botTime = new Date(now).toISOString();
+          // Explicit timestamps to guarantee order
+          const now = Date.now();
+          const userTime = new Date(now - 1000).toISOString();
+          const botTime = new Date(now).toISOString();
 
-            const userInsertRes = await supabaseAdmin.from('messages').insert({
+          const userInsertRes = await supabaseAdmin.from('messages').insert({
+            tenant_id: tenantId,
+            conversation_id: conversationId,
+            sender_type: 'user',
+            text_content: message,
+            created_at: userTime,
+          });
+
+          const cleanBotText = event.text.replace(/\[LEAD_CAPTURED:.*?\]/g, '').replace(/\[CHECK_AVAILABILITY:.*?\]/g, '').replace(/\[BOOK_MEETING:.*?\]/g, '').trim();
+          
+          let assistantInsertRes: { error: unknown | null } = { error: null };
+          if (cleanBotText) {
+            assistantInsertRes = await supabaseAdmin.from('messages').insert({
               tenant_id: tenantId,
               conversation_id: conversationId,
-              sender_type: 'user',
-              text_content: message,
-              created_at: userTime,
+              sender_type: 'bot',
+              text_content: cleanBotText,
+              created_at: botTime,
             });
-
-            const cleanBotText = event.text.replace(/\[LEAD_CAPTURED:.*?\]/g, '').replace(/\[CHECK_AVAILABILITY:.*?\]/g, '').replace(/\[BOOK_MEETING:.*?\]/g, '').trim();
-            
-            let assistantInsertRes: { error: unknown | null } = { error: null };
-            if (cleanBotText) {
-              assistantInsertRes = await supabaseAdmin.from('messages').insert({
-                tenant_id: tenantId,
-                conversation_id: conversationId,
-                sender_type: 'bot',
-                text_content: cleanBotText,
-                created_at: botTime,
-              });
-            }
-
-            if (userInsertRes.error) console.error(`[Chat Stream][${requestId}] Failed to log user message:`, userInsertRes.error);
-            if (assistantInsertRes.error) console.error(`[Chat Stream][${requestId}] Failed to log assistant response:`, assistantInsertRes.error);
           }
+
+          if (userInsertRes.error) console.error(`[Chat Stream][${requestId}] Failed to log user message:`, userInsertRes.error);
+          if (assistantInsertRes.error) console.error(`[Chat Stream][${requestId}] Failed to log assistant response:`, assistantInsertRes.error);
 
           // Handle consolidated lead capture notification (combining email & phone into 1 email with intent & transcript)
           const leadMatch = event.text.match(/\[LEAD_CAPTURED:\s*(.+?)\]/);
