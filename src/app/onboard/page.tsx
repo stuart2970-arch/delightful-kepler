@@ -45,11 +45,12 @@ function OnboardContent() {
         ? `${window.location.origin}/dashboard`
         : 'https://app.styleflo.ai/dashboard';
 
-      const { error } = await supabase.auth.signInWithOAuth({
+      const { data, error } = await supabase.auth.signInWithOAuth({
         provider: 'google',
         options: {
           scopes: 'https://www.googleapis.com/auth/calendar',
           redirectTo: redirectUrl,
+          skipBrowserRedirect: true,
           queryParams: {
             access_type: 'offline',
             prompt: 'consent',
@@ -62,6 +63,13 @@ function OnboardContent() {
         },
       });
       if (error) throw error;
+      if (data?.url) {
+        if (typeof window !== 'undefined' && window.top && window.top !== window) {
+          window.top.location.href = data.url;
+        } else {
+          window.location.href = data.url;
+        }
+      }
     } catch (err: any) {
       console.error("Google signin error:", err);
       setError(err?.message || 'Failed to initiate Google sign-in.');
