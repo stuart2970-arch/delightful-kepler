@@ -22,8 +22,8 @@ const DEFAULT_PERSONAS = [
     gender: 'Male',
     nationality: 'GB',
     provider: '11labs',
-    preview_url: '/audio/c8MZcZcr0JnMAwkwnTIu_jay_manchester.mp3',
-    previewUrl: '/audio/c8MZcZcr0JnMAwkwnTIu_jay_manchester.mp3'
+    preview_url: '/audio/UK-Male_Manchester_pvc_sp100_s36_sb53_se0_b_m2.mp3',
+    previewUrl: '/audio/UK-Male_Manchester_pvc_sp100_s36_sb53_se0_b_m2.mp3'
   },
   {
     id: 'dqTe8OSrj3PERbkXF8Kx',
@@ -33,8 +33,41 @@ const DEFAULT_PERSONAS = [
     gender: 'Female',
     nationality: 'GB',
     provider: '11labs',
-    preview_url: '/audio/dqTe8OSrj3PERbkXF8Kx_lpool_woman.mp3',
-    previewUrl: '/audio/dqTe8OSrj3PERbkXF8Kx_lpool_woman.mp3'
+    preview_url: '/audio/UK-Female-Generic_pvc_sp97_s46_sb100_se45_b_m2.mp3',
+    previewUrl: '/audio/UK-Female-Generic_pvc_sp97_s46_sb100_se45_b_m2.mp3'
+  },
+  {
+    id: 'uk_female_northern',
+    external_voice_id: 'uk_female_northern',
+    name: 'Northern UK - Female',
+    role: 'Friendly & Professional',
+    gender: 'Female',
+    nationality: 'GB',
+    provider: '11labs',
+    preview_url: '/audio/UK Female - Northern_gen_sp100_s56_sb42_se12_m2.mp3',
+    previewUrl: '/audio/UK Female - Northern_gen_sp100_s56_sb42_se12_m2.mp3'
+  },
+  {
+    id: 'uk_male_southern',
+    external_voice_id: 'uk_male_southern',
+    name: 'Southern UK - Male',
+    role: 'Clear & Professional',
+    gender: 'Male',
+    nationality: 'GB',
+    provider: '11labs',
+    preview_url: '/audio/UK-Male-Southern _pvc_sp100_s50_sb75_se0_b_m2.mp3',
+    previewUrl: '/audio/UK-Male-Southern _pvc_sp100_s50_sb75_se0_b_m2.mp3'
+  },
+  {
+    id: 'uk_female_confident',
+    external_voice_id: 'uk_female_confident',
+    name: 'Confident UK - Female',
+    role: 'Upbeat Receptionist',
+    gender: 'Female',
+    nationality: 'GB',
+    provider: '11labs',
+    preview_url: '/audio/UK_Female_Confident_pvc_sp105_s32_sb28_se8_b_m2.mp3',
+    previewUrl: '/audio/UK_Female_Confident_pvc_sp105_s32_sb28_se8_b_m2.mp3'
   }
 ];
 
@@ -57,9 +90,15 @@ export async function GET() {
     const enriched = personas.map((p: any) => {
       let previewUrl = p.preview_url || p.previewUrl || '';
       if (p.external_voice_id === 'c8MZcZcr0JnMAwkwnTIu' || p.id === 'c8MZcZcr0JnMAwkwnTIu') {
-        previewUrl = '/audio/c8MZcZcr0JnMAwkwnTIu_jay_manchester.mp3';
+        previewUrl = '/audio/UK-Male_Manchester_pvc_sp100_s36_sb53_se0_b_m2.mp3';
       } else if (p.external_voice_id === 'dqTe8OSrj3PERbkXF8Kx' || p.id === 'dqTe8OSrj3PERbkXF8Kx') {
-        previewUrl = '/audio/dqTe8OSrj3PERbkXF8Kx_lpool_woman.mp3';
+        previewUrl = '/audio/UK-Female-Generic_pvc_sp97_s46_sb100_se45_b_m2.mp3';
+      } else if (p.external_voice_id === 'uk_female_northern' || p.id === 'uk_female_northern') {
+        previewUrl = '/audio/UK Female - Northern_gen_sp100_s56_sb42_se12_m2.mp3';
+      } else if (p.external_voice_id === 'uk_male_southern' || p.id === 'uk_male_southern') {
+        previewUrl = '/audio/UK-Male-Southern _pvc_sp100_s50_sb75_se0_b_m2.mp3';
+      } else if (p.external_voice_id === 'uk_female_confident' || p.id === 'uk_female_confident') {
+        previewUrl = '/audio/UK_Female_Confident_pvc_sp105_s32_sb28_se8_b_m2.mp3';
       }
       return {
         ...p,

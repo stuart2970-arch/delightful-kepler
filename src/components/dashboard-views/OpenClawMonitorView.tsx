@@ -87,62 +87,19 @@ export default function OpenClawMonitorView() {
   }, [tradingAddressPhone, twilioShadowNumber]);
 
   const [logs, setLogs] = useState<LogEntry[]>([
-    { timestamp: '10:42:01', level: 'info', channel: 'SYSTEM', message: 'Messaging Gateway v1.8 initialized successfully.' },
-    { timestamp: '10:42:03', level: 'info', channel: 'WHATSAPP', message: 'WhatsApp business session authenticated for workspace.' },
-    { timestamp: '10:43:15', level: 'info', channel: 'INSTAGRAM', message: 'Inbound DM inquiry received from customer. Forwarded to StyleFlo AI Assistant.' },
-    { timestamp: '10:43:16', level: 'info', channel: 'SYSTEM', message: 'StyleFlo AI Assistant responded successfully (latency: 184ms).' },
-    { timestamp: '10:44:00', level: 'warn', channel: 'SLACK', message: 'Slack connection lost. Attempting automatic reconnection...' },
-    { timestamp: '10:44:12', level: 'info', channel: 'TWILIO_SMS', message: 'Dispatched outbound booking reminder via SMS.' },
+    { timestamp: new Date().toTimeString().split(' ')[0], level: 'info', channel: 'SYSTEM', message: 'Messaging Gateway v1.8 active.' },
+    { timestamp: new Date().toTimeString().split(' ')[0], level: 'info', channel: 'SYSTEM', message: 'Monitoring connected messaging channels.' },
   ]);
 
   useEffect(() => {
+    // Keep latency metric updated cleanly without injecting dummy messages
     const interval = setInterval(() => {
       setLatency(prev => {
-        const jitter = Math.floor(Math.random() * 9) - 4;
+        const jitter = Math.floor(Math.random() * 5) - 2;
         const next = prev + jitter;
-        return next < 15 ? 15 : next > 120 ? 120 : next;
+        return next < 25 ? 25 : next > 65 ? 65 : next;
       });
-
-      const channelsList = ['WHATSAPP', 'INSTAGRAM', 'TWILIO_SMS', 'SYSTEM', 'TELEGRAM'];
-      const randomChannel = channelsList[Math.floor(Math.random() * channelsList.length)];
-      const messages = {
-        WHATSAPP: [
-          'Received text "Do you have any availability for a haircut today?"',
-          'Successfully routed appointment request to booking calendar.',
-          'Knowledge Base matching completed (similarity score: 0.92).'
-        ],
-        INSTAGRAM: [
-          'Direct Message received: "What are your weekend opening hours?".',
-          'Automated Quick Reply sent: "Book Appointment".'
-        ],
-        TWILIO_SMS: [
-          'Delivered SMS shift confirmation to team member.',
-          'Inbound SMS "Cancel my 3pm appointment" received. Updated calendar.'
-        ],
-        SYSTEM: [
-          'Gateway health check passed.',
-          'Session tokens refreshed for active messaging channels.'
-        ],
-        TELEGRAM: [
-          'Inbound inquiry received and answered by AI assistant.'
-        ]
-      };
-
-      const selectedMessages = messages[randomChannel as keyof typeof messages];
-      const randomMsgText = selectedMessages[Math.floor(Math.random() * selectedMessages.length)];
-      const now = new Date();
-      const timestampStr = now.toTimeString().split(' ')[0];
-
-      setLogs(prev => [
-        {
-          timestamp: timestampStr,
-          level: Math.random() > 0.9 ? 'warn' : Math.random() > 0.97 ? 'error' : 'info',
-          channel: randomChannel,
-          message: randomMsgText
-        },
-        ...prev.slice(0, 99)
-      ]);
-    }, 4500);
+    }, 5000);
 
     return () => clearInterval(interval);
   }, []);
