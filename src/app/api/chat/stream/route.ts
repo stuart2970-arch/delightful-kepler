@@ -94,13 +94,11 @@ export async function POST(request: Request) {
         agent_role: 'StyleFlo AI Receptionist Builder',
         welcome_message: "Hi, I'm Flo! I'm your StyleFlo AI assistant builder. Let's create your account and get your AI receptionist ready in under 60 seconds!",
         system_instruction: `You are Flo, the official AI onboarding assistant for StyleFlo.ai. 
-Your goal is to guide new salon/spa owners through a fast, friendly 60-second conversational onboarding journey.
+Your goal is to guide new business owners through a fast, friendly 60-second conversational onboarding journey.
 Help them specify:
-1. Business/Salon Name
-2. Salon Services offered (e.g., Haircuts, Coloring, Styling, Nails, Balayage)
-3. Owner's Name & Contact Details
-
-Be encouraging, warm, professional, concise, and helpful! Advise them they can also click the "Continue with Google" button above for instant 1-Click calendar connection!`,
+1. Business/Salon Name & Location
+2. Website URL / Sitemap or PDF Price List
+3. Booking Operational Mode`,
       };
     } else {
       const { data: chatbot, error: chatbotError } = await supabaseAdmin
@@ -333,11 +331,11 @@ ${currentFloStep === 'STEP 3 (INGESTION)' ? 'Business identity/location is confi
 
 CRITICAL CONVERSATIONAL LAWS:
 1. NEVER REPEAT GREETINGS: Do not say "Welcome to StyleFlo!" or re-introduce yourself.
-2. NO RE-ASKING FOR EMAIL: Email is ALREADY CONFIRMED (${detectedEmail || 'on file'}). You are STRICTLY FORBIDDEN from asking for email address or Google signup again!
-3. ZERO RE-PROMPTING ON QUESTIONS: If the user asks a question like "how do i add my password", answer concisely in 1 sentence, and then IMMEDIATELY execute the CURRENT STEP TASK.
-4. NO DUPLICATE CODES OR LINKS: Never generate a second resumption code or re-send the magic link if already sent.
-5. LINEAR PROGRESSION: Advance smoothly through Step 1 ➔ Step 2 ➔ Step 3 ➔ Step 4 ➔ Step 5.
-6. CHAT INPUT ONLY (NO SEPARATE EMAIL BOX): There is NO separate email box or form fields on the page. Instruct users to type their email address directly into this chat box (where it says "Type your message..."), or click the "Continue with Google" button at the top of the chat window! NEVER refer to a separate "email box" or "on-screen box".`
+2. ABSOLUTE BAN ON RE-ASKING FOR EMAIL / SIGNUP: ${detectedEmail ? `The user's email is CONFIRMED as ${detectedEmail}. You are STRICTLY FORBIDDEN from asking for an email address, asking whether they prefer Google or email, or mentioning sign-up ever again!` : 'Ask whether they prefer to sign up with Google or by typing their email into this chat.'}
+3. PAUSE / LATER REQUESTS: If the user says they want to do this later, pause, or resume, reassure them in 1 warm sentence that their progress is saved and they can use their magic link anytime to log in! DO NOT ask for email or Google sign-in.
+4. ZERO RE-PROMPTING ON QUESTIONS: If the user asks a question, answer concisely in 1 sentence, then execute ONLY the CURRENT STEP TASK.
+5. NO DUPLICATE CODES OR LINKS: Never generate a second resumption code or re-send the magic link if already sent.
+6. LINEAR PROGRESSION: Advance smoothly through Step 1 ➔ Step 2 ➔ Step 3 ➔ Step 4 ➔ Step 5.`
       : `You are a friendly, conversational AI customer support assistant representing "${businessName}".
 Use ONLY the following context to answer the user's query about "${businessName}". 
 If you do not know the answer, politely state that you represent "${businessName}" and ask them to drop their email or phone number so a human agent can follow up.
