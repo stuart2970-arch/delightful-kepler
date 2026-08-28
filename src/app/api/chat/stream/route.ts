@@ -257,28 +257,69 @@ Be encouraging, warm, professional, concise, and helpful! Advise them they can a
 
     const chatHistory = recentHistory ? recentHistory.reverse() : [];
 
+    // Analyze FloBot state memory from transcript
+    const fullHistoryText = chatHistory.map((m: any) => typeof m.content === 'string' ? m.content : JSON.stringify(m.content)).join('\n');
+    const emailMatch = fullHistoryText.match(/[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/);
+    const detectedEmail = emailMatch ? emailMatch[0] : null;
+
+    const codeMatch = fullHistoryText.match(/FLO-\d{4}/i);
+    const detectedCode = codeMatch ? codeMatch[0].toUpperCase() : null;
+
+    const hasIdentity = /liverpool|halewood|manchester|london|miles|city|radius|dogs|salon|barber|clinic|studio/i.test(fullHistoryText) && (detectedEmail !== null || fullHistoryText.toLowerCase().includes('email'));
+
+    let currentFloStep = 'STEP 1 (ENROLLMENT)';
+    if (detectedEmail && hasIdentity) {
+      currentFloStep = 'STEP 3 (INGESTION)';
+    } else if (detectedEmail) {
+      currentFloStep = 'STEP 2 (IDENTITY)';
+    }
+
+    let generatedMagicLink = '';
+    if (chatbotId === 'styleflo-onboarding-flobot' && detectedEmail) {
+      try {
+        const { data: linkRes } = await supabaseAdmin.auth.admin.generateLink({
+          type: 'magiclink',
+          email: detectedEmail,
+          options: {
+            redirectTo: 'https://app.styleflo.ai/dashboard',
+          }
+        });
+        if (linkRes?.properties?.action_link) {
+          generatedMagicLink = linkRes.properties.action_link;
+        }
+      } catch (err) {
+        console.error('Failed to generate magic link for FloBot:', err);
+      }
+    }
+
     // 8. Build prompt and historical message messages array
     const systemPrompt = chatbotId === 'styleflo-onboarding-flobot'
       ? `You are Flo, the official AI registration assistant for StyleFlo.
 Your goal is to smoothly guide new business owners through account creation and setting up their AI Receptionist in under 60 seconds.
 
-CRITICAL CONVERSATIONAL RULES:
-1. NEVER REPEAT GREETINGS: Do not say "Welcome to StyleFlo!" or re-introduce yourself after the initial message.
-2. NEVER ASK THE SAME QUESTION TWICE: Pay close attention to previous turns in the chat transcript. If the user already selected "email" or "google", or provided their business details, DO NOT re-ask or re-prompt for signup method.
-3. SINGLE RESUMPTION CODE: Generate EXACTLY ONE resumption code (e.g., FLO-4921) when email signup is selected. NEVER generate a second resumption code (e.g. FLO-3921) in the same chat!
-4. LINEAR PROGRESSION: Maintain a natural, fluid conversation without looping back.
+CONVERSATION STATE MEMORY:
+- CURRENT ACTIVE ONBOARDING STEP: ${currentFloStep}
+${detectedEmail ? `- CONFIRMED USER EMAIL: ${detectedEmail} (DO NOT ASK FOR EMAIL OR SIGNUP METHOD AGAIN!)` : ''}
+${generatedMagicLink ? `- INSTANT ACCOUNT MAGIC LINK: Include this link in your turn so the user can sign in instantly: [🚀 1-Click Instant Login Link](${generatedMagicLink})` : ''}
+${detectedCode ? `- ASSIGNED RESUMPTION CODE: ${detectedCode} (DO NOT GENERATE A NEW RESUMPTION CODE!)` : ''}
+${hasIdentity ? `- LOCATION & IDENTITY CONFIRMED (DO NOT ask for location or business name again!)` : ''}
 
-Linear Onboarding Pipeline:
-- STEP 1 (ENROLLMENT):
-  - Initial greeting: "Hi, I'm Flo, your AI registration assistant! Tell me, would you prefer to sign up using your Google account or an email address? (The Google sign-in button is at the top of this chat, or pass me your email address to get started!)"
-  - If user chooses Google: Remind them to click the "Continue with Google" button above.
-  - If user chooses Email: Acknowledge their choice, ask for their email address (if not yet provided), and generate their single resumption code (e.g. "Great! Your secure resumption code is FLO-4921. What email address should we use?").
-- STEP 2 (IDENTITY): Once email/identity is confirmed, confirm Google Places details (location & operating hours) OR ask for their City and service radius in miles.
-- STEP 3 (INGESTION): Request their website URL/sitemap for automated knowledge ingestion OR option to upload a PDF price list / FAQ text.
-- STEP 4 (LOGISTICS): Ask which booking operational mode fits best (Single Calendar, Multi Staff, Walk-In, or External Link).
-- STEP 5 (LAUNCH): Congratulate them, provide their live testing link (https://styleflo.ai/business/[business-slug]), and invite them to test their bot before redirecting to the StyleFlo Dashboard!
+CRITICAL CONVERSATIONAL LAWS:
+1. NEVER REPEAT GREETINGS: Do not say "Welcome to StyleFlo!" or re-introduce yourself.
+2. INSTANT ACCOUNT CREATION & MAGIC LINK: As soon as the user provides an email address, acknowledge account creation, include the Instant Login Magic Link above, and immediately move to ${currentFloStep}.
+3. STICK TO ${currentFloStep}: You are STRICTLY FORBIDDEN from asking whether they want to sign up with Google or Email. Email is ALREADY CONFIRMED (${detectedEmail || 'on file'}).
+4. ZERO RE-PROMPTING ON QUESTIONS: If the user asks a question like "how do i add my password", answer concisely (e.g., "We use passwordless sign-in with secure email links, so no password is required! Click your instant login link above to complete setup."), and then IMMEDIATELY continue with ${currentFloStep}.
+5. NO DUPLICATE CODES: Never generate a second resumption code.
+6. LINEAR PROGRESSION: Advance smoothly through Step 1 ➔ Step 2 ➔ Step 3 ➔ Step 4 ➔ Step 5.
 
-User State: ${clientName ? `Signed in as ${clientName}` : 'Guest visitor'}`
+Onboarding Pipeline Overview:
+- STEP 1 (ENROLLMENT): Sign-up method selection & email capture.
+- STEP 2 (IDENTITY): Business location/city & service radius confirmation.
+- STEP 3 (INGESTION): Website URL / sitemap discovery OR PDF price list / FAQ text upload.
+- STEP 4 (LOGISTICS): Booking operational mode selection (Single Calendar, Multi Staff, Walk-In, or External Link).
+- STEP 5 (LAUNCH): Direct live testing link (https://styleflo.ai/business/[business-slug]) and Dashboard redirection!
+
+User Session State: ${clientName ? `Signed in as ${clientName}` : 'Guest visitor'}`
       : `You are a friendly, conversational AI customer support assistant representing "${businessName}".
 Use ONLY the following context to answer the user's query about "${businessName}". 
 If you do not know the answer, politely state that you represent "${businessName}" and ask them to drop their email or phone number so a human agent can follow up.
