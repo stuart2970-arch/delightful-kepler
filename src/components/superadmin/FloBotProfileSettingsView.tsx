@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 
 type FloBotConfig = {
   name?: string;
@@ -10,8 +10,21 @@ type FloBotConfig = {
   avatarUrl?: string | null;
   welcomeMessage?: string;
   voiceId?: string | null;
+  voiceName?: string | null;
   voiceEnabled?: boolean;
   systemPrompt?: string;
+};
+
+type VoicePersona = {
+  id: string;
+  external_voice_id?: string;
+  name: string;
+  role?: string;
+  gender?: string;
+  nationality?: string;
+  provider?: string;
+  previewUrl?: string;
+  preview_url?: string;
 };
 
 export default function FloBotProfileSettingsView({
@@ -26,13 +39,66 @@ export default function FloBotProfileSettingsView({
   const [welcomeMessage, setWelcomeMessage] = useState(
     initialConfig?.welcomeMessage || "Hi, I'm Flo! I'm your StyleFlo AI assistant builder. Let's create your account and get your AI receptionist ready in under 60 seconds!"
   );
-  const [voiceId, setVoiceId] = useState(initialConfig?.voiceId || '');
+  
   const [voiceEnabled, setVoiceEnabled] = useState(initialConfig?.voiceEnabled ?? false);
+  const [voiceId, setVoiceId] = useState(initialConfig?.voiceId || '');
+  const [voiceName, setVoiceName] = useState(initialConfig?.voiceName || '');
   const [systemPrompt, setSystemPrompt] = useState(initialConfig?.systemPrompt || '');
   
+  const [personas, setPersonas] = useState<VoicePersona[]>([]);
+  const [selectedPersonaId, setSelectedPersonaId] = useState<string>('');
+  const [isLoadingPersonas, setIsLoadingPersonas] = useState(false);
+
   const [isSaving, setIsSaving] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
+
+  // Fetch Voice Personas from /api/voice-personas
+  useEffect(() => {
+    async function loadPersonas() {
+      setIsLoadingPersonas(true);
+      try {
+        const res = await fetch('/api/voice-personas');
+        if (res.ok) {
+          const data = await res.json();
+          setPersonas(data || []);
+          
+          // Match initial voice ID if available
+          if (initialConfig?.voiceId) {
+            const match = data.find((p: VoicePersona) => p.id === initialConfig.voiceId || p.external_voice_id === initialConfig.voiceId);
+            if (match) {
+              setSelectedPersonaId(match.id);
+              if (!initialConfig.voiceName) {
+                setVoiceName(match.name);
+              }
+            }
+          }
+        }
+      } catch (err) {
+        console.error('Failed to load voice personas:', err);
+      } finally {
+        setIsLoadingPersonas(false);
+      }
+    }
+    loadPersonas();
+  }, [initialConfig]);
+
+  const handlePersonaSelect = (e: React.ChangeEvent<HTMLSelectElement>) => {
+    const pId = e.target.value;
+    setSelectedPersonaId(pId);
+    if (!pId) {
+      setVoiceId('');
+      setVoiceName('');
+      return;
+    }
+
+    const persona = personas.find(p => p.id === pId);
+    if (persona) {
+      const vId = persona.external_voice_id || persona.id;
+      setVoiceId(vId);
+      setVoiceName(persona.name);
+    }
+  };
 
   const handleAvatarUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -76,6 +142,7 @@ export default function FloBotProfileSettingsView({
         avatarUrl: avatarUrl || null,
         welcomeMessage,
         voiceId: voiceId || null,
+        voiceName: voiceName || null,
         voiceEnabled,
         systemPrompt: systemPrompt || undefined,
       };
@@ -89,13 +156,15 @@ export default function FloBotProfileSettingsView({
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Failed to update FloBot settings');
 
-      setMessage({ type: 'success', text: 'FloBot Onboarding Profile updated successfully!' });
+      setMessage({ type: 'success', text: 'FloBot Onboarding Profile & Voice Persona updated successfully!' });
     } catch (err: any) {
       setMessage({ type: 'error', text: err?.message || 'Failed to save FloBot settings' });
     } finally {
       setIsSaving(false);
     }
   };
+
+  const activePersona = personas.find(p => p.id === selectedPersonaId || p.external_voice_id === voiceId);
 
   return (
     <div className="bg-gray-900 border border-gray-800 p-6 rounded-2xl shadow-xl space-y-6">
@@ -105,7 +174,7 @@ export default function FloBotProfileSettingsView({
             <span>⚡</span> FloBot Onboarding Profile & Voice Settings
           </h2>
           <p className="text-xs text-gray-400 mt-1">
-            Customize the system-wide onboarding FloBot assistant picture, voice, role, and welcome greeting across styleflo.ai/onboard.
+            Customize the system-wide onboarding FloBot assistant picture, StyleFlo Voice Persona, role, and welcome greeting across styleflo.ai/onboard.
           </p>
         </div>
         <div className="flex items-center gap-3">
@@ -225,12 +294,14 @@ export default function FloBotProfileSettingsView({
           />
         </div>
 
-        {/* Voice Customization */}
-        <div className="bg-gray-950/50 p-4 rounded-xl border border-gray-800 space-y-4">
+        {/* StyleFlo Voice Persona Selection */}
+        <div className="bg-gray-950/50 p-5 rounded-xl border border-gray-800 space-y-4">
           <div className="flex items-center justify-between">
             <div>
-              <h3 className="text-xs font-bold text-white">Voice Conversation Settings</h3>
-              <p className="text-[11px] text-gray-400">Enable voice calls or speech synthesis for FloBot</p>
+              <h3 className="text-sm font-bold text-white flex items-center gap-2">
+                <span>🎙️</span> StyleFlo Voice Persona & Speech Settings
+              </h3>
+              <p className="text-[11px] text-gray-400 mt-0.5">Select a pre-recorded UK voice persona or enter a custom Vapi Voice ID</p>
             </div>
             <label className="relative inline-flex items-center cursor-pointer">
               <input
@@ -244,15 +315,65 @@ export default function FloBotProfileSettingsView({
           </div>
 
           {voiceEnabled && (
-            <div>
-              <label className="block text-xs font-semibold text-gray-300 mb-1.5">Vapi / Voice Persona ID</label>
-              <input
-                type="text"
-                value={voiceId}
-                onChange={(e) => setVoiceId(e.target.value)}
-                placeholder="e.g. 21m00Tcm4TlvDq8ikWAM or vapi-voice-id"
-                className="w-full bg-gray-950 border border-gray-800 rounded-xl px-3 py-2 text-xs text-white font-mono placeholder-gray-600 focus:outline-none focus:border-indigo-500"
-              />
+            <div className="space-y-4 pt-2 border-t border-gray-800">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {/* Voice Persona Dropdown */}
+                <div>
+                  <label className="block text-xs font-semibold text-gray-300 mb-1.5">
+                    Select Voice Persona {isLoadingPersonas && '(Loading...)'}
+                  </label>
+                  <select
+                    value={selectedPersonaId}
+                    onChange={handlePersonaSelect}
+                    className="w-full bg-gray-950 border border-gray-800 rounded-xl px-3 py-2.5 text-xs text-white focus:outline-none focus:border-indigo-500"
+                  >
+                    <option value="">-- Custom / Manual Voice ID --</option>
+                    {personas.map((p) => (
+                      <option key={p.id} value={p.id}>
+                        {p.name} ({p.gender || 'Voice'}, {p.nationality || 'GB'})
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                {/* Custom Voice Name */}
+                <div>
+                  <label className="block text-xs font-semibold text-gray-300 mb-1.5">Custom Voice Label / Name</label>
+                  <input
+                    type="text"
+                    value={voiceName}
+                    onChange={(e) => setVoiceName(e.target.value)}
+                    placeholder="e.g. Flo's British Receptionist Voice"
+                    className="w-full bg-gray-950 border border-gray-800 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-indigo-500"
+                  />
+                </div>
+              </div>
+
+              {/* Vapi External Voice ID */}
+              <div>
+                <label className="block text-xs font-semibold text-gray-300 mb-1.5">Vapi External Voice ID</label>
+                <input
+                  type="text"
+                  value={voiceId}
+                  onChange={(e) => setVoiceId(e.target.value)}
+                  placeholder="e.g. c8MZcZcr0JnMAwkwnTIu or vapi-voice-id"
+                  className="w-full bg-gray-950 border border-gray-800 rounded-xl px-3 py-2 text-xs text-white font-mono placeholder-gray-600 focus:outline-none focus:border-indigo-500"
+                />
+              </div>
+
+              {/* Audio Preview Player */}
+              {activePersona && (activePersona.preview_url || activePersona.previewUrl) && (
+                <div className="bg-gray-900 p-3 rounded-xl border border-gray-800 space-y-2">
+                  <p className="text-[11px] font-semibold text-indigo-400 flex items-center gap-1.5">
+                    🔊 Audio Recording Sample: <span className="text-white font-bold">{activePersona.name}</span>
+                  </p>
+                  <audio 
+                    controls 
+                    src={activePersona.preview_url || activePersona.previewUrl} 
+                    className="w-full h-8" 
+                  />
+                </div>
+              )}
             </div>
           )}
         </div>
