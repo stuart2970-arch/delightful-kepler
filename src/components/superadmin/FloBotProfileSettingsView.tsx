@@ -37,7 +37,7 @@ export default function FloBotProfileSettingsView({
   const [primaryColor, setPrimaryColor] = useState(initialConfig?.primaryColor || '#260475');
   const [avatarUrl, setAvatarUrl] = useState(initialConfig?.avatarUrl || '');
   const [welcomeMessage, setWelcomeMessage] = useState(
-    initialConfig?.welcomeMessage || "Hi, I'm Flo! I'm your StyleFlo AI assistant builder. Let's create your account and get your AI receptionist ready in under 60 seconds!"
+    initialConfig?.welcomeMessage || "Hi, I'm Flo, your AI registration assistant! Tell me, would you prefer to sign up using your Google account or an email address? (The Google sign-in button is at the top of this chat, or pass me your email address to get started!)"
   );
   
   const [voiceEnabled, setVoiceEnabled] = useState(initialConfig?.voiceEnabled ?? false);

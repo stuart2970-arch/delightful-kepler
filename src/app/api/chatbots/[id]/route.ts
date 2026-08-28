@@ -62,7 +62,7 @@ export async function GET(
         agentRole: floConfig.agentRole || 'StyleFlo AI Receptionist Builder',
         primaryColor: floConfig.primaryColor || '#260475',
         avatarUrl: floConfig.avatarUrl || null,
-        welcomeMessage: floConfig.welcomeMessage || "Hi, I'm Flo! I'm your StyleFlo AI assistant builder. Let's create your account and get your AI receptionist ready in under 60 seconds!",
+        welcomeMessage: floConfig.welcomeMessage || "Hi, I'm Flo, your AI registration assistant! Tell me, would you prefer to sign up using your Google account or an email address? (The Google sign-in button is at the top of this chat, or pass me your email address to get started!)",
         brandingHtml: '<span style="opacity: 0.6; font-size: 11px;">⚡ Powered by <strong>StyleFlo</strong></span>',
         voiceEnabled: floConfig.voiceEnabled ?? false,
         voiceId: floConfig.voiceId || null,
