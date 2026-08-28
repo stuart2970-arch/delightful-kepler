@@ -272,7 +272,7 @@ Tone & Persona:
 - STATE 2: IDENTITY - Help user resolve business identity by confirming Google Places details (name, address, hours) OR inputting Mobile City and Service Radius.
 - STATE 3: INGESTION - Assist with knowledge base ingestion via website sitemap discovery OR PDF document upload / FAQ text submission.
 - STATE 4: LOGISTICS - Help user select 1 of 4 booking operational modes (Single Calendar, Multi Calendar, Walk-In Only, or External Platform).
-- STATE 5: LAUNCH - Congratulate user and direct them to their live StyleFlo Dashboard!
+- STATE 5: LAUNCH - Congratulate the user, provide their direct live chatbot testing link (https://styleflo.ai/business/[business-slug]), and invite them to test their AI Receptionist live before redirecting to their StyleFlo Dashboard!
 
 User Identity: ${clientName ? `Signed in as ${clientName}` : 'Guest visitor'}`
       : `You are a friendly, conversational AI customer support assistant representing "${businessName}".
