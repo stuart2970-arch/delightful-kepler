@@ -255,7 +255,41 @@ CRITICAL SCHEDULING RULES FOR VOICE CALLS:
       ? `\n\nMANDATORY BUSINESS RULES:\nYou MUST strictly adhere to and enforce all of the following rules set by the business in your spoken response:\n${chatbotRules.map((r, i) => `${i + 1}. ${r}`).join('\n')}`
       : '';
 
-    const systemPromptHeader = `You are a friendly, conversational AI phone representative speaking on behalf of "${businessName}".
+    // Analyze FloBot state memory from transcript
+    const fullVoiceText = messages.map((m: any) => typeof m.content === 'string' ? m.content : JSON.stringify(m.content)).join('\n');
+    const vEmailMatch = fullVoiceText.match(/[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/);
+    const vDetectedEmail = vEmailMatch ? vEmailMatch[0] : null;
+
+    const vCodeMatch = fullVoiceText.match(/FLO-\d{4}/i);
+    const vDetectedCode = vCodeMatch ? vCodeMatch[0].toUpperCase() : null;
+
+    const vHasIdentity = /liverpool|halewood|manchester|london|miles|city|radius|dogs|salon|barber|clinic|studio/i.test(fullVoiceText) && (vDetectedEmail !== null || fullVoiceText.toLowerCase().includes('email'));
+
+    let currentFloVoiceStep = 'STEP 1 (ENROLLMENT)';
+    if (vDetectedEmail && vHasIdentity) {
+      currentFloVoiceStep = 'STEP 3 (INGESTION)';
+    } else if (vDetectedEmail) {
+      currentFloVoiceStep = 'STEP 2 (IDENTITY)';
+    }
+
+    const systemPromptHeader = chatbotId === 'styleflo-onboarding-flobot'
+      ? `You are Flo, the official AI registration assistant for StyleFlo.
+Write in a natural, warm, spoken conversational tone. Speak clearly and concisely. DO NOT use markdown formatting, asterisks, or special characters.
+
+CONVERSATION STATE MEMORY:
+- CURRENT ACTIVE ONBOARDING STEP: ${currentFloVoiceStep}
+${vDetectedEmail ? `- CONFIRMED USER EMAIL: ${vDetectedEmail} (DO NOT ASK FOR EMAIL OR SIGNUP METHOD AGAIN!)` : ''}
+${vDetectedCode ? `- ASSIGNED RESUMPTION CODE: ${vDetectedCode} (DO NOT GENERATE A NEW RESUMPTION CODE!)` : ''}
+${vHasIdentity ? `- LOCATION & IDENTITY CONFIRMED (DO NOT ask for location or business name again!)` : ''}
+
+CRITICAL SPOKEN LAWS:
+1. NEVER REPEAT GREETINGS: Do not say "Welcome to StyleFlo!" or re-introduce yourself.
+2. STICK TO ${currentFloVoiceStep}: You are STRICTLY FORBIDDEN from asking whether they want to sign up with Google or Email.
+3. ZERO RE-PROMPTING ON QUESTIONS: If the caller asks a question like "how do i add my password", answer concisely (e.g., "We use passwordless sign-in with secure email codes, so no password is required!"), and then IMMEDIATELY continue with ${currentFloVoiceStep}.
+4. NO DUPLICATE CODES: Never generate a second resumption code.
+5. LINEAR PROGRESSION: Advance smoothly through Step 1 ➔ Step 2 ➔ Step 3 ➔ Step 4 ➔ Step 5.
+6. CHAT INPUT ONLY (NO SEPARATE EMAIL BOX): Tell callers to simply type their email address right into our chat box where it says "Type your message...", or click "Continue with Google" at the top of the chat window! Never refer to an on-screen email form.`
+      : `You are a friendly, conversational AI phone representative speaking on behalf of "${businessName}".
 Write in a natural, warm, spoken conversational tone. Speak clearly and concisely.
 DO NOT use markdown formatting, asterisks, bullet points, or special characters. Speak naturally in plain text.${voiceRulesSection}
 
