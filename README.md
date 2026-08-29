@@ -780,9 +780,27 @@ ame, irstMessage, and 	ranscriber) rather than relying on ssistantOverrides de
 * **User**: "One for the backlog we will need to add functionality to show the user that rules have been saved, there is no indication of this at present"
   * **Fix**: Implemented high-visibility saved confirmation feedback in `KnowledgeBaseView.tsx`. Added a green alert banner (`✓ Chatbot rules saved successfully!`), active rules counter, and dynamic button feedback (`✓ Rules Saved!` with green background highlights for 3s). Committed (`c457371`) and pushed to `main`.
 
-
-
-
+### Session 12 (August 28, 2026) - Onboarding FloBot Enhancements, Avatar Controls & Widget File Attachments
+* **User**: "continue with google button is not working on styleflo,ai/onboard where do i need to include this url, is it supabase or googlw cloud"
+  * **Fix**: Updated `src/app/onboard/page.tsx` with `skipBrowserRedirect: true` and `window.top.location.href = data.url` to handle Google OAuth top-window redirects safely inside embedded iframes.
+* **User**: "Repetition will drive users away, if we ask for an email address, we should open the account and add the magic link to the chat straigfht away"
+  * **Fix**: Integrated automatic Supabase Auth magic link generation (`supabaseAdmin.auth.admin.generateLink`) upon email capture in `src/app/api/chat/stream/route.ts`. Injected the 1-Click Instant Login Link directly into FloBot's response.
+* **User**: "i can add an icon in the dashboard but its not displaying on the webpage, also, there is nowhere i can change the avatar of the bot"
+  * **Fix**: 
+    1. Updated `src/app/onboard/page.tsx` to dynamically fetch FloBot's configuration (`/api/chatbots/styleflo-onboarding-flobot`) and render the bot's avatar image in the top-left header bar.
+    2. Unified `agentAvatarUrl` property resolution across `src/app/api/chatbots/[id]/route.ts`, `src/widget/embed.ts`, and `src/widget/index.ts`.
+    3. Added a prominent `📷 Avatar` action button directly on active chatbot cards in `ChatbotManagerView.tsx` that jumps straight to Step 3 (16 presets + 1:1 custom uploader) and made step tabs interactive for easy editing.
+* **User**: "The bot keeps asking me to add my email... Not very intelligent... Oops it happened again..."
+  * **Fix**: Diagnosed and resolved the root cause of FloBot losing state memory across turns:
+    1. Removed a legacy check (`if (chatbotId !== 'styleflo-onboarding-flobot')`) in `src/app/api/chat/stream/route.ts` that was bypassing database message insertion. All onboarding messages are now persisted into Supabase `messages` table and fetched on subsequent turns (`dbHistory`).
+    2. Refined `hasIdentity` regex to strip out `detectedEmail` strings before checking keywords (preventing emails like `dannis.dogs@gmail.com` from false-triggering identity detection) and ignore general questions like "can i do that later" or "what else can i do now".
+    3. Enforced an absolute ban in FloBot system prompts (`Law #2` & `Law #3`) against ever re-asking for email or Google sign-in once email is confirmed, and added a warm pause handler reassuring users that their progress is saved.
+* **User**: "Now, let's train your AI Receptionist! Please provide your website URL... Can you upload a pdf in the chat, there is no paperclip to look for a file on your device"
+  * **Fix**: 
+    1. Added an interactive Paperclip file attachment icon (`#styleflo-attach-btn`) directly inside the chat input bar in `src/widget/embed.ts` and `src/widget/index.ts`.
+    2. Connected file attachments to `/api/ingest/file` supporting `.pdf`, `.doc`, `.docx`, `.txt`, `.csv`, and image uploads.
+    3. Updated `/api/ingest/file/route.ts` to allow `styleflo-onboarding-flobot` file uploads during initial onboarding.
+    4. Updated FloBot prompt instructions to inform users: *"Please provide your website URL/sitemap OR click the paperclip icon (📎) right next to this chat box to attach your PDF price list or service menu!"*
 
 
 
