@@ -802,5 +802,22 @@ ame, irstMessage, and 	ranscriber) rather than relying on ssistantOverrides de
     3. Updated `/api/ingest/file/route.ts` to allow `styleflo-onboarding-flobot` file uploads during initial onboarding.
     4. Updated FloBot prompt instructions to inform users: *"Please provide your website URL/sitemap OR click the paperclip icon (📎) right next to this chat box to attach your PDF price list or service menu!"*
 
+### Session 13 (August 29, 2026) - FloBot Front Onboarding Gate & Interactive Task Selection
+* **User**: "That did not work, the user has already supplied their email either from google or from the form. we must not repeat ourselves. Back to the options, after the user has continued with google, or added their email manually, you next question must be 'Does your business have a website?' with options yes or no. If the user selects yes, ask 'please add your website address below.' if No is selected, you must ask 'Is your business listed on google maps?' with Yes or No options"
+  * **Fix**: Built the Front Onboarding Gate and Interactive Website/Google Maps Onboarding Flow:
+    1. **Front Onboarding Gate (`embed.ts` & `index.ts`)**: Displayed prominent "Continue with Google" button, Full Name input (`*`), Email Address input (`*`), and Terms of Service & Privacy Policy Checkbox (`*`).
+    2. **Strict Email Memory Enforcement (`route.ts`)**: Passed `clientEmail` in POST body. Enforced absolute ban in system prompt against ever re-asking for email or Google sign-in once user passes the front gate.
+    3. **Personalized Welcome & Website Question**: Formatted greeting to: `"Hi [First Name], thats the hard bit out of the way! Does your business have a website?"`.
+    4. **Interactive Choice Buttons (`Yes` / `No`)**:
+       - Rendered `🌐 Yes, we have a website` / `❌ No` option buttons.
+       - **If Yes**: FloBot simply requests `"Great! Please add your website address below."`.
+       - **Passwordless Magic Link Authentication Route (`/api/auth/magic-link`)**: Created a dedicated backend API route that generates instant Supabase Magic Links for new and existing users. When the user clicks **`🚀 Go to Your Dashboard`**, the widget calls this route, logs the user in automatically, and lands them directly inside `/dashboard` without ever needing to enter a password or visit `/login`.
+       - **Dashboard Password Setup Banner Component (`SetPasswordBanner.tsx`)**: Rendered a banner at the top of `/dashboard` allowing passwordless users to set a password in 5 seconds. Submitting calls `supabase.auth.updateUser({ password })` and saves `styleflo_password_set` in `localStorage`.
+       - **If No**: FloBot asks `"Is your business listed on Google Maps?"` with `📍 Yes, listed on Google Maps` / `❌ No` options (triggered deterministically via `[GMAPS_OPTIONS]` after message stream completes to ensure buttons always appear below the question bubble).
+       - **If Google Maps Yes**: FloBot asks for Business Name & Location to fetch profile details.
+       - **If Google Maps No**: FloBot asks for Business Name & Location for manual setup.
+    5. **Build & Bundling**: Recompiled widget assets (`npm run build:widget`).
+
+
 
 

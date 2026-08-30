@@ -320,31 +320,59 @@ import Vapi from '@vapi-ai/web';
 
       <!-- Onboarding Area -->
       <div id="styleflo-onboarding" class="flex-1 flex flex-col items-center justify-center p-6 bg-gray-50 text-center" style="display: none; overflow-y: auto;">
-        <div class="w-16 h-16 shrink-0 rounded-full flex items-center justify-center mb-4 text-white shadow-lg" style="background-color: ${primaryColor};">
-          <svg class="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14.828 14.828a4 4 0 01-5.656 0M9 10h.01M15 10h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+        <h4 class="font-bold text-gray-900 text-lg mb-1 shrink-0">Welcome to StyleFlo AI</h4>
+        <p class="text-gray-500 text-xs mb-4 shrink-0">Let's build your AI receptionist in 60 seconds</p>
+
+        <!-- Google OAuth Button -->
+        <button
+          type="button"
+          id="styleflo-google-btn"
+          class="w-full py-3 px-4 mb-3 rounded-xl shadow-md flex items-center justify-center gap-2.5 transition-all cursor-pointer"
+          style="background-color: #260475 !important; color: #ffffff !important; font-weight: 700; font-size: 14px;"
+        >
+          <svg class="w-5 h-5 bg-white rounded-full p-0.5" viewBox="0 0 24 24">
+            <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" />
+            <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" />
+            <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.63z" />
+            <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z" />
           </svg>
+          <span style="color: #ffffff !important; font-weight: 700;">Continue with Google</span>
+        </button>
+
+        <div class="w-full flex items-center my-3 text-gray-400 text-xs">
+          <div class="flex-1 border-t border-gray-200"></div>
+          <span class="px-3 font-medium text-[11px] uppercase tracking-wider text-gray-400">or enter details</span>
+          <div class="flex-1 border-t border-gray-200"></div>
         </div>
-        <h4 class="font-bold text-gray-800 text-lg mb-2 shrink-0">Welcome!</h4>
-        <p class="text-gray-500 text-sm mb-4 shrink-0">Please enter your name to start.</p>
-        
-        ${globalVoiceDisclaimer ? `
-          <div class="w-full bg-blue-50/50 border border-blue-100 p-3 rounded-xl mb-4 text-left">
-            <p class="text-xs text-blue-900/80 leading-relaxed">${globalVoiceDisclaimer}</p>
-          </div>
-        ` : ''}
 
         <form id="styleflo-onboarding-form" class="w-full shrink-0">
-          <input type="text" id="styleflo-onboarding-name" required placeholder="Name" class="w-full px-4 py-3 mb-3 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:border-transparent transition-all" style="--tw-ring-color: ${primaryColor};" />
-          
-          ${globalVoiceDisclaimer ? `
-          <div class="flex items-start gap-2 mb-4 text-left">
-            <input type="checkbox" id="styleflo-disclaimer-accept" required class="mt-1" />
-            <label for="styleflo-disclaimer-accept" class="text-xs text-gray-600">I have read and accept the disclaimer above.</label>
-          </div>
-          ` : ''}
+          <input
+            type="text"
+            id="styleflo-onboarding-name"
+            required
+            placeholder="Full Name *"
+            class="w-full px-4 py-3 mb-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:border-transparent transition-all"
+            style="--tw-ring-color: ${primaryColor};"
+          />
+          <input
+            type="email"
+            id="styleflo-onboarding-email"
+            required
+            placeholder="Email Address *"
+            class="w-full px-4 py-3 mb-3 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:border-transparent transition-all"
+            style="--tw-ring-color: ${primaryColor};"
+          />
 
-          <button type="submit" class="w-full py-3 rounded-xl text-white font-semibold shadow-md transition-opacity hover:opacity-95" style="background-color: ${primaryColor};">Start Chatting</button>
+          <div class="flex items-start gap-2 mb-4 text-left">
+            <input type="checkbox" id="styleflo-disclaimer-accept" required class="mt-0.5 cursor-pointer" />
+            <label for="styleflo-disclaimer-accept" style="font-size: 10px; color: #9ca3af; line-height: 1.35;" class="cursor-pointer">
+              I agree to StyleFlo's <a href="https://styleflo.ai/terms-conditions/" target="_blank" style="color: #6b7280; text-decoration: underline; font-weight: 500;">Terms of Service</a> and acknowledge the <a href="https://styleflo.ai/privacy/" target="_blank" style="color: #6b7280; text-decoration: underline; font-weight: 500;">Privacy Policy</a>.
+            </label>
+          </div>
+
+          <button type="submit" class="w-full py-3 rounded-xl text-white font-bold text-sm shadow-md transition-opacity hover:opacity-95 cursor-pointer" style="background-color: ${primaryColor};">
+            Start Onboarding with FloBot ⚡
+          </button>
         </form>
       </div>
 
@@ -424,11 +452,23 @@ import Vapi from '@vapi-ai/web';
     const onboardingContainer = shadowRoot.getElementById('styleflo-onboarding') as HTMLDivElement;
     const onboardingForm = shadowRoot.getElementById('styleflo-onboarding-form') as HTMLFormElement;
     const onboardingName = shadowRoot.getElementById('styleflo-onboarding-name') as HTMLInputElement;
+    const onboardingEmail = shadowRoot.getElementById('styleflo-onboarding-email') as HTMLInputElement | null;
+    const googleBtn = shadowRoot.getElementById('styleflo-google-btn') as HTMLButtonElement | null;
     const vapiBtn = shadowRoot.getElementById('styleflo-vapi-btn') as HTMLButtonElement | null;
     const menuChatBtn = shadowRoot.getElementById('styleflo-menu-chat') as HTMLButtonElement;
     const menuCallBtn = shadowRoot.getElementById('styleflo-menu-call') as HTMLButtonElement;
     const attachBtn = shadowRoot.getElementById('styleflo-attach-btn') as HTMLButtonElement | null;
     const fileInput = shadowRoot.getElementById('styleflo-file-input') as HTMLInputElement | null;
+
+    if (googleBtn) {
+      googleBtn.addEventListener('click', () => {
+        if (typeof window !== 'undefined' && (window as any).stylefloGoogleSignIn) {
+          (window as any).stylefloGoogleSignIn();
+        } else {
+          window.location.href = '/login';
+        }
+      });
+    }
 
     if (attachBtn && fileInput) {
       attachBtn.addEventListener('click', () => fileInput.click());
@@ -470,17 +510,35 @@ import Vapi from '@vapi-ai/web';
     let vapiInstance: Vapi | null = null;
     let isVapiActive = false;
 
+    let storedName = localStorage.getItem('styleflo-client-name');
+    let storedEmail = localStorage.getItem('styleflo-client-email');
+    let disclaimerAccepted = localStorage.getItem('styleflo-disclaimer-accepted');
+
+    function getFirstName(fullName?: string | null): string {
+      if (!fullName) return 'there';
+      const clean = fullName.trim();
+      if (clean.includes('@')) {
+        const part = clean.split('@')[0];
+        return part.charAt(0).toUpperCase() + part.slice(1);
+      }
+      const firstWord = clean.split(' ')[0];
+      return firstWord.charAt(0).toUpperCase() + firstWord.slice(1);
+    }
+
     function getFormattedWelcomeMessage(clientName?: string | null) {
+      if (chatbotId === 'styleflo-onboarding-flobot') {
+        const nameVal = (clientName || storedName || '').trim();
+        const firstName = getFirstName(nameVal);
+        return `Hi ${firstName}, thats the hard bit out of the way! Does your business have a website?`;
+      }
       let msg = welcomeMessage;
       const nameVal = (clientName || storedName || '').trim() || 'there';
       
-      // Replace name placeholders
       msg = msg.replace(/\[Name\]/gi, nameVal);
       msg = msg.replace(/\{Name\}/gi, nameVal);
       msg = msg.replace(/\[ClientName\]/gi, nameVal);
       msg = msg.replace(/\{ClientName\}/gi, nameVal);
       
-      // Replace chatbot name placeholders
       const botVal = agentName || botName || 'our assistant';
       msg = msg.replace(/\[ChatbotName\]/gi, botVal);
       msg = msg.replace(/\{ChatbotName\}/gi, botVal);
@@ -490,52 +548,277 @@ import Vapi from '@vapi-ai/web';
       return msg;
     }
 
-    // Check for existing name in localStorage
-    let storedName = localStorage.getItem('styleflo-client-name');
-    let disclaimerAccepted = localStorage.getItem('styleflo-disclaimer-accepted');
-    
+    function renderTaskButtons() {
+      if (chatbotId !== 'styleflo-onboarding-flobot') return;
+      if (shadowRoot.getElementById('styleflo-onboarding-tasks')) return;
+
+      const tasksContainer = document.createElement('div');
+      tasksContainer.id = 'styleflo-onboarding-tasks';
+      tasksContainer.className = 'flex flex-wrap gap-2.5 w-full pt-1 pl-9';
+      tasksContainer.innerHTML = `
+        <button type="button" class="styleflo-task-btn styleflo-website-yes-btn" style="background-color: #260475 !important; color: #ffffff !important; border: 1px solid #260475 !important; padding: 9px 18px; border-radius: 12px; font-size: 13px; font-weight: 700; cursor: pointer; display: inline-flex; align-items: center; gap: 6px; box-shadow: 0 4px 12px rgba(38, 4, 117, 0.3); transition: all 0.2s ease;" data-choice="yes-website">
+          <span style="font-size: 14px;">🌐</span>
+          <span style="color: #ffffff !important; font-weight: 700;">Yes, we have a website</span>
+        </button>
+        <button type="button" class="styleflo-task-btn styleflo-website-no-btn" style="background-color: #ffffff !important; color: #212326 !important; border: 1px solid #e2e8f0 !important; padding: 9px 18px; border-radius: 12px; font-size: 13px; font-weight: 600; cursor: pointer; display: inline-flex; align-items: center; gap: 6px; box-shadow: 0 1px 3px rgba(0,0,0,0.05); transition: all 0.2s ease;" data-choice="no-website">
+          <span style="font-size: 14px;">❌</span>
+          <span>No</span>
+        </button>
+      `;
+      messagesContainer.appendChild(tasksContainer);
+      messagesContainer.scrollTop = messagesContainer.scrollHeight;
+
+      const choiceBtns = tasksContainer.querySelectorAll('.styleflo-task-btn');
+      choiceBtns.forEach((btn) => {
+        btn.addEventListener('click', () => {
+          const choice = btn.getAttribute('data-choice');
+          tasksContainer.remove();
+          if (choice === 'yes-website') {
+            inputField.value = 'Yes, we have a website.';
+            chatForm.dispatchEvent(new Event('submit'));
+          } else if (choice === 'no-website') {
+            inputField.value = 'No, we do not have a website.';
+            chatForm.dispatchEvent(new Event('submit'));
+          }
+        });
+      });
+    }
+
+    function renderGoogleMapsQuestion() {
+      if (shadowRoot.getElementById('styleflo-onboarding-gmaps')) return;
+
+      const gmapsContainer = document.createElement('div');
+      gmapsContainer.id = 'styleflo-onboarding-gmaps';
+      gmapsContainer.className = 'flex flex-wrap gap-2.5 w-full pt-1 pl-9';
+      gmapsContainer.innerHTML = `
+        <button type="button" class="styleflo-task-btn styleflo-gmaps-yes-btn" style="background-color: #260475 !important; color: #ffffff !important; border: 1px solid #260475 !important; padding: 9px 18px; border-radius: 12px; font-size: 13px; font-weight: 700; cursor: pointer; display: inline-flex; align-items: center; gap: 6px; box-shadow: 0 4px 12px rgba(38, 4, 117, 0.3); transition: all 0.2s ease;" data-choice="yes-gmaps">
+          <span style="font-size: 14px;">📍</span>
+          <span style="color: #ffffff !important; font-weight: 700;">Yes, listed on Google Maps</span>
+        </button>
+        <button type="button" class="styleflo-task-btn styleflo-gmaps-no-btn" style="background-color: #ffffff !important; color: #212326 !important; border: 1px solid #e2e8f0 !important; padding: 9px 18px; border-radius: 12px; font-size: 13px; font-weight: 600; cursor: pointer; display: inline-flex; align-items: center; gap: 6px; box-shadow: 0 1px 3px rgba(0,0,0,0.05); transition: all 0.2s ease;" data-choice="no-gmaps">
+          <span style="font-size: 14px;">❌</span>
+          <span>No</span>
+        </button>
+      `;
+      messagesContainer.appendChild(gmapsContainer);
+      messagesContainer.scrollTop = messagesContainer.scrollHeight;
+
+      const choiceBtns = gmapsContainer.querySelectorAll('.styleflo-task-btn');
+      choiceBtns.forEach((btn) => {
+        btn.addEventListener('click', () => {
+          const choice = btn.getAttribute('data-choice');
+          gmapsContainer.remove();
+          if (choice === 'yes-gmaps') {
+            inputField.value = 'Yes, we are listed on Google Maps.';
+            chatForm.dispatchEvent(new Event('submit'));
+          } else if (choice === 'no-gmaps') {
+            inputField.value = 'No, we are not listed on Google Maps.';
+            chatForm.dispatchEvent(new Event('submit'));
+          }
+        });
+      });
+    }
+
+    function renderRemainingTaskButtons(taskList: string[]) {
+      const existing = shadowRoot.getElementById('styleflo-remaining-tasks');
+      if (existing) existing.remove();
+
+      const tasksContainer = document.createElement('div');
+      tasksContainer.id = 'styleflo-remaining-tasks';
+      tasksContainer.className = 'flex flex-wrap gap-2.5 w-full pt-2 pl-9';
+
+      const taskIcons: Record<string, string> = {
+        'Google Maps Link': '📍',
+        'Google Maps': '📍',
+        'Staff': '👥',
+        'Staff Members': '👥',
+        'Services': '💅',
+        'Booking Tool': '📅',
+        'Appointments': '📅',
+        'Business Name': '🏢',
+        'Location': '📍',
+      };
+
+      tasksContainer.innerHTML = taskList.map((t) => {
+        const cleanTask = t.trim();
+        const icon = taskIcons[cleanTask] || '⚡';
+        return `
+          <button type="button" class="styleflo-task-btn" style="background-color: #ffffff !important; color: #212326 !important; border: 1px solid #e2e8f0 !important; padding: 8px 14px; border-radius: 12px; font-size: 12px; font-weight: 600; cursor: pointer; display: inline-flex; align-items: center; gap: 6px; box-shadow: 0 2px 5px rgba(0,0,0,0.06); transition: all 0.2s ease;" data-task="${cleanTask}">
+            <span>${icon}</span>
+            <span>${cleanTask}</span>
+          </button>
+        `;
+      }).join('');
+
+      messagesContainer.appendChild(tasksContainer);
+      messagesContainer.scrollTop = messagesContainer.scrollHeight;
+
+      const taskBtns = tasksContainer.querySelectorAll('.styleflo-task-btn');
+      taskBtns.forEach((btn) => {
+        btn.addEventListener('click', () => {
+          const taskName = btn.getAttribute('data-task');
+          if (taskName) {
+            tasksContainer.remove();
+            if (taskName.includes('Booking') || taskName.includes('Appointments')) {
+              renderBookingOptions();
+            } else {
+              inputField.value = `I want to discuss our ${taskName}.`;
+              chatForm.dispatchEvent(new Event('submit'));
+            }
+          }
+        });
+      });
+    }
+
+    function renderBookingOptions() {
+      const existing = shadowRoot.getElementById('styleflo-booking-options');
+      if (existing) existing.remove();
+
+      const optionsContainer = document.createElement('div');
+      optionsContainer.id = 'styleflo-booking-options';
+      optionsContainer.className = 'flex flex-col gap-2 w-full pt-2 pl-9';
+      optionsContainer.innerHTML = `
+        <button type="button" class="styleflo-task-btn" style="background-color: #260475 !important; color: #ffffff !important; border: 1px solid #260475 !important; padding: 10px 14px; border-radius: 12px; font-size: 12px; font-weight: 700; cursor: pointer; display: flex; items-center; justify-content: flex-start; gap: 8px; box-shadow: 0 4px 12px rgba(38,4,117,0.25); text-align: left;" data-booking-choice="single">
+          <span>👤</span>
+          <span>Single Staff Member (StyleFlo In-App)</span>
+        </button>
+        <button type="button" class="styleflo-task-btn" style="background-color: #ffffff !important; color: #212326 !important; border: 1px solid #e2e8f0 !important; padding: 9px 14px; border-radius: 12px; font-size: 12px; font-weight: 600; cursor: pointer; display: flex; items-center; justify-content: flex-start; gap: 8px; box-shadow: 0 1px 3px rgba(0,0,0,0.05); text-align: left;" data-booking-choice="multi">
+          <span>👥</span>
+          <span>Multiple Staff Members (StyleFlo In-App)</span>
+        </button>
+        <button type="button" class="styleflo-task-btn" style="background-color: #ffffff !important; color: #212326 !important; border: 1px solid #e2e8f0 !important; padding: 9px 14px; border-radius: 12px; font-size: 12px; font-weight: 600; cursor: pointer; display: flex; items-center; justify-content: flex-start; gap: 8px; box-shadow: 0 1px 3px rgba(0,0,0,0.05); text-align: left;" data-booking-choice="walkin">
+          <span>🚶</span>
+          <span>Walk-in Only (StyleFlo In-App)</span>
+        </button>
+        <button type="button" class="styleflo-task-btn" style="background-color: #ffffff !important; color: #212326 !important; border: 1px solid #e2e8f0 !important; padding: 9px 14px; border-radius: 12px; font-size: 12px; font-weight: 600; cursor: pointer; display: flex; items-center; justify-content: flex-start; gap: 8px; box-shadow: 0 1px 3px rgba(0,0,0,0.05); text-align: left;" data-booking-choice="external">
+          <span>🌐</span>
+          <span>Redirect to External Link / Existing Service</span>
+        </button>
+      `;
+      messagesContainer.appendChild(optionsContainer);
+      messagesContainer.scrollTop = messagesContainer.scrollHeight;
+
+      const choiceBtns = optionsContainer.querySelectorAll('.styleflo-task-btn');
+      choiceBtns.forEach((btn) => {
+        btn.addEventListener('click', () => {
+          const choice = btn.getAttribute('data-booking-choice');
+          optionsContainer.remove();
+          if (choice === 'single') {
+            inputField.value = 'I want to use StyleFlo Single Staff in-app booking.';
+          } else if (choice === 'multi') {
+            inputField.value = 'I want to use StyleFlo Multiple Staff in-app booking.';
+          } else if (choice === 'walkin') {
+            inputField.value = 'We operate on a Walk-in Only basis.';
+          } else if (choice === 'external') {
+            inputField.value = 'I want to redirect callers to our existing external booking service.';
+          }
+          chatForm.dispatchEvent(new Event('submit'));
+        });
+      });
+    }
+
+    function renderDashboardButton() {
+      const existing = shadowRoot.getElementById('styleflo-dashboard-btn-container');
+      if (existing) existing.remove();
+
+      const container = document.createElement('div');
+      container.id = 'styleflo-dashboard-btn-container';
+      container.className = 'w-full pt-3 pb-2 pl-9 flex flex-col items-start gap-2';
+      container.innerHTML = `
+        <button type="button" class="styleflo-dashboard-btn" style="background-color: #260475 !important; color: #ffffff !important; border: 1px solid #260475 !important; padding: 12px 24px; border-radius: 14px; font-size: 14px; font-weight: 700; cursor: pointer; display: inline-flex; align-items: center; gap: 8px; box-shadow: 0 4px 14px rgba(38, 4, 117, 0.35); transition: all 0.2s ease;">
+          <span>🚀</span>
+          <span>Go to Your Dashboard</span>
+          <svg style="width: 16px; height: 16px; fill: none; stroke: #ffffff; stroke-width: 2.5; stroke-linecap: round; stroke-linejoin: round;" viewBox="0 0 24 24"><line x1="5" y1="12" x2="19" y2="12"></line><polyline points="12 5 19 12 12 19"></polyline></svg>
+        </button>
+      `;
+
+      messagesContainer.appendChild(container);
+      messagesContainer.scrollTop = messagesContainer.scrollHeight;
+
+      const btn = container.querySelector('.styleflo-dashboard-btn') as HTMLButtonElement | null;
+      if (btn) {
+        btn.addEventListener('click', async () => {
+          btn.disabled = true;
+          btn.style.opacity = '0.75';
+          btn.innerHTML = `<span>⏳</span><span>Logging in to Dashboard...</span>`;
+
+          try {
+            const apiHost = getApiHost();
+            const res = await fetch(`${apiHost}/api/auth/magic-link`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ email: storedEmail, name: storedName }),
+            });
+            const data = await res.json().catch(() => ({}));
+            const targetUrl = data.redirectUrl || '/dashboard';
+            
+            if (typeof window !== 'undefined') {
+              if (window.top && window.top !== window) {
+                window.top.location.href = targetUrl;
+              } else {
+                window.location.href = targetUrl;
+              }
+            }
+          } catch (err) {
+            console.error('[Magic Link] Dashboard redirect error:', err);
+            if (typeof window !== 'undefined') {
+              if (window.top && window.top !== window) {
+                window.top.location.href = '/dashboard';
+              } else {
+                window.location.href = '/dashboard';
+              }
+            }
+          }
+        });
+      }
+    }
+
     const welcomeTextEl = shadowRoot.getElementById('styleflo-welcome-message-text');
     if (welcomeTextEl) {
       welcomeTextEl.innerHTML = getFormattedWelcomeMessage(storedName);
     }
 
-    // Only force pre-chat onboarding if requireClientName is explicitly enabled or a voice disclaimer requires acceptance
-    const needsOnboarding = (requireClientName && !storedName) || (globalVoiceDisclaimer && !disclaimerAccepted);
+    const isFloBot = chatbotId === 'styleflo-onboarding-flobot';
+    const needsOnboarding = isFloBot
+      ? (!storedName || !storedEmail)
+      : ((requireClientName && !storedName) || (globalVoiceDisclaimer && !disclaimerAccepted));
 
     if (needsOnboarding) {
       messagesContainer.style.setProperty('display', 'none', 'important');
       chatForm.style.setProperty('display', 'none', 'important');
       onboardingContainer.style.setProperty('display', 'flex', 'important');
       
-      if (storedName && onboardingName) {
-        onboardingName.value = storedName;
-      }
+      if (storedName && onboardingName) onboardingName.value = storedName;
+      if (storedEmail && onboardingEmail) onboardingEmail.value = storedEmail;
     } else {
       onboardingContainer.style.setProperty('display', 'none', 'important');
       messagesContainer.style.setProperty('display', 'flex', 'important');
       messagesContainer.style.setProperty('flex-direction', 'column', 'important');
       chatForm.style.setProperty('display', 'flex', 'important');
+      renderTaskButtons();
     }
 
     onboardingForm.addEventListener('submit', (e) => {
       e.preventDefault();
       const name = onboardingName.value.trim();
+      const email = onboardingEmail ? onboardingEmail.value.trim() : '';
       const acceptCheckbox = shadowRoot.getElementById('styleflo-disclaimer-accept') as HTMLInputElement | null;
       
-      if (globalVoiceDisclaimer && acceptCheckbox && !acceptCheckbox.checked) {
-        alert('You must accept the disclaimer to continue.');
+      if (acceptCheckbox && !acceptCheckbox.checked) {
+        alert('You must accept the Terms of Service & Privacy Policy to continue.');
         return;
       }
 
-      if (name || !requireClientName) {
-        if (name) {
-          localStorage.setItem('styleflo-client-name', name);
-          storedName = name;
+      if (name && (email || !isFloBot)) {
+        localStorage.setItem('styleflo-client-name', name);
+        storedName = name;
+        if (email) {
+          localStorage.setItem('styleflo-client-email', email);
+          storedEmail = email;
         }
-        if (globalVoiceDisclaimer) {
-          localStorage.setItem('styleflo-disclaimer-accepted', 'true');
-          disclaimerAccepted = 'true';
-        }
+        localStorage.setItem('styleflo-disclaimer-accepted', 'true');
+        disclaimerAccepted = 'true';
+
         if (welcomeTextEl) {
           welcomeTextEl.innerHTML = getFormattedWelcomeMessage(storedName);
         }
@@ -543,6 +826,7 @@ import Vapi from '@vapi-ai/web';
         messagesContainer.style.setProperty('display', 'flex', 'important');
         messagesContainer.style.setProperty('flex-direction', 'column', 'important');
         chatForm.style.setProperty('display', 'flex', 'important');
+        renderTaskButtons();
         inputField.focus();
       }
     });
@@ -857,6 +1141,7 @@ import Vapi from '@vapi-ai/web';
             chatbotId: chatbotId,
             sessionId: sessionId,
             clientName: storedName || undefined,
+            clientEmail: storedEmail || undefined,
           }),
         });
 
@@ -896,6 +1181,13 @@ import Vapi from '@vapi-ai/web';
             .replace(/\[LEAD_CAPTURED:[\s\S]*?(?:\]|$)/g, '')
             .replace(/\[LOOKUP_APPOINTMENTS:[\s\S]*?(?:\]|$)/g, '')
             .replace(/\[TIME_SLOTS:[\s\S]*?(?:\}\]|$)/g, '')
+            .replace(/\[REMAINING_TASKS:[\s\S]*?(?:\]|$)/g, '')
+            .replace(/\[BOOKING_OPTIONS:[\s\S]*?(?:\]|$)/g, '')
+            .replace(/\[BOOKING_OPTIONS\]/g, '')
+            .replace(/\[GMAPS_OPTIONS:[\s\S]*?(?:\]|$)/g, '')
+            .replace(/\[GMAPS_OPTIONS\]/g, '')
+            .replace(/\[ACCOUNT_CREATED_DASHBOARD:[\s\S]*?(?:\]|$)/g, '')
+            .replace(/\[ACCOUNT_CREATED_DASHBOARD\]/g, '')
             // Replace bold **text**
             .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
             // Replace markdown links with formatted inline links
@@ -905,6 +1197,23 @@ import Vapi from '@vapi-ai/web';
 
           botResponseContainer.innerHTML = formattedText;
           scrollToBottom();
+        }
+
+        if (rawText.includes('[ACCOUNT_CREATED_DASHBOARD]') || rawText.includes('created your account') || rawText.includes('set up your AI Receptionist') || rawText.includes('looked at your website')) {
+          renderDashboardButton();
+        } else if (rawText.includes('[BOOKING_OPTIONS]') || rawText.includes('continue with your current booking service') || rawText.includes('use our in app service')) {
+          renderBookingOptions();
+        } else if (rawText.includes('[GMAPS_OPTIONS]') || rawText.includes('listed on Google Maps')) {
+          renderGoogleMapsQuestion();
+        } else {
+          // Parse remaining tasks tag to render selectable action buttons
+          const remainingMatch = rawText.match(/\[REMAINING_TASKS:\s*([^\]]+)\]/i);
+          if (remainingMatch) {
+            const taskItems = remainingMatch[1].split(',').map((s) => s.trim()).filter(Boolean);
+            if (taskItems.length > 0) {
+              renderRemainingTaskButtons(taskItems);
+            }
+          }
         }
 
         // 6. After streaming completes, look for product links and append rich product cards

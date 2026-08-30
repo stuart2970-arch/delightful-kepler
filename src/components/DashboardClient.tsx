@@ -14,6 +14,7 @@ import SuperAdminVoiceManagerView from './dashboard-views/SuperAdminVoiceManager
 import PlatformSettingsView from './dashboard-views/PlatformSettingsView';
 import MyProfileView from './dashboard-views/MyProfileView';
 import OpenClawMonitorView from './dashboard-views/OpenClawMonitorView';
+import SetPasswordBanner from './SetPasswordBanner';
 import { useDashboardStore } from '../lib/store';
 
 interface Chatbot {
@@ -714,6 +715,7 @@ const globalBotId = '00000000-0000-0000-0000-000000000000';
         <div className="absolute top-0 left-0 w-full h-[600px] bg-gradient-to-br from-indigo-500/10 via-purple-500/5 to-transparent pointer-events-none -z-10"></div>
         
         <div className="flex-1 overflow-y-auto styleflo-scrollbar p-4 sm:p-6 lg:p-8 space-y-6 md:space-y-8">
+           <SetPasswordBanner />
            <header className="flex flex-col md:flex-row items-start md:items-center justify-between mb-6 md:mb-8 gap-4">
               <div className="flex items-center gap-3 w-full">
                  <button className="md:hidden p-2 -ml-2 text-[var(--awb-color6)] hover:text-[var(--awb-color7)]" onClick={() => setIsMobileMenuOpen(true)}>

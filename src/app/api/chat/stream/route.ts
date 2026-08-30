@@ -5,9 +5,33 @@ import { streamText, embed, tool } from 'ai';
 import { createGoogleGenerativeAI } from '@ai-sdk/google';
 import { z } from 'zod';
 import formData from 'form-data';
-import Mailgun from 'mailgun.js';
+import * as cheerio from 'cheerio';
 import { checkAvailability, bookMeeting, lookupAppointments } from './calendar';
 import { sendConsolidatedLeadEmail } from '@/lib/lead-notifier';
+
+async function scrapeWebsiteContent(targetUrl: string): Promise<string> {
+  try {
+    let fullUrl = targetUrl.trim();
+    if (!/^https?:\/\//i.test(fullUrl)) {
+      fullUrl = `https://${fullUrl}`;
+    }
+    const response = await fetch(fullUrl, {
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+      },
+      signal: AbortSignal.timeout(6000),
+    });
+    if (!response.ok) return '';
+    const html = await response.text();
+    const $ = cheerio.load(html);
+    $('script, style, noscript, svg, iframe, footer, nav').remove();
+    const text = $('body').text().replace(/\s+/g, ' ').trim();
+    return text.slice(0, 3500);
+  } catch (err) {
+    console.warn(`[FloBot] Website scrape error/timeout for ${targetUrl}:`, err);
+    return '';
+  }
+}
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -28,6 +52,7 @@ const ChatRequestSchema = z.object({
   chatbotId: z.string().min(1, { message: 'Chatbot ID cannot be empty' }),
   sessionId: z.string().min(1, { message: 'Session ID cannot be empty' }),
   clientName: z.string().optional().nullable(),
+  clientEmail: z.string().optional().nullable(),
 });
 
 // Initialize Supabase Admin Client using service role key (bypasses RLS for service logic)
@@ -272,80 +297,59 @@ Help them specify:
       message || ''
     ].join('\n');
 
+    const bodyEmail = (body.clientEmail || body.email || '').trim();
     const emailMatch = fullHistoryText.match(/[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/);
-    const detectedEmail = emailMatch ? emailMatch[0] : null;
+    const confirmedEmail = bodyEmail || (emailMatch ? emailMatch[0] : 'user@example.com');
 
-    const codeMatch = fullHistoryText.match(/FLO-\d{4}/i);
-    const detectedCode = codeMatch ? codeMatch[0].toUpperCase() : null;
-
-    // Filter out email string from user message history
-    const nonEmailUserTexts = chatHistory
-      .filter((m: any) => m.role === 'user')
-      .map((m: any) => (m.content || '').replace(detectedEmail || '', '').trim())
-      .filter(Boolean);
-
-    const historyWithoutEmail = fullHistoryText.replace(detectedEmail || '', '');
-
-    // Check if business identity/name or location details were provided in transcript
-    const hasIdentity = detectedEmail !== null && (
-      nonEmailUserTexts.some((txt: string) => 
-        !/can i do that later|can i do this later|later|pause|what else can i do|help|hello|hi/i.test(txt) && txt.length > 2
-      ) ||
-      /liverpool|halewood|manchester|london|miles|city|radius|salon|barber|clinic|studio|inc|ltd|service/i.test(historyWithoutEmail)
-    );
-
-    let currentFloStep = 'STEP 1 (ENROLLMENT)';
-    if (detectedEmail && hasIdentity) {
-      currentFloStep = 'STEP 3 (INGESTION)';
-    } else if (detectedEmail) {
-      currentFloStep = 'STEP 2 (IDENTITY)';
-    }
-
-    const magicLinkAlreadySent = fullHistoryText.includes('magic-login') || fullHistoryText.includes('Magic Link') || fullHistoryText.includes('1-Click Instant Login Link');
-
-    let generatedMagicLink = '';
-    if (chatbotId === 'styleflo-onboarding-flobot' && detectedEmail && !magicLinkAlreadySent) {
-      try {
-        const { data: linkRes } = await supabaseAdmin.auth.admin.generateLink({
-          type: 'magiclink',
-          email: detectedEmail,
-          options: {
-            redirectTo: 'https://app.styleflo.ai/dashboard',
-          }
-        });
-        if (linkRes?.properties?.action_link) {
-          generatedMagicLink = linkRes.properties.action_link;
-        }
-      } catch (err) {
-        console.error('Failed to generate magic link for FloBot:', err);
-      }
+    // Detect if user provided a website URL in current message or transcript
+    let websiteScrapedText = '';
+    let detectedUrl = '';
+    const urlMatch = message.match(/(https?:\/\/[^\s]+|www\.[^\s]+|[a-zA-Z0-9-]+\.(com|co\.uk|org|net|io|ai|app|salon|clinic|studio)[^\s]*)/i);
+    if (urlMatch && chatbotId === 'styleflo-onboarding-flobot') {
+      detectedUrl = urlMatch[0];
+      console.log(`[Chat Stream][${requestId}] Detected URL in FloBot message: ${detectedUrl}. Crawling website...`);
+      websiteScrapedText = await scrapeWebsiteContent(detectedUrl);
     }
 
     // 8. Build prompt and historical message messages array
     const systemPrompt = chatbotId === 'styleflo-onboarding-flobot'
-      ? `You are Flo, the official AI registration assistant for StyleFlo.
-Your goal is to smoothly guide new business owners through account creation and setting up their AI Receptionist in under 60 seconds.
+      ? `You are Flo, the official AI receptionist setup assistant for StyleFlo.ai.
+Your goal is to guide new business owners through setting up their AI Receptionist in 60 seconds.
 
-CONVERSATION STATE MEMORY:
-- CURRENT ACTIVE ONBOARDING STEP: ${currentFloStep}
-${detectedEmail ? `- CONFIRMED USER EMAIL: ${detectedEmail} (DO NOT ASK FOR EMAIL OR SIGNUP METHOD AGAIN!)` : ''}
-${generatedMagicLink ? `- INSTANT ACCOUNT MAGIC LINK: Include this link in your turn ONCE: [🚀 1-Click Instant Login Link](${generatedMagicLink})` : ''}
-${magicLinkAlreadySent ? `- MAGIC LINK STATUS: Already provided in previous turn. DO NOT send or mention magic link or email signup again!` : ''}
-${detectedCode ? `- ASSIGNED RESUMPTION CODE: ${detectedCode} (DO NOT GENERATE A NEW RESUMPTION CODE!)` : ''}
-${hasIdentity ? `- LOCATION & IDENTITY CONFIRMED (DO NOT ask for location or business name again!)` : ''}
+CONVERSATION STATE & ACCOUNT MEMORY:
+- USER REGISTRATION: The user HAS ALREADY SUPPLIED THEIR EMAIL & IDENTIFICATION (${confirmedEmail}).
+- ABSOLUTE BAN: You are STRICTLY FORBIDDEN from asking for an email address, asking whether they prefer Google or email, or asking them to sign up/login ever again!
+${detectedUrl ? `- SUBMITTED WEBSITE URL: ${detectedUrl}` : ''}
+${websiteScrapedText ? `- EXTRACTED WEBSITE CONTENT:\n"""\n${websiteScrapedText}\n"""` : ''}
 
-CURRENT STEP TASK INSTRUCTIONS:
-${currentFloStep === 'STEP 1 (ENROLLMENT)' ? 'Ask whether they prefer to sign up with Google or Email (typing email directly into chat).' : ''}
-${currentFloStep === 'STEP 2 (IDENTITY)' ? 'Email is confirmed! Acknowledge their email registration and ask for their Business Name & City/Location (or service radius in miles). DO NOT ask for email or signup method again.' : ''}
-${currentFloStep === 'STEP 3 (INGESTION)' ? 'Business identity/location is confirmed! Acknowledge their business details and ask for their website URL/sitemap OR instruct them to click the paperclip icon (📎) right next to this chat box to attach/upload their PDF price list or service menu! DO NOT ask for email, Google signup, or business location again.' : ''}
+ONBOARDING FLOW DIRECTIVES:
+1. WHEN USER ADDS THEIR WEBSITE (${detectedUrl ? 'URL DETECTED NOW!' : 'If URL is provided'}):
+   - You MUST scan the extracted website content (or infer from domain) and format your reply strictly using this exact structure:
+     "Okay, I have looked at your website and found the following details:"
+     * **Business Name**: [Extracted Business Name]
+     * **Address / Location**: [MANDATORY - Extracted Street Address, City, or Region]
+     * **Services Offered**: [Extracted main services/treatments]
+     * **Opening Hours**: [Extracted operating hours if found]
+     * **Booking Platform**: [Extracted booking link or platform if found]
+
+     "This is fantastic! I've created your account and set up your AI Receptionist."
+     [ACCOUNT_CREATED_DASHBOARD]
+
+2. ACCOUNT CREATION & DASHBOARD TRANSITION:
+   - Registration and website detail harvesting is now COMPLETE.
+   - You MUST inform the user that their account is created and direct them to click the "Go to Your Dashboard" button.
+
+3. WEBSITE QUESTION FLOW (Prior to URL submission):
+   - Primary question: "Does your business have a website?"
+   - IF THE USER SAYS YES: Respond strictly with: "Great! Please add your website address below." (DO NOT explain why or mention extracting details).
+   - IF THE USER SAYS NO: Ask: "Is your business listed on Google Maps?" and end your turn with tag: [GMAPS_OPTIONS]
+     - IF YES (to Google Maps): Ask: "Great! Please share your Google Places / Google Maps link so I can find your listing!"
+     - IF NO (to Google Maps): Ask: "No problem! Let's set up your receptionist manually. What is your Business Name?"
 
 CRITICAL CONVERSATIONAL LAWS:
-1. NEVER REPEAT GREETINGS: Do not say "Welcome to StyleFlo!" or re-introduce yourself.
-2. ABSOLUTE BAN ON RE-ASKING FOR EMAIL / SIGNUP: ${detectedEmail ? `The user's email is CONFIRMED as ${detectedEmail}. You are STRICTLY FORBIDDEN from asking for an email address, asking whether they prefer Google or email, or mentioning sign-up ever again!` : 'Ask whether they prefer to sign up with Google or by typing their email into this chat.'}
-3. PAUSE / LATER REQUESTS: If the user says they want to do this later, pause, or resume, reassure them in 1 warm sentence that their progress is saved and they can use their magic link anytime to log in! DO NOT ask for email or Google sign-in.
-4. ZERO RE-PROMPTING ON QUESTIONS: If the user asks a question, answer concisely in 1 sentence, then execute ONLY the CURRENT STEP TASK.
-5. NO DUPLICATE CODES OR LINKS: Never generate a second resumption code or re-send the magic link if already sent.
-6. LINEAR PROGRESSION: Advance smoothly through Step 1 ➔ Step 2 ➔ Step 3 ➔ Step 4 ➔ Step 5.`
+1. MANDATORY WEBSITE RESPONSE TEMPLATE: When a website URL is submitted, you MUST include * **Address / Location**: in your list, conclude with "This is fantastic! I've created your account and set up your AI Receptionist.", and end your turn with "[ACCOUNT_CREATED_DASHBOARD]".
+2. ABSOLUTE BAN ON RE-ASKING FOR EMAIL / SIGNUP / GOOGLE OAUTH: The user's account registration is ALREADY COMPLETE. You MUST NEVER ask for email, Google sign-up, or identity verification under any circumstances.
+3. NO REPEAT GREETINGS: Do not say "Welcome to StyleFlo" or re-introduce yourself.`
       : `You are a friendly, conversational AI customer support assistant representing "${businessName}".
 Use ONLY the following context to answer the user's query about "${businessName}". 
 If you do not know the answer, politely state that you represent "${businessName}" and ask them to drop their email or phone number so a human agent can follow up.
