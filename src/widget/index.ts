@@ -869,8 +869,8 @@ import Vapi from '@vapi-ai/web';
         }
 
         try {
-          const apiHost = getApiHost();
-          const res = await fetch(`${apiHost}/api/auth/magic-link`, {
+          const hostUrl = apiHost || (typeof window !== 'undefined' ? window.location.origin : '');
+          const res = await fetch(`${hostUrl}/api/auth/magic-link`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ email: emailVal, name: nameVal }),
