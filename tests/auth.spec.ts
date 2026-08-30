@@ -26,9 +26,8 @@ test.describe('Authentication Flows', () => {
     await expect(page.getByText('Create an account to get started')).toBeVisible();
 
     // Verify additional inputs appear
-    await expect(page.locator('input[placeholder="Jane Doe"]')).toBeVisible();
-    await expect(page.locator('input[placeholder="Wardrobe at the Cross"]')).toBeVisible();
-    await expect(page.locator('input[placeholder="https://example.com"]')).toBeVisible();
+    await expect(page.locator('input[placeholder="Sarah Jenkins"]')).toBeVisible();
+    await expect(page.locator('input[placeholder="StyleFlo Lounge"]')).toBeVisible();
     
     // Verify submit button changed
     await expect(page.getByRole('button', { name: 'Create Account' })).toBeVisible();
