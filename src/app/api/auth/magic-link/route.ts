@@ -41,7 +41,7 @@ export async function POST(request: Request) {
 
     const origin = request.headers.get('origin') || request.headers.get('referer') || 'https://app.styleflo.ai';
     const cleanOrigin = origin.replace(/\/$/, '');
-    const redirectUrl = `${cleanOrigin}/dashboard`;
+    const redirectUrl = `${cleanOrigin}/auth/callback?next=/dashboard`;
 
     console.log(`[Magic Link Route] Generating magic link for ${email}...`);
 

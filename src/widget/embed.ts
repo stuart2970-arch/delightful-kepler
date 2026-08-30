@@ -721,54 +721,93 @@ import Vapi from '@vapi-ai/web';
       const existing = shadowRoot.getElementById('styleflo-dashboard-btn-container');
       if (existing) existing.remove();
 
+      const activeEmail = (storedEmail || localStorage.getItem('styleflo-client-email') || '').trim();
+      const activeName = (storedName || localStorage.getItem('styleflo-client-name') || '').trim();
+
       const container = document.createElement('div');
       container.id = 'styleflo-dashboard-btn-container';
       container.className = 'w-full pt-3 pb-2 pl-9 flex flex-col items-start gap-2';
-      container.innerHTML = `
-        <button type="button" class="styleflo-dashboard-btn" style="background-color: #260475 !important; color: #ffffff !important; border: 1px solid #260475 !important; padding: 12px 24px; border-radius: 14px; font-size: 14px; font-weight: 700; cursor: pointer; display: inline-flex; align-items: center; gap: 8px; box-shadow: 0 4px 14px rgba(38, 4, 117, 0.35); transition: all 0.2s ease;">
-          <span>🚀</span>
-          <span>Go to Your Dashboard</span>
-          <svg style="width: 16px; height: 16px; fill: none; stroke: #ffffff; stroke-width: 2.5; stroke-linecap: round; stroke-linejoin: round;" viewBox="0 0 24 24"><line x1="5" y1="12" x2="19" y2="12"></line><polyline points="12 5 19 12 12 19"></polyline></svg>
-        </button>
-      `;
+
+      if (!activeEmail) {
+        container.innerHTML = `
+          <div style="background: #ffffff; border: 1px solid #e2e8f0; padding: 14px; border-radius: 14px; width: 100%; max-width: 320px; box-shadow: 0 4px 12px rgba(0,0,0,0.05);">
+            <p style="font-size: 12px; font-weight: 600; color: #212326; margin-bottom: 8px;">Enter your email to log in to your Dashboard:</p>
+            <form id="styleflo-dashboard-email-form" style="display: flex; flex-direction: column; gap: 8px;">
+              <input type="email" id="styleflo-dashboard-email-input" required placeholder="you@example.com" style="width: 100%; padding: 8px 12px; font-size: 12px; border: 1px solid #cbd5e1; border-radius: 8px; outline: none;" />
+              <button type="submit" class="styleflo-dashboard-btn" style="background-color: #260475 !important; color: #ffffff !important; border: 1px solid #260475 !important; padding: 10px 16px; border-radius: 10px; font-size: 12px; font-weight: 700; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 6px; box-shadow: 0 3px 10px rgba(38, 4, 117, 0.25);">
+                <span>🚀</span>
+                <span>Go to Your Dashboard</span>
+              </button>
+            </form>
+          </div>
+        `;
+      } else {
+        container.innerHTML = `
+          <button type="button" class="styleflo-dashboard-btn" style="background-color: #260475 !important; color: #ffffff !important; border: 1px solid #260475 !important; padding: 12px 24px; border-radius: 14px; font-size: 14px; font-weight: 700; cursor: pointer; display: inline-flex; align-items: center; gap: 8px; box-shadow: 0 4px 14px rgba(38, 4, 117, 0.35); transition: all 0.2s ease;">
+            <span>🚀</span>
+            <span>Go to Your Dashboard</span>
+            <svg style="width: 16px; height: 16px; fill: none; stroke: #ffffff; stroke-width: 2.5; stroke-linecap: round; stroke-linejoin: round;" viewBox="0 0 24 24"><line x1="5" y1="12" x2="19" y2="12"></line><polyline points="12 5 19 12 12 19"></polyline></svg>
+          </button>
+        `;
+      }
 
       messagesContainer.appendChild(container);
       messagesContainer.scrollTop = messagesContainer.scrollHeight;
 
-      const btn = container.querySelector('.styleflo-dashboard-btn') as HTMLButtonElement | null;
-      if (btn) {
-        btn.addEventListener('click', async () => {
-          btn.disabled = true;
-          btn.style.opacity = '0.75';
-          btn.innerHTML = `<span>⏳</span><span>Logging in to Dashboard...</span>`;
+      const triggerMagicLink = async (emailVal: string, nameVal: string, btnEl?: HTMLButtonElement | null) => {
+        if (btnEl) {
+          btnEl.disabled = true;
+          btnEl.style.opacity = '0.75';
+          btnEl.innerHTML = `<span>⏳</span><span>Logging in to Dashboard...</span>`;
+        }
 
-          try {
-            const apiHost = getApiHost();
-            const res = await fetch(`${apiHost}/api/auth/magic-link`, {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ email: storedEmail, name: storedName }),
-            });
-            const data = await res.json().catch(() => ({}));
-            const targetUrl = data.redirectUrl || '/dashboard';
-            
-            if (typeof window !== 'undefined') {
-              if (window.top && window.top !== window) {
-                window.top.location.href = targetUrl;
-              } else {
-                window.location.href = targetUrl;
-              }
-            }
-          } catch (err) {
-            console.error('[Magic Link] Dashboard redirect error:', err);
-            if (typeof window !== 'undefined') {
-              if (window.top && window.top !== window) {
-                window.top.location.href = '/dashboard';
-              } else {
-                window.location.href = '/dashboard';
-              }
+        try {
+          const apiHost = getApiHost();
+          const res = await fetch(`${apiHost}/api/auth/magic-link`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ email: emailVal, name: nameVal }),
+          });
+          const data = await res.json().catch(() => ({}));
+          const targetUrl = data.redirectUrl || '/dashboard';
+          
+          if (typeof window !== 'undefined') {
+            if (window.top && window.top !== window) {
+              window.top.location.href = targetUrl;
+            } else {
+              window.location.href = targetUrl;
             }
           }
+        } catch (err) {
+          console.error('[Magic Link] Dashboard redirect error:', err);
+          if (typeof window !== 'undefined') {
+            if (window.top && window.top !== window) {
+              window.top.location.href = '/dashboard';
+            } else {
+              window.location.href = '/dashboard';
+            }
+          }
+        }
+      };
+
+      const emailForm = container.querySelector('#styleflo-dashboard-email-form');
+      if (emailForm) {
+        emailForm.addEventListener('submit', (e) => {
+          e.preventDefault();
+          const emailInput = (container.querySelector('#styleflo-dashboard-email-input') as HTMLInputElement)?.value.trim();
+          if (emailInput) {
+            localStorage.setItem('styleflo-client-email', emailInput);
+            storedEmail = emailInput;
+            const submitBtn = emailForm.querySelector('button[type="submit"]') as HTMLButtonElement | null;
+            triggerMagicLink(emailInput, activeName, submitBtn);
+          }
+        });
+      }
+
+      const btn = container.querySelector('.styleflo-dashboard-btn') as HTMLButtonElement | null;
+      if (btn && !emailForm) {
+        btn.addEventListener('click', () => {
+          triggerMagicLink(activeEmail, activeName, btn);
         });
       }
     }
