@@ -1,5 +1,7 @@
 import { NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
+import { createServerClient } from '@supabase/ssr';
+import { cookies } from 'next/headers';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -19,18 +21,19 @@ export async function POST(request: Request) {
 
     if (!email || !/[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/.test(email)) {
       return NextResponse.json(
-        { redirectUrl: '/dashboard', error: 'Valid email address required' },
+        { redirectUrl: '/login', error: 'Valid email address required' },
         { status: 200, headers: corsHeaders }
       );
     }
 
-    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.SUPABASE_URL;
     const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+    const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || process.env.SUPABASE_ANON_KEY;
 
-    if (!supabaseUrl || !serviceRoleKey) {
-      console.warn('[Magic Link Route] Supabase admin credentials missing, falling back to /dashboard redirect.');
+    if (!supabaseUrl || !serviceRoleKey || !anonKey) {
+      console.warn('[Magic Link Route] Supabase environment variables missing.');
       return NextResponse.json(
-        { redirectUrl: '/dashboard' },
+        { redirectUrl: '/login' },
         { status: 200, headers: corsHeaders }
       );
     }
@@ -39,24 +42,16 @@ export async function POST(request: Request) {
       auth: { persistSession: false, autoRefreshToken: false },
     });
 
-    const origin = request.headers.get('origin') || request.headers.get('referer') || 'https://app.styleflo.ai';
-    const cleanOrigin = origin.replace(/\/$/, '');
-    const redirectUrl = `${cleanOrigin}/auth/callback?next=/dashboard`;
+    console.log(`[Magic Link Route] Ensuring user account exists for ${email}...`);
 
-    console.log(`[Magic Link Route] Generating magic link for ${email}...`);
-
-    // 1. Attempt to generate magic link directly for user
-    let { data, error } = await supabaseAdmin.auth.admin.generateLink({
+    // 1. Ensure user exists in Supabase Auth and generate magic link token
+    let { data: linkData, error: linkError } = await supabaseAdmin.auth.admin.generateLink({
       type: 'magiclink',
       email: email,
-      options: {
-        redirectTo: redirectUrl,
-      },
     });
 
-    // 2. If user doesn't exist in Supabase auth yet, create user and retry link generation
-    if (error && (error.message.includes('User not found') || error.status === 404)) {
-      console.log(`[Magic Link Route] User ${email} not found in Auth. Creating account...`);
+    if (linkError && (linkError.message.includes('User not found') || linkError.status === 404)) {
+      console.log(`[Magic Link Route] Creating account for ${email}...`);
       const { data: newUser, error: createError } = await supabaseAdmin.auth.admin.createUser({
         email: email,
         email_confirm: true,
@@ -67,40 +62,98 @@ export async function POST(request: Request) {
       });
 
       if (!createError && newUser?.user) {
-        console.log(`[Magic Link Route] Account created for ${email}. Re-generating magic link...`);
         const retryRes = await supabaseAdmin.auth.admin.generateLink({
           type: 'magiclink',
           email: email,
-          options: {
-            redirectTo: redirectUrl,
-          },
         });
-        data = retryRes.data;
-        error = retryRes.error;
+        linkData = retryRes.data;
+        linkError = retryRes.error;
       }
     }
 
-    const actionLink = data?.properties?.action_link;
+    const emailOtp = linkData?.properties?.email_otp;
+    const hashedToken = linkData?.properties?.hashed_token;
 
+    // 2. Server-side session authentication using createServerClient so cookies are set directly on response!
+    const cookieStore = await cookies();
+    const supabaseServer = createServerClient(supabaseUrl, anonKey, {
+      cookies: {
+        getAll() {
+          return cookieStore.getAll();
+        },
+        setAll(cookiesToSet) {
+          try {
+            cookiesToSet.forEach(({ name, value, options }) =>
+              cookieStore.set(name, value, options)
+            );
+          } catch {
+            // Safe to ignore in Route Handlers
+          }
+        },
+      },
+    });
+
+    // 3. Attempt server-side OTP verification with email_otp
+    if (emailOtp) {
+      console.log(`[Magic Link Route] Verifying OTP server-side for ${email}...`);
+      let { data: verifyData, error: verifyError } = await supabaseServer.auth.verifyOtp({
+        email,
+        token: emailOtp,
+        type: 'email',
+      });
+
+      if (verifyError) {
+        const fallbackRes = await supabaseServer.auth.verifyOtp({
+          email,
+          token: emailOtp,
+          type: 'magiclink',
+        });
+        verifyData = fallbackRes.data;
+        verifyError = fallbackRes.error;
+      }
+
+      if (!verifyError && verifyData?.session) {
+        console.log(`[Magic Link Route] Successfully authenticated session for ${email}. Session cookies set!`);
+        return NextResponse.json(
+          { success: true, redirectUrl: '/dashboard' },
+          { status: 200, headers: corsHeaders }
+        );
+      } else {
+        console.warn('[Magic Link Route] verifyOtp by emailOtp failed:', verifyError?.message);
+      }
+    }
+
+    // 4. Attempt server-side verification with hashed_token
+    if (hashedToken) {
+      console.log(`[Magic Link Route] Verifying token_hash server-side for ${email}...`);
+      const hashRes = await supabaseServer.auth.verifyOtp({
+        token_hash: hashedToken,
+        type: 'magiclink',
+      });
+
+      if (!hashRes.error && hashRes.data?.session) {
+        console.log(`[Magic Link Route] Successfully authenticated session via token_hash for ${email}. Session cookies set!`);
+        return NextResponse.json(
+          { success: true, redirectUrl: '/dashboard' },
+          { status: 200, headers: corsHeaders }
+        );
+      } else {
+        console.warn('[Magic Link Route] verifyOtp by token_hash failed:', hashRes.error?.message);
+      }
+    }
+
+    // 5. Fallback: Return action_link if direct server session creation failed
+    const actionLink = linkData?.properties?.action_link;
     if (actionLink) {
-      console.log(`[Magic Link Route] Successfully generated instant action link for ${email}`);
+      console.log(`[Magic Link Route] Fallback to action_link: ${actionLink}`);
       return NextResponse.json(
         { success: true, redirectUrl: actionLink },
         { status: 200, headers: corsHeaders }
       );
     }
 
-    // 3. Fallback: Request magic link email via OTP if admin link generation failed
-    console.warn('[Magic Link Route] Could not generate direct action link. Attempting OTP email fallback...', error?.message);
-    await supabaseAdmin.auth.signInWithOtp({
-      email,
-      options: {
-        emailRedirectTo: redirectUrl,
-      },
-    }).catch((otpErr) => console.warn('[Magic Link Route] OTP fallback error:', otpErr.message));
-
     return NextResponse.json(
-      { success: true, redirectUrl: '/dashboard', message: 'Magic link sent' },
+      { redirectUrl: '/dashboard' },
       { status: 200, headers: corsHeaders }
     );
   } catch (err: any) {
