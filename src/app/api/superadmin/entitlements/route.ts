@@ -21,7 +21,7 @@ export async function GET() {
         tier_id,
         limit_value,
         feature_id,
-        features (id, name, is_metered, category_id)
+        features (id, name, is_metered, category_id, display_order, value_type)
       `);
   
     if (error) return NextResponse.json({ error: error.message }, { status: 400 });

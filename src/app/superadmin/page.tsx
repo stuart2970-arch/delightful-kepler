@@ -78,10 +78,20 @@ export default async function SuperadminPage() {
   }
 
   // Fetch all tenants using admin client
-  const { data: tenants } = await adminSupabase
+  const { data: tenants, error: tenantsError } = await adminSupabase
     .from('tenants')
     .select('id, company_name, plan_tier, is_active, subscription_status, created_at, slug')
     .order('created_at', { ascending: false });
+
+  let fetchedTenants: any[] | null = tenants;
+  if (tenantsError || !fetchedTenants) {
+    console.error('[SuperadminPage] Error fetching tenants with extended fields, trying fallback:', tenantsError);
+    const { data: fallbackTenants } = await adminSupabase
+      .from('tenants')
+      .select('id, company_name, plan_tier, created_at, slug')
+      .order('created_at', { ascending: false });
+    fetchedTenants = fallbackTenants;
+  }
 
   // Fetch all chatbots with their tenant_id
   const { data: allBots } = await adminSupabase
@@ -122,7 +132,7 @@ export default async function SuperadminPage() {
   });
 
   // Aggregate stats per tenant
-  const tenantStats = (tenants || []).map(t => {
+  const tenantStats = (fetchedTenants || []).map(t => {
     const tenantUsage = (allUsage || []).filter(u => u.tenant_id === t.id);
     const ledgerMessages = tenantUsage.filter(u => u.feature_id === 'message_allowance').reduce((sum, u) => sum + Number(u.quantity), 0);
     const ledgerCrawls = tenantUsage.filter(u => u.feature_id === 'knowledge_data_chunks').reduce((sum, u) => sum + Number(u.quantity), 0);

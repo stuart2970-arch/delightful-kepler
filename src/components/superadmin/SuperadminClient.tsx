@@ -44,6 +44,10 @@ export default function SuperadminClient({
   const [deletingTenantId, setDeletingTenantId] = useState<string | null>(null);
   const [updatingTenantId, setUpdatingTenantId] = useState<string | null>(null);
 
+  useEffect(() => {
+    setTenantsList(tenants);
+  }, [tenants]);
+
   const handleUpdateTenantTier = async (tenantId: string, newTier: string) => {
     setUpdatingTenantId(tenantId);
     try {
