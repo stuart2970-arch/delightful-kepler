@@ -333,6 +333,50 @@ export default function DashboardClient({
     }
   };
 
+  const [accountNewPassword, setAccountNewPassword] = useState('');
+  const [accountConfirmPassword, setAccountConfirmPassword] = useState('');
+  const [isUpdatingAccountPassword, setIsUpdatingAccountPassword] = useState(false);
+  const [accountPasswordMsg, setAccountPasswordMsg] = useState<{ text: string; isError: boolean } | null>(null);
+
+  const handleAccountPasswordUpdate = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setAccountPasswordMsg(null);
+
+    if (accountNewPassword.length < 6) {
+      setAccountPasswordMsg({ text: 'Password must be at least 6 characters long.', isError: true });
+      return;
+    }
+
+    if (accountNewPassword !== accountConfirmPassword) {
+      setAccountPasswordMsg({ text: 'Passwords do not match.', isError: true });
+      return;
+    }
+
+    setIsUpdatingAccountPassword(true);
+    try {
+      if (supabase) {
+        const { error } = await supabase.auth.updateUser({
+          password: accountNewPassword,
+          data: { has_set_password: true }
+        });
+        if (error) throw error;
+      }
+
+      if (typeof window !== 'undefined') {
+        localStorage.setItem('styleflo_password_set', 'true');
+      }
+
+      setAccountPasswordMsg({ text: '🔐 Password updated successfully! You can now log in anytime using your password.', isError: false });
+      setAccountNewPassword('');
+      setAccountConfirmPassword('');
+    } catch (err: any) {
+      console.error('Error setting password in Account Settings:', err);
+      setAccountPasswordMsg({ text: err?.message || 'Failed to update password. Please try again.', isError: true });
+    } finally {
+      setIsUpdatingAccountPassword(false);
+    }
+  };
+
 const globalBotId = '00000000-0000-0000-0000-000000000000';
 // Form states
   const [newBotName, setNewBotName] = useState('');
@@ -910,7 +954,65 @@ const globalBotId = '00000000-0000-0000-0000-000000000000';
               <div className="bg-[var(--awb-color1)] border border-[var(--awb-color3)] p-6 rounded-2xl shadow-sm space-y-6">
                 <div>
                   <h3 className="text-lg font-bold text-[var(--awb-color8)]">Account Settings</h3>
-                  <p className="text-xs text-[var(--awb-color6)] mt-0.5">Manage your workspace account preferences.</p>
+                  <p className="text-xs text-[var(--awb-color6)] mt-0.5">Manage your workspace account preferences and login security.</p>
+                </div>
+
+                {/* Password & Security Card */}
+                <div className="bg-white border border-[#f2f3f5] p-6 rounded-xl space-y-4 shadow-sm">
+                  <div className="flex items-center gap-3 pb-3.5 border-b border-purple-100/80">
+                    <div className="w-9 h-9 rounded-xl bg-[#260475] text-white flex items-center justify-center text-base shadow-sm shrink-0">
+                      🔐
+                    </div>
+                    <div>
+                      <h4 className="text-base font-extrabold text-[#260475] tracking-tight">Password & Security</h4>
+                      <p className="text-[11px] text-gray-500 font-medium">Set or update your account password to log in directly anytime</p>
+                    </div>
+                  </div>
+
+                  <form onSubmit={handleAccountPasswordUpdate} className="space-y-4">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div>
+                        <label className="block text-xs font-semibold text-[#212326] mb-1.5">New Password</label>
+                        <input
+                          type="password"
+                          value={accountNewPassword}
+                          onChange={(e) => setAccountNewPassword(e.target.value)}
+                          required
+                          minLength={6}
+                          className="w-full h-[50px] bg-white border border-[#f2f3f5] rounded-[6px] px-3.5 py-2 text-sm text-[#212326] focus:outline-none focus:border-[#198fd9]"
+                          placeholder="Min 6 characters"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-xs font-semibold text-[#212326] mb-1.5">Confirm New Password</label>
+                        <input
+                          type="password"
+                          value={accountConfirmPassword}
+                          onChange={(e) => setAccountConfirmPassword(e.target.value)}
+                          required
+                          minLength={6}
+                          className="w-full h-[50px] bg-white border border-[#f2f3f5] rounded-[6px] px-3.5 py-2 text-sm text-[#212326] focus:outline-none focus:border-[#198fd9]"
+                          placeholder="Re-enter new password"
+                        />
+                      </div>
+                    </div>
+
+                    {accountPasswordMsg && (
+                      <div className={`p-3 rounded-lg text-xs font-semibold ${accountPasswordMsg.isError ? 'bg-red-50 text-red-700 border border-red-200' : 'bg-emerald-50 text-emerald-800 border border-emerald-200'}`}>
+                        {accountPasswordMsg.text}
+                      </div>
+                    )}
+
+                    <div>
+                      <button
+                        type="submit"
+                        disabled={isUpdatingAccountPassword}
+                        className="px-5 py-2.5 bg-[#260475] hover:bg-[#1e1b4b] text-white text-xs font-bold rounded-lg shadow-sm transition-colors disabled:opacity-50"
+                      >
+                        {isUpdatingAccountPassword ? 'Updating Password...' : 'Save New Password'}
+                      </button>
+                    </div>
+                  </form>
                 </div>
 
                 <form onSubmit={handleSaveAccountSettings} className="space-y-6">
