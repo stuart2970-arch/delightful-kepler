@@ -251,34 +251,49 @@ function RegisterContent() {
   };
 
   return (
-    <main className="min-h-screen flex items-center justify-center bg-gray-950 p-4 font-sans relative overflow-hidden">
-      {/* Background Decor */}
-      <div className="absolute top-[-10%] left-[-10%] w-96 h-96 bg-indigo-600/20 rounded-full blur-[100px] pointer-events-none"></div>
-      <div className="absolute bottom-[-10%] right-[-10%] w-96 h-96 bg-purple-600/20 rounded-full blur-[100px] pointer-events-none"></div>
+    <main className="min-h-screen flex items-center justify-center bg-[#0B091A] p-4 font-sans relative overflow-hidden">
+      {/* StyleFlo Ambient Glow Decor */}
+      <div className="absolute top-[-10%] left-[-10%] w-[500px] h-[500px] bg-[#260475]/35 rounded-full blur-[120px] pointer-events-none"></div>
+      <div className="absolute bottom-[-10%] right-[-10%] w-[500px] h-[500px] bg-[#7E5FBB]/25 rounded-full blur-[120px] pointer-events-none"></div>
 
-      <div className="w-full max-w-md bg-gray-900/60 border border-gray-800 rounded-3xl p-8 md:p-10 shadow-2xl relative z-10 backdrop-blur-xl">
+      <div className="w-full max-w-md bg-[#130F26]/90 border border-purple-900/40 rounded-3xl p-8 md:p-10 shadow-[0_20px_50px_rgba(38,4,117,0.35)] relative z-10 backdrop-blur-2xl">
+        <div className="text-center mb-6">
+          <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-[#260475] via-[#4A1F52] to-[#7E5FBB] border border-purple-400/30 p-2.5 mx-auto mb-4 flex items-center justify-center shadow-xl shadow-purple-950/60 transition-transform duration-300 hover:scale-105">
+            <img 
+              src="https://styleflo.ai/wp-content/uploads/2026/07/icon.png" 
+              alt="StyleFlo.ai Logo" 
+              className="w-full h-full object-contain drop-shadow" 
+              onError={(e) => {
+                const target = e.currentTarget;
+                target.style.display = 'none';
+                if (target.nextElementSibling) target.nextElementSibling.classList.remove('hidden');
+              }}
+            />
+            <span className="hidden text-white font-black text-2xl tracking-tighter">SF</span>
+          </div>
+          <h1 className="text-2xl font-black text-white mb-1 tracking-tight font-sans">
+            STYLE<span className="text-[#9678D3]">FLO</span><span className="text-xs text-purple-300 font-mono ml-0.5 font-normal">.AI</span>
+          </h1>
+          <p className="text-xs text-purple-200/80 font-medium">Get your 24/7 AI Receptionist ready in under 5 minutes</p>
+        </div>
+
         {/* Selected Plan Banner */}
-        <div className="bg-gradient-to-r from-purple-900/40 to-indigo-900/40 border border-purple-500/30 rounded-2xl p-4 mb-6 text-center space-y-1">
-          <span className="text-[10px] uppercase tracking-wider font-extrabold text-purple-300 bg-purple-500/20 px-2.5 py-0.5 rounded-full border border-purple-400/30">
+        <div className="bg-gradient-to-r from-[#260475]/60 to-[#7E5FBB]/40 border border-purple-500/30 rounded-2xl p-4 mb-6 text-center space-y-1 shadow-inner">
+          <span className="text-[10px] uppercase tracking-wider font-extrabold text-purple-200 bg-purple-500/30 px-2.5 py-0.5 rounded-full border border-purple-400/30">
             🎉 {planInfo.tag}
           </span>
           <h2 className="text-base font-bold text-white mt-1">{planInfo.name} Subscription</h2>
-          <p className="text-xs text-gray-300">Try 30 days risk-free. Cancel anytime.</p>
-        </div>
-
-        <div className="text-center mb-6">
-          <h1 className="text-2xl font-bold text-white mb-1 tracking-tight">Create Your StyleFlo Account</h1>
-          <p className="text-xs text-gray-400">Get your AI Receptionist ready in under 5 minutes</p>
+          <p className="text-xs text-purple-200/90">Try 30 days risk-free. Cancel anytime.</p>
         </div>
 
         {error && (
-          <div className="bg-rose-950/40 border border-rose-800 text-rose-300 text-xs p-3.5 rounded-xl mb-5 font-medium leading-relaxed">
+          <div className="bg-rose-950/50 border border-rose-800 text-rose-300 text-xs p-3.5 rounded-xl mb-5 font-medium leading-relaxed">
             {error}
           </div>
         )}
 
         {duplicateEmailDetected && (
-          <div className="bg-amber-950/60 border border-amber-500/50 rounded-2xl p-5 mb-6 text-left space-y-3 shadow-lg animate-in fade-in duration-300">
+          <div className="bg-amber-950/70 border border-amber-500/50 rounded-2xl p-5 mb-6 text-left space-y-3 shadow-lg animate-in fade-in duration-300">
             <div className="flex items-center gap-2 text-amber-300 font-bold text-sm">
               <span className="text-xl">⚠️</span>
               <span>Email Already Registered</span>
@@ -310,7 +325,7 @@ function RegisterContent() {
         )}
 
         {magicLinkSent && (
-          <div className="bg-emerald-950/60 border border-emerald-500/50 rounded-2xl p-5 mb-6 text-left space-y-2 shadow-lg animate-in fade-in duration-300">
+          <div className="bg-emerald-950/70 border border-emerald-500/50 rounded-2xl p-5 mb-6 text-left space-y-2 shadow-lg animate-in fade-in duration-300">
             <div className="flex items-center gap-2 text-emerald-300 font-bold text-sm">
               <span className="text-xl">✨</span>
               <span>Magic Login Link Sent!</span>
@@ -322,7 +337,7 @@ function RegisterContent() {
         )}
 
         {successMessage && (
-          <div className="bg-emerald-950/40 border border-emerald-800 text-emerald-300 text-xs p-4 rounded-xl mb-5 font-medium leading-relaxed">
+          <div className="bg-emerald-950/50 border border-emerald-800 text-emerald-300 text-xs p-4 rounded-xl mb-5 font-medium leading-relaxed">
             {successMessage}
           </div>
         )}
@@ -332,7 +347,7 @@ function RegisterContent() {
           type="button"
           onClick={handleGoogleSignIn}
           disabled={loading}
-          className="w-full h-12 bg-white hover:bg-gray-100 text-gray-900 font-bold text-sm rounded-xl shadow-md flex items-center justify-center gap-3 transition-all active:scale-[0.99] mb-3 border border-gray-200"
+          className="w-full h-12 bg-white hover:bg-purple-50 text-gray-900 font-bold text-sm rounded-xl shadow-md flex items-center justify-center gap-3 transition-all active:scale-[0.99] mb-3 border border-purple-100"
         >
           <svg className="w-5 h-5" viewBox="0 0 24 24">
             <path
@@ -355,12 +370,12 @@ function RegisterContent() {
           <span>Continue with Google</span>
         </button>
 
-        <p className="text-[11px] text-gray-400 text-center mb-5 leading-normal">
+        <p className="text-[11px] text-purple-300/70 text-center mb-5 leading-normal">
           By continuing with Google, you agree to StyleFlo's{' '}
           <button
             type="button"
             onClick={() => openLegalModal('Terms & Conditions', 'https://styleflo.ai/terms-conditions/')}
-            className="text-indigo-400 underline hover:text-indigo-300 font-medium"
+            className="text-[#9678D3] underline hover:text-purple-200 font-medium"
           >
             Terms of Service
           </button>{' '}
@@ -368,57 +383,57 @@ function RegisterContent() {
           <button
             type="button"
             onClick={() => openLegalModal('Privacy Policy', 'https://styleflo.ai/privacy/')}
-            className="text-indigo-400 underline hover:text-indigo-300 font-medium"
+            className="text-[#9678D3] underline hover:text-purple-200 font-medium"
           >
             Privacy Policy
           </button>.
         </p>
 
         <div className="relative flex items-center justify-center my-4">
-          <div className="border-t border-gray-800 w-full"></div>
-          <span className="bg-gray-900 px-3 text-[10px] uppercase tracking-wider text-gray-500 font-bold shrink-0">Or register with email</span>
-          <div className="border-t border-gray-800 w-full"></div>
+          <div className="border-t border-purple-900/60 w-full"></div>
+          <span className="bg-[#130F26] px-3 text-[10px] uppercase tracking-wider text-purple-300/60 font-bold shrink-0">Or register with email</span>
+          <div className="border-t border-purple-900/60 w-full"></div>
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
-            <label className="block text-xs font-bold text-gray-300 mb-1.5 uppercase tracking-wider">Business / Salon Name</label>
+            <label className="block text-xs font-bold text-purple-200/90 mb-1.5 uppercase tracking-wider">Business / Salon Name</label>
             <input
               type="text"
               required
               value={companyName}
               onChange={(e) => setCompanyName(e.target.value)}
               placeholder="e.g. StyleFlo Beauty Lounge"
-              className="w-full h-11 bg-gray-950 border border-gray-800 rounded-xl px-4 text-sm text-white focus:outline-none focus:border-indigo-500 transition-colors"
+              className="w-full h-11 bg-[#090715]/90 border border-purple-900/50 rounded-xl px-4 text-sm text-white focus:outline-none focus:border-[#9678D3] focus:ring-2 focus:ring-[#7E5FBB]/40 transition-colors placeholder-purple-300/30"
             />
           </div>
 
           <div>
-            <label className="block text-xs font-bold text-gray-300 mb-1.5 uppercase tracking-wider">Your Full Name</label>
+            <label className="block text-xs font-bold text-purple-200/90 mb-1.5 uppercase tracking-wider">Your Full Name</label>
             <input
               type="text"
               required
               value={fullName}
               onChange={(e) => setFullName(e.target.value)}
               placeholder="e.g. Sarah Jenkins"
-              className="w-full h-11 bg-gray-950 border border-gray-800 rounded-xl px-4 text-sm text-white focus:outline-none focus:border-indigo-500 transition-colors"
+              className="w-full h-11 bg-[#090715]/90 border border-purple-900/50 rounded-xl px-4 text-sm text-white focus:outline-none focus:border-[#9678D3] focus:ring-2 focus:ring-[#7E5FBB]/40 transition-colors placeholder-purple-300/30"
             />
           </div>
 
           <div>
-            <label className="block text-xs font-bold text-gray-300 mb-1.5 uppercase tracking-wider">Work Email Address</label>
+            <label className="block text-xs font-bold text-purple-200/90 mb-1.5 uppercase tracking-wider">Work Email Address</label>
             <input
               type="email"
               required
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               placeholder="sarah@salon.com"
-              className="w-full h-11 bg-gray-950 border border-gray-800 rounded-xl px-4 text-sm text-white focus:outline-none focus:border-indigo-500 transition-colors"
+              className="w-full h-11 bg-[#090715]/90 border border-purple-900/50 rounded-xl px-4 text-sm text-white focus:outline-none focus:border-[#9678D3] focus:ring-2 focus:ring-[#7E5FBB]/40 transition-colors placeholder-purple-300/30"
             />
           </div>
 
           <div>
-            <label className="block text-xs font-bold text-gray-300 mb-1.5 uppercase tracking-wider">Password</label>
+            <label className="block text-xs font-bold text-purple-200/90 mb-1.5 uppercase tracking-wider">Password</label>
             <input
               type="password"
               required
@@ -426,18 +441,18 @@ function RegisterContent() {
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               placeholder="••••••••••••"
-              className="w-full h-11 bg-gray-950 border border-gray-800 rounded-xl px-4 text-sm text-white focus:outline-none focus:border-indigo-500 transition-colors"
+              className="w-full h-11 bg-[#090715]/90 border border-purple-900/50 rounded-xl px-4 text-sm text-white focus:outline-none focus:border-[#9678D3] focus:ring-2 focus:ring-[#7E5FBB]/40 transition-colors placeholder-purple-300/30"
             />
           </div>
 
           <div>
-            <label className="block text-xs font-bold text-gray-300 mb-1.5 uppercase tracking-wider">Website URL (Optional)</label>
+            <label className="block text-xs font-bold text-purple-200/90 mb-1.5 uppercase tracking-wider">Website URL (Optional)</label>
             <input
               type="url"
               value={websiteUrl}
               onChange={(e) => setWebsiteUrl(e.target.value)}
               placeholder="https://www.mysalon.co.uk"
-              className="w-full h-11 bg-gray-950 border border-gray-800 rounded-xl px-4 text-sm text-white focus:outline-none focus:border-indigo-500 transition-colors"
+              className="w-full h-11 bg-[#090715]/90 border border-purple-900/50 rounded-xl px-4 text-sm text-white focus:outline-none focus:border-[#9678D3] focus:ring-2 focus:ring-[#7E5FBB]/40 transition-colors placeholder-purple-300/30"
             />
           </div>
 
@@ -449,14 +464,14 @@ function RegisterContent() {
               required
               checked={termsAccepted}
               onChange={(e) => setTermsAccepted(e.target.checked)}
-              className="w-4 h-4 mt-0.5 rounded border-gray-700 bg-gray-950 text-indigo-600 focus:ring-indigo-500"
+              className="w-4 h-4 mt-0.5 rounded border-purple-900 bg-[#090715] text-[#7E5FBB] focus:ring-[#7E5FBB]"
             />
-            <label htmlFor="termsAccepted" className="text-xs text-gray-300 leading-snug">
+            <label htmlFor="termsAccepted" className="text-xs text-purple-200/90 leading-snug">
               I agree to StyleFlo's{' '}
               <button
                 type="button"
                 onClick={() => openLegalModal('Terms & Conditions', 'https://styleflo.ai/terms-conditions/')}
-                className="text-indigo-400 underline hover:text-indigo-300 font-bold"
+                className="text-[#9678D3] underline hover:text-purple-200 font-bold"
               >
                 Terms of Service
               </button>{' '}
@@ -464,7 +479,7 @@ function RegisterContent() {
               <button
                 type="button"
                 onClick={() => openLegalModal('Privacy Policy', 'https://styleflo.ai/privacy/')}
-                className="text-indigo-400 underline hover:text-indigo-300 font-bold"
+                className="text-[#9678D3] underline hover:text-purple-200 font-bold"
               >
                 Privacy Policy
               </button>.
@@ -474,15 +489,15 @@ function RegisterContent() {
           <button
             type="submit"
             disabled={loading || !termsAccepted}
-            className="w-full h-12 bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-500 hover:to-purple-500 text-white font-bold text-sm rounded-xl shadow-lg shadow-indigo-500/20 active:scale-[0.99] transition-all disabled:opacity-50 mt-2"
+            className="w-full h-12 bg-gradient-to-r from-[#260475] via-[#7E5FBB] to-[#9678D3] hover:from-[#1f0360] hover:to-[#7E5FBB] text-white font-bold text-sm rounded-xl shadow-lg shadow-purple-950/50 active:scale-[0.99] transition-all disabled:opacity-50 mt-2"
           >
             {loading ? 'Creating Account & Claiming Free Month...' : `Claim 1st Month Free on ${planInfo.name}`}
           </button>
         </form>
 
-        <div className="mt-6 text-center text-xs text-gray-400 border-t border-gray-800/80 pt-4">
+        <div className="mt-6 text-center text-xs text-purple-300/70 border-t border-purple-900/60 pt-4">
           Already have an account?{' '}
-          <a href="/login" className="text-indigo-400 font-bold hover:underline">
+          <a href="/login" className="text-[#9678D3] font-bold hover:underline">
             Sign In
           </a>
         </div>

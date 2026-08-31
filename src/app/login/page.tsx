@@ -272,32 +272,42 @@ export default function LoginPage() {
   };
 
   return (
-    <main className="min-h-screen flex items-center justify-center bg-gray-950 p-4 font-sans relative overflow-hidden">
-      {/* Background Decor */}
-      <div className="absolute top-[-10%] left-[-10%] w-96 h-96 bg-indigo-600/20 rounded-full blur-[100px] pointer-events-none"></div>
-      <div className="absolute bottom-[-10%] right-[-10%] w-96 h-96 bg-purple-600/20 rounded-full blur-[100px] pointer-events-none"></div>
+    <main className="min-h-screen flex items-center justify-center bg-[#0B091A] p-4 font-sans relative overflow-hidden">
+      {/* StyleFlo Ambient Glow Decor */}
+      <div className="absolute top-[-10%] left-[-10%] w-[500px] h-[500px] bg-[#260475]/35 rounded-full blur-[120px] pointer-events-none"></div>
+      <div className="absolute bottom-[-10%] right-[-10%] w-[500px] h-[500px] bg-[#7E5FBB]/25 rounded-full blur-[120px] pointer-events-none"></div>
 
-      <div className="w-full max-w-md bg-gray-900/60 border border-gray-800 rounded-3xl p-8 md:p-10 shadow-2xl relative z-10 backdrop-blur-xl">
-        <div className="text-center mb-8">
-          <div className="w-12 h-12 bg-gradient-to-br from-indigo-500 to-purple-600 rounded-xl mx-auto mb-4 flex items-center justify-center shadow-lg shadow-indigo-500/20">
-            <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M13 10V3L4 14h7v7l9-11h-7z" />
-            </svg>
+      <div className="w-full max-w-md bg-[#130F26]/90 border border-purple-900/40 rounded-3xl p-8 md:p-10 shadow-[0_20px_50px_rgba(38,4,117,0.35)] relative z-10 backdrop-blur-2xl">
+        <div className="text-center mb-7">
+          <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-[#260475] via-[#4A1F52] to-[#7E5FBB] border border-purple-400/30 p-2.5 mx-auto mb-4 flex items-center justify-center shadow-xl shadow-purple-950/60 transition-transform duration-300 hover:scale-105">
+            <img 
+              src="https://styleflo.ai/wp-content/uploads/2026/07/icon.png" 
+              alt="StyleFlo.ai Logo" 
+              className="w-full h-full object-contain drop-shadow" 
+              onError={(e) => {
+                const target = e.currentTarget;
+                target.style.display = 'none';
+                if (target.nextElementSibling) target.nextElementSibling.classList.remove('hidden');
+              }}
+            />
+            <span className="hidden text-white font-black text-2xl tracking-tighter">SF</span>
           </div>
-          <h1 className="text-2xl font-bold text-white mb-2 tracking-tight">Welcome to StyleFlo</h1>
-          <p className="text-sm text-gray-400">
-            {isLogin ? 'Sign in to manage your AI chatbots' : 'Create an account to get started'}
+          <h1 className="text-2xl font-black text-white mb-1 tracking-tight font-sans">
+            STYLE<span className="text-[#9678D3]">FLO</span><span className="text-xs text-purple-300 font-mono ml-0.5 font-normal">.AI</span>
+          </h1>
+          <p className="text-xs text-purple-200/80 font-medium">
+            {isLogin ? 'Sign in to manage your 24/7 AI Receptionist' : 'Create an account to activate your AI Receptionist'}
           </p>
         </div>
 
         {error && (
-          <div className="mb-6 p-4 bg-red-500/10 border border-red-500/50 rounded-xl text-red-400 text-sm font-medium">
+          <div className="mb-6 p-4 bg-rose-950/50 border border-rose-800 text-rose-300 rounded-xl text-xs font-medium leading-relaxed">
             {error}
           </div>
         )}
 
         {duplicateEmailDetected && (
-          <div className="bg-amber-950/60 border border-amber-500/50 rounded-2xl p-5 mb-6 text-left space-y-3 shadow-lg animate-in fade-in duration-300">
+          <div className="bg-amber-950/70 border border-amber-500/50 rounded-2xl p-5 mb-6 text-left space-y-3 shadow-lg animate-in fade-in duration-300">
             <div className="flex items-center gap-2 text-amber-300 font-bold text-sm">
               <span className="text-xl">⚠️</span>
               <span>Email Already Registered</span>
@@ -329,7 +339,7 @@ export default function LoginPage() {
         )}
 
         {magicLinkSent && (
-          <div className="bg-emerald-950/60 border border-emerald-500/50 rounded-2xl p-5 mb-6 text-left space-y-2 shadow-lg animate-in fade-in duration-300">
+          <div className="bg-emerald-950/70 border border-emerald-500/50 rounded-2xl p-5 mb-6 text-left space-y-2 shadow-lg animate-in fade-in duration-300">
             <div className="flex items-center gap-2 text-emerald-300 font-bold text-sm">
               <span className="text-xl">✨</span>
               <span>Magic Login Link Sent!</span>
@@ -341,7 +351,7 @@ export default function LoginPage() {
         )}
 
         {successMessage && (
-          <div className="mb-6 p-4 bg-green-500/10 border border-green-500/50 rounded-xl text-green-400 text-sm font-medium">
+          <div className="mb-6 p-4 bg-emerald-950/50 border border-emerald-800 text-emerald-300 rounded-xl text-xs font-medium leading-relaxed">
             {successMessage}
           </div>
         )}
@@ -351,7 +361,7 @@ export default function LoginPage() {
           type="button"
           onClick={handleGoogleSignIn}
           disabled={loading}
-          className="w-full h-12 bg-white hover:bg-gray-100 text-gray-900 font-bold text-sm rounded-xl shadow-md flex items-center justify-center gap-3 transition-all active:scale-[0.99] mb-3 border border-gray-200"
+          className="w-full h-12 bg-white hover:bg-purple-50 text-gray-900 font-bold text-sm rounded-xl shadow-md flex items-center justify-center gap-3 transition-all active:scale-[0.99] mb-3 border border-purple-100"
         >
           <svg className="w-5 h-5" viewBox="0 0 24 24">
             <path
@@ -374,12 +384,12 @@ export default function LoginPage() {
           <span>Continue with Google</span>
         </button>
 
-        <p className="text-[11px] text-gray-400 text-center mb-5 leading-normal">
+        <p className="text-[11px] text-purple-300/70 text-center mb-5 leading-normal">
           By continuing with Google, you agree to StyleFlo's{' '}
           <button
             type="button"
             onClick={() => openLegalModal('Terms & Conditions', 'https://styleflo.ai/terms-conditions/')}
-            className="text-indigo-400 underline hover:text-indigo-300 font-medium"
+            className="text-[#9678D3] underline hover:text-purple-200 font-medium"
           >
             Terms of Service
           </button>{' '}
@@ -387,39 +397,39 @@ export default function LoginPage() {
           <button
             type="button"
             onClick={() => openLegalModal('Privacy Policy', 'https://styleflo.ai/privacy/')}
-            className="text-indigo-400 underline hover:text-indigo-300 font-medium"
+            className="text-[#9678D3] underline hover:text-purple-200 font-medium"
           >
             Privacy Policy
           </button>.
         </p>
 
         <div className="relative flex items-center justify-center my-4">
-          <div className="border-t border-gray-800 w-full"></div>
-          <span className="bg-gray-900 px-3 text-[10px] uppercase tracking-wider text-gray-500 font-bold shrink-0">Or continue with credentials</span>
-          <div className="border-t border-gray-800 w-full"></div>
+          <div className="border-t border-purple-900/60 w-full"></div>
+          <span className="bg-[#130F26] px-3 text-[10px] uppercase tracking-wider text-purple-300/60 font-bold shrink-0">Or continue with credentials</span>
+          <div className="border-t border-purple-900/60 w-full"></div>
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
-            <label className="block text-xs font-semibold text-gray-400 mb-1.5">Email Address</label>
+            <label className="block text-xs font-bold text-purple-200/90 mb-1.5 uppercase tracking-wide">Email Address</label>
             <input
               type="email"
               required
               value={email}
               onChange={(e) => setEmail(e.target.value)}
-              className="w-full bg-gray-800 border border-gray-700 text-white rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all"
+              className="w-full bg-[#090715]/90 border border-purple-900/50 text-white rounded-xl px-4 py-3 focus:outline-none focus:border-[#9678D3] focus:ring-2 focus:ring-[#7E5FBB]/40 transition-all text-sm placeholder-purple-300/30"
               placeholder="you@example.com"
             />
           </div>
 
           <div>
-            <label className="block text-xs font-semibold text-gray-400 mb-1.5">Password</label>
+            <label className="block text-xs font-bold text-purple-200/90 mb-1.5 uppercase tracking-wide">Password</label>
             <input
               type="password"
               required
               value={password}
               onChange={(e) => setPassword(e.target.value)}
-              className="w-full bg-gray-800 border border-gray-700 text-white rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all"
+              className="w-full bg-[#090715]/90 border border-purple-900/50 text-white rounded-xl px-4 py-3 focus:outline-none focus:border-[#9678D3] focus:ring-2 focus:ring-[#7E5FBB]/40 transition-all text-sm placeholder-purple-300/30"
               placeholder="••••••••"
             />
           </div>
@@ -427,18 +437,18 @@ export default function LoginPage() {
           {!isLogin && (
             <>
               <div>
-                <label className="block text-xs font-semibold text-gray-400 mb-1.5">Full Name</label>
+                <label className="block text-xs font-bold text-purple-200/90 mb-1.5 uppercase tracking-wide">Full Name</label>
                 <input
                   type="text"
                   required
                   value={fullName}
                   onChange={(e) => setFullName(e.target.value)}
-                  className="w-full bg-gray-800 border border-gray-700 text-white rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all"
+                  className="w-full bg-[#090715]/90 border border-purple-900/50 text-white rounded-xl px-4 py-3 focus:outline-none focus:border-[#9678D3] focus:ring-2 focus:ring-[#7E5FBB]/40 transition-all text-sm placeholder-purple-300/30"
                   placeholder="Sarah Jenkins"
                 />
               </div>
               <div>
-                <label className="block text-xs font-semibold text-gray-400 mb-1.5">Company / Salon Name</label>
+                <label className="block text-xs font-bold text-purple-200/90 mb-1.5 uppercase tracking-wide">Company / Salon Name</label>
                 <input
                   type="text"
                   required
@@ -447,7 +457,7 @@ export default function LoginPage() {
                     setCompanyName(e.target.value);
                     setCustomSlug('');
                   }}
-                  className="w-full bg-gray-800 border border-gray-700 text-white rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all"
+                  className="w-full bg-[#090715]/90 border border-purple-900/50 text-white rounded-xl px-4 py-3 focus:outline-none focus:border-[#9678D3] focus:ring-2 focus:ring-[#7E5FBB]/40 transition-all text-sm placeholder-purple-300/30"
                   placeholder="StyleFlo Lounge"
                 />
 
@@ -455,21 +465,21 @@ export default function LoginPage() {
                 {slugStatus && slugStatus.slug && (
                   <div className={`mt-2.5 p-3 rounded-xl border text-xs transition-all ${
                     slugStatus.checking
-                      ? 'bg-gray-800/80 border-gray-700 text-gray-400'
+                      ? 'bg-[#090715] border-purple-900/50 text-purple-300/60'
                       : slugStatus.available
-                      ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-300'
-                      : 'bg-red-500/10 border-red-500/30 text-red-300'
+                      ? 'bg-emerald-950/40 border-emerald-500/30 text-emerald-300'
+                      : 'bg-rose-950/40 border-rose-500/30 text-rose-300'
                   }`}>
                     <div className="flex items-center justify-between font-mono font-medium">
                       <span className="truncate max-w-[260px]">{slugStatus.url}</span>
                       {slugStatus.checking ? (
-                        <span className="text-[10px] text-gray-400 animate-pulse">Checking availability...</span>
+                        <span className="text-[10px] text-purple-300/60 animate-pulse">Checking availability...</span>
                       ) : slugStatus.available ? (
                         <span className="inline-flex items-center gap-1 text-[10px] bg-emerald-500/20 text-emerald-300 px-2 py-0.5 rounded-full font-sans font-bold">
                           ✓ Available
                         </span>
                       ) : (
-                        <span className="inline-flex items-center gap-1 text-[10px] bg-red-500/20 text-red-300 px-2 py-0.5 rounded-full font-sans font-bold">
+                        <span className="inline-flex items-center gap-1 text-[10px] bg-rose-500/20 text-rose-300 px-2 py-0.5 rounded-full font-sans font-bold">
                           ✕ Already Taken
                         </span>
                       )}
@@ -477,15 +487,15 @@ export default function LoginPage() {
 
                     {/* Suggestions list when URL is taken */}
                     {!slugStatus.checking && !slugStatus.available && slugStatus.suggestions.length > 0 && (
-                      <div className="mt-2.5 pt-2 border-t border-red-500/20 font-sans">
-                        <p className="text-[11px] text-gray-300 font-semibold mb-1.5">Suggested available URLs:</p>
+                      <div className="mt-2.5 pt-2 border-t border-rose-500/20 font-sans">
+                        <p className="text-[11px] text-purple-200 font-semibold mb-1.5">Suggested available URLs:</p>
                         <div className="flex flex-wrap gap-1.5">
                           {slugStatus.suggestions.map((suggestion) => (
                             <button
                               key={suggestion}
                               type="button"
                               onClick={() => setCustomSlug(suggestion)}
-                              className="px-2.5 py-1 bg-indigo-600/30 hover:bg-indigo-600/50 text-indigo-200 border border-indigo-500/40 rounded-lg text-xs font-mono font-semibold transition-all hover:scale-105 active:scale-95"
+                              className="px-2.5 py-1 bg-[#7E5FBB]/30 hover:bg-[#7E5FBB]/50 text-purple-200 border border-[#7E5FBB]/40 rounded-lg text-xs font-mono font-semibold transition-all hover:scale-105 active:scale-95"
                             >
                               {suggestion}
                             </button>
@@ -497,13 +507,13 @@ export default function LoginPage() {
                 )}
               </div>
               <div>
-                <label className="block text-xs font-semibold text-gray-400 mb-1.5">Website URL</label>
+                <label className="block text-xs font-bold text-purple-200/90 mb-1.5 uppercase tracking-wide">Website URL</label>
                 <input
                   type="url"
                   required
                   value={websiteUrl}
                   onChange={(e) => setWebsiteUrl(e.target.value)}
-                  className="w-full bg-gray-800 border border-gray-700 text-white rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all"
+                  className="w-full bg-[#090715]/90 border border-purple-900/50 text-white rounded-xl px-4 py-3 focus:outline-none focus:border-[#9678D3] focus:ring-2 focus:ring-[#7E5FBB]/40 transition-all text-sm placeholder-purple-300/30"
                   placeholder="https://example.com"
                 />
               </div>
@@ -515,14 +525,14 @@ export default function LoginPage() {
                   required
                   checked={termsAccepted}
                   onChange={(e) => setTermsAccepted(e.target.checked)}
-                  className="w-4 h-4 mt-0.5 rounded border-gray-700 bg-gray-950 text-indigo-600 focus:ring-indigo-500"
+                  className="w-4 h-4 mt-0.5 rounded border-purple-900 bg-[#090715] text-[#7E5FBB] focus:ring-[#7E5FBB]"
                 />
-                <label htmlFor="loginTermsAccepted" className="text-xs text-gray-300 leading-snug">
+                <label htmlFor="loginTermsAccepted" className="text-xs text-purple-200/90 leading-snug">
                   I agree to StyleFlo's{' '}
                   <button
                     type="button"
                     onClick={() => openLegalModal('Terms & Conditions', 'https://styleflo.ai/terms-conditions/')}
-                    className="text-indigo-400 underline hover:text-indigo-300 font-bold"
+                    className="text-[#9678D3] underline hover:text-purple-200 font-bold"
                   >
                     Terms of Service
                   </button>{' '}
@@ -530,7 +540,7 @@ export default function LoginPage() {
                   <button
                     type="button"
                     onClick={() => openLegalModal('Privacy Policy', 'https://styleflo.ai/privacy/')}
-                    className="text-indigo-400 underline hover:text-indigo-300 font-bold"
+                    className="text-[#9678D3] underline hover:text-purple-200 font-bold"
                   >
                     Privacy Policy
                   </button>.
@@ -542,7 +552,7 @@ export default function LoginPage() {
           <button
             type="submit"
             disabled={loading || (!isLogin && !termsAccepted)}
-            className="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-semibold rounded-xl px-4 py-3 shadow-lg shadow-indigo-500/20 transition-all focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 focus:ring-offset-gray-900 mt-2 disabled:opacity-50 disabled:cursor-not-allowed"
+            className="w-full bg-gradient-to-r from-[#260475] via-[#7E5FBB] to-[#9678D3] hover:from-[#1f0360] hover:to-[#7E5FBB] text-white font-bold rounded-xl px-4 py-3 shadow-lg shadow-purple-950/50 transition-all focus:ring-2 focus:ring-[#7E5FBB] focus:ring-offset-2 focus:ring-offset-[#0B091A] mt-2 disabled:opacity-50 disabled:cursor-not-allowed"
           >
             {loading ? 'Processing...' : isLogin ? 'Sign In' : 'Create Account'}
           </button>
@@ -555,7 +565,7 @@ export default function LoginPage() {
               setIsLogin(!isLogin);
               setError(null);
             }}
-            className="text-sm font-medium text-indigo-400 hover:text-indigo-300 transition-colors"
+            className="text-sm font-semibold text-[#9678D3] hover:text-purple-200 transition-colors"
           >
             {isLogin ? "Don't have an account? Sign up" : 'Already have an account? Sign in'}
           </button>

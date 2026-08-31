@@ -35,43 +35,64 @@ export async function POST(request: Request) {
       auth: { persistSession: false, autoRefreshToken: false },
     });
 
-    // 1. Check profiles table for matching email
-    const { data: profileMatch } = await supabaseAdmin
-      .from('profiles')
-      .select('id, email')
-      .ilike('email', email)
-      .limit(1)
-      .maybeSingle();
+    // Method 1: Execute RPC check_email_exists in Postgres if available
+    try {
+      const { data: rpcExists, error: rpcError } = await supabaseAdmin.rpc('check_email_exists', {
+        p_email: email,
+      });
 
-    if (profileMatch) {
-      console.log(`[Check Email Route] Email ${email} found in profiles table.`);
-      return NextResponse.json({ exists: true, email }, { status: 200, headers: corsHeaders });
+      if (!rpcError && rpcExists === true) {
+        console.log(`[Check Email Route] Email ${email} confirmed via RPC check_email_exists.`);
+        return NextResponse.json({ exists: true, email }, { status: 200, headers: corsHeaders });
+      }
+    } catch (e) {
+      console.warn('[Check Email Route] RPC call fallback:', e);
     }
 
-    // 2. Check tenants table for owner_email match
-    const { data: tenantMatch } = await supabaseAdmin
-      .from('tenants')
-      .select('id, owner_email')
-      .ilike('owner_email', email)
-      .limit(1)
-      .maybeSingle();
-
-    if (tenantMatch) {
-      console.log(`[Check Email Route] Email ${email} found in tenants table owner_email.`);
-      return NextResponse.json({ exists: true, email }, { status: 200, headers: corsHeaders });
+    // Method 2: Inspect auth.users via Supabase Auth Admin API
+    try {
+      const { data: usersData, error: listError } = await supabaseAdmin.auth.admin.listUsers();
+      if (!listError && usersData?.users) {
+        const found = usersData.users.some((u) => u.email?.trim().toLowerCase() === email);
+        if (found) {
+          console.log(`[Check Email Route] Email ${email} found in auth.users list.`);
+          return NextResponse.json({ exists: true, email }, { status: 200, headers: corsHeaders });
+        }
+      }
+    } catch (e) {
+      console.warn('[Check Email Route] listUsers fallback:', e);
     }
 
-    // 3. Probe Supabase Auth admin generateLink to detect existing user account
-    const { error: linkError } = await supabaseAdmin.auth.admin.generateLink({
-      type: 'magiclink',
-      email: email,
-    });
+    // Method 3: Probe Supabase Auth generateLink for magic link token
+    try {
+      const { data: linkData, error: linkError } = await supabaseAdmin.auth.admin.generateLink({
+        type: 'magiclink',
+        email: email,
+      });
 
-    const isUserFound = !linkError || (!linkError.message.includes('User not found') && linkError.status !== 404);
+      if (linkData?.user || (linkError && !linkError.message.includes('User not found') && linkError.status !== 404)) {
+        console.log(`[Check Email Route] Email ${email} detected via generateLink probe.`);
+        return NextResponse.json({ exists: true, email }, { status: 200, headers: corsHeaders });
+      }
+    } catch (e) {
+      console.warn('[Check Email Route] generateLink probe fallback:', e);
+    }
 
-    if (isUserFound) {
-      console.log(`[Check Email Route] Email ${email} detected in Supabase auth.users.`);
-      return NextResponse.json({ exists: true, email }, { status: 200, headers: corsHeaders });
+    // Method 4: Check staff table for pre-invited members
+    try {
+      const { data: staffMatch } = await supabaseAdmin
+        .from('staff')
+        .select('id')
+        .ilike('email', email)
+        .limit(1)
+        .maybeSingle();
+
+      if (staffMatch) {
+        console.log(`[Check Email Route] Email ${email} found in staff table.`);
+        return NextResponse.json({ exists: true, email }, { status: 200, headers: corsHeaders });
+      }
+    } catch (e) {
+      console.warn('[Check Email Route] staff table check fallback:', e);
     }
 
     return NextResponse.json({ exists: false, email }, { status: 200, headers: corsHeaders });
