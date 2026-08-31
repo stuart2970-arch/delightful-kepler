@@ -560,18 +560,28 @@ ${staffContext}`;
       content: message,
     });
 
-    console.log(`[Chat Stream][${requestId}] Initializing Vercel AI SDK text stream (gemini-3.5-flash)...`);
+    console.log(`[Chat Stream][${requestId}] Initializing Vercel AI SDK text stream (gemini-2.0-flash)...`);
 
     let lastApiError = "";
     
     // 9. Invoke streamText and setup async database transaction logging
     const result = await streamText({
-      model: google('gemini-3.6-flash'),
+      model: google('gemini-2.0-flash'),
       system: systemPrompt,
       messages: formattedMessages,
       onError: (err: unknown) => {
         console.error(`[Chat Stream][${requestId}] API Stream Error:`, err);
-        lastApiError = err instanceof Error ? err.message : String(err);
+        if (err instanceof Error) {
+          lastApiError = err.message;
+        } else if (err && typeof err === 'object') {
+          try {
+            lastApiError = (err as any).message || (err as any).error?.message || JSON.stringify(err);
+          } catch {
+            lastApiError = String(err);
+          }
+        } else {
+          lastApiError = String(err);
+        }
       },
       onFinish: async (event) => {
         console.log(`[Chat Stream][${requestId}] AI stream finished. Logging conversation in background...`);
@@ -666,7 +676,7 @@ ${staffContext}`;
             ];
             
             const result2 = await streamText({
-              model: google('gemini-3.5-flash'),
+              model: google('gemini-2.0-flash'),
               system: systemPrompt,
               messages: pass2Messages,
               onFinish: async (event2) => {
@@ -706,7 +716,7 @@ ${staffContext}`;
               ];
               
               const result2 = await streamText({
-                model: google('gemini-3.5-flash'),
+                model: google('gemini-2.0-flash'),
                 system: `You are an AI assistant representing the business "${configData.businessName || 'our business'}".
 Your goal is to answer questions strictly using the provided context and handle booking inquiries according to the business's booking mode.
 If the answer isn't in the context, clearly state that you don't know and offer a fallback (like taking an email). Do not invent pricing, policies, or facts.

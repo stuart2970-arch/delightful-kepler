@@ -203,7 +203,7 @@ ${globalDisclaimer}`;
 
     // 5. Generate LLM Pass 1
     const { text: rawText } = await generateText({
-      model: googleProvider('gemini-3.5-flash'),
+      model: googleProvider('gemini-2.0-flash'),
       messages: enhancedMessages,
       temperature: 0.7,
     });
@@ -222,7 +222,7 @@ ${globalDisclaimer}`;
       const availResult = await checkAvailability(tenantId, staffId, serviceId, startStr, endStr, timezone);
       
       const { text: pass2Text } = await generateText({
-        model: googleProvider('gemini-3.5-flash'),
+        model: googleProvider('gemini-2.0-flash'),
         messages: [
           ...enhancedMessages,
           { role: 'assistant', content: rawText },
@@ -247,7 +247,7 @@ ${globalDisclaimer}`;
       const bookResult = await bookMeeting(tenantId, staffId, serviceId, custName, custEmail, custPhone, startStr, endStr, timezone);
 
       const { text: pass2Text } = await generateText({
-        model: googleProvider('gemini-3.5-flash'),
+        model: googleProvider('gemini-2.0-flash'),
         messages: [
           ...enhancedMessages,
           { role: 'assistant', content: rawText },
@@ -270,7 +270,7 @@ ${globalDisclaimer}`;
             id: 'chatcmpl-vapi',
             object: 'chat.completion.chunk',
             created: Math.floor(Date.now() / 1000),
-            model: 'gemini-3.5-flash',
+            model: 'gemini-2.0-flash',
             choices: [{ delta: { role: 'assistant', content: finalSpokenText }, index: 0, finish_reason: null }]
           };
           controller.enqueue(encoder.encode(`data: ${JSON.stringify(roleChunk)}\n\n`));
@@ -279,7 +279,7 @@ ${globalDisclaimer}`;
             id: 'chatcmpl-vapi',
             object: 'chat.completion.chunk',
             created: Math.floor(Date.now() / 1000),
-            model: 'gemini-3.5-flash',
+            model: 'gemini-2.0-flash',
             choices: [{ delta: {}, index: 0, finish_reason: 'stop' }]
           };
           controller.enqueue(encoder.encode(`data: ${JSON.stringify(finishChunk)}\n\n`));

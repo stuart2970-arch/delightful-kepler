@@ -30,7 +30,17 @@ Call log:
   - img
   - heading "Welcome to StyleFlo" [level=1]
   - paragraph: Sign in to manage your AI chatbots
-  - text: Invalid login credentials Email Address
+  - text: Invalid login credentials
+  - button "Continue with Google":
+    - img
+    - text: Continue with Google
+  - paragraph:
+    - text: By continuing with Google, you agree to StyleFlo's
+    - button "Terms of Service"
+    - text: and acknowledge our
+    - button "Privacy Policy"
+    - text: .
+  - text: Or continue with credentials Email Address
   - textbox "you@example.com": sarah.miller@acme.com
   - text: Password
   - textbox "••••••••": securepass123!

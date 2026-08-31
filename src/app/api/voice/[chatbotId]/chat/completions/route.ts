@@ -152,7 +152,7 @@ export async function POST(
           id: 'chatcmpl-vapi',
           object: 'chat.completion',
           created: Math.floor(Date.now() / 1000),
-          model: 'gemini-3.6-flash',
+          model: 'gemini-2.0-flash',
           choices: [{ message: { role: 'assistant', content: '' }, finish_reason: 'stop', index: 0 }]
         }, { headers: corsHeaders });
       }
@@ -164,7 +164,7 @@ export async function POST(
             id: 'chatcmpl-vapi',
             object: 'chat.completion.chunk',
             created: Math.floor(Date.now() / 1000),
-            model: 'gemini-3.6-flash',
+            model: 'gemini-2.0-flash',
             choices: [{ delta: { role: 'assistant', content: '' }, index: 0, finish_reason: null }]
           };
           controller.enqueue(encoder.encode(`data: ${JSON.stringify(roleChunk)}\n\n`));
@@ -172,7 +172,7 @@ export async function POST(
             id: 'chatcmpl-vapi',
             object: 'chat.completion.chunk',
             created: Math.floor(Date.now() / 1000),
-            model: 'gemini-3.6-flash',
+            model: 'gemini-2.0-flash',
             choices: [{ delta: {}, index: 0, finish_reason: 'stop' }]
           };
           controller.enqueue(encoder.encode(`data: ${JSON.stringify(finishChunk)}\n\n`));
@@ -345,7 +345,7 @@ ${globalDisclaimer}`;
 
     if (!isStream) {
       const { text: rawText } = await generateText({
-        model: googleProvider('gemini-3.6-flash'),
+        model: googleProvider('gemini-2.0-flash'),
         messages: enhancedMessages,
         temperature: 0.7,
       });
@@ -354,7 +354,7 @@ ${globalDisclaimer}`;
         id: 'chatcmpl-vapi',
         object: 'chat.completion',
         created: Math.floor(Date.now() / 1000),
-        model: 'gemini-3.6-flash',
+        model: 'gemini-2.0-flash',
         choices: [
           {
             message: { role: 'assistant', content: rawText },
@@ -374,13 +374,13 @@ ${globalDisclaimer}`;
             id: 'chatcmpl-vapi',
             object: 'chat.completion.chunk',
             created: Math.floor(Date.now() / 1000),
-            model: 'gemini-3.6-flash',
+            model: 'gemini-2.0-flash',
             choices: [{ delta: { role: 'assistant' }, index: 0, finish_reason: null }]
           };
           controller.enqueue(encoder.encode(`data: ${JSON.stringify(startRoleChunk)}\n\n`));
 
           const result = streamText({
-            model: googleProvider('gemini-3.6-flash'),
+            model: googleProvider('gemini-2.0-flash'),
             messages: enhancedMessages,
             temperature: 0.7,
           });
@@ -401,7 +401,7 @@ ${globalDisclaimer}`;
                 id: 'chatcmpl-vapi',
                 object: 'chat.completion.chunk',
                 created: Math.floor(Date.now() / 1000),
-                model: 'gemini-3.6-flash',
+                model: 'gemini-2.0-flash',
                 choices: [{ delta: { content: textDelta }, index: 0, finish_reason: null }]
               };
               controller.enqueue(encoder.encode(`data: ${JSON.stringify(deltaChunk)}\n\n`));
@@ -422,7 +422,7 @@ ${globalDisclaimer}`;
               id: 'chatcmpl-vapi',
               object: 'chat.completion.chunk',
               created: Math.floor(Date.now() / 1000),
-              model: 'gemini-3.6-flash',
+              model: 'gemini-2.0-flash',
               choices: [{ delta: { content: fillerPhrase }, index: 0, finish_reason: null }]
             };
             controller.enqueue(encoder.encode(`data: ${JSON.stringify(fillerChunk)}\n\n`));
@@ -453,7 +453,7 @@ ${globalDisclaimer}`;
             const preBracketText = fullText.split('[')[0].trim();
 
             const pass2Result = streamText({
-              model: googleProvider('gemini-3.6-flash'),
+              model: googleProvider('gemini-2.0-flash'),
               messages: [
                 ...enhancedMessages,
                 { role: 'assistant', content: preBracketText || fillerPhrase },
@@ -469,7 +469,7 @@ ${globalDisclaimer}`;
                   id: 'chatcmpl-vapi',
                   object: 'chat.completion.chunk',
                   created: Math.floor(Date.now() / 1000),
-                  model: 'gemini-3.6-flash',
+                  model: 'gemini-2.0-flash',
                   choices: [{ delta: { content: cleanDelta }, index: 0, finish_reason: null }]
                 };
                 controller.enqueue(encoder.encode(`data: ${JSON.stringify(deltaChunk)}\n\n`));
@@ -482,7 +482,7 @@ ${globalDisclaimer}`;
               id: 'chatcmpl-vapi',
               object: 'chat.completion.chunk',
               created: Math.floor(Date.now() / 1000),
-              model: 'gemini-3.6-flash',
+              model: 'gemini-2.0-flash',
               choices: [{ delta: { content: remainingCleanText }, index: 0, finish_reason: null }]
             };
             controller.enqueue(encoder.encode(`data: ${JSON.stringify(deltaChunk)}\n\n`));
@@ -492,7 +492,7 @@ ${globalDisclaimer}`;
             id: 'chatcmpl-vapi',
             object: 'chat.completion.chunk',
             created: Math.floor(Date.now() / 1000),
-            model: 'gemini-3.6-flash',
+            model: 'gemini-2.0-flash',
             choices: [{ delta: {}, index: 0, finish_reason: 'stop' }]
           };
           controller.enqueue(encoder.encode(`data: ${JSON.stringify(finishChunk)}\n\n`));

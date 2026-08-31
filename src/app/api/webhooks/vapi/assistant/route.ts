@@ -133,7 +133,7 @@ export async function POST(request: Request) {
     const modelOverrides: any = {
       provider: 'custom-llm',
       url: `${appUrl}/api/voice/${chatbot.id}`,
-      model: 'gemini-3.6-flash',
+      model: 'gemini-2.0-flash',
       messages: [
         {
           role: 'system',
