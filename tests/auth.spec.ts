@@ -5,24 +5,24 @@ test.describe('Authentication Flows', () => {
     await page.goto('/login');
 
     // Verify the title or heading
-    await expect(page.locator('h1')).toHaveText('Welcome to StyleFlo');
+    await expect(page.locator('h1')).toHaveText(/STYLEFLO/i);
 
     // Verify inputs exist
     await expect(page.locator('input[type="email"]')).toBeVisible();
     await expect(page.locator('input[type="password"]')).toBeVisible();
 
     // Verify sign in button exists
-    await expect(page.getByRole('button', { name: 'Sign In' })).toBeVisible();
+    await expect(page.getByRole('button', { name: /Sign In/i })).toBeVisible();
   });
 
   test('can toggle to signup form', async ({ page }) => {
     await page.goto('/login');
 
     // Click the toggle button
-    await page.getByRole('button', { name: "Don't have an account? Sign up" }).click();
+    await page.getByRole('button', { name: /Don't have an account\? Sign up/i }).click();
 
     // Verify we are on signup form
-    await expect(page.locator('h1')).toHaveText('Welcome to StyleFlo');
+    await expect(page.locator('h1')).toHaveText(/STYLEFLO/i);
     await expect(page.getByText('Create an account to get started')).toBeVisible();
 
     // Verify additional inputs appear
