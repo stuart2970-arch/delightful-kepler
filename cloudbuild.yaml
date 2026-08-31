@@ -8,6 +8,8 @@ steps:
         docker build \
           --build-arg NEXT_PUBLIC_SUPABASE_URL=$_SUPABASE_URL \
           --build-arg NEXT_PUBLIC_SUPABASE_ANON_KEY=$_SUPABASE_ANON_KEY \
+          --build-arg NEXT_PUBLIC_GA_MEASUREMENT_ID=${_GA_MEASUREMENT_ID:-G-DHF4NRZEE3} \
+          --build-arg NEXT_PUBLIC_FB_PIXEL_ID=${_FB_PIXEL_ID:-1083974731158850} \
           -t europe-west2-docker.pkg.dev/$PROJECT_ID/styleflo-repo/styleflo-app:$COMMIT_SHA .
 
   # Step 2: Push the image to Artifact Registry

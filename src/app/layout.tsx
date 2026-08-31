@@ -23,7 +23,9 @@ export const metadata: Metadata = {
   description: "AI-Powered Customer Support & Scheduling Widget",
 };
 
+import { Suspense } from "react";
 import IframeResizer from "@/components/IframeResizer";
+import Analytics from "@/components/Analytics";
 
 export default function RootLayout({
   children,
@@ -36,6 +38,9 @@ export default function RootLayout({
       className={`${poppins.variable} ${inter.variable} antialiased`}
     >
       <body className="flex flex-col bg-[var(--awb-color3)] text-[var(--awb-color7)] font-sans">
+        <Suspense fallback={null}>
+          <Analytics />
+        </Suspense>
         <IframeResizer />
         {/* Hidden AI Guardrails for Web Scrapers / LLM Crawlers */}
         <div className="sr-only" aria-hidden="true">

@@ -4,6 +4,7 @@ import { useEffect, useState, Suspense } from 'react';
 import { createBrowserClient } from '@supabase/ssr';
 import { useRouter, useSearchParams } from 'next/navigation';
 import LegalModal from '@/components/LegalModal';
+import { trackSignUp, trackVisitorNotSignedUp, trackLeadIntent } from '@/lib/analytics';
 
 function RegisterContent() {
   const router = useRouter();
@@ -11,6 +12,10 @@ function RegisterContent() {
 
   const planParam = searchParams.get('plan') || 'starter';
   const promoParam = searchParams.get('promo') || '1monthfree';
+
+  useEffect(() => {
+    trackVisitorNotSignedUp('register_page', { plan: planParam });
+  }, [planParam]);
 
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -118,6 +123,7 @@ function RegisterContent() {
         ? `${window.location.origin}/dashboard`
         : 'https://app.styleflo.ai/dashboard';
 
+      trackSignUp('google', planParam);
       const { error } = await supabase.auth.signInWithOAuth({
         provider: 'google',
         options: {
@@ -231,6 +237,8 @@ function RegisterContent() {
       });
       if (error) throw error;
       
+      trackSignUp('email', planParam);
+
       if (data?.session === null) {
         setSuccessMessage("Account created successfully! Please check your email to verify your account and claim your 1st month free.");
       } else {
