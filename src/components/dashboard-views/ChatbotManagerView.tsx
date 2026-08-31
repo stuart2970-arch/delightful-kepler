@@ -136,11 +136,6 @@ export default function ChatbotManagerView() {
     setIsCreatingBot(true);
     let successfullySaved = false;
     const newId = crypto.randomUUID();
-    const newChatbot: Chatbot = {
-      id: newId,
-      name: newBotName,
-      primary_color: newBotColor,
-      voice_enabled: newVoiceEnabled,
     const configPayload = {
       welcome_message: newBotWelcome,
       agent_name: newAgentName.trim() || newBotName,
