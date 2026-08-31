@@ -3,6 +3,8 @@ import { createClient } from '@supabase/supabase-js';
 import { createServerClient } from '@supabase/ssr';
 import { cookies } from 'next/headers';
 
+import { invalidateGeminiModelCache } from '@/lib/gemini-config';
+
 export async function POST(req: NextRequest) {
   try {
     const cookieStore = await cookies();
@@ -37,7 +39,7 @@ export async function POST(req: NextRequest) {
     }
 
     const body = await req.json();
-    const { branding_html, branding_url, global_voice_disclaimer, flobot_config } = body;
+    const { branding_html, branding_url, global_voice_disclaimer, default_gemini_model, flobot_config } = body;
 
     const adminClient = createClient(supabaseUrl, serviceKey);
     const globalBotId = '00000000-0000-0000-0000-000000000000';
@@ -69,6 +71,7 @@ export async function POST(req: NextRequest) {
       ...(branding_html !== undefined && { branding_html }),
       ...(branding_url !== undefined && { branding_url }),
       ...(global_voice_disclaimer !== undefined && { global_voice_disclaimer }),
+      ...(default_gemini_model !== undefined && { default_gemini_model: String(default_gemini_model).trim() }),
       ...(flobot_config !== undefined && {
         flobot_config: {
           ...(existingBot?.configuration_json?.flobot_config || {}),
@@ -76,6 +79,8 @@ export async function POST(req: NextRequest) {
         }
       }),
     };
+
+    invalidateGeminiModelCache();
 
     // 3. Upsert global chatbot configuration
     const { error } = await adminClient

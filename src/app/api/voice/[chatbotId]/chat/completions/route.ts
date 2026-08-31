@@ -4,6 +4,8 @@ import { streamText, generateText } from 'ai';
 import { createGoogleGenerativeAI } from '@ai-sdk/google';
 import { checkAvailability, bookMeeting } from '@/app/api/chat/stream/calendar';
 
+import { getActiveGeminiModel } from '@/lib/gemini-config';
+
 export const maxDuration = 300;
 
 const corsHeaders = {
@@ -340,12 +342,14 @@ ${globalDisclaimer}`;
       enhancedMessages.unshift({ role: 'system', content: systemPromptHeader });
     }
 
+    const activeModelName = await getActiveGeminiModel();
+
     // 5. High-Speed Streaming Response (< 400ms TTFT to prevent Vapi timeout)
     const isStream = body.stream !== false;
 
     if (!isStream) {
       const { text: rawText } = await generateText({
-        model: googleProvider('gemini-2.0-flash'),
+        model: googleProvider(activeModelName),
         messages: enhancedMessages,
         temperature: 0.7,
       });
@@ -354,7 +358,7 @@ ${globalDisclaimer}`;
         id: 'chatcmpl-vapi',
         object: 'chat.completion',
         created: Math.floor(Date.now() / 1000),
-        model: 'gemini-2.0-flash',
+        model: activeModelName,
         choices: [
           {
             message: { role: 'assistant', content: rawText },
@@ -374,13 +378,13 @@ ${globalDisclaimer}`;
             id: 'chatcmpl-vapi',
             object: 'chat.completion.chunk',
             created: Math.floor(Date.now() / 1000),
-            model: 'gemini-2.0-flash',
+            model: activeModelName,
             choices: [{ delta: { role: 'assistant' }, index: 0, finish_reason: null }]
           };
           controller.enqueue(encoder.encode(`data: ${JSON.stringify(startRoleChunk)}\n\n`));
 
           const result = streamText({
-            model: googleProvider('gemini-2.0-flash'),
+            model: googleProvider(activeModelName),
             messages: enhancedMessages,
             temperature: 0.7,
           });
@@ -401,7 +405,7 @@ ${globalDisclaimer}`;
                 id: 'chatcmpl-vapi',
                 object: 'chat.completion.chunk',
                 created: Math.floor(Date.now() / 1000),
-                model: 'gemini-2.0-flash',
+                model: activeModelName,
                 choices: [{ delta: { content: textDelta }, index: 0, finish_reason: null }]
               };
               controller.enqueue(encoder.encode(`data: ${JSON.stringify(deltaChunk)}\n\n`));
@@ -422,7 +426,7 @@ ${globalDisclaimer}`;
               id: 'chatcmpl-vapi',
               object: 'chat.completion.chunk',
               created: Math.floor(Date.now() / 1000),
-              model: 'gemini-2.0-flash',
+              model: activeModelName,
               choices: [{ delta: { content: fillerPhrase }, index: 0, finish_reason: null }]
             };
             controller.enqueue(encoder.encode(`data: ${JSON.stringify(fillerChunk)}\n\n`));
@@ -453,7 +457,7 @@ ${globalDisclaimer}`;
             const preBracketText = fullText.split('[')[0].trim();
 
             const pass2Result = streamText({
-              model: googleProvider('gemini-2.0-flash'),
+              model: googleProvider(activeModelName),
               messages: [
                 ...enhancedMessages,
                 { role: 'assistant', content: preBracketText || fillerPhrase },
@@ -469,7 +473,7 @@ ${globalDisclaimer}`;
                   id: 'chatcmpl-vapi',
                   object: 'chat.completion.chunk',
                   created: Math.floor(Date.now() / 1000),
-                  model: 'gemini-2.0-flash',
+                  model: activeModelName,
                   choices: [{ delta: { content: cleanDelta }, index: 0, finish_reason: null }]
                 };
                 controller.enqueue(encoder.encode(`data: ${JSON.stringify(deltaChunk)}\n\n`));
@@ -482,7 +486,7 @@ ${globalDisclaimer}`;
               id: 'chatcmpl-vapi',
               object: 'chat.completion.chunk',
               created: Math.floor(Date.now() / 1000),
-              model: 'gemini-2.0-flash',
+              model: activeModelName,
               choices: [{ delta: { content: remainingCleanText }, index: 0, finish_reason: null }]
             };
             controller.enqueue(encoder.encode(`data: ${JSON.stringify(deltaChunk)}\n\n`));
@@ -492,7 +496,7 @@ ${globalDisclaimer}`;
             id: 'chatcmpl-vapi',
             object: 'chat.completion.chunk',
             created: Math.floor(Date.now() / 1000),
-            model: 'gemini-2.0-flash',
+            model: activeModelName,
             choices: [{ delta: {}, index: 0, finish_reason: 'stop' }]
           };
           controller.enqueue(encoder.encode(`data: ${JSON.stringify(finishChunk)}\n\n`));

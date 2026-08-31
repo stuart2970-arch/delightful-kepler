@@ -31,12 +31,14 @@ export default function SuperadminClient({
   initialGlobalBrandingHtml,
   initialGlobalTrackingUrl,
   initialGlobalVoiceDisclaimer,
+  initialGlobalGeminiModel = 'gemini-2.0-flash',
   initialFloBotConfig
 }: { 
   tenants: TenantStat[],
   initialGlobalBrandingHtml?: string,
   initialGlobalTrackingUrl?: string,
   initialGlobalVoiceDisclaimer?: string,
+  initialGlobalGeminiModel?: string,
   initialFloBotConfig?: any
 }) {
   const [searchTerm, setSearchTerm] = useState('');
@@ -112,6 +114,12 @@ export default function SuperadminClient({
   const [globalBrandingHtml, setGlobalBrandingHtml] = useState(initialGlobalBrandingHtml || '<span style="opacity: 0.6; font-size: 11px;">⚡ Powered by <strong>StyleFlo</strong></span>');
   const [globalTrackingUrl, setGlobalTrackingUrl] = useState(initialGlobalTrackingUrl || 'https://styleflo.ai');
   const [globalVoiceDisclaimer, setGlobalVoiceDisclaimer] = useState(initialGlobalVoiceDisclaimer || '');
+  
+  const presetModels = ['gemini-2.0-flash', 'gemini-1.5-flash', 'gemini-1.5-pro', 'gemini-flash-latest'];
+  const isPreset = presetModels.includes(initialGlobalGeminiModel);
+
+  const [globalGeminiModel, setGlobalGeminiModel] = useState<string>(isPreset ? initialGlobalGeminiModel : 'custom');
+  const [customGeminiModel, setCustomGeminiModel] = useState<string>(isPreset ? '' : initialGlobalGeminiModel);
   const [isSavingGlobal, setIsSavingGlobal] = useState(false);
 
   const handleDeleteTenant = async (tenantId: string, companyName: string) => {
@@ -181,6 +189,37 @@ export default function SuperadminClient({
       alert('Global disclaimer saved successfully!');
     } catch (err: any) {
       alert('Failed to save global disclaimer: ' + err.message);
+    } finally {
+      setIsSavingGlobal(false);
+    }
+  };
+
+  const handleSaveGeminiModel = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setIsSavingGlobal(true);
+    const targetModel = globalGeminiModel === 'custom' ? customGeminiModel.trim() : globalGeminiModel;
+    
+    if (!targetModel) {
+      alert('Please select or specify a valid Gemini model ID.');
+      setIsSavingGlobal(false);
+      return;
+    }
+
+    try {
+      const response = await fetch(`/api/superadmin/global-settings`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          default_gemini_model: targetModel,
+        }),
+      });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        throw new Error(data.error || 'Failed to update Gemini model');
+      }
+      alert(`Global AI Engine model updated to "${targetModel}" successfully!`);
+    } catch (err: any) {
+      alert('Failed to save Gemini model: ' + err.message);
     } finally {
       setIsSavingGlobal(false);
     }
@@ -393,6 +432,70 @@ export default function SuperadminClient({
                   className="bg-indigo-600 hover:bg-indigo-500 text-white text-sm font-semibold py-2 px-5 rounded-xl shadow-lg shadow-indigo-500/10 transition-colors disabled:opacity-50"
                 >
                   {isSavingGlobal ? 'Saving Settings...' : 'Save Global Disclaimer'}
+                </button>
+              </div>
+            </form>
+          </div>
+
+          {/* Gemini Model Selector Panel */}
+          <div className="bg-gray-900 border border-gray-800 p-6 rounded-2xl shadow-xl space-y-6">
+            <div className="flex items-center justify-between">
+              <div>
+                <h3 className="text-lg font-bold text-white flex items-center gap-2">
+                  🤖 Global AI Engine (Gemini LLM Control)
+                </h3>
+                <p className="text-xs text-gray-400 mt-0.5">
+                  1-Click model switcher for all text chat, voice receptionists, and multi-channel messaging. Keep your app futureproof when Google deprecates model versions.
+                </p>
+              </div>
+              <span className="px-3 py-1 bg-indigo-500/10 border border-indigo-500/30 text-indigo-400 font-mono text-xs font-bold rounded-full">
+                Active: {globalGeminiModel === 'custom' ? customGeminiModel || 'Custom' : globalGeminiModel}
+              </span>
+            </div>
+
+            <form onSubmit={handleSaveGeminiModel} className="space-y-4">
+              <div>
+                <label className="block text-xs font-semibold text-gray-400 mb-1.5">Select Primary Gemini Model Version</label>
+                <select
+                  value={globalGeminiModel}
+                  onChange={(e) => setGlobalGeminiModel(e.target.value)}
+                  className="w-full bg-gray-950 border border-gray-800 rounded-xl px-3.5 py-2.5 text-sm text-white focus:outline-none focus:ring-1 focus:ring-indigo-500 font-medium"
+                >
+                  <option value="gemini-2.0-flash">Gemini 2.0 Flash (Fastest, High Performance - Recommended Default)</option>
+                  <option value="gemini-1.5-flash">Gemini 1.5 Flash (Legacy Stable Flash)</option>
+                  <option value="gemini-1.5-pro">Gemini 1.5 Pro (Deep Reasoning & Large Context)</option>
+                  <option value="gemini-flash-latest">gemini-flash-latest (Auto-updates to Google's Latest Flash Alias)</option>
+                  <option value="custom">✏️ Custom Write-In (For newly released Google models e.g. gemini-2.5-flash)</option>
+                </select>
+                <p className="text-[10px] text-gray-500 mt-1">
+                  Changing this setting instantly updates the LLM engine across all tenant chatbots without redeploying code.
+                </p>
+              </div>
+
+              {globalGeminiModel === 'custom' && (
+                <div className="bg-gray-950 p-4 rounded-xl border border-gray-800 space-y-2">
+                  <label className="block text-xs font-semibold text-indigo-400">Custom Google Model ID String</label>
+                  <input
+                    type="text"
+                    value={customGeminiModel}
+                    onChange={(e) => setCustomGeminiModel(e.target.value)}
+                    placeholder="e.g. gemini-2.5-flash or gemini-3.0-flash"
+                    className="w-full bg-gray-900 border border-gray-700 rounded-lg px-3.5 py-2 text-sm text-white focus:outline-none focus:ring-1 focus:ring-indigo-500 font-mono"
+                    required
+                  />
+                  <p className="text-[10px] text-gray-400">
+                    Type the exact model string as published in Google's official Gemini API documentation.
+                  </p>
+                </div>
+              )}
+
+              <div className="pt-2 flex items-center gap-3">
+                <button
+                  type="submit"
+                  disabled={isSavingGlobal}
+                  className="bg-indigo-600 hover:bg-indigo-500 text-white text-sm font-semibold py-2 px-5 rounded-xl shadow-lg shadow-indigo-500/10 transition-colors disabled:opacity-50"
+                >
+                  {isSavingGlobal ? 'Updating Model...' : 'Save & Deploy Active Model'}
                 </button>
               </div>
             </form>

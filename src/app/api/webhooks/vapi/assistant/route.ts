@@ -1,6 +1,8 @@
 import { NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 
+import { getActiveGeminiModel } from '@/lib/gemini-config';
+
 export const dynamic = 'force-dynamic';
 
 // Vapi sends a POST request when a call comes in
@@ -128,12 +130,14 @@ export async function POST(request: Request) {
       }
     }
 
+    const activeModelName = await getActiveGeminiModel();
+
     // Custom LLM model provider pointing to Gemini 1.5 Flash endpoint
     const appUrl = (process.env.NEXT_PUBLIC_APP_URL || 'https://app.styleflo.ai').replace(/\/$/, '');
     const modelOverrides: any = {
       provider: 'custom-llm',
       url: `${appUrl}/api/voice/${chatbot.id}`,
-      model: 'gemini-2.0-flash',
+      model: activeModelName,
       messages: [
         {
           role: 'system',

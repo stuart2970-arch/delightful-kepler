@@ -9,6 +9,8 @@ import * as cheerio from 'cheerio';
 import { checkAvailability, bookMeeting, lookupAppointments } from './calendar';
 import { sendConsolidatedLeadEmail } from '@/lib/lead-notifier';
 
+import { getActiveGeminiModel } from '@/lib/gemini-config';
+
 async function scrapeWebsiteContent(targetUrl: string): Promise<string> {
   try {
     let fullUrl = targetUrl.trim();
@@ -560,13 +562,14 @@ ${staffContext}`;
       content: message,
     });
 
-    console.log(`[Chat Stream][${requestId}] Initializing Vercel AI SDK text stream (gemini-2.0-flash)...`);
+    const activeModelName = await getActiveGeminiModel();
+    console.log(`[Chat Stream][${requestId}] Initializing Vercel AI SDK text stream (${activeModelName})...`);
 
     let lastApiError = "";
     
     // 9. Invoke streamText and setup async database transaction logging
     const result = await streamText({
-      model: google('gemini-2.0-flash'),
+      model: google(activeModelName),
       system: systemPrompt,
       messages: formattedMessages,
       onError: (err: unknown) => {
@@ -676,7 +679,7 @@ ${staffContext}`;
             ];
             
             const result2 = await streamText({
-              model: google('gemini-2.0-flash'),
+              model: google(activeModelName),
               system: systemPrompt,
               messages: pass2Messages,
               onFinish: async (event2) => {
@@ -716,7 +719,7 @@ ${staffContext}`;
               ];
               
               const result2 = await streamText({
-                model: google('gemini-2.0-flash'),
+                model: google(activeModelName),
                 system: `You are an AI assistant representing the business "${configData.businessName || 'our business'}".
 Your goal is to answer questions strictly using the provided context and handle booking inquiries according to the business's booking mode.
 If the answer isn't in the context, clearly state that you don't know and offer a fallback (like taking an email). Do not invent pricing, policies, or facts.

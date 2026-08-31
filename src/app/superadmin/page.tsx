@@ -70,11 +70,13 @@ export default async function SuperadminPage() {
   let initialGlobalBrandingHtml = '<span style="opacity: 0.6; font-size: 11px;">⚡ Powered by <strong>StyleFlo</strong></span>';
   let initialGlobalTrackingUrl = 'https://styleflo.ai';
   let initialGlobalVoiceDisclaimer = '';
+  let initialGlobalGeminiModel = 'gemini-2.0-flash';
 
   if (globalBot?.configuration_json) {
     if (globalBot.configuration_json.branding_html !== undefined) initialGlobalBrandingHtml = globalBot.configuration_json.branding_html;
     if (globalBot.configuration_json.branding_url !== undefined) initialGlobalTrackingUrl = globalBot.configuration_json.branding_url;
     if (globalBot.configuration_json.global_voice_disclaimer !== undefined) initialGlobalVoiceDisclaimer = globalBot.configuration_json.global_voice_disclaimer;
+    if (globalBot.configuration_json.default_gemini_model !== undefined) initialGlobalGeminiModel = globalBot.configuration_json.default_gemini_model;
   }
 
   // Fetch all tenants using admin client
@@ -160,6 +162,7 @@ export default async function SuperadminPage() {
         initialGlobalBrandingHtml={initialGlobalBrandingHtml}
         initialGlobalTrackingUrl={initialGlobalTrackingUrl}
         initialGlobalVoiceDisclaimer={initialGlobalVoiceDisclaimer}
+        initialGlobalGeminiModel={initialGlobalGeminiModel}
         initialFloBotConfig={globalBot?.configuration_json?.flobot_config || null}
       />
     </main>
