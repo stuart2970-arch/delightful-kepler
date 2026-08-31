@@ -21,6 +21,10 @@ function RegisterContent() {
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
+  const [duplicateEmailDetected, setDuplicateEmailDetected] = useState(false);
+  const [sendingMagicLink, setSendingMagicLink] = useState(false);
+  const [magicLinkSent, setMagicLinkSent] = useState(false);
+
   const [customSlug, setCustomSlug] = useState('');
   const [slugStatus, setSlugStatus] = useState<{
     checking: boolean;
@@ -138,6 +142,32 @@ function RegisterContent() {
     }
   };
 
+  const handleSendMagicLink = async () => {
+    setSendingMagicLink(true);
+    setError(null);
+    try {
+      const res = await fetch('/api/auth/magic-link', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: email.trim(), clientEmail: email.trim(), name: fullName }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (data.redirectUrl || data.success) {
+        setMagicLinkSent(true);
+        setDuplicateEmailDetected(false);
+      } else if (data.error) {
+        setError(data.error);
+      } else {
+        setMagicLinkSent(true);
+        setDuplicateEmailDetected(false);
+      }
+    } catch (e: any) {
+      setError(e?.message || 'Failed to send magic login link.');
+    } finally {
+      setSendingMagicLink(false);
+    }
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!termsAccepted) {
@@ -147,8 +177,26 @@ function RegisterContent() {
     setLoading(true);
     setError(null);
     setSuccessMessage(null);
+    setDuplicateEmailDetected(false);
+    setMagicLinkSent(false);
 
     try {
+      // 1. Verify master email address uniqueness across all account profiles
+      const checkRes = await fetch('/api/auth/check-email', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: email.trim() }),
+      });
+
+      if (checkRes.ok) {
+        const checkData = await checkRes.json();
+        if (checkData.exists) {
+          setDuplicateEmailDetected(true);
+          setLoading(false);
+          return;
+        }
+      }
+
       if (slugStatus && !slugStatus.available) {
         throw new Error(`The URL slug "${slugStatus.slug}" is already registered by another business. Please pick one of the available suggestions below.`);
       }
@@ -226,6 +274,50 @@ function RegisterContent() {
         {error && (
           <div className="bg-rose-950/40 border border-rose-800 text-rose-300 text-xs p-3.5 rounded-xl mb-5 font-medium leading-relaxed">
             {error}
+          </div>
+        )}
+
+        {duplicateEmailDetected && (
+          <div className="bg-amber-950/60 border border-amber-500/50 rounded-2xl p-5 mb-6 text-left space-y-3 shadow-lg animate-in fade-in duration-300">
+            <div className="flex items-center gap-2 text-amber-300 font-bold text-sm">
+              <span className="text-xl">⚠️</span>
+              <span>Email Already Registered</span>
+            </div>
+            <p className="text-xs text-amber-200/90 leading-relaxed">
+              The email <strong className="text-white underline">{email}</strong> is already registered to an existing StyleFlo account. Master emails cannot be linked to more than one account.
+            </p>
+            <p className="text-xs text-amber-100 font-semibold">
+              Would you like us to send a magic login link to log into your account?
+            </p>
+            <div className="flex flex-col sm:flex-row gap-2 pt-1">
+              <button
+                type="button"
+                onClick={handleSendMagicLink}
+                disabled={sendingMagicLink}
+                className="bg-amber-500 hover:bg-amber-400 text-gray-950 font-bold text-xs px-4 py-2.5 rounded-xl transition-all flex items-center justify-center gap-2 shadow-md disabled:opacity-50"
+              >
+                {sendingMagicLink ? 'Sending Link...' : '📩 Send Magic Login Link'}
+              </button>
+              <button
+                type="button"
+                onClick={() => router.push(`/login?email=${encodeURIComponent(email)}`)}
+                className="bg-gray-800 hover:bg-gray-700 text-white font-semibold text-xs px-4 py-2.5 rounded-xl border border-gray-700 transition-all text-center"
+              >
+                🔑 Sign In with Password
+              </button>
+            </div>
+          </div>
+        )}
+
+        {magicLinkSent && (
+          <div className="bg-emerald-950/60 border border-emerald-500/50 rounded-2xl p-5 mb-6 text-left space-y-2 shadow-lg animate-in fade-in duration-300">
+            <div className="flex items-center gap-2 text-emerald-300 font-bold text-sm">
+              <span className="text-xl">✨</span>
+              <span>Magic Login Link Sent!</span>
+            </div>
+            <p className="text-xs text-emerald-200/90 leading-relaxed">
+              We've sent a magic login link to <strong className="text-white underline">{email}</strong>. Please check your inbox (and spam folder) to sign in directly.
+            </p>
           </div>
         )}
 
