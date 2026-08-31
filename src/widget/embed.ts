@@ -1127,6 +1127,8 @@ import Vapi from '@vapi-ai/web';
                 model: "eleven_turbo_v2_5"
               },
               firstMessage: getFormattedWelcomeMessage(storedName),
+              backgroundSound: (chatbotConfig?.background_sound as any) || "office",
+              backchannelingEnabled: true,
               metadata: {
                 tenant_id: tenantId || chatbotId,
                 chatbot_id: chatbotId,

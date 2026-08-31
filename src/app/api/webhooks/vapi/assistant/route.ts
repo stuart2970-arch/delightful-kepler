@@ -158,6 +158,8 @@ export async function POST(request: Request) {
     const overrides: any = {
       name: config.agent_name || 'Dynamic Assistant',
       firstMessage: config.welcome_message || 'Hello, how can I help you today?',
+      backgroundSound: config.background_sound || 'office',
+      backchannelingEnabled: true,
       transcriber: {
         provider: 'deepgram',
         model: 'nova-2',

@@ -23,6 +23,7 @@ export default function ChatbotManagerView() {
   const [newAgentAvatar, setNewAgentAvatar] = useState('/avatars/avatar1.png');
   const [newVoiceEnabled, setNewVoiceEnabled] = useState(false);
   const [newVoiceId, setNewVoiceId] = useState('');
+  const [backgroundSound, setBackgroundSound] = useState('office');
   const [newAdminEmail, setNewAdminEmail] = useState('');
   const [isCreatingBot, setIsCreatingBot] = useState(false);
   const [editingBotId, setEditingBotId] = useState<string | null>(null);
@@ -142,6 +143,7 @@ export default function ChatbotManagerView() {
       agent_role: newAgentRole.trim(),
       agent_avatar_url: newAgentAvatar,
       voice_id: newVoiceId,
+      background_sound: backgroundSound,
       admin_email: newAdminEmail.trim(),
       whatsapp_enabled: whatsappEnabled,
       whatsapp_number: whatsappNumber.trim(),
@@ -201,6 +203,7 @@ export default function ChatbotManagerView() {
       setNewAgentRole('AI Assistant');
       setNewAgentAvatar('/avatars/avatar1.png');
       setNewVoiceEnabled(false);
+      setBackgroundSound('office');
       setNewAdminEmail('');
       setWhatsappEnabled(false);
       setWhatsappNumber('');
@@ -226,6 +229,7 @@ export default function ChatbotManagerView() {
       agent_role: newAgentRole.trim(),
       agent_avatar_url: newAgentAvatar,
       voice_id: newVoiceId,
+      background_sound: backgroundSound,
       admin_email: newAdminEmail.trim(),
       whatsapp_enabled: whatsappEnabled,
       whatsapp_number: whatsappNumber.trim(),
@@ -278,6 +282,7 @@ export default function ChatbotManagerView() {
       setNewAgentRole('AI Assistant');
       setNewAgentAvatar('/avatars/avatar1.png');
       setNewVoiceEnabled(false);
+      setBackgroundSound('office');
       setWhatsappEnabled(false);
       setWhatsappNumber('');
       setInstagramEnabled(false);
@@ -584,36 +589,59 @@ export default function ChatbotManagerView() {
                       </div>
 
                       {newVoiceEnabled && (
-                        <div className="mt-4">
-                          <label className="block text-xs font-semibold text-[var(--awb-color7)] mb-2">Select Voice Persona</label>
-                          <div className="bg-[var(--awb-color1)] border border-[var(--awb-color3)] rounded-xl max-h-[300px] overflow-y-auto styleflo-scrollbar divide-y divide-[var(--awb-color3)]">
-                            {voicePersonas.map((voice) => (
-                              <div key={voice.id} className={`flex items-center justify-between p-3 transition-colors ${newVoiceId === voice.id ? 'bg-[var(--awb-color2)]' : 'hover:bg-[var(--awb-color2)]/50'}`}>
-                                <div className="flex items-center gap-3 flex-1 cursor-pointer" onClick={() => setNewVoiceId(voice.id)}>
-                                  <div className={`w-4 h-4 rounded-full border flex items-center justify-center flex-shrink-0 ${newVoiceId === voice.id ? 'border-[var(--awb-color5)] bg-[#198fd9] text-white' : 'border-[var(--awb-color3)]'}`}>
-                                    {newVoiceId === voice.id && <div className="w-1.5 h-1.5 bg-white rounded-full"></div>}
-                                  </div>
-                                  <div>
-                                    <div className="text-xs font-bold text-[var(--awb-color8)] flex items-center gap-2">
-                                      {voice.name}
-                                      <span className="text-[9px] px-1.5 py-0.5 rounded font-mono bg-[var(--awb-color3)] text-[var(--awb-color8)]">{voice.nationality}</span>
+                        <div className="mt-4 space-y-4">
+                          <div>
+                            <label className="block text-xs font-semibold text-[var(--awb-color7)] mb-2">Select Voice Persona</label>
+                            <div className="bg-[var(--awb-color1)] border border-[var(--awb-color3)] rounded-xl max-h-[300px] overflow-y-auto styleflo-scrollbar divide-y divide-[var(--awb-color3)]">
+                              {voicePersonas.map((voice) => (
+                                <div key={voice.id} className={`flex items-center justify-between p-3 transition-colors ${newVoiceId === voice.id ? 'bg-[var(--awb-color2)]' : 'hover:bg-[var(--awb-color2)]/50'}`}>
+                                  <div className="flex items-center gap-3 flex-1 cursor-pointer" onClick={() => setNewVoiceId(voice.id)}>
+                                    <div className={`w-4 h-4 rounded-full border flex items-center justify-center flex-shrink-0 ${newVoiceId === voice.id ? 'border-[var(--awb-color5)] bg-[#198fd9] text-white' : 'border-[var(--awb-color3)]'}`}>
+                                      {newVoiceId === voice.id && <div className="w-1.5 h-1.5 bg-white rounded-full"></div>}
                                     </div>
-                                    <div className="text-[10px] text-[var(--awb-color6)] mt-0.5">{voice.role}</div>
+                                    <div>
+                                      <div className="text-xs font-bold text-[var(--awb-color8)] flex items-center gap-2">
+                                        {voice.name}
+                                        <span className="text-[9px] px-1.5 py-0.5 rounded font-mono bg-[var(--awb-color3)] text-[var(--awb-color8)]">{voice.nationality}</span>
+                                      </div>
+                                      <div className="text-[10px] text-[var(--awb-color6)] mt-0.5">{voice.role}</div>
+                                    </div>
                                   </div>
+                                  <button
+                                    type="button"
+                                    onClick={() => handlePlayPreview(voice.previewUrl)}
+                                    className={`ml-3 p-2 rounded-full flex-shrink-0 transition-colors ${playingAudio === voice.previewUrl ? 'bg-[#198fd9] text-white font-semibold rounded-[4px] px-[29px] py-[13px] shadow-md' : 'bg-[var(--awb-color3)] text-[var(--awb-color7)]'}`}
+                                  >
+                                    {playingAudio === voice.previewUrl ? (
+                                      <svg className="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 24 24"><rect x="6" y="4" width="4" height="16" rx="1"/><rect x="14" y="4" width="4" height="16" rx="1"/></svg>
+                                    ) : (
+                                      <svg className="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>
+                                    )}
+                                  </button>
                                 </div>
-                                <button
-                                  type="button"
-                                  onClick={() => handlePlayPreview(voice.previewUrl)}
-                                  className={`ml-3 p-2 rounded-full flex-shrink-0 transition-colors ${playingAudio === voice.previewUrl ? 'bg-[#198fd9] text-white font-semibold rounded-[4px] px-[29px] py-[13px] shadow-md' : 'bg-[var(--awb-color3)] text-[var(--awb-color7)]'}`}
-                                >
-                                  {playingAudio === voice.previewUrl ? (
-                                    <svg className="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 24 24"><rect x="6" y="4" width="4" height="16" rx="1"/><rect x="14" y="4" width="4" height="16" rx="1"/></svg>
-                                  ) : (
-                                    <svg className="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>
-                                  )}
-                                </button>
-                              </div>
-                            ))}
+                              ))}
+                            </div>
+                          </div>
+
+                          <div className="bg-[var(--awb-color2)] p-4 rounded-xl border border-[var(--awb-color3)] space-y-2">
+                            <label className="block text-xs font-bold text-[var(--awb-color8)]">
+                              🎧 Background Ambient Sound (Room Atmosphere)
+                            </label>
+                            <p className="text-[11px] text-[var(--awb-color6)]">
+                              Eliminates dead silence during voice calls by playing subtle ambient room sound while the caller speaks or listens.
+                            </p>
+                            <select
+                              value={backgroundSound}
+                              onChange={(e) => setBackgroundSound(e.target.value)}
+                              className="w-full bg-[var(--awb-color1)] border border-[var(--awb-color3)] rounded-lg px-3 py-2 text-xs font-semibold text-[var(--awb-color8)] focus:outline-none focus:border-[#198fd9]"
+                            >
+                              <option value="office">🏢 Office / Professional Room Hum (Default - Recommended)</option>
+                              <option value="salon">💈 Salon & Barber Atmosphere</option>
+                              <option value="coffee-shop">☕ Coffee Shop & Cafe Ambient</option>
+                              <option value="restaurant">🍽️ Restaurant & Bistro</option>
+                              <option value="diner">🍔 Diner & Lounge Ambience</option>
+                              <option value="off">🔇 Off (Silent Background)</option>
+                            </select>
                           </div>
                         </div>
                       )}
@@ -846,6 +874,7 @@ export default function ChatbotManagerView() {
                               setNewAgentAvatar(config.agent_avatar_url || '/avatars/avatar1.png');
                               setNewVoiceEnabled(bot.voice_enabled || false);
                               setNewVoiceId(config.voice_id || '');
+                              setBackgroundSound(config.background_sound || 'office');
                               setNewAdminEmail(config.admin_email || config.notification_email || '');
                               setWhatsappEnabled(Boolean(config.whatsapp_enabled));
                               setWhatsappNumber(config.whatsapp_number || '');
@@ -872,6 +901,7 @@ export default function ChatbotManagerView() {
                               setNewAgentAvatar(config.agent_avatar_url || '/avatars/avatar1.png');
                               setNewVoiceEnabled(bot.voice_enabled || false);
                               setNewVoiceId(config.voice_id || '');
+                              setBackgroundSound(config.background_sound || 'office');
                               setNewAdminEmail(config.admin_email || config.notification_email || '');
                               setWhatsappEnabled(Boolean(config.whatsapp_enabled));
                               setWhatsappNumber(config.whatsapp_number || '');
