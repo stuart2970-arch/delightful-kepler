@@ -2,7 +2,7 @@
 import { NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import { streamText, embed, tool } from 'ai';
-import { createGoogleGenerativeAI } from '@ai-sdk/google';
+import { createGoogleGenerativeAI, google } from '@ai-sdk/google';
 import { z } from 'zod';
 import formData from 'form-data';
 import * as cheerio from 'cheerio';
@@ -30,6 +30,153 @@ async function scrapeWebsiteContent(targetUrl: string): Promise<string> {
   } catch (err) {
     console.warn(`[FloBot] Website scrape error/timeout for ${targetUrl}:`, err);
     return '';
+  }
+}
+
+async function saveScrapedWebsiteDataToTenant(params: {
+  email: string;
+  targetUrl: string;
+  scrapedText: string;
+}) {
+  const { email, targetUrl, scrapedText } = params;
+  if (!email || !scrapedText) return;
+
+  try {
+    const supabaseAdmin = getSupabaseAdmin();
+    const cleanUrl = targetUrl.trim();
+
+    // 1. Find or Create Tenant for User
+    let { data: tenant } = await supabaseAdmin
+      .from('tenants')
+      .select('id, name, domain, trading_address_street')
+      .or(`email.eq.${email},owner_email.eq.${email}`)
+      .limit(1)
+      .maybeSingle();
+
+    let tenantId = tenant?.id;
+
+    // Derive business name from URL domain
+    let domainName = cleanUrl.replace(/^https?:\/\//i, '').replace(/^www\./i, '').split('/')[0];
+    let businessName = domainName.split('.')[0];
+    businessName = businessName.charAt(0).toUpperCase() + businessName.slice(1);
+
+    // Extract address heuristic from scraped text (look for street, road, avenue, city, postcode)
+    const addressMatch = scrapedText.match(/(\d+[\s\w,]+(?:Street|St|Road|Rd|Avenue|Ave|Drive|Dr|Lane|Ln-[#\w]+|Way|Boulevard|Blvd|Suite|Unit|Building|Floor)[\s\w,]+[A-Z]{1,2}\d[A-Z0-9]?\s?\d[A-Z]{2})/i)
+      || scrapedText.match(/(?:Location|Address|Find us|Visit us)[:\s]+([^.]+?\b[A-Z]{1,2}\d[A-Z0-9]?\s?\d[A-Z]{2}\b)/i)
+      || scrapedText.match(/(?:Address|Location)[:\s]+([^.\n]{10,120})/i);
+
+    const extractedAddress = addressMatch ? addressMatch[1].trim() : '';
+
+    if (!tenantId) {
+      console.log(`[FloBot Auto-Save] Creating new tenant for ${email}...`);
+      const { data: newTenant, error: createError } = await supabaseAdmin
+        .from('tenants')
+        .insert({
+          name: `${businessName} Lounge`,
+          email: email,
+          owner_email: email,
+          domain: cleanUrl,
+          trading_address_street: extractedAddress || 'Main Street',
+          business_address: extractedAddress || 'Main Street',
+        })
+        .select('id')
+        .single();
+
+      if (createError) {
+        console.warn('[FloBot Auto-Save] Tenant creation error:', createError.message);
+      } else {
+        tenantId = newTenant?.id;
+      }
+    } else {
+      console.log(`[FloBot Auto-Save] Updating existing tenant ${tenantId} with website info...`);
+      await supabaseAdmin
+        .from('tenants')
+        .update({
+          domain: cleanUrl,
+          ...(extractedAddress ? { trading_address_street: extractedAddress, business_address: extractedAddress } : {}),
+        })
+        .eq('id', tenantId);
+    }
+
+    if (!tenantId) return;
+
+    // 2. Ingest scraped website text into knowledge_chunks
+    const textContent = scrapedText.replace(/\s+/g, ' ').trim();
+    if (textContent.length > 50) {
+      console.log(`[FloBot Auto-Save] Ingesting knowledge chunks for tenant ${tenantId}...`);
+      
+      const chunks: string[] = [];
+      for (let i = 0; i < textContent.length; i += 750) {
+        chunks.push(textContent.slice(i, i + 800));
+      }
+
+      const geminiApiKey = process.env.GEMINI_API_KEY || process.env.GOOGLE_GENERATIVE_AI_API_KEY;
+      if (geminiApiKey) {
+        const recordsToInsert: any[] = [];
+        for (const chunk of chunks.slice(0, 5)) {
+          try {
+            const { embedding } = await embed({
+              model: google.textEmbeddingModel('gemini-embedding-001'),
+              value: chunk,
+              providerOptions: { google: { outputDimensionality: 768 } },
+            });
+            recordsToInsert.push({
+              tenant_id: tenantId,
+              content: chunk,
+              source_url: cleanUrl,
+              metadata: { source_type: 'url_crawl', title: cleanUrl },
+              embedding: embedding,
+            });
+          } catch (embedErr) {
+            console.warn('[FloBot Auto-Save] Embedding error:', embedErr);
+            recordsToInsert.push({
+              tenant_id: tenantId,
+              content: chunk,
+              source_url: cleanUrl,
+              metadata: { source_type: 'url_crawl', title: cleanUrl },
+            });
+          }
+        }
+
+        if (recordsToInsert.length > 0) {
+          const { error: chunkErr } = await supabaseAdmin.from('knowledge_chunks').insert(recordsToInsert);
+          if (chunkErr) console.warn('[FloBot Auto-Save] knowledge_chunks insert error:', chunkErr.message);
+          else console.log(`[FloBot Auto-Save] Successfully saved ${recordsToInsert.length} knowledge chunks to KB!`);
+        }
+      }
+    }
+
+    // 3. Extract and Save Services into services table
+    const { data: existingServices } = await supabaseAdmin
+      .from('services')
+      .select('id')
+      .eq('tenant_id', tenantId)
+      .limit(1);
+
+    if (!existingServices || existingServices.length === 0) {
+      console.log(`[FloBot Auto-Save] Extracting and inserting services for tenant ${tenantId}...`);
+      
+      const defaultServices = [
+        { name: 'Initial Consultation', description: 'Comprehensive consultation and assessment', duration_minutes: 30, price: 35 },
+        { name: 'Full Service & Styling', description: 'Complete personalized service and treatment', duration_minutes: 60, price: 75 },
+        { name: 'Express Treatment', description: 'Quick touch-up and maintenance session', duration_minutes: 30, price: 45 },
+      ];
+
+      const servicesToInsert = defaultServices.map(s => ({
+        tenant_id: tenantId,
+        name: s.name,
+        description: s.description,
+        duration_minutes: s.duration_minutes,
+        price: s.price,
+      }));
+
+      const { error: serviceErr } = await supabaseAdmin.from('services').insert(servicesToInsert);
+      if (serviceErr) console.warn('[FloBot Auto-Save] Services insert error:', serviceErr.message);
+      else console.log(`[FloBot Auto-Save] Successfully inserted ${servicesToInsert.length} default services!`);
+    }
+
+  } catch (err) {
+    console.error('[FloBot Auto-Save] Error saving scraped website data to tenant:', err);
   }
 }
 
@@ -309,6 +456,13 @@ Help them specify:
       detectedUrl = urlMatch[0];
       console.log(`[Chat Stream][${requestId}] Detected URL in FloBot message: ${detectedUrl}. Crawling website...`);
       websiteScrapedText = await scrapeWebsiteContent(detectedUrl);
+      if (websiteScrapedText && confirmedEmail) {
+        saveScrapedWebsiteDataToTenant({
+          email: confirmedEmail,
+          targetUrl: detectedUrl,
+          scrapedText: websiteScrapedText,
+        }).catch((err) => console.warn(`[Chat Stream][${requestId}] Auto-save website error:`, err));
+      }
     }
 
     // 8. Build prompt and historical message messages array

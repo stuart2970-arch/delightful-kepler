@@ -20,7 +20,6 @@ export default function SetPasswordBanner() {
   });
 
   useEffect(() => {
-    // Check if user already set their password or dismissed the banner
     const isDismissedOrSet = typeof window !== 'undefined' && (
       localStorage.getItem('styleflo_password_set') === 'true' ||
       localStorage.getItem('styleflo_password_banner_dismissed') === 'true'
@@ -57,7 +56,7 @@ export default function SetPasswordBanner() {
       setMessage({ text: '🔐 Password set successfully! You can now log in anytime using your password.', isError: false });
       setTimeout(() => {
         setIsVisible(false);
-      }, 4000);
+      }, 3500);
     } catch (err: any) {
       console.error('Error setting password:', err);
       setMessage({ text: err?.message || 'Failed to update password. Please try again.', isError: true });
@@ -76,23 +75,29 @@ export default function SetPasswordBanner() {
   if (!isVisible) return null;
 
   return (
-    <div className="mb-6 p-5 bg-gradient-to-r from-[#260475] to-[#4c1d95] text-white rounded-2xl shadow-lg border border-purple-500/30 transition-all duration-300 relative">
+    <div 
+      className="mb-6 p-4 sm:p-5 rounded-2xl shadow-xl transition-all duration-300 relative border border-indigo-400/40"
+      style={{ background: 'linear-gradient(135deg, #1e1b4b 0%, #260475 50%, #31107e 100%)', color: '#ffffff' }}
+    >
       <button
         onClick={handleDismiss}
-        className="absolute top-3 right-3 text-purple-300 hover:text-white text-xs p-1 rounded-lg transition-colors"
-        title="Dismiss for now"
+        className="absolute top-3 right-3 text-white/70 hover:text-white text-sm p-1 rounded-lg transition-colors"
+        title="Dismiss banner"
+        style={{ color: '#ffffff' }}
       >
         ✕
       </button>
 
       <div className="flex flex-col lg:flex-row items-start lg:items-center justify-between gap-4">
         <div className="flex items-center gap-3 pr-6">
-          <div className="w-10 h-10 rounded-xl bg-white/10 flex items-center justify-center text-xl shrink-0 shadow-inner">
+          <div className="w-10 h-10 rounded-xl bg-white/15 flex items-center justify-center text-xl shrink-0 shadow-inner border border-white/20">
             🔐
           </div>
           <div>
-            <h3 className="font-bold text-sm sm:text-base text-white">Set Your Account Password</h3>
-            <p className="text-xs text-purple-200 mt-0.5">
+            <h3 className="font-extrabold text-sm sm:text-base tracking-tight" style={{ color: '#ffffff', margin: 0 }}>
+              Set Your Account Password
+            </h3>
+            <p className="text-xs mt-0.5" style={{ color: '#e0e7ff', margin: 0 }}>
               Create a password so you can log in directly to your StyleFlo dashboard next time.
             </p>
           </div>
@@ -106,7 +111,7 @@ export default function SetPasswordBanner() {
             onChange={(e) => setNewPassword(e.target.value)}
             required
             minLength={6}
-            className="px-3.5 py-2 text-xs rounded-xl bg-white/10 border border-white/20 text-white placeholder-purple-300 focus:outline-none focus:ring-2 focus:ring-purple-400 w-full sm:w-44 transition-all"
+            className="px-3.5 py-2.5 text-xs rounded-xl bg-white text-gray-900 placeholder-gray-500 font-semibold focus:outline-none focus:ring-2 focus:ring-purple-400 w-full sm:w-44 shadow-sm"
           />
           <input
             type="password"
@@ -115,12 +120,12 @@ export default function SetPasswordBanner() {
             onChange={(e) => setConfirmPassword(e.target.value)}
             required
             minLength={6}
-            className="px-3.5 py-2 text-xs rounded-xl bg-white/10 border border-white/20 text-white placeholder-purple-300 focus:outline-none focus:ring-2 focus:ring-purple-400 w-full sm:w-44 transition-all"
+            className="px-3.5 py-2.5 text-xs rounded-xl bg-white text-gray-900 placeholder-gray-500 font-semibold focus:outline-none focus:ring-2 focus:ring-purple-400 w-full sm:w-44 shadow-sm"
           />
           <button
             type="submit"
             disabled={loading}
-            className="px-4 py-2 text-xs font-bold bg-white text-[#260475] hover:bg-purple-50 rounded-xl transition-all shadow-md shrink-0 w-full sm:w-auto disabled:opacity-50 active:scale-95"
+            className="px-4 py-2.5 text-xs font-black bg-white text-[#260475] hover:bg-purple-50 rounded-xl transition-all shadow-md shrink-0 w-full sm:w-auto disabled:opacity-50 active:scale-95 border border-white"
           >
             {loading ? 'Saving...' : 'Save Password'}
           </button>
@@ -128,7 +133,7 @@ export default function SetPasswordBanner() {
       </div>
 
       {message && (
-        <div className={`mt-3 pt-2 border-t border-white/10 text-xs font-medium ${message.isError ? 'text-red-300' : 'text-emerald-300'}`}>
+        <div className={`mt-3 pt-2.5 border-t border-white/20 text-xs font-bold ${message.isError ? 'text-red-300' : 'text-emerald-300'}`}>
           {message.text}
         </div>
       )}
