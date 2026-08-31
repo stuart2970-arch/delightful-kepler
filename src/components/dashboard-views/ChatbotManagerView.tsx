@@ -7,12 +7,12 @@ import { createBrowserClient } from '@supabase/ssr';
 
 export default function ChatbotManagerView() {
   const { chatbots, setChatbots, setMetrics, tenantId, isSuperAdmin, appointments, setActiveTab } = useDashboardStore();
-  const [whatsappEnabled, setWhatsappEnabled] = useState(true);
-  const [whatsappNumber, setWhatsappNumber] = useState('+44 7700 900077');
-  const [instagramEnabled, setInstagramEnabled] = useState(true);
-  const [instagramHandle, setInstagramHandle] = useState('@crew_barbers');
-  const [smsEnabled, setSmsEnabled] = useState(true);
-  const [smsNumber, setSmsNumber] = useState('+44 7700 900077');
+  const [whatsappEnabled, setWhatsappEnabled] = useState(false);
+  const [whatsappNumber, setWhatsappNumber] = useState('');
+  const [instagramEnabled, setInstagramEnabled] = useState(false);
+  const [instagramHandle, setInstagramHandle] = useState('');
+  const [smsEnabled, setSmsEnabled] = useState(false);
+  const [smsNumber, setSmsNumber] = useState('');
 
   const [testWidgetBotId, setTestWidgetBotId] = useState<string | null>(null);
   const [newBotName, setNewBotName] = useState('');
@@ -141,14 +141,27 @@ export default function ChatbotManagerView() {
       name: newBotName,
       primary_color: newBotColor,
       voice_enabled: newVoiceEnabled,
-      configuration_json: {
-        welcome_message: newBotWelcome,
-        agent_name: newAgentName.trim() || newBotName,
-        agent_role: newAgentRole.trim(),
-        agent_avatar_url: newAgentAvatar,
-        voice_id: newVoiceId,
-        admin_email: newAdminEmail.trim(),
-      },
+    const configPayload = {
+      welcome_message: newBotWelcome,
+      agent_name: newAgentName.trim() || newBotName,
+      agent_role: newAgentRole.trim(),
+      agent_avatar_url: newAgentAvatar,
+      voice_id: newVoiceId,
+      admin_email: newAdminEmail.trim(),
+      whatsapp_enabled: whatsappEnabled,
+      whatsapp_number: whatsappNumber.trim(),
+      instagram_enabled: instagramEnabled,
+      instagram_handle: instagramHandle.trim(),
+      sms_enabled: smsEnabled,
+      sms_number: smsNumber.trim(),
+    };
+
+    const newChatbot: Chatbot = {
+      id: newId,
+      name: newBotName,
+      primary_color: newBotColor,
+      voice_enabled: newVoiceEnabled,
+      configuration_json: configPayload,
       created_at: new Date().toISOString(),
     };
 
@@ -163,14 +176,7 @@ export default function ChatbotManagerView() {
           name: newBotName,
           primary_color: newBotColor,
           voice_enabled: newVoiceEnabled,
-          configuration_json: {
-            welcome_message: newBotWelcome,
-            agent_name: newAgentName.trim() || newBotName,
-            agent_role: newAgentRole.trim(),
-            agent_avatar_url: newAgentAvatar,
-            voice_id: newVoiceId,
-            admin_email: newAdminEmail.trim(),
-          },
+          configuration_json: configPayload,
         }),
       });
       if (!response.ok) {
@@ -201,6 +207,12 @@ export default function ChatbotManagerView() {
       setNewAgentAvatar('/avatars/avatar1.png');
       setNewVoiceEnabled(false);
       setNewAdminEmail('');
+      setWhatsappEnabled(false);
+      setWhatsappNumber('');
+      setInstagramEnabled(false);
+      setInstagramHandle('');
+      setSmsEnabled(false);
+      setSmsNumber('');
       setWizardStep(1);
     }
     setIsCreatingBot(false);
@@ -220,6 +232,12 @@ export default function ChatbotManagerView() {
       agent_avatar_url: newAgentAvatar,
       voice_id: newVoiceId,
       admin_email: newAdminEmail.trim(),
+      whatsapp_enabled: whatsappEnabled,
+      whatsapp_number: whatsappNumber.trim(),
+      instagram_enabled: instagramEnabled,
+      instagram_handle: instagramHandle.trim(),
+      sms_enabled: smsEnabled,
+      sms_number: smsNumber.trim(),
     };
 
     try {
@@ -265,6 +283,12 @@ export default function ChatbotManagerView() {
       setNewAgentRole('AI Assistant');
       setNewAgentAvatar('/avatars/avatar1.png');
       setNewVoiceEnabled(false);
+      setWhatsappEnabled(false);
+      setWhatsappNumber('');
+      setInstagramEnabled(false);
+      setInstagramHandle('');
+      setSmsEnabled(false);
+      setSmsNumber('');
     }
     setIsCreatingBot(false);
   };
@@ -737,13 +761,20 @@ export default function ChatbotManagerView() {
                               setEditingBotId(null);
                               setWizardStep(1);
                               setNewBotName('');
-                              setNewBotColor('#5e17eb');
+                              setNewBotColor('#4F46E5');
                               setNewBotWelcome('Hello! How can I help you today?');
-                              setNewAgentName('AI Assistant');
-                              setNewAgentRole('AI Concierge');
+                              setNewAgentName('');
+                              setNewAgentRole('AI Assistant');
                               setNewAgentAvatar('/avatars/avatar1.png');
                               setNewVoiceEnabled(false);
                               setNewVoiceId('');
+                              setNewAdminEmail('');
+                              setWhatsappEnabled(false);
+                              setWhatsappNumber('');
+                              setInstagramEnabled(false);
+                              setInstagramHandle('');
+                              setSmsEnabled(false);
+                              setSmsNumber('');
                             }}
                             className="bg-[var(--awb-color2)] text-[var(--awb-color8)] hover:bg-gray-200 text-sm font-semibold py-2 px-5 rounded-xl transition-colors"
                           >
@@ -821,6 +852,12 @@ export default function ChatbotManagerView() {
                               setNewVoiceEnabled(bot.voice_enabled || false);
                               setNewVoiceId(config.voice_id || '');
                               setNewAdminEmail(config.admin_email || config.notification_email || '');
+                              setWhatsappEnabled(Boolean(config.whatsapp_enabled));
+                              setWhatsappNumber(config.whatsapp_number || '');
+                              setInstagramEnabled(Boolean(config.instagram_enabled));
+                              setInstagramHandle(config.instagram_handle || '');
+                              setSmsEnabled(Boolean(config.sms_enabled));
+                              setSmsNumber(config.sms_number || '');
                               window.scrollTo({ top: 0, behavior: 'smooth' });
                             }}
                             className="bg-[#260475] hover:bg-[#1f0360] text-white border border-[#260475] py-2.5 px-3 rounded-xl text-xs font-bold transition-all shadow-sm text-center flex items-center justify-center gap-1.5"
@@ -841,6 +878,12 @@ export default function ChatbotManagerView() {
                               setNewVoiceEnabled(bot.voice_enabled || false);
                               setNewVoiceId(config.voice_id || '');
                               setNewAdminEmail(config.admin_email || config.notification_email || '');
+                              setWhatsappEnabled(Boolean(config.whatsapp_enabled));
+                              setWhatsappNumber(config.whatsapp_number || '');
+                              setInstagramEnabled(Boolean(config.instagram_enabled));
+                              setInstagramHandle(config.instagram_handle || '');
+                              setSmsEnabled(Boolean(config.sms_enabled));
+                              setSmsNumber(config.sms_number || '');
                               window.scrollTo({ top: 0, behavior: 'smooth' });
                             }}
                             className="bg-[#198fd9] hover:bg-[#157ab9] text-white border border-[#198fd9] py-2.5 px-3 rounded-xl text-xs font-bold transition-all shadow-sm text-center flex items-center justify-center gap-1.5"
