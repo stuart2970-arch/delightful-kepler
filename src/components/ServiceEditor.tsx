@@ -16,11 +16,14 @@ export default function ServiceEditor({ tenantId, chatbotId, services, setServic
   // Drag & drop state
   const [draggedIndex, setDraggedIndex] = useState<number | null>(null);
 
-  const activeChatbot = chatbots.find((b: any) => b.id === chatbotId);
+  const safeChatbots = Array.isArray(chatbots) ? chatbots : [];
+  const safeServices = Array.isArray(services) ? services : [];
+
+  const activeChatbot = safeChatbots.find((b: any) => b && b.id === chatbotId);
   const orderedIds = activeChatbot?.configuration_json?.ordered_service_ids || [];
 
   // Sort services based on orderedIds list
-  const sortedServices = [...services].sort((a: any, b: any) => {
+  const sortedServices = [...safeServices].filter(Boolean).sort((a: any, b: any) => {
     const indexA = orderedIds.indexOf(a.id);
     const indexB = orderedIds.indexOf(b.id);
     if (indexA !== -1 && indexB !== -1) return indexA - indexB;

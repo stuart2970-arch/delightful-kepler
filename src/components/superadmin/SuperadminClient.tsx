@@ -97,13 +97,14 @@ export default function SuperadminClient({
     }
   };
 
-  const filteredTenants = tenantsList.filter(t => 
-    t.company_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    t.id.includes(searchTerm)
+  const safeTenantsList = Array.isArray(tenantsList) ? tenantsList : [];
+  const filteredTenants = safeTenantsList.filter(t => 
+    t && (t.company_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    t.id?.includes(searchTerm))
   );
 
-  const totalMessages = tenantsList.reduce((acc, t) => acc + t.messagesCount, 0);
-  const totalCrawls = tenantsList.reduce((acc, t) => acc + t.crawlsCount, 0);
+  const totalMessages = safeTenantsList.reduce((acc, t) => acc + (t?.messagesCount || 0), 0);
+  const totalCrawls = safeTenantsList.reduce((acc, t) => acc + (t?.crawlsCount || 0), 0);
 
   const [holidays, setHolidays] = useState<GlobalHoliday[]>([]);
   const [newHoliday, setNewHoliday] = useState({ countries: ['UK'], date: new Date().toISOString().split('T')[0], name: '' });

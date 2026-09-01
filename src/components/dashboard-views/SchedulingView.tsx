@@ -38,7 +38,11 @@ export default function SchedulingView() {
     setAppointments
   } = useDashboardStore();
 
-  const realBots = chatbots.filter(b => b.id !== '00000000-0000-0000-0000-000000000000' && b.id !== 'global');
+  const safeChatbots = Array.isArray(chatbots) ? chatbots : [];
+  const safeServices = Array.isArray(services) ? services : [];
+  const safeStaff = Array.isArray(staff) ? staff : [];
+
+  const realBots = safeChatbots.filter(b => b && b.id !== '00000000-0000-0000-0000-000000000000' && b.id !== 'global');
   const [targetChatbotId, setTargetChatbotId] = useState(realBots[0]?.id || '');
 
   const staffTabsRef = useRef<HTMLDivElement | null>(null);
@@ -49,8 +53,8 @@ export default function SchedulingView() {
     }
   }, [chatbots, targetChatbotId]);
 
-  const filteredServices = services.filter(s => s.chatbot_id === targetChatbotId || !s.chatbot_id);
-  const filteredStaff = staff.filter(s => s.chatbot_id === targetChatbotId || !s.chatbot_id);
+  const filteredServices = safeServices.filter(s => s && (s.chatbot_id === targetChatbotId || !s.chatbot_id));
+  const filteredStaff = safeStaff.filter(s => s && (s.chatbot_id === targetChatbotId || !s.chatbot_id));
 
   const [activeWeekIndex, setActiveWeekIndex] = useState(0);
   const [isSavingBookingMode, setIsSavingBookingMode] = useState(false);

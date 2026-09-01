@@ -845,3 +845,16 @@ ame, irstMessage, and 	ranscriber) rather than relying on ssistantOverrides de
        - Added automatic regex sanitization in `getActiveGeminiModel()` to strip `models/` prefixes and auto-migrate legacy/deprecated strings (`gemini-2.0-flash`, `gemini-1.5-flash`, `gemini-1.5-pro`) stored in database configurations.
        - Updated fallback model strings across voice completion endpoints and widget scripts.
     3. **Build & Bundling**: Recompiled application and widget bundles (`npm run build`).
+
+### Session 16 (September 1, 2026) - Comprehensive Services & Superadmin Component Null-Safety Safeguards
+* **User**: "services tab on superadmin page is crashing the site"
+  * **Fix**: Added comprehensive null-safety and array boundary protections across all service, staff, entitlement, and tenant components:
+    1. **Superadmin Entitlements & Pricing Matrix Safeguards**:
+       - Updated `SuperAdminEntitlementsView.tsx` to handle `.catch()` on async entitlement/tier API promises so network errors or non-200 responses return safe default empty arrays `[]` instead of throwing unhandled `TypeError` exceptions.
+       - Added null-checks on feature display order sorting (`(a?.display_order || 0) - (b?.display_order || 0)`).
+    2. **Services & Scheduling View Null-Safety (`SchedulingView.tsx` & `ServiceEditor.tsx`)**:
+       - Added defensive array resolution (`Array.isArray(services) ? services : []`) across `SchedulingView.tsx` and `ServiceEditor.tsx`.
+       - Ensured `.filter()` and `.sort()` operations check for non-null items before dereferencing properties like `s.chatbot_id` or `s.id`.
+    3. **Superadmin Client Defensive Safeguards (`SuperadminClient.tsx`)**:
+       - Wrapped `tenantsList` in safe array checks (`Array.isArray(tenantsList) ? tenantsList : []`) to prevent runtime crashes during filtering, message reduction, and crawl counting.
+    4. **Build & Verification**: Verified production compilation (`npm run build`).

@@ -46,24 +46,27 @@ export default function SuperAdminEntitlementsView() {
 
   useEffect(() => {
     Promise.all([
-      fetch('/api/superadmin/entitlements').then(res => res.json()),
-      fetch('/api/superadmin/tiers').then(res => res.json())
+      fetch('/api/superadmin/entitlements').then(res => res.json()).catch(() => ({ data: [] })),
+      fetch('/api/superadmin/tiers').then(res => res.json()).catch(() => ({ data: [] }))
     ]).then(([entRes, tiersRes]) => {
-      const data = entRes.data || [];
+      const data = (entRes && Array.isArray(entRes.data)) ? entRes.data : [];
       setEntitlements(data);
-      setTiers(tiersRes.data || []);
+      setTiers((tiersRes && Array.isArray(tiersRes.data)) ? tiersRes.data : []);
       
       const uniqueMap = new Map<string, Feature>();
       data.forEach((e: Entitlement) => {
-        if (e.features && !uniqueMap.has(e.feature_id)) {
+        if (e && e.features && e.feature_id && !uniqueMap.has(e.feature_id)) {
           uniqueMap.set(e.feature_id, e.features);
         }
       });
 
       const unique = Array.from(uniqueMap.values()) as Feature[];
-      unique.sort((a, b) => (a.display_order || 0) - (b.display_order || 0));
+      unique.sort((a, b) => ((a?.display_order) || 0) - ((b?.display_order) || 0));
       setOrderedFeatures(unique);
       
+      setLoading(false);
+    }).catch((err) => {
+      console.error('[SuperAdminEntitlementsView] Load error:', err);
       setLoading(false);
     });
   }, []);
