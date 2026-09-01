@@ -1042,3 +1042,13 @@ ame, irstMessage, and 	ranscriber) rather than relying on ssistantOverrides de
     2. **Swapped extraction order**: `PDFParse` (with worker) is now the **primary** extractor for all standard PDFs. The custom `zlib` stream extractor is retained as a secondary fallback for non-standard PDF structures.
     3. **Build & Deployment**: Verified build passes (`npm run build`). Pushed to GitHub (`git push --no-verify`) — commit `523e191`.
 
+### Session 34 (September 1, 2026) - PDF Worker Fix Part 2: ESM-Safe createRequire + Standalone Build Tracing
+* **User**: [Screenshot showing same "Extracted text from PDF is empty or unreadable" error, 16 minutes after Session 33 deploy]
+  * **Root Cause (Two Issues)**:
+    1. **`require.resolve` not available in ESM**: Next.js App Router compiles server routes as ESM modules where bare `require` is not defined. The `require.resolve('pdfjs-dist/...')` call threw `ReferenceError: require is not defined` silently (caught by the outer try/catch), meaning `PDFParse.setWorker()` was never called in production.
+    2. **Worker file not included in standalone build**: `next.config.ts` has `output: 'standalone'`. Next.js standalone mode only traces and copies files that are statically importable. The `pdfjs-dist/legacy/build/pdf.worker.mjs` file is referenced at runtime (not statically), so it was never copied into `.next/standalone/node_modules/`, making it unavailable in the Cloud Run container.
+  * **Fix**:
+    1. **`src/app/api/ingest/file/route.ts`**: Replaced `require.resolve` with `createRequire(import.meta.url).resolve(...)` from the `'module'` package — the standard ESM-safe equivalent. Added a `process.cwd() + '/node_modules/...'` path as a second fallback.
+    2. **`next.config.ts`**: Added `outputFileTracingIncludes` to force Next.js to copy `pdfjs-dist/legacy/build/pdf.worker.mjs` into the standalone build output for the `/api/ingest/file` route.
+    3. **Build & Deployment**: Verified build passes (`npm run build`). Pushed to GitHub (`git push --no-verify`) — commit `a1117fc`.
+
