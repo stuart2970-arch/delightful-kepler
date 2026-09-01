@@ -171,6 +171,26 @@ export default function SuperadminClient({
   const [geminiModelInput, setGeminiModelInput] = useState<string>(initialGlobalGeminiModel || 'gemini-2.5-flash');
   const [isSavingGlobal, setIsSavingGlobal] = useState(false);
 
+  const [availableModels, setAvailableModels] = useState<any[]>([]);
+  const [isLoadingModels, setIsLoadingModels] = useState(false);
+  const [isLiveGoogleApi, setIsLiveGoogleApi] = useState(false);
+
+  const fetchLiveModels = async () => {
+    setIsLoadingModels(true);
+    try {
+      const res = await fetch('/api/superadmin/gemini-models');
+      if (res.ok) {
+        const data = await res.json();
+        setAvailableModels(data.models || []);
+        setIsLiveGoogleApi(!!data.live);
+      }
+    } catch (err) {
+      console.error('[SuperadminClient] Error fetching live Gemini models:', err);
+    } finally {
+      setIsLoadingModels(false);
+    }
+  };
+
   const handleDeleteTenant = async (tenantId: string, companyName: string) => {
     const confirmation = prompt(`PERMANENT DELETION WARNING:\nAre you sure you want to delete "${companyName}" (${tenantId})?\n\nType DELETE to confirm:`);
     if (confirmation !== 'DELETE') {
@@ -263,6 +283,7 @@ export default function SuperadminClient({
 
   useEffect(() => {
     fetchHolidays();
+    fetchLiveModels();
   }, []);
 
   const handleAddHoliday = async (e: React.FormEvent) => {
@@ -496,41 +517,54 @@ export default function SuperadminClient({
               </div>
 
               <div>
-                <label className="block text-xs font-semibold text-gray-400 mb-1.5">Quick-Select Presets</label>
+                <div className="flex items-center justify-between mb-2">
+                  <label className="block text-xs font-semibold text-gray-400">
+                    Available Live Models & Presets
+                  </label>
+                  <div className="flex items-center gap-2">
+                    <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full border ${
+                      isLiveGoogleApi 
+                        ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/30' 
+                        : 'bg-gray-800 text-gray-400 border-gray-700'
+                    }`}>
+                      {isLiveGoogleApi ? '🟢 Synced Live from Google AI API' : '⚪ Default Presets'}
+                    </span>
+                    <button
+                      type="button"
+                      onClick={fetchLiveModels}
+                      disabled={isLoadingModels}
+                      className="text-[10px] text-indigo-400 hover:text-indigo-300 underline font-medium"
+                    >
+                      {isLoadingModels ? 'Syncing...' : 'Sync Live Models'}
+                    </button>
+                  </div>
+                </div>
+
                 <div className="flex flex-wrap gap-2">
-                  <button
-                    type="button"
-                    onClick={() => setGeminiModelInput('gemini-2.5-flash')}
-                    className={`px-3 py-1.5 text-xs rounded-lg font-medium transition-all ${
-                      geminiModelInput === 'gemini-2.5-flash'
-                        ? 'bg-indigo-600 text-white border border-indigo-500 shadow-sm'
-                        : 'bg-gray-950 hover:bg-gray-800 text-gray-300 border border-gray-800'
-                    }`}
-                  >
-                    ⚡ gemini-2.5-flash (Recommended Default)
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setGeminiModelInput('gemini-2.5-pro')}
-                    className={`px-3 py-1.5 text-xs rounded-lg font-medium transition-all ${
-                      geminiModelInput === 'gemini-2.5-pro'
-                        ? 'bg-indigo-600 text-white border border-indigo-500 shadow-sm'
-                        : 'bg-gray-950 hover:bg-gray-800 text-gray-300 border border-gray-800'
-                    }`}
-                  >
-                    🧠 gemini-2.5-pro (Deep Reasoning)
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setGeminiModelInput('gemini-flash-latest')}
-                    className={`px-3 py-1.5 text-xs rounded-lg font-medium transition-all ${
-                      geminiModelInput === 'gemini-flash-latest'
-                        ? 'bg-indigo-600 text-white border border-indigo-500 shadow-sm'
-                        : 'bg-gray-950 hover:bg-gray-800 text-gray-300 border border-gray-800'
-                    }`}
-                  >
-                    🔄 gemini-flash-latest (Auto-Update Alias)
-                  </button>
+                  {(availableModels.length > 0 ? availableModels : [
+                    { id: 'gemini-flash-latest', displayName: 'gemini-flash-latest (Auto-Update Alias)', isAlias: true },
+                    { id: 'gemini-2.5-flash', displayName: 'gemini-2.5-flash (Fast & Economical)', isAlias: false },
+                    { id: 'gemini-2.5-pro', displayName: 'gemini-2.5-pro (Deep Reasoning)', isAlias: false }
+                  ]).map((m) => {
+                    const cleanId = m.id.replace(/^models\//i, '');
+                    const isSelected = geminiModelInput.trim().replace(/^models\//i, '') === cleanId;
+                    return (
+                      <button
+                        key={m.id}
+                        type="button"
+                        onClick={() => setGeminiModelInput(cleanId)}
+                        title={m.description || m.displayName}
+                        className={`px-3 py-1.5 text-xs rounded-lg font-medium transition-all ${
+                          isSelected
+                            ? 'bg-indigo-600 text-white border border-indigo-500 shadow-md shadow-indigo-600/20 font-bold'
+                            : 'bg-gray-950 hover:bg-gray-800 text-gray-300 border border-gray-800'
+                        }`}
+                      >
+                        {m.isAlias ? '🔄 ' : '⚡ '}
+                        {cleanId}
+                      </button>
+                    );
+                  })}
                 </div>
               </div>
 

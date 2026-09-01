@@ -906,3 +906,17 @@ ame, irstMessage, and 	ranscriber) rather than relying on ssistantOverrides de
        - Guarded `createBrowserClient` calls against missing environment variables in `SuperAdminVoiceManagerView.tsx`.
        - Added `Array.isArray()` checks to voice persona fetches in `FloBotProfileSettingsView.tsx` and `SuperAdminVoiceManagerView.tsx`.
     4. **Build & Deployment**: Verified compilation and pushed fix (`npm run build`).
+
+### Session 21 (September 1, 2026) - Live Google AI API Model Discovery & Model String Sanitization
+* **User**: "is there a way you can pull these from an api and display them 'as the latest available' rather than having to manually upgrade, and if 2.5 flash is still available, why is it not working for me"
+  * **Fix**: Added dynamic live Gemini model discovery directly from Google's API and resolved model string prefix collisions:
+    1. **Live Google AI Studio API Model Discovery Endpoint (`/api/superadmin/gemini-models`)**:
+       - Created `/api/superadmin/gemini-models/route.ts` that directly queries `https://generativelanguage.googleapis.com/v1beta/models?key=...` from Google AI Studio.
+       - Dynamically parses, filters, and returns all active available models supported by the API key alongside Google's dynamic auto-updating aliases (`gemini-flash-latest`, `gemini-pro-latest`).
+    2. **Superadmin Live Model Discovery UI**:
+       - Integrated live model fetching into `SuperadminClient.tsx`.
+       - Rendered interactive pill buttons for all live models reported directly by Google's API, complete with a `🟢 Synced Live from Google AI API` indicator badge and a `Sync Live Models` button.
+    3. **Prefix Collision Resolution & Prefix Stripping**:
+       - Resolved the root cause of why `gemini-2.5-flash` failed: when users pasted `models/gemini-2.5-flash` into the model input, `@ai-sdk/google` prepended `models/` again, creating an invalid `models/models/gemini-2.5-flash` string that returned HTTP 404 from Google.
+       - Enforced automatic `models/` prefix stripping and regex sanitization across saving, caching, and model instantiation.
+    4. **Build & Deployment**: Verified build (`npm run build`).
