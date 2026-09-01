@@ -955,3 +955,13 @@ ame, irstMessage, and 	ranscriber) rather than relying on ssistantOverrides de
        - Replaced unbounded `Promise.all(chunks.map(...))` with controlled batching (batches of 5) for embedding generation. Prevents HTTP 429 Too Many Requests rate limit drops on large PDFs with 50+ chunks.
     4. **Build & Deployment**: Verified compilation and pushed fix (`npm run build`).
 
+### Session 25 (September 1, 2026) - Elimination of Top-Level Module Import Failures & Native zlib Stream Decompression
+* **User**: "same" [Attached DevTools screenshot showing `Content-Length: 21` text/plain `Internal Server Error` on `/api/ingest/file`]
+  * **Fix**: Discovered and resolved exact Next.js server module initialization crash during route evaluation:
+    1. **Eliminated Top-Level `pdf-parse` Module Import**:
+       - Top-level `import { PDFParse } from 'pdf-parse'` caused Node.js server standalone module load failures before the handler ran (returning 21-byte plain text `Internal Server Error`).
+       - Removed top-level import and converted `pdf-parse` to a safe lazy dynamic `await import('pdf-parse')` fallback.
+    2. **Built-in Node.js `zlib` FlateDecode Stream Decompressor (`extractTextFromPdf`)**:
+       - Implemented a zero-dependency PDF stream parser using Node.js built-in `zlib` (`zlib.inflateSync`).
+       - Inflates compressed `/FlateDecode` streams directly from the PDF binary buffer with zero external packages or worker files.
+    3. **Build & Deployment**: Verified compilation and pushed fix (`npm run build`).

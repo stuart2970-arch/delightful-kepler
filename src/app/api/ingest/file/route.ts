@@ -6,10 +6,70 @@ import { RecursiveCharacterTextSplitter } from '@langchain/textsplitters';
 import { google } from '@ai-sdk/google';
 import { embed } from 'ai';
 import { checkFeatureEntitlement } from '@/lib/entitlements';
-import { PDFParse } from 'pdf-parse';
+import zlib from 'zlib';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 120;
+
+function parseTextFromStream(streamStr: string, output: string[]) {
+  const tjMatches = streamStr.matchAll(/\(([^()\\]|\\[\s\S])*\)\s*(?:Tj|TJ|\'|\")/g);
+  for (const m of tjMatches) {
+    const cleaned = m[0]
+      .replace(/^\(/, '')
+      .replace(/\)\s*(?:Tj|TJ|\'|\")$/, '')
+      .replace(/\\([\s\S])/g, '$1')
+      .trim();
+    if (cleaned.length > 0) {
+      output.push(cleaned);
+    }
+  }
+
+  const tjArrayMatches = streamStr.matchAll(/\[((?:\((?:[^()\\]|\\[\s\S])*\)|[^\%\)\]])+)\]\s*TJ/g);
+  for (const m of tjArrayMatches) {
+    const innerStrings = m[1].matchAll(/\(([^()\\]|\\[\s\S])*\)/g);
+    for (const s of innerStrings) {
+      const cleaned = s[0].slice(1, -1).replace(/\\([\s\S])/g, '$1').trim();
+      if (cleaned.length > 0) {
+        output.push(cleaned);
+      }
+    }
+  }
+}
+
+function extractTextFromPdf(buffer: Buffer): string {
+  const textBlocks: string[] = [];
+
+  try {
+    const latinStr = buffer.toString('latin1');
+    parseTextFromStream(latinStr, textBlocks);
+
+    const streamRegex = /\/Filter\s*\/FlateDecode[\s\S]*?stream\r?\n([\s\S]*?)\r?\nendstream/g;
+    let match;
+    while ((match = streamRegex.exec(latinStr)) !== null) {
+      try {
+        const streamHeaderIndex = match.index;
+        const streamKwIndex = latinStr.indexOf('stream', streamHeaderIndex);
+        if (streamKwIndex !== -1 && streamKwIndex < match.index + match[0].length) {
+          let start = streamKwIndex + 6;
+          if (latinStr.charCodeAt(start) === 13) start++;
+          if (latinStr.charCodeAt(start) === 10) start++;
+          const end = match.index + match[0].lastIndexOf('endstream');
+          if (end > start) {
+            const compressedBuf = buffer.subarray(start, end);
+            const decompressedBuf = zlib.inflateSync(compressedBuf);
+            parseTextFromStream(decompressedBuf.toString('latin1'), textBlocks);
+          }
+        }
+      } catch {
+        // Skip un-decompressable blocks
+      }
+    }
+  } catch (err) {
+    console.warn('[PDF Ingest] Stream text parsing warning:', err);
+  }
+
+  return textBlocks.join(' ').replace(/\s+/g, ' ').trim();
+}
 
 async function createSupabaseClient() {
   const cookieStore = await cookies();
@@ -31,44 +91,6 @@ async function createSupabaseClient() {
       },
     },
   });
-}
-
-function extractRawPdfText(buffer: Buffer): string {
-  try {
-    const str = buffer.toString('latin1');
-    const textBlocks: string[] = [];
-
-    const matches = str.matchAll(/\(([^()\\]|\\[\s\S])*\)\s*(?:Tj|TJ|\'|\")/g);
-    for (const m of matches) {
-      const raw = m[0];
-      const cleaned = raw
-        .replace(/^\(/, '')
-        .replace(/\)\s*(?:Tj|TJ|\'|\")$/, '')
-        .replace(/\\([\s\S])/g, '$1');
-      if (cleaned.trim().length > 0) {
-        textBlocks.push(cleaned);
-      }
-    }
-
-    if (textBlocks.length < 5) {
-      const tjArrayMatches = str.matchAll(/\[((?:\((?:[^()\\]|\\[\s\S])*\)|[^\%\)\]])+)\]\s*TJ/g);
-      for (const m of tjArrayMatches) {
-        const inner = m[1];
-        const innerStrings = inner.matchAll(/\(([^()\\]|\\[\s\S])*\)/g);
-        for (const s of innerStrings) {
-          const cleaned = s[0].slice(1, -1).replace(/\\([\s\S])/g, '$1');
-          if (cleaned.trim().length > 0) {
-            textBlocks.push(cleaned);
-          }
-        }
-      }
-    }
-
-    return textBlocks.join(' ');
-  } catch (err) {
-    console.warn('[Ingest File] Fallback raw PDF text extraction failed:', err);
-    return '';
-  }
 }
 
 export async function POST(request: Request) {
@@ -145,21 +167,23 @@ export async function POST(request: Request) {
 
     if (isPdf) {
       try {
-        const parser = new PDFParse({ data: buffer });
-        try {
-          const result = await parser.getText();
-          textContent = result.text || '';
-        } finally {
-          await parser.destroy().catch(() => {});
-        }
-      } catch (pdfErr: any) {
-        console.warn(`[Ingest File][${requestId}] Standard PDFParse failed: ${pdfErr?.message || pdfErr}. Attempting raw stream extraction fallback...`);
+        textContent = extractTextFromPdf(buffer);
+      } catch (err: any) {
+        console.warn(`[Ingest File][${requestId}] Native zlib PDF extraction warning: ${err?.message || err}`);
       }
 
       if (!textContent || textContent.trim().length < 10) {
-        const fallbackText = extractRawPdfText(buffer);
-        if (fallbackText && fallbackText.trim().length >= 10) {
-          textContent = fallbackText;
+        try {
+          const { PDFParse } = await import('pdf-parse');
+          const parser = new PDFParse({ data: buffer });
+          try {
+            const result = await parser.getText();
+            if (result?.text) textContent = result.text;
+          } finally {
+            await parser.destroy().catch(() => {});
+          }
+        } catch (dynamicErr: any) {
+          console.warn(`[Ingest File][${requestId}] Dynamic PDFParse import fallback skipped: ${dynamicErr?.message || dynamicErr}`);
         }
       }
     } else if (isTxt) {
