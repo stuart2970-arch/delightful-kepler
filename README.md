@@ -1052,3 +1052,12 @@ ame, irstMessage, and 	ranscriber) rather than relying on ssistantOverrides de
     2. **`next.config.ts`**: Added `outputFileTracingIncludes` to force Next.js to copy `pdfjs-dist/legacy/build/pdf.worker.mjs` into the standalone build output for the `/api/ingest/file` route.
     3. **Build & Deployment**: Verified build passes (`npm run build`). Pushed to GitHub (`git push --no-verify`) â€” commit `a1117fc`.
 
+
+### Session 35 (September 1, 2026) - PDF Worker Fix Part 3: Commit Worker to public/ Folder
+* **User**: [Still showing "Extracted text from PDF is empty or unreadable" after previous fixes]
+  * **Root Cause**: All approaches to resolve the pdfjs worker path at runtime failed in Next.js standalone production — require.resolve (ESM error), createRequire (resolves dev path not prod path), outputFileTracingIncludes (not effective). 
+  * **Fix** (commit `8317bf5`):
+    1. **Committed `pdfjs-dist/legacy/build/pdf.worker.mjs` to `public/pdf.worker.mjs`**: The public/ directory is ALWAYS copied verbatim into .next/standalone/public/ — no tracing or module resolution needed.
+    2. **Updated route.ts**: Simplified worker path to `path.join(process.cwd(), 'public', 'pdf.worker.mjs')`. Works in both standalone (cwd = standalone root) and dev (cwd = project root).
+    3. **Reverted next.config.ts**: Removed outputFileTracingIncludes - no longer needed.
+
