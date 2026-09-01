@@ -232,24 +232,34 @@ export async function POST(request: Request) {
     let textContent = '';
 
     if (isPdf) {
+      // Primary: pdf-parse v2 with explicit worker path.
+      // pdfjs-dist v5 (used by pdf-parse v2) requires GlobalWorkerOptions.workerSrc to be set
+      // before loading any document — without it the worker fails silently, returning empty text.
       try {
-        textContent = extractTextFromPdf(buffer);
-      } catch (err: any) {
-        console.warn(`[Ingest File][${requestId}] Native zlib PDF extraction warning: ${err?.message || err}`);
+        const { PDFParse } = await import('pdf-parse');
+        const { pathToFileURL } = await import('url');
+        const workerPath = require.resolve('pdfjs-dist/legacy/build/pdf.worker.mjs');
+        PDFParse.setWorker(pathToFileURL(workerPath).href);
+
+        const parser = new PDFParse({ data: buffer });
+        try {
+          const result = await parser.getText();
+          if (result?.text && result.text.trim().length > 0) {
+            textContent = result.text;
+          }
+        } finally {
+          await parser.destroy().catch(() => {});
+        }
+      } catch (dynamicErr: any) {
+        console.warn(`[Ingest File][${requestId}] pdf-parse extraction failed: ${dynamicErr?.message || dynamicErr}`);
       }
 
+      // Fallback: custom zlib stream extractor (handles some non-standard PDFs)
       if (!textContent || textContent.trim().length < 10) {
         try {
-          const { PDFParse } = await import('pdf-parse');
-          const parser = new PDFParse({ data: buffer });
-          try {
-            const result = await parser.getText();
-            if (result?.text) textContent = result.text;
-          } finally {
-            await parser.destroy().catch(() => {});
-          }
-        } catch (dynamicErr: any) {
-          console.warn(`[Ingest File][${requestId}] Dynamic PDFParse import fallback skipped: ${dynamicErr?.message || dynamicErr}`);
+          textContent = extractTextFromPdf(buffer);
+        } catch (err: any) {
+          console.warn(`[Ingest File][${requestId}] zlib PDF extraction warning: ${err?.message || err}`);
         }
       }
     } else if (isTxt) {
