@@ -118,7 +118,7 @@ ${variantsText}
 
           try {
             const { embedding } = await embed({
-              model: google.textEmbeddingModel('gemini-embedding-001'),
+              model: google.textEmbeddingModel('text-embedding-004'),
               value: fullSemanticTextChunk,
               providerOptions: { google: { outputDimensionality: 768 } },
             });
@@ -174,7 +174,7 @@ ${variantsText}
                 if (cleanPolicy && cleanPolicy.length > 50) {
                   
                   const { embedding } = await embed({
-                    model: google.textEmbeddingModel('gemini-embedding-001'),
+                    model: google.textEmbeddingModel('text-embedding-004'),
                     value: cleanPolicy,
                     providerOptions: { google: { outputDimensionality: 768 } },
                   });

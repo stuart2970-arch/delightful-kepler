@@ -118,7 +118,7 @@ async function saveScrapedWebsiteDataToTenant(params: {
         for (const chunk of chunks.slice(0, 5)) {
           try {
             const { embedding } = await embed({
-              model: google.textEmbeddingModel('gemini-embedding-001'),
+              model: google.textEmbeddingModel('text-embedding-004'),
               value: chunk,
               providerOptions: { google: { outputDimensionality: 768 } },
             });
@@ -307,24 +307,24 @@ Help them specify:
 
     console.log(`[Chat Stream][${requestId}] Resolved Tenant ID: ${tenantId}, TZ: ${timezone}, Rules count: ${chatbotRules.length}`);
 
-    // 4. Generate user message embedding (Gemini text-embedding-004)
-    console.log(`[Chat Stream][${requestId}] Creating user message embedding...`);
-    let queryEmbedding: number[];
-    try {
-      const { embedding } = await embed({
-        model: google.textEmbeddingModel('gemini-embedding-001'),
-        value: message,
-        providerOptions: {
-          google: {
-            outputDimensionality: 768,
+    // 4. Generate user message embedding (Gemini text-embedding-004) if required for RAG
+    let queryEmbedding: number[] = [];
+    if (chatbotId !== 'styleflo-onboarding-flobot') {
+      console.log(`[Chat Stream][${requestId}] Creating user message embedding...`);
+      try {
+        const { embedding } = await embed({
+          model: google.textEmbeddingModel('text-embedding-004'),
+          value: message,
+          providerOptions: {
+            google: {
+              outputDimensionality: 768,
+            },
           },
-        },
-      });
-      queryEmbedding = embedding;
-    } catch (embeddingErr: unknown) {
-      console.error(`[Chat Stream][${requestId}] Gemini embedding creation failed:`, embeddingErr);
-      const errorMessage = embeddingErr instanceof Error ? embeddingErr.message : String(embeddingErr);
-      return NextResponse.json({ error: `Embedding failed: ${errorMessage}` }, { status: 200, headers: corsHeaders });
+        });
+        queryEmbedding = embedding;
+      } catch (embeddingErr: unknown) {
+        console.warn(`[Chat Stream][${requestId}] Gemini embedding creation warning:`, embeddingErr);
+      }
     }
 
     const targetBotUuid = chatbotId === 'styleflo-onboarding-flobot' 
@@ -335,7 +335,7 @@ Help them specify:
     console.log(`[Chat Stream][${requestId}] Searching similarity index...`);
     let matchedDocuments: any[] = [];
     
-    if (chatbotId !== 'styleflo-onboarding-flobot') {
+    if (chatbotId !== 'styleflo-onboarding-flobot' && queryEmbedding.length > 0) {
       const { data: docs, error: rpcError } = await supabaseAdmin.rpc('match_documents', {
         query_embedding: queryEmbedding,
         match_threshold: 0.2, // retrieve broader content if close, similarity score threshold
@@ -345,10 +345,10 @@ Help them specify:
       });
 
       if (rpcError) {
-        console.error(`[Chat Stream][${requestId}] match_documents RPC failed:`, rpcError);
-        return NextResponse.json({ error: `Context retrieval failed: ${rpcError.message}` }, { status: 200, headers: corsHeaders });
+        console.warn(`[Chat Stream][${requestId}] match_documents RPC warning:`, rpcError);
+      } else {
+        matchedDocuments = docs || [];
       }
-      matchedDocuments = docs || [];
     }
 
     const contextText = matchedDocuments && matchedDocuments.length > 0
@@ -547,20 +547,23 @@ ${servicesContext}
 ${staffContext}`;
 
     const formattedMessages: { role: 'user' | 'assistant', content: string }[] = [];
-    if (chatHistory && chatHistory.length > 0) {
+    if (Array.isArray(chatHistory) && chatHistory.length > 0) {
       chatHistory.forEach((msg) => {
-        formattedMessages.push({
-          role: msg.sender_type === 'user' ? 'user' : 'assistant',
-          content: msg.text_content,
-        });
+        const text = typeof msg.content === 'string' ? msg.content.trim() : '';
+        const role = msg.role === 'user' ? 'user' : 'assistant';
+        if (text) {
+          formattedMessages.push({ role, content: text });
+        }
       });
     }
 
     // Append current user message
-    formattedMessages.push({
-      role: 'user',
-      content: message,
-    });
+    if (message && message.trim()) {
+      formattedMessages.push({
+        role: 'user',
+        content: message.trim(),
+      });
+    }
 
     const activeModelName = await getActiveGeminiModel();
     console.log(`[Chat Stream][${requestId}] Initializing Vercel AI SDK text stream (${activeModelName})...`);
@@ -822,7 +825,7 @@ User identity context: ${clientName ? 'Client Name: ' + clientName : 'Anonymous'
             ];
             
             const result2 = await streamText({
-              model: google('gemini-1.5-flash'),
+              model: google(activeModelName),
               system: systemPrompt,
               messages: pass2Messages as Parameters<typeof streamText>[0]['messages'],
               onFinish: async (event2) => {

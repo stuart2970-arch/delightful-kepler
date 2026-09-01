@@ -820,6 +820,15 @@ ame, irstMessage, and 	ranscriber) rather than relying on ssistantOverrides de
        - **If Google Maps No**: FloBot asks for Business Name & Location for manual setup.
     5. **Build & Bundling**: Recompiled widget assets (`npm run build:widget`).
 
-
-
-
+### Session 14 (September 1, 2026) - Vertex AI Embedding Quota Fix & ModelMessage Schema Crash Prevention
+* **User**: "seeing these errors, which i believe will be due to the work being done with the onboarding flobot" [Attached screenshot showing `Quota exceeded for aiplatform.googleapis.com/global_embed_content_requests with base model: gemini-embedding` and `Invalid prompt: The messages do not match the ModelMessage[] schema.`]
+  * **Fix**: Diagnosed and resolved both root causes across the chat stream and ingestion pipelines:
+    1. **Vertex AI Embedding Quota Fix**:
+       - Replaced legacy Vertex AI `gemini-embedding-001` with standard Google AI Studio `text-embedding-004` (768 dimensions) across `src/app/api/chat/stream/route.ts`, `crawl/route.ts`, `file/route.ts`, `text/route.ts`, `shopify/execute/route.ts`, and `openclaw/webhook/route.ts`.
+       - Excluded FloBot (`styleflo-onboarding-flobot`) from generating user message embeddings during onboarding since FloBot does not perform RAG similarity queries, preventing unnecessary embedding API consumption.
+       - Wrapped RAG embedding generation in non-blocking try-catch handlers so that temporary embedding quota or network issues fail gracefully without aborting chat stream execution.
+    2. **ModelMessage Schema Corruption Fix**:
+       - Fixed a critical object mapping bug in `src/app/api/chat/stream/route.ts` where `chatHistory` objects (containing `.role` and `.content`) were incorrectly accessed via `msg.sender_type` and `msg.text_content` (both `undefined`), producing invalid `{ role: 'assistant', content: undefined }` message arrays that failed Vercel AI SDK validation.
+       - Updated message formatting to sanitize role types (`user`/`assistant`) and non-empty string content before passing to `streamText`.
+       - Replaced hardcoded `gemini-1.5-flash` reference in lookup pass with dynamic `activeModelName`.
+    3. **Build Verification**: Recompiled application and widget assets (`npm run build`).

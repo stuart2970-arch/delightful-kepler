@@ -117,7 +117,7 @@ export async function POST(request: Request) {
     const embeddingPromises = chunkData.map(async (chunk) => {
       try {
         const { embedding } = await embed({
-          model: google.textEmbeddingModel('gemini-embedding-001'),
+          model: google.textEmbeddingModel('text-embedding-004'),
           value: chunk.content,
           providerOptions: { google: { outputDimensionality: 768 } },
         });
