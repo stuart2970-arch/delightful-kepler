@@ -931,3 +931,14 @@ ame, irstMessage, and 	ranscriber) rather than relying on ssistantOverrides de
        - Verified instant tenant search and impersonation capability via `/api/superadmin/impersonate/search`.
     3. **Build & Deployment**: Verified build (`npm run build`).
 
+### Session 23 (September 1, 2026) - PDF Ingestion Fail-Safe & Pure JS Raw Text Extraction Fallback
+* **User**: "error on uploading a pdf" [Attached screenshot showing `[Error] Server error (500 ): Internal server error` during file ingestion of `Racing & Football Outlook.pdf`]
+  * **Fix**: Resolved unhandled Server Component crashes during PDF ingestion:
+    1. **Wrapped PDF Parser in `try / catch`**:
+       - Handled `PDFParse` exceptions (such as missing `pdf.worker.mjs` paths in Next.js Server environments, password protection, or complex PDF stream structures).
+    2. **Pure JS Raw Text Extraction Fallback (`extractRawPdfText`)**:
+       - Created a zero-dependency regex stream text extractor (`extractRawPdfText(buffer)`) that parses literal PDF text string objects (`(text) Tj / TJ`) directly from the binary stream.
+       - Guarantees successful text extraction even if the primary PDF parser fails or encounters worker bundling errors.
+    3. **Clear Diagnostic Messaging**:
+       - Updated short/empty text detection error messages to guide users if uploading scanned image PDFs.
+    4. **Build & Deployment**: Verified build (`npm run build`).

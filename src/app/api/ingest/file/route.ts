@@ -32,6 +32,44 @@ async function createSupabaseClient() {
   });
 }
 
+function extractRawPdfText(buffer: Buffer): string {
+  try {
+    const str = buffer.toString('latin1');
+    const textBlocks: string[] = [];
+
+    const matches = str.matchAll(/\(([^()\\]|\\[\s\S])*\)\s*(?:Tj|TJ|\'|\")/g);
+    for (const m of matches) {
+      const raw = m[0];
+      const cleaned = raw
+        .replace(/^\(/, '')
+        .replace(/\)\s*(?:Tj|TJ|\'|\")$/, '')
+        .replace(/\\([\s\S])/g, '$1');
+      if (cleaned.trim().length > 0) {
+        textBlocks.push(cleaned);
+      }
+    }
+
+    if (textBlocks.length < 5) {
+      const tjArrayMatches = str.matchAll(/\[((?:\((?:[^()\\]|\\[\s\S])*\)|[^\%\)\]])+)\]\s*TJ/g);
+      for (const m of tjArrayMatches) {
+        const inner = m[1];
+        const innerStrings = inner.matchAll(/\(([^()\\]|\\[\s\S])*\)/g);
+        for (const s of innerStrings) {
+          const cleaned = s[0].slice(1, -1).replace(/\\([\s\S])/g, '$1');
+          if (cleaned.trim().length > 0) {
+            textBlocks.push(cleaned);
+          }
+        }
+      }
+    }
+
+    return textBlocks.join(' ');
+  } catch (err) {
+    console.warn('[Ingest File] Fallback raw PDF text extraction failed:', err);
+    return '';
+  }
+}
+
 export async function POST(request: Request) {
   const requestId = crypto.randomUUID();
   console.log(`[Ingest File][${requestId}] Processing file ingestion request...`);
@@ -101,18 +139,27 @@ export async function POST(request: Request) {
     // Process file
     const arrayBuffer = await file.arrayBuffer();
     const buffer = Buffer.from(arrayBuffer);
-    let textContent = '';
-
     const isPdf = file.type === 'application/pdf' || file.name.toLowerCase().endsWith('.pdf');
     const isTxt = file.type === 'text/plain' || file.name.toLowerCase().endsWith('.txt');
 
     if (isPdf) {
-      const parser = new PDFParse({ data: buffer });
       try {
-        const result = await parser.getText();
-        textContent = result.text;
-      } finally {
-        await parser.destroy();
+        const parser = new PDFParse({ data: buffer });
+        try {
+          const result = await parser.getText();
+          textContent = result.text || '';
+        } finally {
+          await parser.destroy().catch(() => {});
+        }
+      } catch (pdfErr: any) {
+        console.warn(`[Ingest File][${requestId}] Standard PDFParse failed: ${pdfErr?.message || pdfErr}. Attempting raw stream extraction fallback...`);
+      }
+
+      if (!textContent || textContent.trim().length < 10) {
+        const fallbackText = extractRawPdfText(buffer);
+        if (fallbackText && fallbackText.trim().length >= 10) {
+          textContent = fallbackText;
+        }
       }
     } else if (isTxt) {
       textContent = buffer.toString('utf-8');
@@ -122,7 +169,7 @@ export async function POST(request: Request) {
 
     textContent = textContent.replace(/\s+/g, ' ').trim();
     if (textContent.length < 10) {
-      return NextResponse.json({ error: 'Extracted text is too short or empty' }, { status: 400 });
+      return NextResponse.json({ error: 'Extracted text from PDF is empty or unreadable. If this is a scanned image PDF, please copy and paste the text as TXT.' }, { status: 400 });
     }
 
     // Check entitlements
