@@ -238,7 +238,7 @@ export default function InboxView() {
                       <div className="flex justify-between items-center w-full">
                         <span className="font-bold text-gray-900">{chatbotName}</span>
                         <span className="text-[10px] text-gray-500 font-mono">
-                          {new Date(conv.created_at).toLocaleDateString()} {new Date(conv.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                          {conv.created_at && !isNaN(new Date(conv.created_at).getTime()) ? `${new Date(conv.created_at).toLocaleDateString()} ${new Date(conv.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}` : ''}
                         </span>
                       </div>
                       

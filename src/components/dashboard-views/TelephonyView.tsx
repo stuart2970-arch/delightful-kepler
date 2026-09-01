@@ -176,12 +176,12 @@ export default function TelephonyView() {
                         📞 {call.user_session_id?.replace('phone_', '') || 'Incoming Call'}
                       </span>
                       <span className="text-[10px] text-[var(--awb-color6)] font-mono">
-                        {new Date(call.created_at).toLocaleDateString()}
+                        {call.created_at && !isNaN(new Date(call.created_at).getTime()) ? new Date(call.created_at).toLocaleDateString() : 'N/A'}
                       </span>
                     </div>
                     <div className="flex justify-between items-center w-full mt-1">
                       <span className="text-[10px] text-[var(--awb-color6)]">
-                        {new Date(call.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                        {call.created_at && !isNaN(new Date(call.created_at).getTime()) ? new Date(call.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : ''}
                       </span>
                       <div className="flex gap-1">
                         {call.resulted_in_booking && (

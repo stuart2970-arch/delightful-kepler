@@ -26,6 +26,17 @@ type TenantStat = {
   crawlsCount: number;
 };
 
+function safeFormatDate(dateStr: any, options?: Intl.DateTimeFormatOptions): string {
+  if (!dateStr) return 'N/A';
+  try {
+    const d = new Date(dateStr);
+    if (isNaN(d.getTime())) return 'N/A';
+    return d.toLocaleDateString(undefined, options);
+  } catch {
+    return 'N/A';
+  }
+}
+
 export default function SuperadminClient({ 
   tenants,
   initialGlobalBrandingHtml,
@@ -261,15 +272,15 @@ export default function SuperadminClient({
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
         <div className="bg-gray-900 border border-gray-800 rounded-2xl p-6">
           <p className="text-sm font-medium text-gray-400">Total Tenants</p>
-          <p className="text-3xl font-bold text-white mt-2">{tenants.length}</p>
+          <p className="text-3xl font-bold text-white mt-2">{(safeTenantsList.length || 0).toLocaleString()}</p>
         </div>
         <div className="bg-gray-900 border border-gray-800 rounded-2xl p-6">
           <p className="text-sm font-medium text-gray-400">Total LLM Tokens (This Month)</p>
-          <p className="text-3xl font-bold text-white mt-2">{totalMessages.toLocaleString()}</p>
+          <p className="text-3xl font-bold text-white mt-2">{(totalMessages || 0).toLocaleString()}</p>
         </div>
         <div className="bg-gray-900 border border-gray-800 rounded-2xl p-6">
           <p className="text-sm font-medium text-gray-400">Total Website Crawls (This Month)</p>
-          <p className="text-3xl font-bold text-white mt-2">{totalCrawls.toLocaleString()}</p>
+          <p className="text-3xl font-bold text-white mt-2">{(totalCrawls || 0).toLocaleString()}</p>
         </div>
       </div>
 
@@ -571,13 +582,13 @@ export default function SuperadminClient({
                       </button>
                     </td>
                     <td className="px-6 py-4 text-sm text-gray-400">
-                      {new Date(tenant.created_at).toLocaleDateString()}
+                      {safeFormatDate(tenant?.created_at)}
                     </td>
                     <td className="px-6 py-4 text-sm font-medium text-right text-white">
-                      {tenant.messagesCount.toLocaleString()}
+                      {(tenant?.messagesCount || 0).toLocaleString()}
                     </td>
                     <td className="px-6 py-4 text-sm font-medium text-right text-white">
-                      {tenant.crawlsCount.toLocaleString()}
+                      {(tenant?.crawlsCount || 0).toLocaleString()}
                     </td>
                     <td className="px-6 py-4 text-sm text-right">
                       <button
@@ -659,7 +670,7 @@ export default function SuperadminClient({
                     ))}
                   </div>
                   <div className="font-bold text-white">{holiday.name}</div>
-                  <div className="text-sm text-gray-400">{new Date(holiday.date).toLocaleDateString(undefined, { weekday: 'short', year: 'numeric', month: 'long', day: 'numeric' })}</div>
+                  <div className="text-sm text-gray-400">{safeFormatDate(holiday?.date, { weekday: 'short', year: 'numeric', month: 'long', day: 'numeric' })}</div>
                 </div>
                 <button onClick={() => handleDeleteHoliday(holiday.id)} className="text-gray-600 hover:text-red-400 opacity-0 group-hover:opacity-100 transition-opacity">
                   <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg>

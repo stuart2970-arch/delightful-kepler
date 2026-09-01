@@ -869,3 +869,13 @@ ame, irstMessage, and 	ranscriber) rather than relying on ssistantOverrides de
        - Replaced strict `.single()` on profile queries with `.maybeSingle()` to prevent unhandled profile resolution exceptions.
        - Wrapped SSR auth checks in `try-catch` blocks with explicit `NEXT_REDIRECT` error re-throwing so auth errors redirect cleanly to `/login` without triggering Next.js 500 error screens.
     3. **Build & Deployment**: Verified compilation and pushed fix (`npm run build`).
+
+### Session 18 (September 1, 2026) - Client-Side Date & Number Formatting Safety Protection
+* **User**: "still crashing" [Attached screenshot showing Next.js `This page couldn't load` error on `app.styleflo.ai/superadmin`]
+  * **Fix**: Identified and resolved client-side `RangeError: Invalid time value` and `TypeError: Cannot read properties of undefined (reading 'toLocaleString')` crashes:
+    1. **Safe Date Formatting (`safeFormatDate`)**:
+       - Replaced direct `new Date(val).toLocaleDateString()` calls with a safe date formatting helper (`safeFormatDate`) in `SuperadminClient.tsx`, `TelephonyView.tsx`, and `InboxView.tsx`.
+       - Prevents React render boundary crashes if `created_at` or `date` is invalid, missing, or malformed.
+    2. **Safe Number Formatting**:
+       - Added fallback zero protection (`(val || 0).toLocaleString()`) across tenant table rows, message totals, and crawl metrics.
+    3. **Build & Deployment**: Verified build (`npm run build`).
