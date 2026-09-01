@@ -972,3 +972,13 @@ ame, irstMessage, and 	ranscriber) rather than relying on ssistantOverrides de
     1. **Restored Variable Scope (`let textContent = ''`)**:
        - Added missing `let textContent = '';` variable declaration before `if (isPdf)` conditional block, resolving the `ReferenceError: textContent is not defined` crash.
     2. **Build & Deployment**: Verified compilation and pushed fix (`npm run build`).
+
+### Session 27 (September 1, 2026) - Direct Google `batchEmbedContents` REST API Migration
+* **User**: [Attached DevTools screenshot showing `502 Bad Gateway` and `[Error] Failed to generate embeddings for file chunks`]
+  * **Fix**: Migrated embedding generation to Google AI Studio's native `batchEmbedContents` REST API:
+    1. **Google AI Studio REST `batchEmbedContents` Integration (`batchEmbedGemini`)**:
+       - Created `batchEmbedGemini(texts, apiKey)` which batches up to 50 text chunks per single HTTP request to `https://generativelanguage.googleapis.com/v1beta/models/text-embedding-004:batchEmbedContents`.
+       - Completely bypasses Vercel AI SDK provider abstraction issues and eliminates per-chunk HTTP overhead.
+       - Returns exact HTTP error codes and descriptive messages if Google rejects a request (e.g. invalid API key or quota).
+    2. **Build & Deployment**: Verified compilation and pushed fix (`npm run build`).
+

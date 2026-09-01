@@ -3,13 +3,53 @@ import { createServerClient } from '@supabase/ssr';
 import { createClient } from '@supabase/supabase-js';
 import { cookies } from 'next/headers';
 import { RecursiveCharacterTextSplitter } from '@langchain/textsplitters';
-import { google } from '@ai-sdk/google';
-import { embed } from 'ai';
 import { checkFeatureEntitlement } from '@/lib/entitlements';
 import zlib from 'zlib';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 120;
+
+async function batchEmbedGemini(texts: string[], apiKey: string): Promise<number[][]> {
+  if (texts.length === 0) return [];
+  
+  const BATCH_SIZE = 50;
+  const allEmbeddings: number[][] = [];
+
+  for (let i = 0; i < texts.length; i += BATCH_SIZE) {
+    const chunkBatch = texts.slice(i, i + BATCH_SIZE);
+    const url = `https://generativelanguage.googleapis.com/v1beta/models/text-embedding-004:batchEmbedContents?key=${apiKey}`;
+    const requests = chunkBatch.map(text => ({
+      model: 'models/text-embedding-004',
+      content: { parts: [{ text }] },
+      outputDimensionality: 768
+    }));
+
+    const res = await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ requests })
+    });
+
+    if (!res.ok) {
+      const errText = await res.text().catch(() => '');
+      throw new Error(`Google Embedding API error (${res.status}): ${errText.slice(0, 200) || res.statusText}`);
+    }
+
+    const data = await res.json();
+    const embeddingsList = data.embeddings;
+    if (!Array.isArray(embeddingsList)) {
+      throw new Error('Google Embedding API returned an unexpected response structure');
+    }
+
+    for (const item of embeddingsList) {
+      if (Array.isArray(item?.values)) {
+        allEmbeddings.push(item.values);
+      }
+    }
+  }
+
+  return allEmbeddings;
+}
 
 function parseTextFromStream(streamStr: string, output: string[]) {
   const tjMatches = streamStr.matchAll(/\(([^()\\]|\\[\s\S])*\)\s*(?:Tj|TJ|\'|\")/g);
@@ -216,42 +256,20 @@ export async function POST(request: Request) {
     const geminiApiKey = process.env.GEMINI_API_KEY || process.env.GOOGLE_GENERATIVE_AI_API_KEY;
     if (!geminiApiKey) return NextResponse.json({ error: 'Gemini integration misconfigured: missing API key' }, { status: 500 });
 
-    const chunkData = chunks.map(chunk => ({ content: chunk, source_url: file.name }));
-    const validResults: { content: string; source_url: string; embedding: number[] }[] = [];
-    const BATCH_SIZE = 5;
+    const embeddings = await batchEmbedGemini(chunks, geminiApiKey);
 
-    for (let i = 0; i < chunkData.length; i += BATCH_SIZE) {
-      const batch = chunkData.slice(i, i + BATCH_SIZE);
-      const batchResults = await Promise.all(
-        batch.map(async (chunk) => {
-          try {
-            const { embedding } = await embed({
-              model: google.textEmbeddingModel('text-embedding-004'),
-              value: chunk.content,
-              providerOptions: { google: { outputDimensionality: 768 } },
-            });
-            return { content: chunk.content, source_url: chunk.source_url, embedding };
-          } catch (err) {
-            console.warn(`[Ingest File][${requestId}] Failed to embed chunk:`, err);
-            return null;
-          }
-        })
-      );
-      for (const res of batchResults) {
-        if (res) validResults.push(res);
-      }
+    if (!embeddings || embeddings.length === 0) {
+      return NextResponse.json({ error: 'Failed to generate embeddings for file chunks.' }, { status: 502 });
     }
-
-    if (validResults.length === 0) return NextResponse.json({ error: 'Failed to generate embeddings for file chunks.' }, { status: 502 });
 
     const metadata = { source_type: 'file', title: file.name };
 
-    const recordsToInsert = validResults.map((result) => ({
+    const recordsToInsert = chunks.slice(0, embeddings.length).map((chunkText, idx) => ({
       tenant_id: tenantId,
       chatbot_id: chatbotId,
-      content: result.content,
-      embedding: result.embedding,
-      source_url: result.source_url,
+      content: chunkText,
+      embedding: embeddings[idx],
+      source_url: file.name,
       metadata: metadata,
     }));
 
