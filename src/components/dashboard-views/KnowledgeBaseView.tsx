@@ -420,8 +420,8 @@ export default function KnowledgeBaseView() {
     e.preventDefault();
     if (!selectedFile || !crawlBotId) return;
 
-    if (selectedFile.size > 5 * 1024 * 1024) {
-      alert('File exceeds the 5MB limit. Please upload a smaller file.');
+    if (selectedFile.size > 20 * 1024 * 1024) {
+      alert('File exceeds the 20MB limit. Please upload a smaller file.');
       return;
     }
 
@@ -439,12 +439,12 @@ export default function KnowledgeBaseView() {
         body: formData,
       });
 
+      const rawText = await response.text().catch(() => '');
       let data;
       try {
-        data = await response.json();
+        data = JSON.parse(rawText);
       } catch (e) {
-        const rawText = await response.text().catch(() => '');
-        data = { error: `Server error (${response.status} ${response.statusText}): ${rawText.slice(0, 100) || 'Internal server error'}` };
+        data = { error: `Server error (${response.status} ${response.statusText || 'Internal Error'}): ${rawText.slice(0, 200) || 'Server returned non-JSON response'}` };
       }
 
       if (response.ok && data.success) {
@@ -623,7 +623,7 @@ export default function KnowledgeBaseView() {
 
                   {ingestMode === 'file' && (
                     <div className="md:col-span-3">
-                      <label className="block text-xs font-semibold text-[var(--awb-color6)] mb-1.5">Upload File (PDF or TXT, max 5MB)</label>
+                      <label className="block text-xs font-semibold text-[var(--awb-color6)] mb-1.5">Upload File (PDF or TXT, max 20MB)</label>
                       <div className="flex items-center gap-4">
                         <label className="flex-1 max-w-sm flex items-center justify-center px-4 py-6 bg-[var(--awb-color1)] text-[var(--awb-color8)] border-[var(--awb-color3)] border-2 border-dashed border-[var(--awb-color3)] rounded-xl cursor-pointer hover:border-indigo-500/50 hover:bg-[#198fd9] text-white font-semibold rounded-[4px] px-[29px] py-[13px]/5 transition-colors">
                           <div className="space-y-1 text-center">
@@ -634,7 +634,7 @@ export default function KnowledgeBaseView() {
                               <span className="text-[var(--awb-color5)] font-semibold focus-within:outline-none focus-within:ring-2 focus-within:ring-indigo-500 focus-within:ring-offset-2 hover:text-[var(--awb-color5)]">Upload a file</span>
                               <p className="pl-1 text-xs">or drag and drop</p>
                             </div>
-                            <p className="text-xs text-[var(--awb-color6)]">PDF, TXT up to 5MB</p>
+                            <p className="text-xs text-[var(--awb-color6)]">PDF, TXT up to 20MB</p>
                           </div>
                           <input 
                             type="file" 
@@ -643,8 +643,8 @@ export default function KnowledgeBaseView() {
                             onChange={(e) => {
                               const file = e.target.files?.[0];
                               if (file) {
-                                if (file.size > 5 * 1024 * 1024) {
-                                  alert('File exceeds 5MB limit.');
+                                if (file.size > 20 * 1024 * 1024) {
+                                  alert('File exceeds 20MB limit.');
                                 } else {
                                   setSelectedFile(file);
                                 }

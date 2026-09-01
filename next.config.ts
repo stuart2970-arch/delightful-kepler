@@ -3,6 +3,11 @@ import type { NextConfig } from "next";
 const nextConfig: any = {
   output: 'standalone',
   allowedDevOrigins: ['app.styleflo.test', 'styleflo.test'],
+  experimental: {
+    serverActions: {
+      bodySizeLimit: '25mb',
+    },
+  },
   typescript: {
     ignoreBuildErrors: true,
   },

@@ -942,3 +942,16 @@ ame, irstMessage, and 	ranscriber) rather than relying on ssistantOverrides de
     3. **Clear Diagnostic Messaging**:
        - Updated short/empty text detection error messages to guide users if uploading scanned image PDFs.
     4. **Build & Deployment**: Verified build (`npm run build`).
+
+### Session 24 (September 1, 2026) - Server Payload Size Limit Expansion & Concurrency Batching
+* **User**: "filesize exceeds limit?" [Attached DevTools screenshot showing 4MB PDF payload triggering server 500 error & stream lock]
+  * **Fix**: Diagnosed and resolved server payload bounds, stream lock exceptions, and embedding rate limits:
+    1. **Increased Server Payload Limit (`25MB`)**:
+       - Added `experimental: { serverActions: { bodySizeLimit: '25mb' } }` in `next.config.ts` and `export const maxDuration = 120` in `src/app/api/ingest/file/route.ts`.
+       - Expanded Knowledge Base UI client upload threshold from 5MB to **20MB** (`KnowledgeBaseView.tsx`).
+    2. **Fixed Fetch Stream Locking**:
+       - Replaced `response.json()` stream consumption with safe `response.text()` reading followed by `JSON.parse()`. Prevents `TypeError: Already read` when server errors occur.
+    3. **Google API Rate Limit Concurrency Batching**:
+       - Replaced unbounded `Promise.all(chunks.map(...))` with controlled batching (batches of 5) for embedding generation. Prevents HTTP 429 Too Many Requests rate limit drops on large PDFs with 50+ chunks.
+    4. **Build & Deployment**: Verified compilation and pushed fix (`npm run build`).
+

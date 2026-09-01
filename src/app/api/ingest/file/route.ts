@@ -4,11 +4,12 @@ import { createClient } from '@supabase/supabase-js';
 import { cookies } from 'next/headers';
 import { RecursiveCharacterTextSplitter } from '@langchain/textsplitters';
 import { google } from '@ai-sdk/google';
-import { embed, embedMany } from 'ai';
+import { embed } from 'ai';
 import { checkFeatureEntitlement } from '@/lib/entitlements';
 import { PDFParse } from 'pdf-parse';
-import path from 'path';
-import { pathToFileURL } from 'url';
+
+export const dynamic = 'force-dynamic';
+export const maxDuration = 120;
 
 async function createSupabaseClient() {
   const cookieStore = await cookies();
@@ -191,24 +192,32 @@ export async function POST(request: Request) {
     if (!geminiApiKey) return NextResponse.json({ error: 'Gemini integration misconfigured: missing API key' }, { status: 500 });
 
     const chunkData = chunks.map(chunk => ({ content: chunk, source_url: file.name }));
-    const embeddingPromises = chunkData.map(async (chunk) => {
-      try {
-        const { embedding } = await embed({
-          model: google.textEmbeddingModel('text-embedding-004'),
-          value: chunk.content,
-          providerOptions: { google: { outputDimensionality: 768 } },
-        });
-        return { content: chunk.content, source_url: chunk.source_url, embedding };
-      } catch (err) {
-        console.warn(`[Ingest File][${requestId}] Failed to embed chunk:`, err);
-        return null;
+    const validResults: { content: string; source_url: string; embedding: number[] }[] = [];
+    const BATCH_SIZE = 5;
+
+    for (let i = 0; i < chunkData.length; i += BATCH_SIZE) {
+      const batch = chunkData.slice(i, i + BATCH_SIZE);
+      const batchResults = await Promise.all(
+        batch.map(async (chunk) => {
+          try {
+            const { embedding } = await embed({
+              model: google.textEmbeddingModel('text-embedding-004'),
+              value: chunk.content,
+              providerOptions: { google: { outputDimensionality: 768 } },
+            });
+            return { content: chunk.content, source_url: chunk.source_url, embedding };
+          } catch (err) {
+            console.warn(`[Ingest File][${requestId}] Failed to embed chunk:`, err);
+            return null;
+          }
+        })
+      );
+      for (const res of batchResults) {
+        if (res) validResults.push(res);
       }
-    });
+    }
 
-    const results = await Promise.all(embeddingPromises);
-    const validResults = results.filter((r): r is { content: string; source_url: string; embedding: number[] } => r !== null);
-
-    if (validResults.length === 0) return NextResponse.json({ error: 'Failed to generate embeddings' }, { status: 502 });
+    if (validResults.length === 0) return NextResponse.json({ error: 'Failed to generate embeddings for file chunks.' }, { status: 502 });
 
     const metadata = { source_type: 'file', title: file.name };
 
