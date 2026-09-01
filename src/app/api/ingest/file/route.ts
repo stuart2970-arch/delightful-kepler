@@ -13,13 +13,17 @@ export const maxDuration = 120;
 async function generateSingleEmbedding(text: string, apiKey: string): Promise<number[]> {
   const ai = new GoogleGenAI({ apiKey });
 
+  // @google/genai v2+ returns EmbedContentResponse with `embeddings: ContentEmbedding[]` (plural array)
+  // NOT `embedding: { values }` (singular) — that was a v1 shape.
   try {
     const response = await ai.models.embedContent({
       model: 'text-embedding-004',
       contents: text,
     });
-    if (Array.isArray(response.embedding?.values) && response.embedding.values.length > 0) {
-      return response.embedding.values;
+    // v2 SDK: response.embeddings is an array; first element has .values
+    const values = response.embeddings?.[0]?.values ?? (response as any).embedding?.values;
+    if (Array.isArray(values) && values.length > 0) {
+      return values;
     }
   } catch (err: any) {
     console.warn(`[Gemini SDK] text-embedding-004 failed: ${err?.message || err}. Trying embedding-001...`);
@@ -30,33 +34,40 @@ async function generateSingleEmbedding(text: string, apiKey: string): Promise<nu
       model: 'embedding-001',
       contents: text,
     });
-    if (Array.isArray(response.embedding?.values) && response.embedding.values.length > 0) {
-      return response.embedding.values;
+    const values = response.embeddings?.[0]?.values ?? (response as any).embedding?.values;
+    if (Array.isArray(values) && values.length > 0) {
+      return values;
     }
   } catch (err: any) {
     console.warn(`[Gemini SDK] embedding-001 failed: ${err?.message || err}. Trying REST fallback...`);
   }
 
-  const url = `https://generativelanguage.googleapis.com/v1beta/models/text-embedding-004:embedContent?key=${apiKey}`;
-  const res = await fetch(url, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      content: { parts: [{ text }] }
-    })
-  });
-
-  if (!res.ok) {
-    const errText = await res.text().catch(() => '');
-    throw new Error(`Google Embedding API error (${res.status}): ${errText.slice(0, 200) || res.statusText}`);
+  // REST API fallback — try v1 first, then v1beta
+  for (const endpoint of [
+    `https://generativelanguage.googleapis.com/v1/models/text-embedding-004:embedContent?key=${apiKey}`,
+    `https://generativelanguage.googleapis.com/v1beta/models/text-embedding-004:embedContent?key=${apiKey}`,
+    `https://generativelanguage.googleapis.com/v1beta/models/embedding-001:embedContent?key=${apiKey}`,
+  ]) {
+    try {
+      const res = await fetch(endpoint, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ content: { parts: [{ text }] } }),
+      });
+      if (!res.ok) {
+        const errText = await res.text().catch(() => '');
+        console.warn(`[REST Embedding] ${endpoint} failed (${res.status}): ${errText.slice(0, 150)}`);
+        continue;
+      }
+      const data = await res.json();
+      const vals = data.embedding?.values;
+      if (Array.isArray(vals) && vals.length > 0) return vals;
+    } catch (err: any) {
+      console.warn(`[REST Embedding] fetch error for ${endpoint}: ${err?.message || err}`);
+    }
   }
 
-  const data = await res.json();
-  if (!Array.isArray(data.embedding?.values) || data.embedding.values.length === 0) {
-    throw new Error('Google Embedding API returned no embedding values');
-  }
-
-  return data.embedding.values;
+  throw new Error('All embedding methods exhausted — no embedding values returned.');
 }
 
 async function batchEmbedGemini(texts: string[], apiKey: string): Promise<number[][]> {
