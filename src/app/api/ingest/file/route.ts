@@ -4,45 +4,34 @@ import { createClient } from '@supabase/supabase-js';
 import { cookies } from 'next/headers';
 import { RecursiveCharacterTextSplitter } from '@langchain/textsplitters';
 import { checkFeatureEntitlement } from '@/lib/entitlements';
-import { GoogleGenAI } from '@google/genai';
+import { embed } from 'ai';
+import { createGoogleGenerativeAI } from '@ai-sdk/google';
 import zlib from 'zlib';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 120;
 
+// Uses @ai-sdk/google embed() — the same proven approach used in chat/stream/route.ts for RAG queries.
+// IMPORTANT: @google/genai v2 SDK incorrectly routes 'text-embedding-004' to the Vertex AI
+// PREDICT endpoint instead of the Gemini Developer API embedContent endpoint, causing 
+// auth failures with a plain GEMINI_API_KEY. @ai-sdk/google correctly targets the Developer API.
 async function generateSingleEmbedding(text: string, apiKey: string): Promise<number[]> {
-  const ai = new GoogleGenAI({ apiKey });
+  const googleProvider = createGoogleGenerativeAI({ apiKey });
 
-  // @google/genai v2+ returns EmbedContentResponse with `embeddings: ContentEmbedding[]` (plural array)
-  // NOT `embedding: { values }` (singular) — that was a v1 shape.
+  // Primary: @ai-sdk/google textEmbeddingModel — proven to work with Gemini Developer API key
   try {
-    const response = await ai.models.embedContent({
-      model: 'text-embedding-004',
-      contents: text,
+    const { embedding } = await embed({
+      model: googleProvider.textEmbeddingModel('text-embedding-004'),
+      value: text,
     });
-    // v2 SDK: response.embeddings is an array; first element has .values
-    const values = response.embeddings?.[0]?.values ?? (response as any).embedding?.values;
-    if (Array.isArray(values) && values.length > 0) {
-      return values;
+    if (Array.isArray(embedding) && embedding.length > 0) {
+      return embedding;
     }
   } catch (err: any) {
-    console.warn(`[Gemini SDK] text-embedding-004 failed: ${err?.message || err}. Trying embedding-001...`);
+    console.warn(`[@ai-sdk/google] text-embedding-004 failed: ${err?.message || err}. Trying REST fallback...`);
   }
 
-  try {
-    const response = await ai.models.embedContent({
-      model: 'embedding-001',
-      contents: text,
-    });
-    const values = response.embeddings?.[0]?.values ?? (response as any).embedding?.values;
-    if (Array.isArray(values) && values.length > 0) {
-      return values;
-    }
-  } catch (err: any) {
-    console.warn(`[Gemini SDK] embedding-001 failed: ${err?.message || err}. Trying REST fallback...`);
-  }
-
-  // REST API fallback — try v1 first, then v1beta
+  // Fallback: direct REST API calls — try v1 first, then v1beta
   for (const endpoint of [
     `https://generativelanguage.googleapis.com/v1/models/text-embedding-004:embedContent?key=${apiKey}`,
     `https://generativelanguage.googleapis.com/v1beta/models/text-embedding-004:embedContent?key=${apiKey}`,
@@ -56,7 +45,7 @@ async function generateSingleEmbedding(text: string, apiKey: string): Promise<nu
       });
       if (!res.ok) {
         const errText = await res.text().catch(() => '');
-        console.warn(`[REST Embedding] ${endpoint} failed (${res.status}): ${errText.slice(0, 150)}`);
+        console.warn(`[REST Embedding] ${endpoint} failed (${res.status}): ${errText.slice(0, 200)}`);
         continue;
       }
       const data = await res.json();
@@ -73,21 +62,15 @@ async function generateSingleEmbedding(text: string, apiKey: string): Promise<nu
 async function batchEmbedGemini(texts: string[], apiKey: string): Promise<number[][]> {
   if (texts.length === 0) return [];
 
-  const BATCH_SIZE = 10;
+  const BATCH_SIZE = 5; // conservative to avoid rate limits
   const allEmbeddings: number[][] = [];
 
   for (let i = 0; i < texts.length; i += BATCH_SIZE) {
     const chunkBatch = texts.slice(i, i + BATCH_SIZE);
-    
     const batchVecs = await Promise.all(
       chunkBatch.map(text => generateSingleEmbedding(text, apiKey))
     );
-
-    if (batchVecs.length === chunkBatch.length) {
-      allEmbeddings.push(...batchVecs);
-    } else {
-      throw new Error(`Failed to generate complete embeddings for batch starting at ${i}`);
-    }
+    allEmbeddings.push(...batchVecs);
   }
 
   return allEmbeddings;
