@@ -33,39 +33,15 @@ async function createSupabaseServerClient() {
 }
 
 export default async function SuperadminPage() {
-  let user: any = null;
-  let supabase: any = null;
+  const supabase = await createSupabaseServerClient();
+  
+  const {
+    data: { user },
+    error: authError,
+  } = await supabase.auth.getUser();
 
-  try {
-    supabase = await createSupabaseServerClient();
-    const { data: authData, error: authError } = await supabase.auth.getUser();
-    if (authError || !authData?.user) {
-      redirect('/login');
-    }
-    user = authData.user;
-  } catch (err: any) {
-    if (err?.digest?.startsWith('NEXT_REDIRECT') || err?.message === 'NEXT_REDIRECT') {
-      throw err;
-    }
+  if (authError || !user) {
     redirect('/login');
-  }
-
-  // Check if superadmin
-  try {
-    const { data: profile } = await supabase
-      .from('profiles')
-      .select('is_super_admin')
-      .eq('id', user.id)
-      .maybeSingle();
-
-    if (!profile || !profile.is_super_admin) {
-      redirect('/dashboard');
-    }
-  } catch (err: any) {
-    if (err?.digest?.startsWith('NEXT_REDIRECT') || err?.message === 'NEXT_REDIRECT') {
-      throw err;
-    }
-    redirect('/dashboard');
   }
 
   const supabaseUrl = process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL;
@@ -73,6 +49,22 @@ export default async function SuperadminPage() {
 
   if (!supabaseUrl || !serviceRoleKey) {
     console.error('[SuperadminPage] Missing service role key or Supabase URL');
+    redirect('/dashboard');
+  }
+
+  const { createClient } = await import('@supabase/supabase-js');
+  const adminSupabase = createClient(supabaseUrl, serviceRoleKey, {
+    auth: { persistSession: false, autoRefreshToken: false }
+  });
+
+  // Check if superadmin using admin client to bypass any RLS locks
+  const { data: profile } = await adminSupabase
+    .from('profiles')
+    .select('is_super_admin')
+    .eq('id', user.id)
+    .maybeSingle();
+
+  if (!profile || !profile.is_super_admin) {
     redirect('/dashboard');
   }
 
@@ -85,11 +77,6 @@ export default async function SuperadminPage() {
   let allUsage: any[] = [];
 
   try {
-    const { createClient } = await import('@supabase/supabase-js');
-    const adminSupabase = createClient(supabaseUrl, serviceRoleKey, {
-      auth: { persistSession: false, autoRefreshToken: false }
-    });
-
     const [globalBotRes, tenantsRes, botsRes, chunksRes, convsRes, usageRes] = await Promise.all([
       adminSupabase.from('chatbots').select('configuration_json').eq('id', '00000000-0000-0000-0000-000000000000').maybeSingle(),
       adminSupabase.from('tenants').select('id, company_name, plan_tier, is_active, subscription_status, created_at, slug').order('created_at', { ascending: false }),
@@ -99,16 +86,16 @@ export default async function SuperadminPage() {
       adminSupabase.from('usage_ledger').select('quantity, feature_id, tenant_id').limit(2000),
     ]);
 
-    globalBot = globalBotRes.data;
-    fetchedTenants = tenantsRes.data || [];
-    allBots = botsRes.data || [];
-    allChunks = chunksRes.data || [];
-    allConvs = convsRes.data || [];
-    allUsage = usageRes.data || [];
+    globalBot = globalBotRes?.data || null;
+    fetchedTenants = tenantsRes?.data || [];
+    allBots = botsRes?.data || [];
+    allChunks = chunksRes?.data || [];
+    allConvs = convsRes?.data || [];
+    allUsage = usageRes?.data || [];
 
     if (allConvs.length > 0) {
       const msgsRes = await adminSupabase.from('messages').select('conversation_id').limit(5000);
-      allMsgs = msgsRes.data || [];
+      allMsgs = msgsRes?.data || [];
     }
   } catch (err) {
     console.error('[SuperadminPage] Error fetching superadmin data:', err);

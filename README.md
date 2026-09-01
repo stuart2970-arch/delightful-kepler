@@ -879,3 +879,15 @@ ame, irstMessage, and 	ranscriber) rather than relying on ssistantOverrides de
     2. **Safe Number Formatting**:
        - Added fallback zero protection (`(val || 0).toLocaleString()`) across tenant table rows, message totals, and crawl metrics.
     3. **Build & Deployment**: Verified build (`npm run build`).
+
+### Session 19 (September 1, 2026) - Full Database Query Optimization & Elimination of `count: 'exact'` Timeout Cascades
+* **User**: "still now working" [Attached DevTools screenshot showing `dashboard?_rsc=...` redirect & server error]
+  * **Fix**: Uncovered and resolved root cause statement timeout cascades on both `/superadmin` and `/dashboard`:
+    1. **Elimination of `count: 'exact'` Scan Timeouts**:
+       - Discovered six synchronous `count: 'exact'` queries scanning millions of rows across `messages` and `conversations` tables in `src/app/dashboard/page.tsx` during superadmin rendering.
+       - Replaced heavy sequential exact table scans with fast, non-blocking `{ count: 'estimated', head: true }` queries executed concurrently via `Promise.all()`.
+    2. **Service Role Superadmin Verification**:
+       - Updated `src/app/superadmin/page.tsx` to verify `is_super_admin` using `adminSupabase` (service role) to bypass any user RLS policy blocks that could misidentify superadmin status and trigger unnecessary redirects to `/dashboard`.
+    3. **Elimination of `.single()` Exception Hazards**:
+       - Replaced `.single()` calls across `profiles`, `tenants`, and `tenant_integrations` queries with `.maybeSingle()` to handle missing rows (`PGRST116`) without throwing unhandled Server Component crashes.
+    4. **Build & Verification**: Verified production compilation (`npm run build`).

@@ -103,17 +103,15 @@ export default async function DashboardPage(props: { searchParams?: Promise<{ [k
   let superadminData: any = null;
 
   try {
-    // 2. Fetch User Profile & Tenant Mapping
+    // 2. Fetch User Profile & Tenant Mapping (using maybeSingle to prevent PGRST116 errors)
     const { data: profile } = await supabase
       .from('profiles')
       .select('tenant_id, is_super_admin, role')
       .eq('id', user.id)
-      .single();
+      .maybeSingle();
 
     if (!profile || !profile.tenant_id) {
-      console.warn(`[Dashboard] No tenant provisioned for user ${user.id}. Waiting for trigger to fire.`);
-      // In production, the trigger should have instantly created this.
-      // We will show empty data rather than failing.
+      console.warn(`[Dashboard] No tenant provisioned for user ${user.id}.`);
     } else {
       tenantId = profile.tenant_id;
       isSuperAdmin = !!profile.is_super_admin;
@@ -123,7 +121,7 @@ export default async function DashboardPage(props: { searchParams?: Promise<{ [k
         .from('tenants')
         .select('company_name, domain, business_address, postcode, plan_tier, is_rwg_enabled, rwg_business_name, rwg_street_address, rwg_city, rwg_postcode, rwg_phone, is_registered_business_address, booking_mode, booking_url, general_operating_hours, operating_hours_overrides, holiday_settings, twilio_shadow_number, trading_address_street, trading_address_city, trading_address_postcode, trading_address_phone, company_registration_number, registered_address_street, registered_address_city, registered_address_postcode, is_registered_company, registered_address_same_as_trading, rwg_address_same_as_trading')
         .eq('id', tenantId)
-        .single();
+        .maybeSingle();
       
       if (tenant) {
         tenantName = tenant.company_name;
@@ -164,7 +162,7 @@ export default async function DashboardPage(props: { searchParams?: Promise<{ [k
         .select('account_email')
         .eq('tenant_id', tenantId)
         .eq('provider', 'google_calendar')
-        .single();
+        .maybeSingle();
       
       if (googleIntegration) {
         initialGoogleConnected = true;
@@ -173,11 +171,6 @@ export default async function DashboardPage(props: { searchParams?: Promise<{ [k
     }
 
     // 3. Securely Fetch Dashboard Data using RLS
-    // If user is super admin, we could bypass here or rely on RLS logic.
-    // The DB Client is already running under the user's JWT. 
-    // RLS in Postgres will handle filtering by tenant_id (or letting superadmin see all).
-    
-    // Check for Impersonation
     let isImpersonating = false;
     let queryClient = supabase;
     const resolvedParams = props.searchParams ? await props.searchParams : {};
@@ -190,12 +183,12 @@ export default async function DashboardPage(props: { searchParams?: Promise<{ [k
       const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
       queryClient = createClient(supabaseUrl, serviceRoleKey);
       
-      // Override tenant mapping to fetch the impersonated tenant's data using the admin client
+      // Override tenant mapping to fetch impersonated tenant data
       const { data: impTenant } = await queryClient
         .from('tenants')
         .select('company_name, domain, business_address, postcode, plan_tier, is_rwg_enabled, rwg_business_name, rwg_street_address, rwg_city, rwg_postcode, rwg_phone, is_registered_business_address, booking_mode, booking_url, general_operating_hours, operating_hours_overrides, holiday_settings, twilio_shadow_number, trading_address_street, trading_address_city, trading_address_postcode, trading_address_phone, company_registration_number, registered_address_street, registered_address_city, registered_address_postcode, is_registered_company, registered_address_same_as_trading, rwg_address_same_as_trading')
         .eq('id', tenantId)
-        .single();
+        .maybeSingle();
         
       if (impTenant) {
         tenantName = impTenant.company_name;
@@ -236,7 +229,7 @@ export default async function DashboardPage(props: { searchParams?: Promise<{ [k
         .select('account_email')
         .eq('tenant_id', tenantId)
         .eq('provider', 'google_calendar')
-        .single();
+        .maybeSingle();
       
       if (googleIntegration) {
         initialGoogleConnected = true;
@@ -247,54 +240,43 @@ export default async function DashboardPage(props: { searchParams?: Promise<{ [k
       }
     }
 
-    // Super admins should only see data for the tenant they are currently viewing (their own or impersonated).
-    let queryFilter = { key: 'tenant_id', value: tenantId };
+    let queryFilter = tenantId ? { key: 'tenant_id', value: tenantId } : null;
 
     // Chatbots
-    let botsQuery = queryClient.from('chatbots').select('*').order('created_at', { ascending: false });
-    if (queryFilter && queryFilter.value) botsQuery = botsQuery.eq(queryFilter.key, queryFilter.value);
-    const { data: bots } = await botsQuery;
-    if (bots) chatbots = bots;
+    if (queryFilter && queryFilter.value) {
+      const { data: bots } = await queryClient.from('chatbots').select('*').eq(queryFilter.key, queryFilter.value).order('created_at', { ascending: false });
+      if (bots) chatbots = bots;
 
-    // Conversations
-    let convsQuery = queryClient.from('conversations').select('*').order('created_at', { ascending: false });
-    if (queryFilter && queryFilter.value) convsQuery = convsQuery.eq(queryFilter.key, queryFilter.value);
-    const { data: convs } = await convsQuery;
-    if (convs) conversations = convs;
+      const { data: convs } = await queryClient.from('conversations').select('*').eq(queryFilter.key, queryFilter.value).order('created_at', { ascending: false });
+      if (convs) conversations = convs;
 
-    // Services
-    let servicesQuery = queryClient.from('services').select('*, staff_services(*)').order('created_at', { ascending: false });
-    if (queryFilter && queryFilter.value) servicesQuery = servicesQuery.eq(queryFilter.key, queryFilter.value);
-    const { data: srvs } = await servicesQuery;
-    services = srvs || [];
+      const { data: srvs } = await queryClient.from('services').select('*, staff_services(*)').eq(queryFilter.key, queryFilter.value).order('created_at', { ascending: false });
+      services = srvs || [];
 
-    // Staff
-    let staffQuery = queryClient.from('staff').select('*').order('created_at', { ascending: false });
-    if (queryFilter && queryFilter.value) staffQuery = staffQuery.eq(queryFilter.key, queryFilter.value);
-    const { data: stff } = await staffQuery;
-    staff = stff || [];
+      const { data: stff } = await queryClient.from('staff').select('*').eq(queryFilter.key, queryFilter.value).order('created_at', { ascending: false });
+      staff = stff || [];
 
-    // Appointments
-    let appointmentsQuery = queryClient.from('appointments').select('*').order('created_at', { ascending: false });
-    if (queryFilter && queryFilter.value) appointmentsQuery = appointmentsQuery.eq(queryFilter.key, queryFilter.value);
-    const { data: appts } = await appointmentsQuery;
-    appointments = appts || [];
+      const { data: appts } = await queryClient.from('appointments').select('*').eq(queryFilter.key, queryFilter.value).order('created_at', { ascending: false });
+      appointments = appts || [];
+    }
 
-    // Metrics (Chunks) - document_chunks doesn't have tenant_id, so we filter by chatbot_ids
+    // Metrics (Chunks)
     let chunksCount = 0;
-    const chatbotIds = chatbots.map((b: any) => b.id);
+    const chatbotIds = (chatbots || []).map((b: any) => b.id);
     if (chatbotIds.length > 0) {
       const { count } = await queryClient
         .from('document_chunks')
-        .select('*', { count: 'exact', head: true })
+        .select('*', { count: 'estimated', head: true })
         .in('chatbot_id', chatbotIds);
       chunksCount = count || 0;
     }
 
     // Metrics (Messages)
-    let msgsQuery = queryClient.from('messages').select('*', { count: 'exact', head: true });
-    if (queryFilter && queryFilter.value) msgsQuery = msgsQuery.eq(queryFilter.key, queryFilter.value);
-    const { count: msgsCount } = await msgsQuery;
+    let msgsCount = 0;
+    if (queryFilter && queryFilter.value) {
+      const { count } = await queryClient.from('messages').select('*', { count: 'estimated', head: true }).eq(queryFilter.key, queryFilter.value);
+      msgsCount = count || 0;
+    }
 
     metrics = {
       chatbotsCount: chatbots.length,
@@ -307,7 +289,7 @@ export default async function DashboardPage(props: { searchParams?: Promise<{ [k
     billingData.usage.chunks = chunksCount || 0;
 
     if (tenantId) {
-      const { data: tenantData } = await queryClient.from('tenants').select('plan_tier').eq('id', tenantId).single();
+      const { data: tenantData } = await queryClient.from('tenants').select('plan_tier').eq('id', tenantId).maybeSingle();
       if (tenantData) {
         billingData.planTier = tenantData.plan_tier;
         const { data: entitlements } = await queryClient
@@ -331,7 +313,7 @@ export default async function DashboardPage(props: { searchParams?: Promise<{ [k
       if (usageRows) {
         billingData.usage.messages = usageRows
           .filter(r => r.feature_id === 'message_allowance')
-          .reduce((sum, r) => sum + r.quantity, 0);
+          .reduce((sum, r) => sum + (r.quantity || 0), 0);
       }
     }
 
@@ -340,76 +322,71 @@ export default async function DashboardPage(props: { searchParams?: Promise<{ [k
       const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
       const adminSupabase = createClient(supabaseUrl, serviceRoleKey);
 
-      const { data: allTenantsList } = await adminSupabase.from('tenants').select('id, company_name, plan_tier, slug');
-      
+      let allTenantsList: any[] = [];
+      let allUsage: any[] = [];
+      let globalChatMessages = 0;
+      let monthlyChatMessages = 0;
+      let globalChatConversations = 0;
+      let monthlyChatConversations = 0;
+      let globalVoiceCalls = 0;
+      let monthlyVoiceCalls = 0;
+      let totalVoiceMinutes = 0;
+      let monthlyVoiceMinutes = 0;
+
       const firstDay = new Date();
       firstDay.setDate(1);
       firstDay.setHours(0, 0, 0, 0);
-      const { data: allUsage } = await adminSupabase
-        .from('usage_ledger')
-        .select('quantity, feature_id, tenant_id, actual_cost')
-        .gte('recorded_at', firstDay.toISOString());
 
-      // Fetch global total chat messages (all-time)
-      const { count: globalChatMessages } = await adminSupabase
-        .from('messages')
-        .select('*', { count: 'exact', head: true });
+      try {
+        const [
+          tenantsRes,
+          usageRes,
+          globalMsgsRes,
+          monthlyMsgsRes,
+          globalConvsRes,
+          monthlyConvsRes,
+          globalVoiceRes,
+          monthlyVoiceRes,
+          allTimeVoiceUsageRes
+        ] = await Promise.all([
+          adminSupabase.from('tenants').select('id, company_name, plan_tier, slug').order('created_at', { ascending: false }),
+          adminSupabase.from('usage_ledger').select('quantity, feature_id, tenant_id, actual_cost').gte('recorded_at', firstDay.toISOString()).limit(2000),
+          adminSupabase.from('messages').select('*', { count: 'estimated', head: true }),
+          adminSupabase.from('messages').select('*', { count: 'estimated', head: true }).gte('created_at', firstDay.toISOString()),
+          adminSupabase.from('conversations').select('*', { count: 'estimated', head: true }).eq('is_voice_call', false),
+          adminSupabase.from('conversations').select('*', { count: 'estimated', head: true }).eq('is_voice_call', false).gte('created_at', firstDay.toISOString()),
+          adminSupabase.from('conversations').select('*', { count: 'estimated', head: true }).eq('is_voice_call', true),
+          adminSupabase.from('conversations').select('*', { count: 'estimated', head: true }).eq('is_voice_call', true).gte('created_at', firstDay.toISOString()),
+          adminSupabase.from('usage_ledger').select('quantity').eq('feature_id', 'vapi_voice_minutes').limit(1000)
+        ]);
 
-      // Fetch global monthly chat messages
-      const { count: monthlyChatMessages } = await adminSupabase
-        .from('messages')
-        .select('*', { count: 'exact', head: true })
-        .gte('created_at', firstDay.toISOString());
-
-      // Fetch global total chat conversations (all-time)
-      const { count: globalChatConversations } = await adminSupabase
-        .from('conversations')
-        .select('*', { count: 'exact', head: true })
-        .eq('is_voice_call', false);
-
-      // Fetch global monthly chat conversations
-      const { count: monthlyChatConversations } = await adminSupabase
-        .from('conversations')
-        .select('*', { count: 'exact', head: true })
-        .eq('is_voice_call', false)
-        .gte('created_at', firstDay.toISOString());
-
-      // Fetch global total voice calls (all-time)
-      const { count: globalVoiceCalls } = await adminSupabase
-        .from('conversations')
-        .select('*', { count: 'exact', head: true })
-        .eq('is_voice_call', true);
-
-      // Fetch global monthly voice calls
-      const { count: monthlyVoiceCalls } = await adminSupabase
-        .from('conversations')
-        .select('*', { count: 'exact', head: true })
-        .eq('is_voice_call', true)
-        .gte('created_at', firstDay.toISOString());
-
-      // Fetch global total voice duration (all-time) from usage_ledger
-      const { data: allTimeVoiceUsage } = await adminSupabase
-        .from('usage_ledger')
-        .select('quantity')
-        .eq('feature_id', 'vapi_voice_minutes');
-      const totalVoiceMinutes = allTimeVoiceUsage?.reduce((sum: number, u: any) => sum + u.quantity, 0) || 0;
-
-      // Monthly voice minutes (already fetched in allUsage)
-      const monthlyVoiceMinutes = allUsage
-        ?.filter((u: any) => u.feature_id === 'vapi_voice_minutes')
-        ?.reduce((sum: number, u: any) => sum + u.quantity, 0) || 0;
+        allTenantsList = tenantsRes.data || [];
+        allUsage = usageRes.data || [];
+        globalChatMessages = globalMsgsRes.count || 0;
+        monthlyChatMessages = monthlyMsgsRes.count || 0;
+        globalChatConversations = globalConvsRes.count || 0;
+        monthlyChatConversations = monthlyConvsRes.count || 0;
+        globalVoiceCalls = globalVoiceRes.count || 0;
+        monthlyVoiceCalls = monthlyVoiceRes.count || 0;
+        totalVoiceMinutes = (allTimeVoiceUsageRes.data || []).reduce((sum: number, u: any) => sum + (u.quantity || 0), 0);
+        monthlyVoiceMinutes = allUsage
+          .filter((u: any) => u.feature_id === 'vapi_voice_minutes')
+          .reduce((sum: number, u: any) => sum + (u.quantity || 0), 0);
+      } catch (err) {
+        console.error('[Dashboard] Superadmin metrics query error:', err);
+      }
 
       superadminData = {
         tenants: allTenantsList || [],
         usage: allUsage || [],
-        totalChatMessages: globalChatMessages || 0,
-        monthlyChatMessages: monthlyChatMessages || 0,
-        totalChatConversations: globalChatConversations || 0,
-        monthlyChatConversations: monthlyChatConversations || 0,
-        totalVoiceCalls: globalVoiceCalls || 0,
-        monthlyVoiceCalls: monthlyVoiceCalls || 0,
-        totalVoiceMinutes: totalVoiceMinutes || 0,
-        monthlyVoiceMinutes: monthlyVoiceMinutes || 0,
+        totalChatMessages,
+        monthlyChatMessages,
+        totalChatConversations,
+        monthlyChatConversations,
+        totalVoiceCalls,
+        monthlyVoiceCalls,
+        totalVoiceMinutes,
+        monthlyVoiceMinutes,
       };
     }
 
