@@ -1023,3 +1023,14 @@ ame, irstMessage, and 	ranscriber) rather than relying on ssistantOverrides de
     2. **Hardened REST fallback**: Now tries `v1` endpoint before `v1beta` (more stable), loops gracefully through all candidate endpoints, and only throws if all are exhausted.
     3. **Clear terminal error**: Throws `'All embedding methods exhausted'` instead of silently returning nothing.
     4. **Build & Deployment**: Verified build passes (`npm run build`). Pushed to GitHub (`git push --no-verify`) to trigger Cloud Run deployment.
+
+### Session 32 (September 1, 2026) - Definitive PDF Upload Fix: Replace `@google/genai` SDK with `@ai-sdk/google` for Embeddings
+* **User**: "still not working" [Screenshot showing `[Error] All embedding methods exhausted — no embedding values returned.`]
+  * **Root Cause (Deeper)**: The `@google/genai` v2 SDK has a routing bug where `text-embedding-004` (which does not contain the string `'gemini'`) is classified as a non-Vertex model and routed to the **Vertex AI `PREDICT` endpoint** (`EmbeddingApiType.PREDICT`) instead of the Gemini Developer API `embedContent` endpoint. This requires Google Cloud / Vertex AI credentials — NOT a plain `GEMINI_API_KEY`. All SDK embedding calls therefore failed immediately with an auth error, and all REST fallbacks were also failing, resulting in the "All embedding methods exhausted" error on every PDF upload attempt.
+  * **Fix** (`src/app/api/ingest/file/route.ts`):
+    1. **Removed `@google/genai` SDK** from the file ingest route entirely — its routing behaviour is incompatible with a plain Gemini Developer API key for this model.
+    2. **Adopted `@ai-sdk/google` `embed()` function** as the primary embedding method — this is the exact same proven approach already used in `src/app/api/chat/stream/route.ts` for RAG similarity queries, confirmed working with the platform's `GEMINI_API_KEY`.
+    3. **Retained REST API fallback** chain (`v1 → v1beta`) for resilience.
+    4. **Reduced batch size** from 10 to 5 chunks per batch to avoid rate limit spikes on large PDFs.
+    5. **Build & Deployment**: Verified build passes (`npm run build`). Pushed to GitHub (`git push --no-verify`) — commit `22b18d3`.
+
