@@ -232,22 +232,17 @@ export async function POST(request: Request) {
     let textContent = '';
 
     if (isPdf) {
-      // Primary: pdf-parse v2 with explicit worker path.
-      // pdfjs-dist v5 (used by pdf-parse v2) requires GlobalWorkerOptions.workerSrc to be set
-      // before loading any document — without it the worker fails silently, returning empty text.
+      // Primary: pdf-parse v2 (pdfjs-dist v5 under the hood).
+      // The worker file (pdf.worker.mjs) is committed to /public and always present in the
+      // standalone build — no module resolution or path tracing needed.
       try {
         const { PDFParse } = await import('pdf-parse');
         const { pathToFileURL } = await import('url');
-        // ESM-safe: use createRequire from 'module' (bare require is not available in ESM context)
-        const { createRequire } = await import('module');
-        const _require = createRequire(import.meta.url);
-        let workerPath: string;
-        try {
-          workerPath = _require.resolve('pdfjs-dist/legacy/build/pdf.worker.mjs');
-        } catch {
-          // Fallback: construct path from cwd (used in standalone/production builds)
-          workerPath = `${process.cwd()}/node_modules/pdfjs-dist/legacy/build/pdf.worker.mjs`;
-        }
+        const path = await import('path');
+
+        // In Next.js standalone, process.cwd() = the standalone root which contains /public
+        // In dev, process.cwd() = the project root which also contains /public
+        const workerPath = path.join(process.cwd(), 'public', 'pdf.worker.mjs');
         PDFParse.setWorker(pathToFileURL(workerPath).href);
 
         const parser = new PDFParse({ data: buffer });
