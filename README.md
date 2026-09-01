@@ -965,3 +965,10 @@ ame, irstMessage, and 	ranscriber) rather than relying on ssistantOverrides de
        - Implemented a zero-dependency PDF stream parser using Node.js built-in `zlib` (`zlib.inflateSync`).
        - Inflates compressed `/FlateDecode` streams directly from the PDF binary buffer with zero external packages or worker files.
     3. **Build & Deployment**: Verified compilation and pushed fix (`npm run build`).
+
+### Session 26 (September 1, 2026) - ReferenceError Variable Scope Resolution (`textContent is not defined`)
+* **User**: "new error" [Attached DevTools screenshot showing `[Error] textContent is not defined` during file upload of `StyleFlo Brand Guideline Document - Google Gemini.pdf`]
+  * **Fix**: Resolved missing variable declaration in `src/app/api/ingest/file/route.ts`:
+    1. **Restored Variable Scope (`let textContent = ''`)**:
+       - Added missing `let textContent = '';` variable declaration before `if (isPdf)` conditional block, resolving the `ReferenceError: textContent is not defined` crash.
+    2. **Build & Deployment**: Verified compilation and pushed fix (`npm run build`).

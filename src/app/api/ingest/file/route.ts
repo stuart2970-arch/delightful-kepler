@@ -164,6 +164,7 @@ export async function POST(request: Request) {
     const buffer = Buffer.from(arrayBuffer);
     const isPdf = file.type === 'application/pdf' || file.name.toLowerCase().endsWith('.pdf');
     const isTxt = file.type === 'text/plain' || file.name.toLowerCase().endsWith('.txt');
+    let textContent = '';
 
     if (isPdf) {
       try {
