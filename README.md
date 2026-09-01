@@ -994,4 +994,11 @@ ame, irstMessage, and 	ranscriber) rather than relying on ssistantOverrides de
        - If Google AI Studio returns a 404 or version mismatch for a specific API endpoint/alias, the system automatically tries the next candidate, caches the working endpoint, and processes all document chunks seamlessly.
     2. **Build & Deployment**: Verified compilation and pushed fix (`npm run build`).
 
-
+### Session 29 (September 1, 2026) - Clean Payload Schema & Single `embedContent` Fallback System
+* **User**: [Attached DevTools screenshot showing Google API 404: `models/embedding-001 is not found for API version v1, or is not supported for embedContent`]
+  * **Fix**: Diagnosed and resolved Google AI Studio REST API schema validation failure:
+    1. **Payload Schema Cleanup**:
+       - Removed `outputDimensionality: 768` parameter from Google REST API payloads. Passing `outputDimensionality` to Google AI Studio endpoints caused schema validation failures (`not supported for embedContent`), throwing 404s. `text-embedding-004` natively outputs 768 dimensions by default.
+    2. **Single `embedContent` Fallback (`generateSingleEmbedding`)**:
+       - Added fallback to `generateSingleEmbedding()` which calls `v1beta/models/text-embedding-004:embedContent` and `embedding-001:embedContent` directly if `batchEmbedContents` is restricted.
+    3. **Build & Deployment**: Verified compilation and pushed fix (`npm run build`).

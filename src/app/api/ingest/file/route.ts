@@ -9,87 +9,101 @@ import zlib from 'zlib';
 export const dynamic = 'force-dynamic';
 export const maxDuration = 120;
 
+async function generateSingleEmbedding(text: string, apiKey: string): Promise<number[]> {
+  const url = `https://generativelanguage.googleapis.com/v1beta/models/text-embedding-004:embedContent?key=${apiKey}`;
+  const res = await fetch(url, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      model: 'models/text-embedding-004',
+      content: { parts: [{ text }] }
+    })
+  });
+
+  if (res.ok) {
+    const data = await res.json();
+    if (Array.isArray(data.embedding?.values)) {
+      return data.embedding.values;
+    }
+  }
+
+  const fallbackUrl = `https://generativelanguage.googleapis.com/v1beta/models/embedding-001:embedContent?key=${apiKey}`;
+  const fallbackRes = await fetch(fallbackUrl, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      model: 'models/embedding-001',
+      content: { parts: [{ text }] }
+    })
+  });
+
+  if (!fallbackRes.ok) {
+    const errText = await fallbackRes.text().catch(() => '');
+    throw new Error(`Google Embedding API error (${fallbackRes.status}): ${errText.slice(0, 200) || fallbackRes.statusText}`);
+  }
+
+  const fallbackData = await fallbackRes.json();
+  if (!Array.isArray(fallbackData.embedding?.values)) {
+    throw new Error('Google Embedding API returned no embedding values');
+  }
+
+  return fallbackData.embedding.values;
+}
+
 async function batchEmbedGemini(texts: string[], apiKey: string): Promise<number[][]> {
   if (texts.length === 0) return [];
 
-  const BATCH_SIZE = 50;
+  const BATCH_SIZE = 20;
   const allEmbeddings: number[][] = [];
-
-  const endpoints = [
-    {
-      url: `https://generativelanguage.googleapis.com/v1/models/text-embedding-004:batchEmbedContents?key=${apiKey}`,
-      model: 'models/text-embedding-004',
-      withDim: true,
-    },
-    {
-      url: `https://generativelanguage.googleapis.com/v1beta/models/text-embedding-004:batchEmbedContents?key=${apiKey}`,
-      model: 'models/text-embedding-004',
-      withDim: true,
-    },
-    {
-      url: `https://generativelanguage.googleapis.com/v1beta/models/embedding-001:batchEmbedContents?key=${apiKey}`,
-      model: 'models/embedding-001',
-      withDim: false,
-    },
-    {
-      url: `https://generativelanguage.googleapis.com/v1/models/embedding-001:batchEmbedContents?key=${apiKey}`,
-      model: 'models/embedding-001',
-      withDim: false,
-    },
-  ];
-
-  let workingEndpoint: typeof endpoints[0] | null = null;
 
   for (let i = 0; i < texts.length; i += BATCH_SIZE) {
     const chunkBatch = texts.slice(i, i + BATCH_SIZE);
-    let success = false;
-    let lastError = '';
+    
+    // 1. Try batchEmbedContents with clean schema (no outputDimensionality)
+    try {
+      const url = `https://generativelanguage.googleapis.com/v1beta/models/text-embedding-004:batchEmbedContents?key=${apiKey}`;
+      const requests = chunkBatch.map(text => ({
+        model: 'models/text-embedding-004',
+        content: { parts: [{ text }] }
+      }));
 
-    const candidateEndpoints = workingEndpoint ? [workingEndpoint] : endpoints;
+      const res = await fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ requests })
+      });
 
-    for (const ep of candidateEndpoints) {
-      try {
-        const requests = chunkBatch.map(text => {
-          const reqObj: any = {
-            model: ep.model,
-            content: { parts: [{ text }] },
-          };
-          if (ep.withDim) {
-            reqObj.outputDimensionality = 768;
-          }
-          return reqObj;
-        });
-
-        const res = await fetch(ep.url, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ requests })
-        });
-
-        if (res.ok) {
-          const data = await res.json();
-          const embeddingsList = data.embeddings;
-          if (Array.isArray(embeddingsList) && embeddingsList.length > 0) {
-            workingEndpoint = ep;
-            for (const item of embeddingsList) {
-              if (Array.isArray(item?.values)) {
-                allEmbeddings.push(item.values);
-              }
+      if (res.ok) {
+        const data = await res.json();
+        if (Array.isArray(data.embeddings)) {
+          let batchValid = true;
+          const batchVecs: number[][] = [];
+          for (const item of data.embeddings) {
+            if (Array.isArray(item?.values)) {
+              batchVecs.push(item.values);
+            } else {
+              batchValid = false;
+              break;
             }
-            success = true;
-            break;
           }
-        } else {
-          const errText = await res.text().catch(() => '');
-          lastError = `(${res.status}): ${errText.slice(0, 150) || res.statusText}`;
+          if (batchValid && batchVecs.length === chunkBatch.length) {
+            allEmbeddings.push(...batchVecs);
+            continue;
+          }
         }
-      } catch (err: any) {
-        lastError = err?.message || String(err);
       }
+    } catch {
+      // Fall through to single embedContent fallback
     }
 
-    if (!success) {
-      throw new Error(`Google Embedding API error: ${lastError}`);
+    // 2. Fallback to parallel single embedContent calls for this batch
+    const singleResults = await Promise.all(
+      chunkBatch.map(text => generateSingleEmbedding(text, apiKey))
+    );
+    for (const vec of singleResults) {
+      if (Array.isArray(vec)) {
+        allEmbeddings.push(vec);
+      }
     }
   }
 
