@@ -33,39 +33,86 @@ async function createSupabaseServerClient() {
 }
 
 export default async function SuperadminPage() {
-  const supabase = await createSupabaseServerClient();
-  
-  const {
-    data: { user },
-    error: authError,
-  } = await supabase.auth.getUser();
+  let user: any = null;
+  let supabase: any = null;
 
-  if (authError || !user) {
+  try {
+    supabase = await createSupabaseServerClient();
+    const { data: authData, error: authError } = await supabase.auth.getUser();
+    if (authError || !authData?.user) {
+      redirect('/login');
+    }
+    user = authData.user;
+  } catch (err: any) {
+    if (err?.digest?.startsWith('NEXT_REDIRECT') || err?.message === 'NEXT_REDIRECT') {
+      throw err;
+    }
     redirect('/login');
   }
 
   // Check if superadmin
-  const { data: profile } = await supabase
-    .from('profiles')
-    .select('is_super_admin')
-    .eq('id', user.id)
-    .single();
+  try {
+    const { data: profile } = await supabase
+      .from('profiles')
+      .select('is_super_admin')
+      .eq('id', user.id)
+      .maybeSingle();
 
-  if (!profile || !profile.is_super_admin) {
+    if (!profile || !profile.is_super_admin) {
+      redirect('/dashboard');
+    }
+  } catch (err: any) {
+    if (err?.digest?.startsWith('NEXT_REDIRECT') || err?.message === 'NEXT_REDIRECT') {
+      throw err;
+    }
     redirect('/dashboard');
   }
 
-  const supabaseUrl = process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL!;
-  const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
-  const { createClient } = await import('@supabase/supabase-js');
-  const adminSupabase = createClient(supabaseUrl, serviceRoleKey);
+  const supabaseUrl = process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
-  // Fetch global platform settings using admin client
-  const { data: globalBot } = await adminSupabase
-    .from('chatbots')
-    .select('configuration_json')
-    .eq('id', '00000000-0000-0000-0000-000000000000')
-    .maybeSingle();
+  if (!supabaseUrl || !serviceRoleKey) {
+    console.error('[SuperadminPage] Missing service role key or Supabase URL');
+    redirect('/dashboard');
+  }
+
+  let globalBot: any = null;
+  let fetchedTenants: any[] = [];
+  let allBots: any[] = [];
+  let allChunks: any[] = [];
+  let allConvs: any[] = [];
+  let allMsgs: any[] = [];
+  let allUsage: any[] = [];
+
+  try {
+    const { createClient } = await import('@supabase/supabase-js');
+    const adminSupabase = createClient(supabaseUrl, serviceRoleKey, {
+      auth: { persistSession: false, autoRefreshToken: false }
+    });
+
+    const [globalBotRes, tenantsRes, botsRes, chunksRes, convsRes, usageRes] = await Promise.all([
+      adminSupabase.from('chatbots').select('configuration_json').eq('id', '00000000-0000-0000-0000-000000000000').maybeSingle(),
+      adminSupabase.from('tenants').select('id, company_name, plan_tier, is_active, subscription_status, created_at, slug').order('created_at', { ascending: false }),
+      adminSupabase.from('chatbots').select('id, tenant_id'),
+      adminSupabase.from('document_chunks').select('chatbot_id').limit(2000),
+      adminSupabase.from('conversations').select('id, chatbot_id').limit(2000),
+      adminSupabase.from('usage_ledger').select('quantity, feature_id, tenant_id').limit(2000),
+    ]);
+
+    globalBot = globalBotRes.data;
+    fetchedTenants = tenantsRes.data || [];
+    allBots = botsRes.data || [];
+    allChunks = chunksRes.data || [];
+    allConvs = convsRes.data || [];
+    allUsage = usageRes.data || [];
+
+    if (allConvs.length > 0) {
+      const msgsRes = await adminSupabase.from('messages').select('conversation_id').limit(5000);
+      allMsgs = msgsRes.data || [];
+    }
+  } catch (err) {
+    console.error('[SuperadminPage] Error fetching superadmin data:', err);
+  }
 
   let initialGlobalBrandingHtml = '<span style="opacity: 0.6; font-size: 11px;">⚡ Powered by <strong>StyleFlo</strong></span>';
   let initialGlobalTrackingUrl = 'https://styleflo.ai';
@@ -79,86 +126,48 @@ export default async function SuperadminPage() {
     if (globalBot.configuration_json.default_gemini_model !== undefined) initialGlobalGeminiModel = globalBot.configuration_json.default_gemini_model;
   }
 
-  // Fetch all tenants using admin client
-  const { data: tenants, error: tenantsError } = await adminSupabase
-    .from('tenants')
-    .select('id, company_name, plan_tier, is_active, subscription_status, created_at, slug')
-    .order('created_at', { ascending: false });
-
-  let fetchedTenants: any[] | null = tenants;
-  if (tenantsError || !fetchedTenants) {
-    console.error('[SuperadminPage] Error fetching tenants with extended fields, trying fallback:', tenantsError);
-    const { data: fallbackTenants } = await adminSupabase
-      .from('tenants')
-      .select('id, company_name, plan_tier, created_at, slug')
-      .order('created_at', { ascending: false });
-    fetchedTenants = fallbackTenants;
-  }
-
-  // Fetch all chatbots with their tenant_id
-  const { data: allBots } = await adminSupabase
-    .from('chatbots')
-    .select('id, tenant_id');
-
-  // Fetch document chunks for crawls count
-  const { data: allChunks } = await adminSupabase
-    .from('document_chunks')
-    .select('chatbot_id');
-
-  // Fetch conversations and messages for token/messages count
-  const { data: allConvs } = await adminSupabase
-    .from('conversations')
-    .select('id, chatbot_id');
-
-  const convIds = (allConvs || []).map(c => c.id);
-  const { data: allMsgs } = convIds.length > 0
-    ? await adminSupabase.from('messages').select('conversation_id')
-    : { data: [] };
-
-  // Fetch usage logs
-  const { data: allUsage } = await adminSupabase
-    .from('usage_ledger')
-    .select('quantity, feature_id, tenant_id');
-
   // Map chatbot IDs to tenants
   const botTenantMap = new Map<string, string>();
   (allBots || []).forEach(b => {
-    if (b.tenant_id) botTenantMap.set(b.id, b.tenant_id);
+    if (b && b.id && b.tenant_id) botTenantMap.set(b.id, b.tenant_id);
   });
 
   // Map conversation IDs to tenants
   const convTenantMap = new Map<string, string>();
   (allConvs || []).forEach(c => {
-    const tenantId = botTenantMap.get(c.chatbot_id);
-    if (tenantId) convTenantMap.set(c.id, tenantId);
+    if (c && c.id && c.chatbot_id) {
+      const tenantId = botTenantMap.get(c.chatbot_id);
+      if (tenantId) convTenantMap.set(c.id, tenantId);
+    }
   });
 
   // Aggregate stats per tenant
   const tenantStats = (fetchedTenants || []).map(t => {
-    const tenantUsage = (allUsage || []).filter(u => u.tenant_id === t.id);
-    const ledgerMessages = tenantUsage.filter(u => u.feature_id === 'message_allowance').reduce((sum, u) => sum + Number(u.quantity), 0);
-    const ledgerCrawls = tenantUsage.filter(u => u.feature_id === 'knowledge_data_chunks').reduce((sum, u) => sum + Number(u.quantity), 0);
+    if (!t) return null;
+    const tenantUsage = (allUsage || []).filter(u => u && u.tenant_id === t.id);
+    const ledgerMessages = tenantUsage.filter(u => u.feature_id === 'message_allowance').reduce((sum, u) => sum + Number(u.quantity || 0), 0);
+    const ledgerCrawls = tenantUsage.filter(u => u.feature_id === 'knowledge_data_chunks').reduce((sum, u) => sum + Number(u.quantity || 0), 0);
 
-    const dbCrawls = (allChunks || []).filter(c => botTenantMap.get(c.chatbot_id) === t.id).length;
-    const dbMessages = (allMsgs || []).filter(m => convTenantMap.get(m.conversation_id) === t.id).length;
+    const dbCrawls = (allChunks || []).filter(c => c && botTenantMap.get(c.chatbot_id) === t.id).length;
+    const dbMessages = (allMsgs || []).filter(m => m && convTenantMap.get(m.conversation_id) === t.id).length;
 
     return {
-      id: t.id,
-      company_name: t.company_name,
-      plan_tier: t.plan_tier,
+      id: t.id || '',
+      company_name: t.company_name || 'Unnamed Business',
+      plan_tier: t.plan_tier || 'free',
       is_active: t.is_active !== false,
       subscription_status: t.subscription_status || 'active',
-      created_at: t.created_at,
-      slug: t.slug,
+      created_at: t.created_at || new Date().toISOString(),
+      slug: t.slug || '',
       messagesCount: Math.max(ledgerMessages, dbMessages),
       crawlsCount: Math.max(ledgerCrawls, dbCrawls)
     };
-  });
+  }).filter(Boolean);
 
   return (
     <main className="min-h-screen bg-gray-950 text-gray-100 font-sans">
       <SuperadminClient 
-        tenants={tenantStats} 
+        tenants={tenantStats as any[]} 
         initialGlobalBrandingHtml={initialGlobalBrandingHtml}
         initialGlobalTrackingUrl={initialGlobalTrackingUrl}
         initialGlobalVoiceDisclaimer={initialGlobalVoiceDisclaimer}

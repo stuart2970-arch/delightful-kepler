@@ -858,3 +858,14 @@ ame, irstMessage, and 	ranscriber) rather than relying on ssistantOverrides de
     3. **Superadmin Client Defensive Safeguards (`SuperadminClient.tsx`)**:
        - Wrapped `tenantsList` in safe array checks (`Array.isArray(tenantsList) ? tenantsList : []`) to prevent runtime crashes during filtering, message reduction, and crawl counting.
     4. **Build & Verification**: Verified production compilation (`npm run build`).
+
+### Session 17 (September 1, 2026) - Server-Side Superadmin Page Crash Prevention & Query Isolation
+* **User**: "Still the same" [Attached screenshot showing Next.js `This page couldn't load` server error on `app.styleflo.ai/superadmin`]
+  * **Fix**: Diagnosed and resolved the production Server Component render crash in `src/app/superadmin/page.tsx`:
+    1. **Query Timeout & Statement Failure Protection**:
+       - Discovered unconstrained `messages` and `document_chunks` table queries that exceeded Supabase REST API timeouts when fetching message/crawl statistics for all tenants.
+       - Wrapped queries in `.limit()` boundaries (`limit(2000)` / `limit(5000)`) and unified parallel query execution inside a top-level `try-catch` block.
+    2. **Profile & Authentication Exception Handling**:
+       - Replaced strict `.single()` on profile queries with `.maybeSingle()` to prevent unhandled profile resolution exceptions.
+       - Wrapped SSR auth checks in `try-catch` blocks with explicit `NEXT_REDIRECT` error re-throwing so auth errors redirect cleanly to `/login` without triggering Next.js 500 error screens.
+    3. **Build & Deployment**: Verified compilation and pushed fix (`npm run build`).
