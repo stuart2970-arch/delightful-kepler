@@ -832,3 +832,16 @@ ame, irstMessage, and 	ranscriber) rather than relying on ssistantOverrides de
        - Updated message formatting to sanitize role types (`user`/`assistant`) and non-empty string content before passing to `streamText`.
        - Replaced hardcoded `gemini-1.5-flash` reference in lookup pass with dynamic `activeModelName`.
     3. **Build Verification**: Recompiled application and widget assets (`npm run build`).
+
+### Session 15 (September 1, 2026) - Superadmin Direct Gemini Model Input & Deprecated Model Auto-Migration
+* **User**: "in the superadmin god page, there is a section for setting the gemini version this is not allowing a manual input" / "This model models/gemini-2.0-flash is no longer available. Please update your code to use models/gemini-3.6-flash..."
+  * **Fix**: Upgraded Superadmin LLM model configuration and resolved Google model deprecation:
+    1. **Direct Manual Text Input UI**:
+       - Redesigned the Superadmin God Page ("🤖 Global AI Engine Model") card in `src/components/superadmin/SuperadminClient.tsx`.
+       - Replaced the select menu with a prominent, directly editable `<input type="text">` field so superadmins can manually type or paste any model ID (e.g., `gemini-2.5-flash`, `gemini-3.6-flash`, etc.) without hiding the input behind a dropdown.
+       - Added quick-select preset pill buttons (`gemini-2.5-flash`, `gemini-2.5-pro`, `gemini-flash-latest`) for one-click selections.
+    2. **Automatic Deprecated Model Migration & Sanitization**:
+       - Updated `DEFAULT_GEMINI_MODEL` to `gemini-2.5-flash` in `src/lib/gemini-config.ts`.
+       - Added automatic regex sanitization in `getActiveGeminiModel()` to strip `models/` prefixes and auto-migrate legacy/deprecated strings (`gemini-2.0-flash`, `gemini-1.5-flash`, `gemini-1.5-pro`) stored in database configurations.
+       - Updated fallback model strings across voice completion endpoints and widget scripts.
+    3. **Build & Bundling**: Recompiled application and widget bundles (`npm run build`).

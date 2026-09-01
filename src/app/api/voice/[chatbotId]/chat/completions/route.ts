@@ -154,7 +154,7 @@ export async function POST(
           id: 'chatcmpl-vapi',
           object: 'chat.completion',
           created: Math.floor(Date.now() / 1000),
-          model: 'gemini-2.0-flash',
+          model: 'gemini-2.5-flash',
           choices: [{ message: { role: 'assistant', content: '' }, finish_reason: 'stop', index: 0 }]
         }, { headers: corsHeaders });
       }
@@ -166,7 +166,7 @@ export async function POST(
             id: 'chatcmpl-vapi',
             object: 'chat.completion.chunk',
             created: Math.floor(Date.now() / 1000),
-            model: 'gemini-2.0-flash',
+            model: 'gemini-2.5-flash',
             choices: [{ delta: { role: 'assistant', content: '' }, index: 0, finish_reason: null }]
           };
           controller.enqueue(encoder.encode(`data: ${JSON.stringify(roleChunk)}\n\n`));
@@ -174,7 +174,7 @@ export async function POST(
             id: 'chatcmpl-vapi',
             object: 'chat.completion.chunk',
             created: Math.floor(Date.now() / 1000),
-            model: 'gemini-2.0-flash',
+            model: 'gemini-2.5-flash',
             choices: [{ delta: {}, index: 0, finish_reason: 'stop' }]
           };
           controller.enqueue(encoder.encode(`data: ${JSON.stringify(finishChunk)}\n\n`));

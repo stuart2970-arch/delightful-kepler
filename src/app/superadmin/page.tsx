@@ -70,7 +70,7 @@ export default async function SuperadminPage() {
   let initialGlobalBrandingHtml = '<span style="opacity: 0.6; font-size: 11px;">⚡ Powered by <strong>StyleFlo</strong></span>';
   let initialGlobalTrackingUrl = 'https://styleflo.ai';
   let initialGlobalVoiceDisclaimer = '';
-  let initialGlobalGeminiModel = 'gemini-2.0-flash';
+  let initialGlobalGeminiModel = 'gemini-2.5-flash';
 
   if (globalBot?.configuration_json) {
     if (globalBot.configuration_json.branding_html !== undefined) initialGlobalBrandingHtml = globalBot.configuration_json.branding_html;

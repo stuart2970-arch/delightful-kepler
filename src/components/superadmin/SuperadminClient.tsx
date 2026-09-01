@@ -31,7 +31,7 @@ export default function SuperadminClient({
   initialGlobalBrandingHtml,
   initialGlobalTrackingUrl,
   initialGlobalVoiceDisclaimer,
-  initialGlobalGeminiModel = 'gemini-2.0-flash',
+  initialGlobalGeminiModel = 'gemini-2.5-flash',
   initialFloBotConfig
 }: { 
   tenants: TenantStat[],
@@ -114,12 +114,7 @@ export default function SuperadminClient({
   const [globalBrandingHtml, setGlobalBrandingHtml] = useState(initialGlobalBrandingHtml || '<span style="opacity: 0.6; font-size: 11px;">⚡ Powered by <strong>StyleFlo</strong></span>');
   const [globalTrackingUrl, setGlobalTrackingUrl] = useState(initialGlobalTrackingUrl || 'https://styleflo.ai');
   const [globalVoiceDisclaimer, setGlobalVoiceDisclaimer] = useState(initialGlobalVoiceDisclaimer || '');
-  
-  const presetModels = ['gemini-2.0-flash', 'gemini-1.5-flash', 'gemini-1.5-pro', 'gemini-flash-latest'];
-  const isPreset = presetModels.includes(initialGlobalGeminiModel);
-
-  const [globalGeminiModel, setGlobalGeminiModel] = useState<string>(isPreset ? initialGlobalGeminiModel : 'custom');
-  const [customGeminiModel, setCustomGeminiModel] = useState<string>(isPreset ? '' : initialGlobalGeminiModel);
+  const [geminiModelInput, setGeminiModelInput] = useState<string>(initialGlobalGeminiModel || 'gemini-2.5-flash');
   const [isSavingGlobal, setIsSavingGlobal] = useState(false);
 
   const handleDeleteTenant = async (tenantId: string, companyName: string) => {
@@ -129,25 +124,22 @@ export default function SuperadminClient({
       return;
     }
 
-    setDeletingTenantId(tenantId);
     try {
-      const res = await fetch(`/api/superadmin/tenants/${tenantId}`, {
-        method: 'DELETE',
-      });
-      const data = await res.json().catch(() => ({}));
-      if (!res.ok) {
-        throw new Error(data.error || 'Failed to delete tenant');
+      const res = await fetch(`/api/superadmin/tenants/${tenantId}`, { method: 'DELETE' });
+      if (res.ok) {
+        alert(`Tenant "${companyName}" deleted successfully.`);
+        window.location.reload();
+      } else {
+        const err = await res.json();
+        alert(`Failed to delete tenant: ${err.error || 'Unknown error'}`);
       }
-      setTenantsList(prev => prev.filter(t => t.id !== tenantId));
-      alert(`Business "${companyName}" was deleted cleanly.`);
-    } catch (err: any) {
-      alert('Error deleting business: ' + err.message);
-    } finally {
-      setDeletingTenantId(null);
+    } catch (e) {
+      console.error(e);
+      alert('An unexpected error occurred while deleting tenant.');
     }
   };
 
-  const handleSaveBranding = async (e: React.FormEvent) => {
+  const handleSaveGlobalBranding = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsSavingGlobal(true);
     try {
@@ -157,38 +149,16 @@ export default function SuperadminClient({
         body: JSON.stringify({
           branding_html: globalBrandingHtml,
           branding_url: globalTrackingUrl,
-        }),
-      });
-      const data = await response.json().catch(() => ({}));
-      if (!response.ok) {
-        throw new Error(data.error || 'Failed to save global branding');
-      }
-      alert('Global branding saved successfully!');
-    } catch (err: any) {
-      alert('Failed to save global branding: ' + err.message);
-    } finally {
-      setIsSavingGlobal(false);
-    }
-  };
-
-  const handleSaveDisclaimer = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setIsSavingGlobal(true);
-    try {
-      const response = await fetch(`/api/superadmin/global-settings`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
           global_voice_disclaimer: globalVoiceDisclaimer,
         }),
       });
       const data = await response.json().catch(() => ({}));
       if (!response.ok) {
-        throw new Error(data.error || 'Failed to save global disclaimer');
+        throw new Error(data.error || 'Failed to update global settings');
       }
-      alert('Global disclaimer saved successfully!');
+      alert('Global platform settings updated successfully!');
     } catch (err: any) {
-      alert('Failed to save global disclaimer: ' + err.message);
+      alert('Failed to save settings: ' + err.message);
     } finally {
       setIsSavingGlobal(false);
     }
@@ -197,10 +167,10 @@ export default function SuperadminClient({
   const handleSaveGeminiModel = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsSavingGlobal(true);
-    const targetModel = globalGeminiModel === 'custom' ? customGeminiModel.trim() : globalGeminiModel;
+    const targetModel = geminiModelInput.trim().replace(/^models\//i, '');
     
     if (!targetModel) {
-      alert('Please select or specify a valid Gemini model ID.');
+      alert('Please specify a valid Gemini model ID.');
       setIsSavingGlobal(false);
       return;
     }
@@ -449,51 +419,72 @@ export default function SuperadminClient({
                 </p>
               </div>
               <span className="px-3 py-1 bg-indigo-500/10 border border-indigo-500/30 text-indigo-400 font-mono text-xs font-bold rounded-full">
-                Active: {globalGeminiModel === 'custom' ? customGeminiModel || 'Custom' : globalGeminiModel}
+                Active: {geminiModelInput || 'gemini-2.5-flash'}
               </span>
             </div>
 
             <form onSubmit={handleSaveGeminiModel} className="space-y-4">
               <div>
-                <label className="block text-xs font-semibold text-gray-400 mb-1.5">Select Primary Gemini Model Version</label>
-                <select
-                  value={globalGeminiModel}
-                  onChange={(e) => setGlobalGeminiModel(e.target.value)}
-                  className="w-full bg-gray-950 border border-gray-800 rounded-xl px-3.5 py-2.5 text-sm text-white focus:outline-none focus:ring-1 focus:ring-indigo-500 font-medium"
-                >
-                  <option value="gemini-2.0-flash">Gemini 2.0 Flash (Fastest, High Performance - Recommended Default)</option>
-                  <option value="gemini-1.5-flash">Gemini 1.5 Flash (Legacy Stable Flash)</option>
-                  <option value="gemini-1.5-pro">Gemini 1.5 Pro (Deep Reasoning & Large Context)</option>
-                  <option value="gemini-flash-latest">gemini-flash-latest (Auto-updates to Google's Latest Flash Alias)</option>
-                  <option value="custom">✏️ Custom Write-In (For newly released Google models e.g. gemini-2.5-flash)</option>
-                </select>
-                <p className="text-[10px] text-gray-500 mt-1">
-                  Changing this setting instantly updates the LLM engine across all tenant chatbots without redeploying code.
+                <label className="block text-xs font-semibold text-gray-400 mb-1.5">
+                  Active Gemini Model ID String (Editable / Manual Input)
+                </label>
+                <input
+                  type="text"
+                  value={geminiModelInput}
+                  onChange={(e) => setGeminiModelInput(e.target.value)}
+                  placeholder="e.g. gemini-2.5-flash or gemini-3.6-flash"
+                  className="w-full bg-gray-950 border border-gray-700 rounded-xl px-4 py-2.5 text-sm text-white focus:outline-none focus:ring-2 focus:ring-indigo-500 font-mono font-semibold"
+                  required
+                />
+                <p className="text-[11px] text-gray-400 mt-1.5">
+                  Type any custom Google Gemini model ID manually (e.g. <code className="text-indigo-300 font-mono">gemini-2.5-flash</code> or <code className="text-indigo-300 font-mono">gemini-3.6-flash</code>) or click a quick-select preset below.
                 </p>
               </div>
 
-              {globalGeminiModel === 'custom' && (
-                <div className="bg-gray-950 p-4 rounded-xl border border-gray-800 space-y-2">
-                  <label className="block text-xs font-semibold text-indigo-400">Custom Google Model ID String</label>
-                  <input
-                    type="text"
-                    value={customGeminiModel}
-                    onChange={(e) => setCustomGeminiModel(e.target.value)}
-                    placeholder="e.g. gemini-2.5-flash or gemini-3.0-flash"
-                    className="w-full bg-gray-900 border border-gray-700 rounded-lg px-3.5 py-2 text-sm text-white focus:outline-none focus:ring-1 focus:ring-indigo-500 font-mono"
-                    required
-                  />
-                  <p className="text-[10px] text-gray-400">
-                    Type the exact model string as published in Google's official Gemini API documentation.
-                  </p>
+              <div>
+                <label className="block text-xs font-semibold text-gray-400 mb-1.5">Quick-Select Presets</label>
+                <div className="flex flex-wrap gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setGeminiModelInput('gemini-2.5-flash')}
+                    className={`px-3 py-1.5 text-xs rounded-lg font-medium transition-all ${
+                      geminiModelInput === 'gemini-2.5-flash'
+                        ? 'bg-indigo-600 text-white border border-indigo-500 shadow-sm'
+                        : 'bg-gray-950 hover:bg-gray-800 text-gray-300 border border-gray-800'
+                    }`}
+                  >
+                    ⚡ gemini-2.5-flash (Recommended Default)
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setGeminiModelInput('gemini-2.5-pro')}
+                    className={`px-3 py-1.5 text-xs rounded-lg font-medium transition-all ${
+                      geminiModelInput === 'gemini-2.5-pro'
+                        ? 'bg-indigo-600 text-white border border-indigo-500 shadow-sm'
+                        : 'bg-gray-950 hover:bg-gray-800 text-gray-300 border border-gray-800'
+                    }`}
+                  >
+                    🧠 gemini-2.5-pro (Deep Reasoning)
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setGeminiModelInput('gemini-flash-latest')}
+                    className={`px-3 py-1.5 text-xs rounded-lg font-medium transition-all ${
+                      geminiModelInput === 'gemini-flash-latest'
+                        ? 'bg-indigo-600 text-white border border-indigo-500 shadow-sm'
+                        : 'bg-gray-950 hover:bg-gray-800 text-gray-300 border border-gray-800'
+                    }`}
+                  >
+                    🔄 gemini-flash-latest (Auto-Update Alias)
+                  </button>
                 </div>
-              )}
+              </div>
 
               <div className="pt-2 flex items-center gap-3">
                 <button
                   type="submit"
                   disabled={isSavingGlobal}
-                  className="bg-indigo-600 hover:bg-indigo-500 text-white text-sm font-semibold py-2 px-5 rounded-xl shadow-lg shadow-indigo-500/10 transition-colors disabled:opacity-50"
+                  className="bg-indigo-600 hover:bg-indigo-500 text-white text-sm font-semibold py-2.5 px-6 rounded-xl shadow-lg shadow-indigo-500/10 transition-colors disabled:opacity-50"
                 >
                   {isSavingGlobal ? 'Updating Model...' : 'Save & Deploy Active Model'}
                 </button>

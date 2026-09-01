@@ -1113,7 +1113,7 @@ import Vapi from '@vapi-ai/web';
               model: {
                 provider: "custom-llm",
                 url: `${targetVoiceHost}/api/voice/${chatbotId}/chat/completions`,
-                model: "gemini-2.0-flash",
+                model: "gemini-2.5-flash",
                 messages: [
                   {
                     role: "system",
