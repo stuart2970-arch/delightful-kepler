@@ -982,3 +982,16 @@ ame, irstMessage, and 	ranscriber) rather than relying on ssistantOverrides de
        - Returns exact HTTP error codes and descriptive messages if Google rejects a request (e.g. invalid API key or quota).
     2. **Build & Deployment**: Verified compilation and pushed fix (`npm run build`).
 
+### Session 28 (September 1, 2026) - Multi-Endpoint API Version & Model Failover (`v1` vs `v1beta`)
+* **User**: "i dont understand how this can work one minute and be so broken the next!" [Attached DevTools screenshot showing Google API 404: `models/text-embedding-004 is not found for API version v1beta`]
+  * **Fix**: Implemented a multi-endpoint candidate failover pipeline in `batchEmbedGemini`:
+    1. **Automatic Endpoint & Model Failover Candidate List**:
+       - Added automatic failover across candidate endpoints:
+         - `https://generativelanguage.googleapis.com/v1/models/text-embedding-004:batchEmbedContents`
+         - `https://generativelanguage.googleapis.com/v1beta/models/text-embedding-004:batchEmbedContents`
+         - `https://generativelanguage.googleapis.com/v1beta/models/embedding-001:batchEmbedContents`
+         - `https://generativelanguage.googleapis.com/v1/models/embedding-001:batchEmbedContents`
+       - If Google AI Studio returns a 404 or version mismatch for a specific API endpoint/alias, the system automatically tries the next candidate, caches the working endpoint, and processes all document chunks seamlessly.
+    2. **Build & Deployment**: Verified compilation and pushed fix (`npm run build`).
+
+

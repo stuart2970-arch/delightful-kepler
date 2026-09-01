@@ -11,40 +11,85 @@ export const maxDuration = 120;
 
 async function batchEmbedGemini(texts: string[], apiKey: string): Promise<number[][]> {
   if (texts.length === 0) return [];
-  
+
   const BATCH_SIZE = 50;
   const allEmbeddings: number[][] = [];
 
+  const endpoints = [
+    {
+      url: `https://generativelanguage.googleapis.com/v1/models/text-embedding-004:batchEmbedContents?key=${apiKey}`,
+      model: 'models/text-embedding-004',
+      withDim: true,
+    },
+    {
+      url: `https://generativelanguage.googleapis.com/v1beta/models/text-embedding-004:batchEmbedContents?key=${apiKey}`,
+      model: 'models/text-embedding-004',
+      withDim: true,
+    },
+    {
+      url: `https://generativelanguage.googleapis.com/v1beta/models/embedding-001:batchEmbedContents?key=${apiKey}`,
+      model: 'models/embedding-001',
+      withDim: false,
+    },
+    {
+      url: `https://generativelanguage.googleapis.com/v1/models/embedding-001:batchEmbedContents?key=${apiKey}`,
+      model: 'models/embedding-001',
+      withDim: false,
+    },
+  ];
+
+  let workingEndpoint: typeof endpoints[0] | null = null;
+
   for (let i = 0; i < texts.length; i += BATCH_SIZE) {
     const chunkBatch = texts.slice(i, i + BATCH_SIZE);
-    const url = `https://generativelanguage.googleapis.com/v1beta/models/text-embedding-004:batchEmbedContents?key=${apiKey}`;
-    const requests = chunkBatch.map(text => ({
-      model: 'models/text-embedding-004',
-      content: { parts: [{ text }] },
-      outputDimensionality: 768
-    }));
+    let success = false;
+    let lastError = '';
 
-    const res = await fetch(url, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ requests })
-    });
+    const candidateEndpoints = workingEndpoint ? [workingEndpoint] : endpoints;
 
-    if (!res.ok) {
-      const errText = await res.text().catch(() => '');
-      throw new Error(`Google Embedding API error (${res.status}): ${errText.slice(0, 200) || res.statusText}`);
-    }
+    for (const ep of candidateEndpoints) {
+      try {
+        const requests = chunkBatch.map(text => {
+          const reqObj: any = {
+            model: ep.model,
+            content: { parts: [{ text }] },
+          };
+          if (ep.withDim) {
+            reqObj.outputDimensionality = 768;
+          }
+          return reqObj;
+        });
 
-    const data = await res.json();
-    const embeddingsList = data.embeddings;
-    if (!Array.isArray(embeddingsList)) {
-      throw new Error('Google Embedding API returned an unexpected response structure');
-    }
+        const res = await fetch(ep.url, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ requests })
+        });
 
-    for (const item of embeddingsList) {
-      if (Array.isArray(item?.values)) {
-        allEmbeddings.push(item.values);
+        if (res.ok) {
+          const data = await res.json();
+          const embeddingsList = data.embeddings;
+          if (Array.isArray(embeddingsList) && embeddingsList.length > 0) {
+            workingEndpoint = ep;
+            for (const item of embeddingsList) {
+              if (Array.isArray(item?.values)) {
+                allEmbeddings.push(item.values);
+              }
+            }
+            success = true;
+            break;
+          }
+        } else {
+          const errText = await res.text().catch(() => '');
+          lastError = `(${res.status}): ${errText.slice(0, 150) || res.statusText}`;
+        }
+      } catch (err: any) {
+        lastError = err?.message || String(err);
       }
+    }
+
+    if (!success) {
+      throw new Error(`Google Embedding API error: ${lastError}`);
     }
   }
 
