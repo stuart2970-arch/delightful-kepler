@@ -667,13 +667,21 @@ export default function SuperadminClient({
                       {(tenant?.crawlsCount || 0).toLocaleString()}
                     </td>
                     <td className="px-6 py-4 text-sm text-right">
-                      <button
-                        onClick={() => handleDeleteTenant(tenant.id, tenant.company_name || tenant.id)}
-                        disabled={deletingTenantId === tenant.id}
-                        className="px-3 py-1.5 bg-red-500/10 hover:bg-red-500/20 text-red-400 hover:text-red-300 border border-red-500/30 rounded-lg text-xs font-semibold transition-colors disabled:opacity-50"
-                      >
-                        {deletingTenantId === tenant.id ? 'Deleting...' : 'Delete Business'}
-                      </button>
+                      <div className="flex items-center justify-end gap-2">
+                        <Link
+                          href={`/dashboard?tenant_id=${tenant.id}`}
+                          className="px-3 py-1.5 bg-indigo-500/10 hover:bg-indigo-500/20 text-indigo-400 hover:text-indigo-300 border border-indigo-500/30 rounded-lg text-xs font-semibold transition-colors inline-flex items-center gap-1"
+                        >
+                          👁️ Impersonate
+                        </Link>
+                        <button
+                          onClick={() => handleDeleteTenant(tenant.id, tenant.company_name || tenant.id)}
+                          disabled={deletingTenantId === tenant.id}
+                          className="px-3 py-1.5 bg-red-500/10 hover:bg-red-500/20 text-red-400 hover:text-red-300 border border-red-500/30 rounded-lg text-xs font-semibold transition-colors disabled:opacity-50"
+                        >
+                          {deletingTenantId === tenant.id ? 'Deleting...' : 'Delete'}
+                        </button>
+                      </div>
                     </td>
                   </tr>
                 ))

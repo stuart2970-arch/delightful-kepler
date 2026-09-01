@@ -920,3 +920,14 @@ ame, irstMessage, and 	ranscriber) rather than relying on ssistantOverrides de
        - Resolved the root cause of why `gemini-2.5-flash` failed: when users pasted `models/gemini-2.5-flash` into the model input, `@ai-sdk/google` prepended `models/` again, creating an invalid `models/models/gemini-2.5-flash` string that returned HTTP 404 from Google.
        - Enforced automatic `models/` prefix stripping and regex sanitization across saving, caching, and model instantiation.
     4. **Build & Deployment**: Verified build (`npm run build`).
+
+### Session 22 (September 1, 2026) - 1-Click Superadmin Tenant Impersonation UI Buttons
+* **User**: "where do i go now to impersonate another account"
+  * **Fix**: Added 1-click tenant impersonation buttons directly to the Superadmin interface:
+    1. **Active Tenants Table (`SuperadminClient.tsx`)**:
+       - Added an `👁️ Impersonate` button to every tenant row in the Active Tenants table on the Superadmin God page (`/superadmin`).
+       - Clicking the button directly launches `/dashboard?tenant_id=<TENANT_ID>`, loading the tenant's workspace and displaying the impersonation banner (`👀 Currently Impersonating: [Business Name]`).
+    2. **Main Dashboard Superadmin Search (`BillingView.tsx`)**:
+       - Verified instant tenant search and impersonation capability via `/api/superadmin/impersonate/search`.
+    3. **Build & Deployment**: Verified build (`npm run build`).
+
