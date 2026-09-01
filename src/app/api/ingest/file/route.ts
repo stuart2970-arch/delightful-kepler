@@ -238,7 +238,16 @@ export async function POST(request: Request) {
       try {
         const { PDFParse } = await import('pdf-parse');
         const { pathToFileURL } = await import('url');
-        const workerPath = require.resolve('pdfjs-dist/legacy/build/pdf.worker.mjs');
+        // ESM-safe: use createRequire from 'module' (bare require is not available in ESM context)
+        const { createRequire } = await import('module');
+        const _require = createRequire(import.meta.url);
+        let workerPath: string;
+        try {
+          workerPath = _require.resolve('pdfjs-dist/legacy/build/pdf.worker.mjs');
+        } catch {
+          // Fallback: construct path from cwd (used in standalone/production builds)
+          workerPath = `${process.cwd()}/node_modules/pdfjs-dist/legacy/build/pdf.worker.mjs`;
+        }
         PDFParse.setWorker(pathToFileURL(workerPath).href);
 
         const parser = new PDFParse({ data: buffer });
