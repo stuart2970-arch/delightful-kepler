@@ -1002,3 +1002,13 @@ ame, irstMessage, and 	ranscriber) rather than relying on ssistantOverrides de
     2. **Single `embedContent` Fallback (`generateSingleEmbedding`)**:
        - Added fallback to `generateSingleEmbedding()` which calls `v1beta/models/text-embedding-004:embedContent` and `embedding-001:embedContent` directly if `batchEmbedContents` is restricted.
     3. **Build & Deployment**: Verified compilation and pushed fix (`npm run build`).
+
+### Session 30 (September 1, 2026) - Official `@google/genai` SDK Embedding Integration
+* **User**: [Attached DevTools screenshot showing Google API 404: `models/embedding-001 is not found for API version v1beta, or is not supported for embedContent`]
+  * **Fix**: Migrated embedding generation to the official Google GenAI SDK (`@google/genai`):
+    1. **Official `@google/genai` SDK Integration (`GoogleGenAI`)**:
+       - Imported `GoogleGenAI` from `@google/genai` (`new GoogleGenAI({ apiKey }).models.embedContent({ model: 'text-embedding-004', contents: text })`).
+       - Allows Google's official client SDK to handle endpoint routing, model alias resolution, headers, and authentication natively.
+       - Includes cascading fallback to `embedding-001` and direct REST API if required.
+    2. **Build & Deployment**: Verified compilation and pushed fix (`npm run build`).
+

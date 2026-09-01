@@ -4,106 +4,78 @@ import { createClient } from '@supabase/supabase-js';
 import { cookies } from 'next/headers';
 import { RecursiveCharacterTextSplitter } from '@langchain/textsplitters';
 import { checkFeatureEntitlement } from '@/lib/entitlements';
+import { GoogleGenAI } from '@google/genai';
 import zlib from 'zlib';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 120;
 
 async function generateSingleEmbedding(text: string, apiKey: string): Promise<number[]> {
+  const ai = new GoogleGenAI({ apiKey });
+
+  try {
+    const response = await ai.models.embedContent({
+      model: 'text-embedding-004',
+      contents: text,
+    });
+    if (Array.isArray(response.embedding?.values) && response.embedding.values.length > 0) {
+      return response.embedding.values;
+    }
+  } catch (err: any) {
+    console.warn(`[Gemini SDK] text-embedding-004 failed: ${err?.message || err}. Trying embedding-001...`);
+  }
+
+  try {
+    const response = await ai.models.embedContent({
+      model: 'embedding-001',
+      contents: text,
+    });
+    if (Array.isArray(response.embedding?.values) && response.embedding.values.length > 0) {
+      return response.embedding.values;
+    }
+  } catch (err: any) {
+    console.warn(`[Gemini SDK] embedding-001 failed: ${err?.message || err}. Trying REST fallback...`);
+  }
+
   const url = `https://generativelanguage.googleapis.com/v1beta/models/text-embedding-004:embedContent?key=${apiKey}`;
   const res = await fetch(url, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
-      model: 'models/text-embedding-004',
       content: { parts: [{ text }] }
     })
   });
 
-  if (res.ok) {
-    const data = await res.json();
-    if (Array.isArray(data.embedding?.values)) {
-      return data.embedding.values;
-    }
+  if (!res.ok) {
+    const errText = await res.text().catch(() => '');
+    throw new Error(`Google Embedding API error (${res.status}): ${errText.slice(0, 200) || res.statusText}`);
   }
 
-  const fallbackUrl = `https://generativelanguage.googleapis.com/v1beta/models/embedding-001:embedContent?key=${apiKey}`;
-  const fallbackRes = await fetch(fallbackUrl, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      model: 'models/embedding-001',
-      content: { parts: [{ text }] }
-    })
-  });
-
-  if (!fallbackRes.ok) {
-    const errText = await fallbackRes.text().catch(() => '');
-    throw new Error(`Google Embedding API error (${fallbackRes.status}): ${errText.slice(0, 200) || fallbackRes.statusText}`);
-  }
-
-  const fallbackData = await fallbackRes.json();
-  if (!Array.isArray(fallbackData.embedding?.values)) {
+  const data = await res.json();
+  if (!Array.isArray(data.embedding?.values) || data.embedding.values.length === 0) {
     throw new Error('Google Embedding API returned no embedding values');
   }
 
-  return fallbackData.embedding.values;
+  return data.embedding.values;
 }
 
 async function batchEmbedGemini(texts: string[], apiKey: string): Promise<number[][]> {
   if (texts.length === 0) return [];
 
-  const BATCH_SIZE = 20;
+  const BATCH_SIZE = 10;
   const allEmbeddings: number[][] = [];
 
   for (let i = 0; i < texts.length; i += BATCH_SIZE) {
     const chunkBatch = texts.slice(i, i + BATCH_SIZE);
     
-    // 1. Try batchEmbedContents with clean schema (no outputDimensionality)
-    try {
-      const url = `https://generativelanguage.googleapis.com/v1beta/models/text-embedding-004:batchEmbedContents?key=${apiKey}`;
-      const requests = chunkBatch.map(text => ({
-        model: 'models/text-embedding-004',
-        content: { parts: [{ text }] }
-      }));
-
-      const res = await fetch(url, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ requests })
-      });
-
-      if (res.ok) {
-        const data = await res.json();
-        if (Array.isArray(data.embeddings)) {
-          let batchValid = true;
-          const batchVecs: number[][] = [];
-          for (const item of data.embeddings) {
-            if (Array.isArray(item?.values)) {
-              batchVecs.push(item.values);
-            } else {
-              batchValid = false;
-              break;
-            }
-          }
-          if (batchValid && batchVecs.length === chunkBatch.length) {
-            allEmbeddings.push(...batchVecs);
-            continue;
-          }
-        }
-      }
-    } catch {
-      // Fall through to single embedContent fallback
-    }
-
-    // 2. Fallback to parallel single embedContent calls for this batch
-    const singleResults = await Promise.all(
+    const batchVecs = await Promise.all(
       chunkBatch.map(text => generateSingleEmbedding(text, apiKey))
     );
-    for (const vec of singleResults) {
-      if (Array.isArray(vec)) {
-        allEmbeddings.push(vec);
-      }
+
+    if (batchVecs.length === chunkBatch.length) {
+      allEmbeddings.push(...batchVecs);
+    } else {
+      throw new Error(`Failed to generate complete embeddings for batch starting at ${i}`);
     }
   }
 
