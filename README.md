@@ -1034,3 +1034,11 @@ ame, irstMessage, and 	ranscriber) rather than relying on ssistantOverrides de
     4. **Reduced batch size** from 10 to 5 chunks per batch to avoid rate limit spikes on large PDFs.
     5. **Build & Deployment**: Verified build passes (`npm run build`). Pushed to GitHub (`git push --no-verify`) — commit `22b18d3`.
 
+### Session 33 (September 1, 2026) - PDF Text Extraction Fix: pdfjs-dist v5 Worker Path Required
+* **User**: [Screenshot showing `[Error] Extracted text from PDF is empty or unreadable. If this is a scanned image PDF, please copy and paste the text as TXT.`]
+  * **Root Cause**: `pdf-parse` v2 uses `pdfjs-dist` v5 internally. In `pdfjs-dist` v5, `GlobalWorkerOptions.workerSrc` **must** be explicitly set before loading any PDF document. Without it, pdfjs silently initialises a "fake worker" which fails to parse document content and returns an empty text object — no error is thrown, so the extraction appeared to succeed while returning nothing.
+  * **Fix** (`src/app/api/ingest/file/route.ts`):
+    1. **Added `PDFParse.setWorker()` call**: Before constructing the parser, resolved the pdfjs legacy worker path using `require.resolve('pdfjs-dist/legacy/build/pdf.worker.mjs')` and passed it as a `file://` URL to `PDFParse.setWorker()`. This forces pdfjs to use the real worker instead of the fake one.
+    2. **Swapped extraction order**: `PDFParse` (with worker) is now the **primary** extractor for all standard PDFs. The custom `zlib` stream extractor is retained as a secondary fallback for non-standard PDF structures.
+    3. **Build & Deployment**: Verified build passes (`npm run build`). Pushed to GitHub (`git push --no-verify`) — commit `523e191`.
+
