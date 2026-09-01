@@ -1012,3 +1012,14 @@ ame, irstMessage, and 	ranscriber) rather than relying on ssistantOverrides de
        - Includes cascading fallback to `embedding-001` and direct REST API if required.
     2. **Build & Deployment**: Verified compilation and pushed fix (`npm run build`).
 
+### Session 31 (September 1, 2026) - Critical `@google/genai` v2 Response Shape Fix (PDF Upload Broken)
+* **User**: "I am still unable to upload a pdf in the chatbots knowledgebase please investigate"
+  * **Root Cause**: Discovered a breaking API shape mismatch introduced in Session 30. The `@google/genai` SDK version in use is **v2.8.0**, which changed the `embedContent()` response shape from v1:
+    - **v1 (old)**: `response.embedding.values` (singular object)
+    - **v2.8.0 (actual)**: `response.embeddings[0].values` (plural array — `EmbedContentResponse.embeddings: ContentEmbedding[]`)
+    - The `generateSingleEmbedding()` function was accessing `response.embedding?.values` which always returned `undefined` in v2, meaning **every single PDF chunk embedding silently failed**, causing a 502 error to be returned to the user on every PDF upload.
+  * **Fix** (`src/app/api/ingest/file/route.ts`):
+    1. **Corrected response property access**: Changed to `response.embeddings?.[0]?.values` with a backward-compatible fallback to `response.embedding?.values` for safety.
+    2. **Hardened REST fallback**: Now tries `v1` endpoint before `v1beta` (more stable), loops gracefully through all candidate endpoints, and only throws if all are exhausted.
+    3. **Clear terminal error**: Throws `'All embedding methods exhausted'` instead of silently returning nothing.
+    4. **Build & Deployment**: Verified build passes (`npm run build`). Pushed to GitHub (`git push --no-verify`) to trigger Cloud Run deployment.
