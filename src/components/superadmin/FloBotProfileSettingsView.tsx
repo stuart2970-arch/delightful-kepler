@@ -61,11 +61,12 @@ export default function FloBotProfileSettingsView({
         const res = await fetch('/api/voice-personas');
         if (res.ok) {
           const data = await res.json();
-          setPersonas(data || []);
+          const list = Array.isArray(data) ? data : (data?.personas || data?.data || []);
+          setPersonas(list);
           
           // Match initial voice ID if available
-          if (initialConfig?.voiceId) {
-            const match = data.find((p: VoicePersona) => p.id === initialConfig.voiceId || p.external_voice_id === initialConfig.voiceId);
+          if (initialConfig?.voiceId && Array.isArray(list)) {
+            const match = list.find((p: VoicePersona) => p.id === initialConfig.voiceId || p.external_voice_id === initialConfig.voiceId);
             if (match) {
               setSelectedPersonaId(match.id);
               if (!initialConfig.voiceName) {

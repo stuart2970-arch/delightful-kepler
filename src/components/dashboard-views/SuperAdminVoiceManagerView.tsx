@@ -20,9 +20,9 @@ export default function SuperAdminVoiceManagerView() {
     provider: '11labs'
   });
 
-  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
-  const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
-  const supabase = createBrowserClient(supabaseUrl, supabaseAnonKey);
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || '';
+  const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || '';
+  const supabase = supabaseUrl && supabaseAnonKey ? createBrowserClient(supabaseUrl, supabaseAnonKey) : null;
 
   const fetchPersonas = async () => {
     setLoading(true);
@@ -30,7 +30,7 @@ export default function SuperAdminVoiceManagerView() {
       const res = await fetch('/api/voice-personas');
       if (!res.ok) throw new Error('Failed to load personas');
       const data = await res.json();
-      setPersonas(data);
+      setPersonas(Array.isArray(data) ? data : (data?.personas || data?.data || []));
     } catch (err: any) {
       setError(err.message);
     } finally {

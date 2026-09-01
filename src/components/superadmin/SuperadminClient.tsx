@@ -1,12 +1,54 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import React, { Component, ReactNode, useState, useEffect } from 'react';
 import Link from 'next/link';
 import SuperAdminEntitlementsView from './SuperAdminEntitlementsView';
 import PlatformSettingsView from '../dashboard-views/PlatformSettingsView';
 import SuperAdminVoiceManagerView from '../dashboard-views/SuperAdminVoiceManagerView';
 import OpenClawMonitorView from '../dashboard-views/OpenClawMonitorView';
 import FloBotProfileSettingsView from './FloBotProfileSettingsView';
+
+interface ErrorBoundaryProps {
+  children: ReactNode;
+}
+
+interface ErrorBoundaryState {
+  hasError: boolean;
+  error?: Error;
+}
+
+class SuperadminErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundaryState> {
+  constructor(props: ErrorBoundaryProps) {
+    super(props);
+    this.state = { hasError: false };
+  }
+
+  static getDerivedStateFromError(error: Error): ErrorBoundaryState {
+    return { hasError: true, error };
+  }
+
+  componentDidCatch(error: Error, errorInfo: any) {
+    console.error('[SuperadminErrorBoundary] Section error:', error, errorInfo);
+  }
+
+  render() {
+    if (this.state.hasError) {
+      return (
+        <div className="p-6 bg-red-950/30 border border-red-800/50 rounded-2xl text-red-200 mt-6 space-y-2">
+          <h3 className="text-base font-bold text-red-400">Section Error</h3>
+          <p className="text-xs text-red-300 font-mono">{this.state.error?.message || 'An error occurred loading this section.'}</p>
+          <button 
+            onClick={() => this.setState({ hasError: false })}
+            className="px-3 py-1 bg-red-800 hover:bg-red-700 text-white rounded text-xs font-semibold"
+          >
+            Try Again
+          </button>
+        </div>
+      );
+    }
+    return this.props.children;
+  }
+}
 
 type GlobalHoliday = {
   id: string;
@@ -353,7 +395,7 @@ export default function SuperadminClient({
               <h3 className="text-lg font-bold text-white">Global Platform Branding</h3>
               <p className="text-xs text-gray-400 mt-0.5">Manage the chatbot widget branding. This watermark is automatically hidden for tenants on Premium and Ultimate tiers.</p>
             </div>
-            <form onSubmit={handleSaveBranding} className="space-y-4">
+            <form onSubmit={handleSaveGlobalBranding} className="space-y-4">
               <div>
                 <label className="block text-xs font-semibold text-gray-400 mb-1.5">Branding HTML (Footer Watermark)</label>
                 <textarea
@@ -396,7 +438,7 @@ export default function SuperadminClient({
               <h3 className="text-lg font-bold text-white">Global Voice & Chat Disclaimer</h3>
               <p className="text-xs text-gray-400 mt-0.5">Manage the system-wide disclaimer shown across all chatbots regardless of their billing tier.</p>
             </div>
-            <form onSubmit={handleSaveDisclaimer} className="space-y-4">
+            <form onSubmit={handleSaveGlobalBranding} className="space-y-4">
               <div>
                 <textarea 
                   value={globalVoiceDisclaimer}
