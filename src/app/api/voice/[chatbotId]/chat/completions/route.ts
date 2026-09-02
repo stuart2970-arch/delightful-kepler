@@ -59,6 +59,7 @@ export async function POST(
 
     let tenantId = '00000000-0000-0000-0000-000000000000';
     let configData: Record<string, any> = {};
+    let chatbotRecord: any = null;
 
     // Feature-flag to disable onboarding FloBot
     const disableOnboarding = process.env.DISABLE_ONBOARDING_BOT === 'true';
@@ -86,6 +87,7 @@ export async function POST(
         return NextResponse.json({ error: 'Chatbot not found' }, { status: 404, headers: corsHeaders });
       }
 
+      chatbotRecord = chatbot;
       tenantId = chatbot.tenant_id;
       configData = (chatbot.configuration_json || {}) as Record<string, any>;
     }
@@ -101,7 +103,7 @@ export async function POST(
     const timezone = tenantRes?.timezone || 'Europe/London';
     const currency = tenantRes?.currency || '£';
     const tenantCompany = (tenantRes?.company_name || tenantRes?.rwg_business_name || '').trim();
-    const chatbotName = ((chatbot?.name as string) || '').trim();
+    const chatbotName = ((chatbotRecord?.name as string) || '').trim();
     const agentName = ((configData.agent_name as string) || chatbotName || 'AI Assistant').trim();
     const businessName = (configData.businessName as string)?.trim() || tenantCompany || chatbotName || agentName || 'our business';
 

@@ -1126,3 +1126,15 @@ ame, irstMessage, and 	ranscriber) rather than relying on ssistantOverrides de
        - Added a dedicated UI toggle for "File Uploads (Paperclip)" in the Chatbot Manager settings.
        - Wired `file_upload_enabled` into chatbot creation and update payloads, allowing admins to easily enable or disable file uploads per chatbot.
     4. **Build & Verification**: Verified production Next.js build and widget minification pass with 0 errors.
+
+### Session 40 (September 2, 2026) - Voice Route Scope Bugfix (Vapi Meeting Ejection)
+* **User**: "The chatbot hung up straight away, please review how this integration was originally completed and what the difference is now, do not break any other features to fix this one" [Attached screenshot showing `Meeting ended due to ejection: Meeting has ended` and Vapi error `{type: 'daily-error', error: {...}}`]
+  * **Investigation & Comparison**:
+    - **Original Implementation**: Vapi connects to the custom-llm completion route (`/api/voice/[chatbotId]/chat/completions`) using transient WebRTC assistant parameters. If the custom-llm endpoint fails or returns an HTTP error during the initial handshake, Vapi immediately disconnects and ejects the WebRTC room.
+    - **Difference / Root Cause**: During Session 37's chatbot identity resolution update, `const { data: chatbot }` in `src/app/api/voice/[chatbotId]/chat/completions/route.ts` was scoped inside the `else { ... }` block, while `chatbot?.name` was referenced on line 104 outside that block. This caused the endpoint to crash with `500 Internal server error: chatbot is not defined` whenever Vapi called it, resulting in the immediate call ejection.
+  * **Fix**:
+    1. **`src/app/api/voice/[chatbotId]/chat/completions/route.ts`**:
+       - Declared `let chatbotRecord: any = null;` in outer scope.
+       - Captured `chatbotRecord = chatbot;` inside the query block and referenced `chatbotRecord?.name` safely outside the block.
+       - Verified `/api/voice/[chatbotId]/chat/completions` responds cleanly without crashing.
+    2. **Build & Verification**: Verified `npm run build` and `npm run build:widget` succeed with 0 errors.
