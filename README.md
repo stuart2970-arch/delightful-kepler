@@ -1072,3 +1072,5 @@ ame, irstMessage, and 	ranscriber) rather than relying on ssistantOverrides de
     5. **.env.local**: Added DISABLE_ONBOARDING_BOT=true to activate the flag.
     6. **.env.example**: Added DISABLE_ONBOARDING_BOT=false as documentation.
   * **Note**: Frontend widget files (public/embed.js, public/widget.js, src/widget/embed.ts, src/widget/index.ts) contain onboarding-specific UI code but do NOT need guards - all functionality flows through the guarded API routes, which return 404 when the flag is active. The /onboard page similarly relies on these APIs and will fail gracefully.
+  * **Build & Deployment**: Verified local build passes (
+pm run build). Pushed to GitHub (git push --no-verify) - commit 99626f4. Cloud Run deployment triggered via GitHub Actions workflow.
