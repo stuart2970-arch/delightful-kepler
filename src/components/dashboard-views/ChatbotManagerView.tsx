@@ -22,6 +22,7 @@ export default function ChatbotManagerView() {
   const [newAgentRole, setNewAgentRole] = useState('AI Assistant');
   const [newAgentAvatar, setNewAgentAvatar] = useState('/avatars/avatar1.png');
   const [newVoiceEnabled, setNewVoiceEnabled] = useState(false);
+  const [fileUploadEnabled, setFileUploadEnabled] = useState(false);
   const [newVoiceId, setNewVoiceId] = useState('');
   const [backgroundSound, setBackgroundSound] = useState('office');
   const [newAdminEmail, setNewAdminEmail] = useState('');
@@ -151,6 +152,7 @@ export default function ChatbotManagerView() {
       instagram_handle: instagramHandle.trim(),
       sms_enabled: smsEnabled,
       sms_number: smsNumber.trim(),
+      file_upload_enabled: fileUploadEnabled,
     };
 
     const newChatbot: Chatbot = {
@@ -203,6 +205,7 @@ export default function ChatbotManagerView() {
       setNewAgentRole('AI Assistant');
       setNewAgentAvatar('/avatars/avatar1.png');
       setNewVoiceEnabled(false);
+      setFileUploadEnabled(false);
       setBackgroundSound('office');
       setNewAdminEmail('');
       setWhatsappEnabled(false);
@@ -237,6 +240,7 @@ export default function ChatbotManagerView() {
       instagram_handle: instagramHandle.trim(),
       sms_enabled: smsEnabled,
       sms_number: smsNumber.trim(),
+      file_upload_enabled: fileUploadEnabled,
     };
 
     try {
@@ -282,6 +286,7 @@ export default function ChatbotManagerView() {
       setNewAgentRole('AI Assistant');
       setNewAgentAvatar('/avatars/avatar1.png');
       setNewVoiceEnabled(false);
+      setFileUploadEnabled(false);
       setBackgroundSound('office');
       setWhatsappEnabled(false);
       setWhatsappNumber('');
@@ -645,6 +650,27 @@ export default function ChatbotManagerView() {
                           </div>
                         </div>
                       )}
+
+                      {/* File Uploads (Paperclip) Toggle */}
+                      <div className="flex items-center justify-between bg-[var(--awb-color2)] p-4 rounded-xl border border-[var(--awb-color3)]">
+                        <div className={`w-10 h-10 rounded-xl flex items-center justify-center transition-colors ${fileUploadEnabled ? 'bg-[#198fd9] text-white' : 'bg-[var(--awb-color3)]'}`}>
+                          <svg className={`w-5 h-5 ${fileUploadEnabled ? 'text-white' : 'text-[var(--awb-color6)]'}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13" />
+                          </svg>
+                        </div>
+                        <div className="flex-1 ml-4">
+                          <label className="block text-sm font-bold text-[var(--awb-color8)] mb-0.5">File Uploads (Paperclip)</label>
+                          <p className="text-xs text-[var(--awb-color6)]">Allow website visitors to upload documents/files directly through the chat widget.</p>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => setFileUploadEnabled(!fileUploadEnabled)}
+                          className={`relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out ${fileUploadEnabled ? 'bg-[#198fd9] text-white' : 'bg-[var(--awb-color3)]'}`}
+                        >
+                          <span className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${fileUploadEnabled ? 'translate-x-5' : 'translate-x-0'}`} />
+                        </button>
+                      </div>
+
                       {/* OPENCLAW OMNICHANNEL CHANNELS */}
                       <div className="pt-4 border-t border-[var(--awb-color3)] space-y-4">
                         <h4 className="text-sm font-bold text-[var(--awb-color8)] flex items-center gap-2">
@@ -882,6 +908,7 @@ export default function ChatbotManagerView() {
                               setInstagramHandle(config.instagram_handle || '');
                               setSmsEnabled(Boolean(config.sms_enabled));
                               setSmsNumber(config.sms_number || '');
+                              setFileUploadEnabled(Boolean(config.file_upload_enabled));
                               window.scrollTo({ top: 0, behavior: 'smooth' });
                             }}
                             className="bg-[#260475] hover:bg-[#1f0360] text-white border border-[#260475] py-2.5 px-3 rounded-xl text-xs font-bold transition-all shadow-sm text-center flex items-center justify-center gap-1.5"
@@ -909,6 +936,7 @@ export default function ChatbotManagerView() {
                               setInstagramHandle(config.instagram_handle || '');
                               setSmsEnabled(Boolean(config.sms_enabled));
                               setSmsNumber(config.sms_number || '');
+                              setFileUploadEnabled(Boolean(config.file_upload_enabled));
                               window.scrollTo({ top: 0, behavior: 'smooth' });
                             }}
                             className="bg-[#198fd9] hover:bg-[#157ab9] text-white border border-[#198fd9] py-2.5 px-3 rounded-xl text-xs font-bold transition-all shadow-sm text-center flex items-center justify-center gap-1.5"

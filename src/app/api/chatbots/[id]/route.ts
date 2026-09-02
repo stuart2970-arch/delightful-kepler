@@ -163,6 +163,7 @@ export async function GET(
       voiceProvider: voiceProvider,
       voiceId: resolvedVoiceId,
       backgroundSound: config.background_sound || config.backgroundSound || 'office',
+      fileUploadEnabled: Boolean(config.file_upload_enabled ?? (chatbot.id === 'styleflo-onboarding-flobot')),
     }, {
       headers: {
         ...corsHeaders,

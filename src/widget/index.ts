@@ -339,6 +339,7 @@ import Vapi from '@vapi-ai/web';
   let voiceProvider = 'playht';
   let voiceId = 'bIHbv24MWmeRgasZH58o';
   let backgroundSound = 'office';
+  let fileUploadEnabled = false;
 
   // 6. Fetch Chatbot Public Configuration
   async function fetchConfig() {
@@ -362,6 +363,8 @@ import Vapi from '@vapi-ai/web';
         if (config.voiceProvider) voiceProvider = config.voiceProvider;
         if (config.voiceId) voiceId = config.voiceId;
         if (config.backgroundSound) backgroundSound = config.backgroundSound;
+        if (config.fileUploadEnabled !== undefined) fileUploadEnabled = Boolean(config.fileUploadEnabled);
+        else if (config.file_upload_enabled !== undefined) fileUploadEnabled = Boolean(config.file_upload_enabled);
       }
     } catch (err) {
       console.warn('[StyleFlo Widget] Failed to fetch chatbot config, using defaults:', err);
@@ -498,6 +501,7 @@ import Vapi from '@vapi-ai/web';
 
       <!-- Input Area -->
       <form id="styleflo-chat-form" class="p-3 bg-white border-t border-gray-100 flex items-center gap-2 shrink-0 z-10">
+        ${fileUploadEnabled ? `
         <input type="file" id="styleflo-file-input" accept=".pdf,.doc,.docx,.txt,.csv,image/*" style="display: none;" />
         <button 
           type="button" 
@@ -510,6 +514,7 @@ import Vapi from '@vapi-ai/web';
             <path d="M21.44 11.05l-9.19 9.19a6 6 0 01-8.49-8.49l9.19-9.19a4 4 0 015.66 5.66l-9.2 9.19a2 2 0 01-2.83-2.83l8.49-8.48"></path>
           </svg>
         </button>
+        ` : ''}
         ${voiceEnabled ? `
         <button 
           type="button" 

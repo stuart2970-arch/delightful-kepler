@@ -1111,3 +1111,18 @@ ame, irstMessage, and 	ranscriber) rather than relying on ssistantOverrides de
        - Added explicit `GREETING & CASUAL CONVERSATION RULES`: When a user sends a greeting ("hi", "hello", etc.) or pleasantry, respond with a warm, natural welcome and ask how to help. Strictly forbidden from asking for email/phone or offering human handoff on greetings.
        - Restricted human contact suggestions strictly to instances where a user explicitly asks to speak with a human or asks a factual question not covered in the knowledge base.
     4. **Build & Verification**: Executed `npm run build` and `npm run build:widget`, verifying all production bundles and tests compile with zero errors.
+
+### Session 39 (September 2, 2026) - Configurable Paperclip File Upload Toggle
+* **User**: "Okay you can also remove the paperclip from the chatbot for b2b2 chatbots, this feature has no purpose yet, or toggle it off if possible as it may be usefull later"
+  * **Implementation**:
+    1. **`src/widget/index.ts` & `src/widget/embed.ts`**:
+       - Added `let fileUploadEnabled = false;` state variable.
+       - Captured `fileUploadEnabled` from `/api/chatbots/[id]` config.
+       - Conditionally rendered the paperclip attachment button and file input only when `fileUploadEnabled` is `true`.
+       - Re-compiled `public/widget.js` and `public/embed.js`.
+    2. **`src/app/api/chatbots/[id]/route.ts`**:
+       - Added `fileUploadEnabled: Boolean(config.file_upload_enabled ?? (chatbot.id === 'styleflo-onboarding-flobot'))` to the public configuration response (defaulting to `false` for all standard/B2B customer chatbots).
+    3. **`src/components/dashboard-views/ChatbotManagerView.tsx`**:
+       - Added a dedicated UI toggle for "File Uploads (Paperclip)" in the Chatbot Manager settings.
+       - Wired `file_upload_enabled` into chatbot creation and update payloads, allowing admins to easily enable or disable file uploads per chatbot.
+    4. **Build & Verification**: Verified production Next.js build and widget minification pass with 0 errors.
