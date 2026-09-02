@@ -162,6 +162,7 @@ export async function GET(
       globalVoiceDisclaimer: globalConfig.global_voice_disclaimer || '',
       voiceProvider: voiceProvider,
       voiceId: resolvedVoiceId,
+      backgroundSound: config.background_sound || config.backgroundSound || 'office',
     }, {
       headers: {
         ...corsHeaders,

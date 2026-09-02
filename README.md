@@ -1093,3 +1093,21 @@ ame, irstMessage, and 	ranscriber) rather than relying on ssistantOverrides de
     2. **`src/app/api/voice/[chatbotId]/chat/completions/route.ts` & `src/app/api/voice/chat/completions/route.ts`**:
        - Updated both voice completion endpoints to select `company_name, rwg_business_name` from `tenants` and `name` from `chatbots` for consistent business name resolution.
     3. **Build & Verification**: Verified production build (`npm run build`) and widget compilation succeed without errors.
+
+### Session 38 (September 2, 2026) - Widget Voice Error Fix & Human Handoff Refinement
+* **User**: "Chatbot not connected, and bot suggesting handoff to human on first interaction feels wrong" [Attached screenshot showing `Microphone / Voice Error: chatbotConfig is not defined` and chatbot immediately proposing human contact on a simple "Hi" greeting]
+  * **Root Cause**:
+    1. **Voice Microphone Crash**: In `src/widget/index.ts` and `src/widget/embed.ts`, line 1237/1130 referenced `chatbotConfig?.background_sound`. `chatbotConfig` was never declared or in scope in that function, immediately throwing `ReferenceError: chatbotConfig is not defined` upon clicking the microphone.
+    2. **Premature Human Handoff on Greetings**: The stream system prompt previously stated: *"If a specific question cannot be answered from the context and you do not know the answer, politely state that you represent [Business] and ask them to drop their email or phone number..."* When a user simply sent a greeting ("Hi"), the absence of specific knowledge base matches caused the model to treat the greeting as an unanswerable question and eagerly ask for email/phone or offer human handoff on the first turn.
+  * **Fix**:
+    1. **`src/widget/index.ts` & `src/widget/embed.ts`**:
+       - Declared `let backgroundSound = 'office'` state variable.
+       - Captured `backgroundSound` from `fetchConfig()` response.
+       - Replaced the undefined `chatbotConfig?.background_sound` reference with `(backgroundSound as any) || "office"`.
+       - Re-compiled `public/widget.js` and `public/embed.js`.
+    2. **`src/app/api/chatbots/[id]/route.ts`**:
+       - Added `backgroundSound: config.background_sound || config.backgroundSound || 'office'` to public config payload.
+    3. **`src/app/api/chat/stream/route.ts`**:
+       - Added explicit `GREETING & CASUAL CONVERSATION RULES`: When a user sends a greeting ("hi", "hello", etc.) or pleasantry, respond with a warm, natural welcome and ask how to help. Strictly forbidden from asking for email/phone or offering human handoff on greetings.
+       - Restricted human contact suggestions strictly to instances where a user explicitly asks to speak with a human or asks a factual question not covered in the knowledge base.
+    4. **Build & Verification**: Executed `npm run build` and `npm run build:widget`, verifying all production bundles and tests compile with zero errors.

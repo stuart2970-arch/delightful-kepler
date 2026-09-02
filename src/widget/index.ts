@@ -338,6 +338,7 @@ import Vapi from '@vapi-ai/web';
   let globalVoiceDisclaimer = '';
   let voiceProvider = 'playht';
   let voiceId = 'bIHbv24MWmeRgasZH58o';
+  let backgroundSound = 'office';
 
   // 6. Fetch Chatbot Public Configuration
   async function fetchConfig() {
@@ -360,6 +361,7 @@ import Vapi from '@vapi-ai/web';
         globalVoiceDisclaimer = config.globalVoiceDisclaimer || '';
         if (config.voiceProvider) voiceProvider = config.voiceProvider;
         if (config.voiceId) voiceId = config.voiceId;
+        if (config.backgroundSound) backgroundSound = config.backgroundSound;
       }
     } catch (err) {
       console.warn('[StyleFlo Widget] Failed to fetch chatbot config, using defaults:', err);
@@ -1234,7 +1236,7 @@ import Vapi from '@vapi-ai/web';
                 model: "eleven_turbo_v2_5"
               },
               firstMessage: getFormattedWelcomeMessage(storedName),
-              backgroundSound: (chatbotConfig?.background_sound as any) || "office",
+              backgroundSound: (backgroundSound as any) || "office",
               backchannelingEnabled: true,
               metadata: {
                 tenant_id: tenantId || chatbotId,
