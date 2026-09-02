@@ -178,6 +178,13 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Missing file or chatbotId' }, { status: 400 });
     }
 
+    // Feature-flag to disable onboarding FloBot
+    const disableOnboarding = process.env.DISABLE_ONBOARDING_BOT === 'true';
+    if (disableOnboarding && chatbotId === 'styleflo-onboarding-flobot') {
+      console.warn('[Ingest] Onboarding bot is disabled via feature flag.');
+      return NextResponse.json({ error: 'Onboarding bot is disabled.' }, { status: 404 });
+    }
+
     const isFloBot = chatbotId === 'styleflo-onboarding-flobot';
     if (!isFloBot && !/^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/.test(chatbotId)) {
       return NextResponse.json({ error: 'Invalid chatbot ID format' }, { status: 400 });

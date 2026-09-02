@@ -60,6 +60,12 @@ export async function POST(
     let tenantId = '00000000-0000-0000-0000-000000000000';
     let configData: Record<string, any> = {};
 
+    // Feature-flag to disable onboarding FloBot
+    const disableOnboarding = process.env.DISABLE_ONBOARDING_BOT === 'true';
+    if (disableOnboarding && chatbotId === 'styleflo-onboarding-flobot') {
+      return NextResponse.json({ error: 'Onboarding bot is disabled.' }, { status: 404, headers: corsHeaders });
+    }
+
     if (chatbotId === 'styleflo-onboarding-flobot') {
       const { data: globalBot } = await supabaseAdmin
         .from('chatbots')

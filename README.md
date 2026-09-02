@@ -1061,3 +1061,14 @@ ame, irstMessage, and 	ranscriber) rather than relying on ssistantOverrides de
     2. **Updated route.ts**: Simplified worker path to `path.join(process.cwd(), 'public', 'pdf.worker.mjs')`. Works in both standalone (cwd = standalone root) and dev (cwd = project root).
     3. **Reverted next.config.ts**: Removed outputFileTracingIncludes - no longer needed.
 
+
+### Session 36 (September 2, 2026) - Disable Onboarding FloBot via Feature Flag
+* **User**: Reported chatbots lost RAG/embedding connection and PDF uploads broken. Investigation traced root cause to onboarding FloBot code (styleflo-onboarding-flobot) which hardcodes a static config and skips embedding/RAG. User chose to disable the onboarding bot via a feature flag (Option 2) rather than rolling back.
+  * **Fix** - Added DISABLE_ONBOARDING_BOT environment variable (feature flag):
+    1. **src/app/api/chat/stream/route.ts**: Added feature-flag guard before the onboarding bot conditional block. When DISABLE_ONBOARDING_BOT=true, requests with chatbotId='styleflo-onboarding-flobot' return 404. Also cleaned up 4 duplicated guard blocks from a prior edit attempt.
+    2. **src/app/api/ingest/file/route.ts**: Added same feature-flag guard before the isFloBot declaration. Blocks file uploads for the onboarding bot when disabled.
+    3. **src/app/api/chatbots/[id]/route.ts**: Added feature-flag guard before the onboarding bot config response. Prevents widget from fetching onboarding bot configuration when disabled.
+    4. **src/app/api/voice/[chatbotId]/chat/completions/route.ts**: Added feature-flag guard before onboarding bot voice config. Blocks voice calls for the onboarding bot when disabled.
+    5. **.env.local**: Added DISABLE_ONBOARDING_BOT=true to activate the flag.
+    6. **.env.example**: Added DISABLE_ONBOARDING_BOT=false as documentation.
+  * **Note**: Frontend widget files (public/embed.js, public/widget.js, src/widget/embed.ts, src/widget/index.ts) contain onboarding-specific UI code but do NOT need guards - all functionality flows through the guarded API routes, which return 404 when the flag is active. The /onboard page similarly relies on these APIs and will fail gracefully.

@@ -262,6 +262,12 @@ export async function POST(request: Request) {
     let tenantId = '00000000-0000-0000-0000-000000000000';
     let configData: Record<string, unknown> = {};
 
+    // Feature-flag to disable onboarding FloBot
+    const disableOnboarding = process.env.DISABLE_ONBOARDING_BOT === 'true';
+    if (disableOnboarding && chatbotId === 'styleflo-onboarding-flobot') {
+      console.warn(`[Chat Stream][${requestId}] Onboarding bot is disabled via feature flag.`);
+      return NextResponse.json({ error: 'Onboarding bot is disabled.' }, { status: 404, headers: corsHeaders });
+    }
     if (chatbotId === 'styleflo-onboarding-flobot') {
       configData = {
         agent_name: 'Flo',

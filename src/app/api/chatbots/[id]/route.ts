@@ -39,6 +39,12 @@ export async function GET(
   try {
     const { id } = await params;
 
+    // Feature-flag to disable onboarding FloBot
+    const disableOnboarding = process.env.DISABLE_ONBOARDING_BOT === 'true';
+    if (disableOnboarding && id === 'styleflo-onboarding-flobot') {
+      return NextResponse.json({ error: 'Onboarding bot is disabled.' }, { status: 404, headers: corsHeaders });
+    }
+
     if (id === 'styleflo-onboarding-flobot') {
       let floConfig: any = {};
       try {
