@@ -1104,7 +1104,8 @@ import Vapi from '@vapi-ai/web';
           vapiInstance.stop();
         } else if (vapiInstance) {
           try {
-            const actualVoiceId = voiceId && voiceId.length >= 15 ? voiceId : '49TtX0KZLnuzDrAizTkN';
+            const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(voiceId);
+            const actualVoiceId = voiceId && voiceId.length >= 15 && !isUuid ? voiceId : 'c8MZcZcr0JnMAwkwnTIu';
             const isLocalHost = apiHost.includes('localhost') || apiHost.includes('127.0.0.1') || apiHost.includes('.test');
             const targetVoiceHost = isLocalHost ? 'https://app.styleflo.ai' : apiHost;
 

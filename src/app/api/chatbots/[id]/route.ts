@@ -142,6 +142,13 @@ export async function GET(
         
       if (persona && persona.external_voice_id) {
         resolvedVoiceId = persona.external_voice_id;
+      } else {
+        const { data: fallbackPersona } = await supabaseAdmin
+          .from('voice_personas')
+          .select('external_voice_id')
+          .limit(1)
+          .maybeSingle();
+        resolvedVoiceId = fallbackPersona?.external_voice_id || 'c8MZcZcr0JnMAwkwnTIu';
       }
     }
 

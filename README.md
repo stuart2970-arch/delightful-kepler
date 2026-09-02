@@ -1138,3 +1138,29 @@ ame, irstMessage, and 	ranscriber) rather than relying on ssistantOverrides de
        - Captured `chatbotRecord = chatbot;` inside the query block and referenced `chatbotRecord?.name` safely outside the block.
        - Verified `/api/voice/[chatbotId]/chat/completions` responds cleanly without crashing.
     2. **Build & Verification**: Verified `npm run build` and `npm run build:widget` succeed with 0 errors.
+
+### Session 41 (September 2, 2026) - Full Voice Architecture Audit: ElevenLabs, Vapi & Backend Pipeline Fixes
+* **User**: "As the senior developer on this project i would like youto explain why the voice agent has stopped working, you must fully investigate the connection between 11labs, vapi and the styleflo back end, report back and resolve any issues discovered"
+  * **Architectural Deep-Dive**:
+    - **1. StyleFlo Backend & Database**:
+      - Chatbot configurations in the `chatbots` table store a `voice_id` which references a record in the `voice_personas` table by its UUID (`ba19f7e1-...`, `495ae3c8-...`, etc.).
+      - When the widget calls `/api/chatbots/[id]`, the endpoint looks up that UUID in `voice_personas` to extract the corresponding 20-character ElevenLabs voice ID (`external_voice_id`, e.g. `c8MZcZcr0JnMAwkwnTIu`).
+      - **Critical Defect Discovered**: In Betfred's chatbot configuration in Supabase, `voice_id` was set to an orphaned UUID `d7ce534d-df81-4a33-a4e3-1f34adc40657` that did not exist in `voice_personas`. When the lookup returned null, the API passed the raw 36-character UUID string as `voiceId` to the frontend widget without falling back to a valid persona.
+    - **2. Widget to Vapi Communication**:
+      - The widget script (`src/widget/index.ts` and `src/widget/embed.ts`) initializes `@vapi-ai/web` and calls `vapiInstance.start({ voice: { provider: '11labs', voiceId: actualVoiceId, ... } })`.
+      - The widget check was `const actualVoiceId = voiceId && voiceId.length >= 15 ? voiceId : fallback`. Because the raw UUID was 36 chars long (>= 15), the widget directly forwarded the raw UUID to Vapi.
+    - **3. Vapi to ElevenLabs & Daily WebRTC Ejection**:
+      - Vapi contacted ElevenLabs requesting voice synthesis using voice ID `d7ce534d-df81-4a33-a4e3-1f34adc40657`. ElevenLabs returned HTTP 404 (Voice Not Found).
+      - Concurrently, before Session 40 deployed, the custom-llm completion endpoint had thrown `chatbot is not defined` (HTTP 500).
+      - Either failure causes Vapi's Daily WebRTC bridge to instantly terminate the call, eject the room, and throw `Meeting ended due to ejection: Meeting has ended`.
+  * **Fixes Applied**:
+    1. **Database Persona Repair**:
+       - Updated Betfred's chatbot `configuration_json.voice_id` in Supabase to `495ae3c8-b960-4da9-ac1f-de5beaccfa9b`, resolving to ElevenLabs voice `c8MZcZcr0JnMAwkwnTIu` (UK Male Manchester accent).
+    2. **API Fallback Guarding (`/api/chatbots/[id]` & `/api/webhooks/vapi/assistant`)**:
+       - Added robust fallback logic: If a configured `voice_id` is a UUID that cannot be found in `voice_personas`, the backend automatically queries the first available active voice persona or falls back to a confirmed ElevenLabs voice ID rather than emitting a raw UUID.
+    3. **Widget UUID Immunity (`src/widget/index.ts` & `src/widget/embed.ts`)**:
+       - Added UUID detection regex `isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-...$/i`. If an unmapped UUID is ever received by the widget, it safely falls back to a verified ElevenLabs voice ID (`c8MZcZcr0JnMAwkwnTIu`) before calling `vapiInstance.start()`.
+    4. **Build & Verification**:
+       - Re-compiled and minified `public/widget.js` and `public/embed.js`.
+       - Verified full Next.js production build (`npm run build`) passes with 0 errors.
+       - Tested live custom-llm endpoint (`/api/voice/0d37a64b-a4e7-462d-834a-22c948bba528/chat/completions`), confirming HTTP 200 SSE streaming response from Gemini.

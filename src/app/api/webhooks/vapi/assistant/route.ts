@@ -127,6 +127,13 @@ export async function POST(request: Request) {
         if (persona.provider === 'playht') {
           voiceProvider = 'playht';
         }
+      } else {
+        const { data: fallbackPersona } = await supabaseAdmin
+          .from('voice_personas')
+          .select('external_voice_id, provider')
+          .limit(1)
+          .maybeSingle();
+        resolvedVoiceId = fallbackPersona?.external_voice_id || 'c8MZcZcr0JnMAwkwnTIu';
       }
     }
 
