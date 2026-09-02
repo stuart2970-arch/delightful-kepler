@@ -262,6 +262,8 @@ export async function POST(request: Request) {
     let tenantId = '00000000-0000-0000-0000-000000000000';
     let configData: Record<string, unknown> = {};
 
+    let chatbotRecord: { id?: string; name?: string; tenant_id?: string; configuration_json?: any } | null = null;
+
     // Feature-flag to disable onboarding FloBot
     const disableOnboarding = process.env.DISABLE_ONBOARDING_BOT === 'true';
     if (disableOnboarding && chatbotId === 'styleflo-onboarding-flobot') {
@@ -283,7 +285,7 @@ Help them specify:
     } else {
       const { data: chatbot, error: chatbotError } = await supabaseAdmin
         .from('chatbots')
-        .select('tenant_id, configuration_json')
+        .select('id, name, tenant_id, configuration_json')
         .eq('id', chatbotId)
         .single();
 
@@ -292,6 +294,7 @@ Help them specify:
         return NextResponse.json({ error: `Chatbot not found: ${chatbotError?.message}` }, { status: 200, headers: corsHeaders });
       }
 
+      chatbotRecord = chatbot;
       tenantId = chatbot.tenant_id;
       configData = (chatbot.configuration_json as Record<string, unknown>) || {};
     }
@@ -329,7 +332,22 @@ Help them specify:
         });
         queryEmbedding = embedding;
       } catch (embeddingErr: unknown) {
-        console.warn(`[Chat Stream][${requestId}] Gemini embedding creation warning:`, embeddingErr);
+        console.warn(`[Chat Stream][${requestId}] Gemini embedding creation warning, attempting REST fallback:`, embeddingErr);
+        try {
+          const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/text-embedding-004:embedContent?key=${geminiApiKey}`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ content: { parts: [{ text: message }] } }),
+          });
+          if (res.ok) {
+            const data = await res.json();
+            if (Array.isArray(data.embedding?.values)) {
+              queryEmbedding = data.embedding.values;
+            }
+          }
+        } catch (restErr) {
+          console.warn(`[Chat Stream][${requestId}] REST embedding fallback warning:`, restErr);
+        }
       }
     }
 
@@ -344,8 +362,8 @@ Help them specify:
     if (chatbotId !== 'styleflo-onboarding-flobot' && queryEmbedding.length > 0) {
       const { data: docs, error: rpcError } = await supabaseAdmin.rpc('match_documents', {
         query_embedding: queryEmbedding,
-        match_threshold: 0.2, // retrieve broader content if close, similarity score threshold
-        match_count: 4, // pull top 4 context chunks
+        match_threshold: 0.15, // retrieve broader content if close, similarity score threshold
+        match_count: 6, // pull top 6 context chunks
         targeting_tenant_id: tenantId,
         targeting_chatbot_id: targetBotUuid,
       });
@@ -365,15 +383,20 @@ Help them specify:
     const [servicesRes, staffRes, tenantRes] = await Promise.all([
       supabaseAdmin.from('services').select('id, name, duration_minutes, buffer_minutes, price, staff_services(staff_id, custom_price, custom_duration)').eq('tenant_id', tenantId).eq('chatbot_id', targetBotUuid),
       supabaseAdmin.from('staff').select('id, name').eq('tenant_id', tenantId).eq('chatbot_id', targetBotUuid),
-      supabaseAdmin.from('tenants').select('name, booking_mode, booking_url').eq('id', tenantId).maybeSingle()
+      supabaseAdmin.from('tenants').select('company_name, rwg_business_name, domain, booking_mode, booking_url').eq('id', tenantId).maybeSingle()
     ]);
     const servicesContext = servicesRes.data ? JSON.stringify(servicesRes.data, null, 2) : '[]';
     const staffContext = staffRes.data ? JSON.stringify(staffRes.data, null, 2) : '[]';
     const bookingMode = tenantRes.data?.booking_mode || 'single_calendar';
     const bookingUrl = tenantRes.data?.booking_url || '';
-    const businessName = configData.businessName || tenantRes.data?.name || 'this business';
 
-    console.log(`[Chat Stream][${requestId}] Retrieved ${matchedDocuments?.length || 0} context documents and calendar config for ${businessName}.`);
+    const tenantCompany = (tenantRes.data?.company_name || tenantRes.data?.rwg_business_name || '').trim();
+    const chatbotName = ((chatbotRecord?.name as string) || '').trim();
+    const agentName = ((configData.agent_name as string) || chatbotName || 'AI Assistant').trim();
+    const agentRole = ((configData.agent_role as string) || 'AI Assistant').trim();
+    const businessName = (configData.businessName as string)?.trim() || tenantCompany || chatbotName || agentName || 'our business';
+
+    console.log(`[Chat Stream][${requestId}] Retrieved ${matchedDocuments?.length || 0} context documents and calendar config for ${businessName} (Agent: ${agentName}).`);
 
     // 6. Get or create conversation record
     console.log(`[Chat Stream][${requestId}] Resolving conversation session...`);
@@ -512,9 +535,10 @@ CRITICAL CONVERSATIONAL LAWS:
 1. MANDATORY WEBSITE RESPONSE TEMPLATE: When a website URL is submitted, you MUST include * **Address / Location**: in your list, conclude with "This is fantastic! I've created your account and set up your AI Receptionist.", and end your turn with "[ACCOUNT_CREATED_DASHBOARD]".
 2. ABSOLUTE BAN ON RE-ASKING FOR EMAIL / SIGNUP / GOOGLE OAUTH: The user's account registration is ALREADY COMPLETE. You MUST NEVER ask for email, Google sign-up, or identity verification under any circumstances.
 3. NO REPEAT GREETINGS: Do not say "Welcome to StyleFlo" or re-introduce yourself.`
-      : `You are a friendly, conversational AI customer support assistant representing "${businessName}".
-Use ONLY the following context to answer the user's query about "${businessName}". 
-If you do not know the answer, politely state that you represent "${businessName}" and ask them to drop their email or phone number so a human agent can follow up.
+      : `You are ${agentName}, a friendly, conversational ${agentRole} representing "${businessName}".
+When asked who you are, what this business is, or who you represent, clearly and warmly state that you are ${agentName} representing "${businessName}".
+Use the following context from our knowledge base and service directory to accurately answer user questions about "${businessName}", our services, rules, and operations.
+If a specific question cannot be answered from the context and you do not know the answer, politely state that you represent "${businessName}" and ask them to drop their email address or phone number so a human team member can follow up with full details.
 
 STRICT BRAND PROTECTION RULE: You strictly represent "${businessName}". You are strictly forbidden from recommending, mentioning, or providing information about competitor businesses, competitor brands, or third-party alternatives under any circumstances.${rulesSection}
 
@@ -729,7 +753,7 @@ ${staffContext}`;
               
               const result2 = await streamText({
                 model: google(activeModelName),
-                system: `You are an AI assistant representing the business "${configData.businessName || 'our business'}".
+                system: `You are an AI assistant representing the business "${businessName}".
 Your goal is to answer questions strictly using the provided context and handle booking inquiries according to the business's booking mode.
 If the answer isn't in the context, clearly state that you don't know and offer a fallback (like taking an email). Do not invent pricing, policies, or facts.
 

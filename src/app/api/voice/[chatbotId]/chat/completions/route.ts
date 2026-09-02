@@ -78,7 +78,7 @@ export async function POST(
     } else {
       const { data: chatbot } = await supabaseAdmin
         .from('chatbots')
-        .select('tenant_id, configuration_json')
+        .select('id, name, tenant_id, configuration_json')
         .eq('id', chatbotId)
         .single();
 
@@ -92,7 +92,7 @@ export async function POST(
 
     const { data: tenantRes } = await supabaseAdmin
       .from('tenants')
-      .select('id, name, booking_mode, booking_url, currency, timezone')
+      .select('id, company_name, rwg_business_name, booking_mode, booking_url, currency, timezone')
       .eq('id', tenantId)
       .single();
 
@@ -100,7 +100,10 @@ export async function POST(
     const bookingUrl = tenantRes?.booking_url || '';
     const timezone = tenantRes?.timezone || 'Europe/London';
     const currency = tenantRes?.currency || '£';
-    const businessName = configData.businessName || tenantRes?.name || 'our business';
+    const tenantCompany = (tenantRes?.company_name || tenantRes?.rwg_business_name || '').trim();
+    const chatbotName = ((chatbot?.name as string) || '').trim();
+    const agentName = ((configData.agent_name as string) || chatbotName || 'AI Assistant').trim();
+    const businessName = (configData.businessName as string)?.trim() || tenantCompany || chatbotName || agentName || 'our business';
 
     const { data: servicesRes } = await supabaseAdmin
       .from('services')

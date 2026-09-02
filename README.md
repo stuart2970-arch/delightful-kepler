@@ -606,7 +606,7 @@ ame, irstMessage, and 	ranscriber) rather than relying on ssistantOverrides de
   3. **Drag-and-Drop Service Reordering**: Added drag handles and HTML5 Drag & Drop API event handlers in `ServiceEditor.tsx`. Custom order is saved inside the chatbot's `configuration_json.ordered_service_ids` in Supabase.
   4. **Public Sorting Integration**: Updated the Metadata API endpoint `/api/tenants/[slug]/metadata` to query the chatbot's configuration and pre-sort services according to the custom reordering before serving them.
   5. **TypeScript Definitions**: Added the `ordered_service_ids` field to the `Chatbot` model interface in both `store.ts` and `DashboardClient.tsx` to maintain strict compile-time types.
-  6. **Currency Labels**: Defaulted base price and override price currency indicator signs from `$` to `£` in `ServiceEditor.tsx`.
+  6. **Currency Labels**: Defaulted base price and override price currency indicator signs from `$` to `Â£` in `ServiceEditor.tsx`.
   7. **Dynamic Welcome Message Placeholders**: Implemented customer name and chatbot name placeholders (e.g. `[Name]` and `[ChatbotName]`) inside the widget's welcome text greeting. It formats the text dynamically on load or onboarding submission, and updates the Vapi voice parameters accordingly.
   8. **Voice completions RAG Match Threshold**: Fixed a bug where the voice assistant was hallucinating or looking up other shops by lowering the vector similarity matching threshold (`match_threshold`) from `0.7` to `0.2` in both `/api/voice/chat/completions` and `/api/voice/[chatbotId]/chat/completions` routes. This matches the text chat threshold and ensures business knowledge is correctly retrieved.
   9. **Weekly Bookings Performance Tracker**: Integrated a weekly performance overview stats card on the Chatbots manager view (serving as the dashboard homepage). It dynamically parses the tenant's appointments table data to display the count of automated customer appointments scheduled for the current week (Monday to Sunday).
@@ -626,7 +626,7 @@ ame, irstMessage, and 	ranscriber) rather than relying on ssistantOverrides de
 * **User**: "next i would like to review the business times and calendar section we need to address the calendar booking function and how its should operate based on how people use their calendar..."
 * **Fix**: Built standard daily operating hours, calendar policies, daily rota grid, interactive appointment inspection & amendment, and iCal (`.ics`) email confirmations:
   1. **Standard Daily Operating Hours Editor**: Updated `SchedulingView.tsx` with clean daily schedule rows for **Mon, Tue, Wed, Thu, Fri, Sat, Sun** featuring `[Checkbox | Closed]` and 30-minute Open/Closed dropdowns (`00:00` to `23:30`). Persisted via `/api/tenants/settings` and served via `/api/tenants/[slug]/metadata` as Google Places fallback.
-  2. **Advanced Calendar Policy Settings**: Integrated policy controls for **Flexible Personal Breaks** (adjusts ±30m for bookings), **24/7 Operations**, **Public Holidays Enforcement** (blocks bookings on bank holidays), and **Max Advance Booking Window** (number input in weeks).
+  2. **Advanced Calendar Policy Settings**: Integrated policy controls for **Flexible Personal Breaks** (adjusts Â±30m for bookings), **24/7 Operations**, **Public Holidays Enforcement** (blocks bookings on bank holidays), and **Max Advance Booking Window** (number input in weeks).
   3. **15-Minute Slot Alignment & Padding Math**: Calculated slot availability starting on 15-minute boundaries (`Next Available Slot = Start Time + Service Duration + Buffer/Padding`; e.g. 09:00 start + 30m service + 5m padding = 09:35 next available slot). Ignored native Google Out of Office events (requiring `unavailable` / `personal` blocks).
   4. **Daily Bookings Rota & Inspection/Edit Modal**: Rendered a daily appointments rota on the Scheduling tab. Business owners can inspect appointments to view customer name, email, **mobile phone number**, and notes, and amend staff, date, time, and service with instant DB + calendar sync.
   5. **iCal (`.ics`) Email Attachment Generator**: Built `src/lib/ical.ts` generating RFC 5545 `.ics` strings for confirmation emails, enabling non-Gmail / Outlook / Apple Mail customers to add bookings to their calendars in 1 click.
@@ -652,7 +652,7 @@ ame, irstMessage, and 	ranscriber) rather than relying on ssistantOverrides de
 * **Fix**: Restored scheduling components, refactored iframe modal flexbox alignment, solved Google OAuth iframe framing error, implemented 3-tier fallback database settings API, added SQL migration script, and built Playwright E2E suite:
   1. **Google OAuth `target="_top"` Framing Resolution**: Added `target="_top"` and `rel="noopener noreferrer"` to Google Calendar authorize links in `SchedulingView.tsx` and `MyProfileView.tsx`. This breaks out of embedded WordPress iframes and opens Google's OAuth consent screen in the top window, resolving Google 403 `X-Frame-Options: DENY` errors.
   2. **Iframe Flexbox Modal Layout Fix**: Refactored all 3 modals (`showAddService`, `showStaffModal`, `selectedApptForInspection`) in `SchedulingView.tsx` to use a 3-layer `min-h-full flex items-center justify-center` scroll wrapper pattern with `my-8` card margins, eliminating bottom modal cutoff bugs inside Chrome/Safari iframes.
-  3. **Staff Member Profile & Shift Rota Redesign**: Added profile photo upload & live preview, specialist services/products, professional bio, and 4-week shift rota editor (Week 1–4 tabs, Monday date pickers, AM/PM time pickers, and `Copy to Next Week →` action button) in `SchedulingView.tsx`.
+  3. **Staff Member Profile & Shift Rota Redesign**: Added profile photo upload & live preview, specialist services/products, professional bio, and 4-week shift rota editor (Week 1â4 tabs, Monday date pickers, AM/PM time pickers, and `Copy to Next Week â` action button) in `SchedulingView.tsx`.
   4. **Resilient 3-Tier Fallback Settings API**: Replaced single `.update().single()` in `/api/tenants/settings` with an intelligent `select-before-update` and 3-Tier fallback `upsert()` architecture:
      - **Existing Tenants (`.update()`)**: When the tenant record already exists, executes `.update()` directly. This modifies ONLY the provided fields (`general_operating_hours`, `booking_mode`, etc.) without touching `company_name`, completely bypassing `NOT NULL` constraint violations.
      - **New Tenants (`.upsert()`)**: If the tenant record is being created for the first time, supplies `company_name` in the payload with automatic fallback (`'StyleFlo Business'`), satisfying Postgres constraint requirements.
@@ -662,7 +662,7 @@ ame, irstMessage, and 	ranscriber) rather than relying on ssistantOverrides de
   7. **Enhanced Google Places API Precision Matching & Fallback**: Updated `/api/integrations/google/places/route.ts` with direct **Google Place ID Detection** (pasting `ChIJ...` directly), **Unique Customer ID (CID) Parsing** (`cid=...` and `ftid=0x...` hex conversion), **Smart Name Similarity Filtering**, and an **Unconstrained Global Search Fallback** (expanded search radius from 200m to 10km and auto-retrying globally if 0 results returned). Resolves false "not yet indexed by Google" warnings and guarantees 100% exact business matching.
   8. **Build & Release Verification**: Verified local build (`npm run build`), compiling **34 static routes in 29.6s with 0 errors**. Pushed commits `ee98666`, `543217e`, `4e55265`, `260e723`, `04b6029`, `1a8a285`, `251886a`, `6786b8f`, `7988ca0`, and `62b9ba8` to `origin/main`.
 
-### Session 19 (August 24, 2026) — Security Audit & Critical Fixes
+### Session 19 (August 24, 2026) â Security Audit & Critical Fixes
 * **User**: "can you scan my codebase and give me suggestions on how it can be improved?"
   * **Action**: Performed a comprehensive codebase review across Delightful-Kepler (Next.js + Supabase), StyleFlo WP Theme (WordPress + Avada), and standalone HTML templates. Identified 20 issues (7 Critical, 8 Medium, 5 Nice-to-have) covering security, architecture, performance, TypeScript, and best practices.
 
@@ -743,13 +743,13 @@ ame, irstMessage, and 	ranscriber) rather than relying on ssistantOverrides de
     2. **Clean Natural Voice Generation (`route.ts`)**: The backend executes the calendar tool silently and streams **ONLY** Pass 2's clean conversational English response to Vapi and ElevenLabs text-to-speech. Prevents raw UUIDs (e.g. `485cbf91...`) and dates from ever leaking into speech synthesis or chat bubbles.
 * **User**: "in the first part of the call the bot worked fine without reading out the bracketed content, it then got confused... booked the wrong appointment type (assigned 30 min consultation instead of assisted build)... can i get logs from anywhere"
   * **Fix**: Resolved service synonym matching, custom staff pricing rules, Pass 2 stream tag sanitization, and documented log locations:
-    1. **Service Synonym & Pricing System Prompt Rules (`route.ts` & `stream/route.ts`)**: Added Rule 1c instructing Gemini to match user requests like "assisted build" or "assisted setup" directly to `"Assisted Setup"` (not `"30 min consultation"`), and to check `staff_services` for custom staff pricing/duration (e.g. Stuart £75 / 45 mins vs Jane 60 mins).
+    1. **Service Synonym & Pricing System Prompt Rules (`route.ts` & `stream/route.ts`)**: Added Rule 1c instructing Gemini to match user requests like "assisted build" or "assisted setup" directly to `"Assisted Setup"` (not `"30 min consultation"`), and to check `staff_services` for custom staff pricing/duration (e.g. Stuart Â£75 / 45 mins vs Jane 60 mins).
     2. **Pass 2 Stream Tag Sanitization (`route.ts`)**: Added `cleanDelta` regex sanitization to Pass 2 `textStream` loop (`replace(/\[(CHECK_AVAILABILITY|BOOK_MEETING...):?[^\]]*\]/gi, '')`), guaranteeing that even if Gemini repeats a bracket tag on retry turns, it is stripped from speech synthesis.
     3. **Log Access Locations**: Documented that full call transcripts and audio logs are available in **Vapi Dashboard** (`dashboard.vapi.ai` -> Calls tab) and database text logs in **StyleFlo Dashboard** -> Conversations tab.
 * **User**: "i think the bot should have requested confirmation and looked for a text pattern similar to the one requested as customers will always get this wrong"
   * **Fix**: Added Rule 1c (Fuzzy Service Pattern Matching) and Rule 1d (Mandatory Service & Staff Confirmation) to system prompts across voice and text routes:
     1. **Fuzzy Service Pattern Matching (`Rule 1c` in `route.ts` & `stream/route.ts`)**: System prompt now explicitly requires Gemini to match informal customer phrasing (e.g. "assisted build", "build help", "setup assistance") to the most relevant service in `SERVICES CONFIGURATION` (`"Assisted Setup"`).
-    2. **Mandatory Service & Staff Confirmation (`Rule 1d` in `route.ts` & `stream/route.ts`)**: Enforced an explicit confirmation step before checking availability or executing bookings. The bot states the exact service name, duration, and staff pricing options (e.g., *"Just to confirm, you would like to book an Assisted Setup session? We have Jane available for 60 minutes, or Stuart for £75 for a 45-minute session. Which would you prefer?"*).
+    2. **Mandatory Service & Staff Confirmation (`Rule 1d` in `route.ts` & `stream/route.ts`)**: Enforced an explicit confirmation step before checking availability or executing bookings. The bot states the exact service name, duration, and staff pricing options (e.g., *"Just to confirm, you would like to book an Assisted Setup session? We have Jane available for 60 minutes, or Stuart for Â£75 for a 45-minute session. Which would you prefer?"*).
 * **User**: "the bot is getting confused by its own actions... said that time was just taken... there is also a long pause before some of the replies where the customer will not be aware if the bot is still there"
   * **Fix**: Implemented immediate vocal filler speech streaming and Rule 4b booking lock:
     1. **Immediate Vocal Filler Speech Streaming (`route.ts`)**: When `[CHECK_AVAILABILITY]` or `[BOOK_MEETING]` is triggered, the backend instantly streams a spoken filler chunk (*"Let me check availability for that slot for you right now..."* or *"Thank you! Processing your booking confirmation now..."*) in **< 50ms**. ElevenLabs speaks this phrase immediately, eliminating dead silence while Google Calendar API executes.
@@ -762,7 +762,7 @@ ame, irstMessage, and 	ranscriber) rather than relying on ssistantOverrides de
   - Added `chatbot_rules?: string[] | string` to the `Chatbot` interface in `src/lib/store.ts`.
   - Added a **"Chatbot Rules & Directives"** card section to `src/components/dashboard-views/KnowledgeBaseView.tsx`.
   - Implemented dual editing modes: an interactive repeating list editor (with individual input boxes, Add Rule, and delete actions) and a bulk multi-line Text Area view.
-  - Added high-visibility save feedback: a green alert banner (`bg-emerald-500/10 text-emerald-400`), an active rule count indicator, and dynamic Save button feedback (`✓ Rules Saved!` with green background for 3 seconds).
+  - Added high-visibility save feedback: a green alert banner (`bg-emerald-500/10 text-emerald-400`), an active rule count indicator, and dynamic Save button feedback (`â Rules Saved!` with green background for 3 seconds).
   - Connected rules to the selected chatbot (`crawlBotId`), saving changes directly to Supabase via `PATCH /api/chatbots/[id]` and syncing with Zustand store (`setChatbots`).
   - Updated AI system prompt generation in `src/app/api/chat/stream/route.ts` and voice completion routes (`src/app/api/voice/[chatbotId]/chat/completions/route.ts` and `src/app/api/voice/chat/completions/route.ts`) to inject a high-priority `[MANDATORY CHATBOT RULES & DIRECTIVES]` section, enforcing adherence across all channels.
 
@@ -778,7 +778,7 @@ ame, irstMessage, and 	ranscriber) rather than relying on ssistantOverrides de
     3. Implemented `handleSaveRules` calling `PATCH /api/chatbots/[id]` to persist rules into `configuration_json.chatbot_rules` and updated Zustand state.
     4. Updated `/api/chat/stream/route.ts`, `/api/voice/[chatbotId]/chat/completions/route.ts`, and `/api/voice/chat/completions/route.ts` to extract `chatbot_rules` and inject `[MANDATORY CHATBOT RULES & DIRECTIVES]` into system prompts for mandatory enforcement.
 * **User**: "One for the backlog we will need to add functionality to show the user that rules have been saved, there is no indication of this at present"
-  * **Fix**: Implemented high-visibility saved confirmation feedback in `KnowledgeBaseView.tsx`. Added a green alert banner (`✓ Chatbot rules saved successfully!`), active rules counter, and dynamic button feedback (`✓ Rules Saved!` with green background highlights for 3s). Committed (`c457371`) and pushed to `main`.
+  * **Fix**: Implemented high-visibility saved confirmation feedback in `KnowledgeBaseView.tsx`. Added a green alert banner (`â Chatbot rules saved successfully!`), active rules counter, and dynamic button feedback (`â Rules Saved!` with green background highlights for 3s). Committed (`c457371`) and pushed to `main`.
 
 ### Session 12 (August 28, 2026) - Onboarding FloBot Enhancements, Avatar Controls & Widget File Attachments
 * **User**: "continue with google button is not working on styleflo,ai/onboard where do i need to include this url, is it supabase or googlw cloud"
@@ -789,7 +789,7 @@ ame, irstMessage, and 	ranscriber) rather than relying on ssistantOverrides de
   * **Fix**: 
     1. Updated `src/app/onboard/page.tsx` to dynamically fetch FloBot's configuration (`/api/chatbots/styleflo-onboarding-flobot`) and render the bot's avatar image in the top-left header bar.
     2. Unified `agentAvatarUrl` property resolution across `src/app/api/chatbots/[id]/route.ts`, `src/widget/embed.ts`, and `src/widget/index.ts`.
-    3. Added a prominent `📷 Avatar` action button directly on active chatbot cards in `ChatbotManagerView.tsx` that jumps straight to Step 3 (16 presets + 1:1 custom uploader) and made step tabs interactive for easy editing.
+    3. Added a prominent `ð· Avatar` action button directly on active chatbot cards in `ChatbotManagerView.tsx` that jumps straight to Step 3 (16 presets + 1:1 custom uploader) and made step tabs interactive for easy editing.
 * **User**: "The bot keeps asking me to add my email... Not very intelligent... Oops it happened again..."
   * **Fix**: Diagnosed and resolved the root cause of FloBot losing state memory across turns:
     1. Removed a legacy check (`if (chatbotId !== 'styleflo-onboarding-flobot')`) in `src/app/api/chat/stream/route.ts` that was bypassing database message insertion. All onboarding messages are now persisted into Supabase `messages` table and fetched on subsequent turns (`dbHistory`).
@@ -800,7 +800,7 @@ ame, irstMessage, and 	ranscriber) rather than relying on ssistantOverrides de
     1. Added an interactive Paperclip file attachment icon (`#styleflo-attach-btn`) directly inside the chat input bar in `src/widget/embed.ts` and `src/widget/index.ts`.
     2. Connected file attachments to `/api/ingest/file` supporting `.pdf`, `.doc`, `.docx`, `.txt`, `.csv`, and image uploads.
     3. Updated `/api/ingest/file/route.ts` to allow `styleflo-onboarding-flobot` file uploads during initial onboarding.
-    4. Updated FloBot prompt instructions to inform users: *"Please provide your website URL/sitemap OR click the paperclip icon (📎) right next to this chat box to attach your PDF price list or service menu!"*
+    4. Updated FloBot prompt instructions to inform users: *"Please provide your website URL/sitemap OR click the paperclip icon (ð) right next to this chat box to attach your PDF price list or service menu!"*
 
 ### Session 13 (August 29, 2026) - FloBot Front Onboarding Gate & Interactive Task Selection
 * **User**: "That did not work, the user has already supplied their email either from google or from the form. we must not repeat ourselves. Back to the options, after the user has continued with google, or added their email manually, you next question must be 'Does your business have a website?' with options yes or no. If the user selects yes, ask 'please add your website address below.' if No is selected, you must ask 'Is your business listed on google maps?' with Yes or No options"
@@ -809,13 +809,13 @@ ame, irstMessage, and 	ranscriber) rather than relying on ssistantOverrides de
     2. **Strict Email Memory Enforcement (`route.ts`)**: Passed `clientEmail` in POST body. Enforced absolute ban in system prompt against ever re-asking for email or Google sign-in once user passes the front gate.
     3. **Personalized Welcome & Website Question**: Formatted greeting to: `"Hi [First Name], thats the hard bit out of the way! Does your business have a website?"`.
     4. **Interactive Choice Buttons (`Yes` / `No`)**:
-       - Rendered `🌐 Yes, we have a website` / `❌ No` option buttons.
+       - Rendered `ð Yes, we have a website` / `â No` option buttons.
        - **If Yes**: FloBot simply requests `"Great! Please add your website address below."`.
        - **Automated Tenant Data Ingestion (`saveScrapedWebsiteDataToTenant`)**: Automatically parses website content scraped during onboarding and writes the data directly to the tenant's database records: updates `trading_address_street` and `business_address`, chunks and embeds website text into `knowledge_chunks` (Knowledge Base), and populates initial `services`.
        - **Refined Password Banner High-Contrast Styling**: Upgraded `SetPasswordBanner.tsx` with explicit `#ffffff` title text, `#e0e7ff` subtext, and high-contrast `bg-white text-gray-900` input fields to eliminate dark-on-dark text contrast issues.
        - **Dynamic Widget Email Resolution & Inline Prompt**: Widget dynamically reads email from `localStorage`. If an email is missing, renders an inline email input inside the chat bubble so the user can enter their email and proceed seamlessly.
        - **Dashboard Password Setup Banner Component (`SetPasswordBanner.tsx`)**: Rendered a banner at the top of `/dashboard` allowing passwordless users to set a password in 5 seconds. Submitting calls `supabase.auth.updateUser({ password })` and saves `styleflo_password_set` in `localStorage`.
-       - **If No**: FloBot asks `"Is your business listed on Google Maps?"` with `📍 Yes, listed on Google Maps` / `❌ No` options (triggered deterministically via `[GMAPS_OPTIONS]` after message stream completes to ensure buttons always appear below the question bubble).
+       - **If No**: FloBot asks `"Is your business listed on Google Maps?"` with `ð Yes, listed on Google Maps` / `â No` options (triggered deterministically via `[GMAPS_OPTIONS]` after message stream completes to ensure buttons always appear below the question bubble).
        - **If Google Maps Yes**: FloBot asks for Business Name & Location to fetch profile details.
        - **If Google Maps No**: FloBot asks for Business Name & Location for manual setup.
     5. **Build & Bundling**: Recompiled widget assets (`npm run build:widget`).
@@ -837,7 +837,7 @@ ame, irstMessage, and 	ranscriber) rather than relying on ssistantOverrides de
 * **User**: "in the superadmin god page, there is a section for setting the gemini version this is not allowing a manual input" / "This model models/gemini-2.0-flash is no longer available. Please update your code to use models/gemini-3.6-flash..."
   * **Fix**: Upgraded Superadmin LLM model configuration and resolved Google model deprecation:
     1. **Direct Manual Text Input UI**:
-       - Redesigned the Superadmin God Page ("🤖 Global AI Engine Model") card in `src/components/superadmin/SuperadminClient.tsx`.
+       - Redesigned the Superadmin God Page ("ð¤ Global AI Engine Model") card in `src/components/superadmin/SuperadminClient.tsx`.
        - Replaced the select menu with a prominent, directly editable `<input type="text">` field so superadmins can manually type or paste any model ID (e.g., `gemini-2.5-flash`, `gemini-3.6-flash`, etc.) without hiding the input behind a dropdown.
        - Added quick-select preset pill buttons (`gemini-2.5-flash`, `gemini-2.5-pro`, `gemini-flash-latest`) for one-click selections.
     2. **Automatic Deprecated Model Migration & Sanitization**:
@@ -893,7 +893,7 @@ ame, irstMessage, and 	ranscriber) rather than relying on ssistantOverrides de
     4. **Build & Verification**: Verified production compilation (`npm run build`).
 
 ### Session 20 (September 1, 2026) - Unhandled ReferenceError Resolution & Component Error Boundary Isolation
-* **User**: "Still not working" [Attached DevTools screenshot showing `🚫 4` console errors on `app.styleflo.ai/superadmin`]
+* **User**: "Still not working" [Attached DevTools screenshot showing `ð« 4` console errors on `app.styleflo.ai/superadmin`]
   * **Fix**: Uncovered and resolved exact JavaScript `ReferenceError` exception triggers in `SuperadminClient.tsx`:
     1. **Fixed Undefined Form Event Handlers**:
        - Discovered form elements on the Platform Settings panel referencing `handleSaveBranding` and `handleSaveDisclaimer`, which were undefined (renamed to `handleSaveGlobalBranding`).
@@ -915,7 +915,7 @@ ame, irstMessage, and 	ranscriber) rather than relying on ssistantOverrides de
        - Dynamically parses, filters, and returns all active available models supported by the API key alongside Google's dynamic auto-updating aliases (`gemini-flash-latest`, `gemini-pro-latest`).
     2. **Superadmin Live Model Discovery UI**:
        - Integrated live model fetching into `SuperadminClient.tsx`.
-       - Rendered interactive pill buttons for all live models reported directly by Google's API, complete with a `🟢 Synced Live from Google AI API` indicator badge and a `Sync Live Models` button.
+       - Rendered interactive pill buttons for all live models reported directly by Google's API, complete with a `ð¢ Synced Live from Google AI API` indicator badge and a `Sync Live Models` button.
     3. **Prefix Collision Resolution & Prefix Stripping**:
        - Resolved the root cause of why `gemini-2.5-flash` failed: when users pasted `models/gemini-2.5-flash` into the model input, `@ai-sdk/google` prepended `models/` again, creating an invalid `models/models/gemini-2.5-flash` string that returned HTTP 404 from Google.
        - Enforced automatic `models/` prefix stripping and regex sanitization across saving, caching, and model instantiation.
@@ -925,8 +925,8 @@ ame, irstMessage, and 	ranscriber) rather than relying on ssistantOverrides de
 * **User**: "where do i go now to impersonate another account"
   * **Fix**: Added 1-click tenant impersonation buttons directly to the Superadmin interface:
     1. **Active Tenants Table (`SuperadminClient.tsx`)**:
-       - Added an `👁️ Impersonate` button to every tenant row in the Active Tenants table on the Superadmin God page (`/superadmin`).
-       - Clicking the button directly launches `/dashboard?tenant_id=<TENANT_ID>`, loading the tenant's workspace and displaying the impersonation banner (`👀 Currently Impersonating: [Business Name]`).
+       - Added an `ðï¸ Impersonate` button to every tenant row in the Active Tenants table on the Superadmin God page (`/superadmin`).
+       - Clicking the button directly launches `/dashboard?tenant_id=<TENANT_ID>`, loading the tenant's workspace and displaying the impersonation banner (`ð Currently Impersonating: [Business Name]`).
     2. **Main Dashboard Superadmin Search (`BillingView.tsx`)**:
        - Verified instant tenant search and impersonation capability via `/api/superadmin/impersonate/search`.
     3. **Build & Deployment**: Verified build (`npm run build`).
@@ -1016,7 +1016,7 @@ ame, irstMessage, and 	ranscriber) rather than relying on ssistantOverrides de
 * **User**: "I am still unable to upload a pdf in the chatbots knowledgebase please investigate"
   * **Root Cause**: Discovered a breaking API shape mismatch introduced in Session 30. The `@google/genai` SDK version in use is **v2.8.0**, which changed the `embedContent()` response shape from v1:
     - **v1 (old)**: `response.embedding.values` (singular object)
-    - **v2.8.0 (actual)**: `response.embeddings[0].values` (plural array — `EmbedContentResponse.embeddings: ContentEmbedding[]`)
+    - **v2.8.0 (actual)**: `response.embeddings[0].values` (plural array â `EmbedContentResponse.embeddings: ContentEmbedding[]`)
     - The `generateSingleEmbedding()` function was accessing `response.embedding?.values` which always returned `undefined` in v2, meaning **every single PDF chunk embedding silently failed**, causing a 502 error to be returned to the user on every PDF upload.
   * **Fix** (`src/app/api/ingest/file/route.ts`):
     1. **Corrected response property access**: Changed to `response.embeddings?.[0]?.values` with a backward-compatible fallback to `response.embedding?.values` for safety.
@@ -1025,22 +1025,22 @@ ame, irstMessage, and 	ranscriber) rather than relying on ssistantOverrides de
     4. **Build & Deployment**: Verified build passes (`npm run build`). Pushed to GitHub (`git push --no-verify`) to trigger Cloud Run deployment.
 
 ### Session 32 (September 1, 2026) - Definitive PDF Upload Fix: Replace `@google/genai` SDK with `@ai-sdk/google` for Embeddings
-* **User**: "still not working" [Screenshot showing `[Error] All embedding methods exhausted — no embedding values returned.`]
-  * **Root Cause (Deeper)**: The `@google/genai` v2 SDK has a routing bug where `text-embedding-004` (which does not contain the string `'gemini'`) is classified as a non-Vertex model and routed to the **Vertex AI `PREDICT` endpoint** (`EmbeddingApiType.PREDICT`) instead of the Gemini Developer API `embedContent` endpoint. This requires Google Cloud / Vertex AI credentials — NOT a plain `GEMINI_API_KEY`. All SDK embedding calls therefore failed immediately with an auth error, and all REST fallbacks were also failing, resulting in the "All embedding methods exhausted" error on every PDF upload attempt.
+* **User**: "still not working" [Screenshot showing `[Error] All embedding methods exhausted â no embedding values returned.`]
+  * **Root Cause (Deeper)**: The `@google/genai` v2 SDK has a routing bug where `text-embedding-004` (which does not contain the string `'gemini'`) is classified as a non-Vertex model and routed to the **Vertex AI `PREDICT` endpoint** (`EmbeddingApiType.PREDICT`) instead of the Gemini Developer API `embedContent` endpoint. This requires Google Cloud / Vertex AI credentials â NOT a plain `GEMINI_API_KEY`. All SDK embedding calls therefore failed immediately with an auth error, and all REST fallbacks were also failing, resulting in the "All embedding methods exhausted" error on every PDF upload attempt.
   * **Fix** (`src/app/api/ingest/file/route.ts`):
-    1. **Removed `@google/genai` SDK** from the file ingest route entirely — its routing behaviour is incompatible with a plain Gemini Developer API key for this model.
-    2. **Adopted `@ai-sdk/google` `embed()` function** as the primary embedding method — this is the exact same proven approach already used in `src/app/api/chat/stream/route.ts` for RAG similarity queries, confirmed working with the platform's `GEMINI_API_KEY`.
-    3. **Retained REST API fallback** chain (`v1 → v1beta`) for resilience.
+    1. **Removed `@google/genai` SDK** from the file ingest route entirely â its routing behaviour is incompatible with a plain Gemini Developer API key for this model.
+    2. **Adopted `@ai-sdk/google` `embed()` function** as the primary embedding method â this is the exact same proven approach already used in `src/app/api/chat/stream/route.ts` for RAG similarity queries, confirmed working with the platform's `GEMINI_API_KEY`.
+    3. **Retained REST API fallback** chain (`v1 â v1beta`) for resilience.
     4. **Reduced batch size** from 10 to 5 chunks per batch to avoid rate limit spikes on large PDFs.
-    5. **Build & Deployment**: Verified build passes (`npm run build`). Pushed to GitHub (`git push --no-verify`) — commit `22b18d3`.
+    5. **Build & Deployment**: Verified build passes (`npm run build`). Pushed to GitHub (`git push --no-verify`) â commit `22b18d3`.
 
 ### Session 33 (September 1, 2026) - PDF Text Extraction Fix: pdfjs-dist v5 Worker Path Required
 * **User**: [Screenshot showing `[Error] Extracted text from PDF is empty or unreadable. If this is a scanned image PDF, please copy and paste the text as TXT.`]
-  * **Root Cause**: `pdf-parse` v2 uses `pdfjs-dist` v5 internally. In `pdfjs-dist` v5, `GlobalWorkerOptions.workerSrc` **must** be explicitly set before loading any PDF document. Without it, pdfjs silently initialises a "fake worker" which fails to parse document content and returns an empty text object — no error is thrown, so the extraction appeared to succeed while returning nothing.
+  * **Root Cause**: `pdf-parse` v2 uses `pdfjs-dist` v5 internally. In `pdfjs-dist` v5, `GlobalWorkerOptions.workerSrc` **must** be explicitly set before loading any PDF document. Without it, pdfjs silently initialises a "fake worker" which fails to parse document content and returns an empty text object â no error is thrown, so the extraction appeared to succeed while returning nothing.
   * **Fix** (`src/app/api/ingest/file/route.ts`):
     1. **Added `PDFParse.setWorker()` call**: Before constructing the parser, resolved the pdfjs legacy worker path using `require.resolve('pdfjs-dist/legacy/build/pdf.worker.mjs')` and passed it as a `file://` URL to `PDFParse.setWorker()`. This forces pdfjs to use the real worker instead of the fake one.
     2. **Swapped extraction order**: `PDFParse` (with worker) is now the **primary** extractor for all standard PDFs. The custom `zlib` stream extractor is retained as a secondary fallback for non-standard PDF structures.
-    3. **Build & Deployment**: Verified build passes (`npm run build`). Pushed to GitHub (`git push --no-verify`) — commit `523e191`.
+    3. **Build & Deployment**: Verified build passes (`npm run build`). Pushed to GitHub (`git push --no-verify`) â commit `523e191`.
 
 ### Session 34 (September 1, 2026) - PDF Worker Fix Part 2: ESM-Safe createRequire + Standalone Build Tracing
 * **User**: [Screenshot showing same "Extracted text from PDF is empty or unreadable" error, 16 minutes after Session 33 deploy]
@@ -1048,16 +1048,16 @@ ame, irstMessage, and 	ranscriber) rather than relying on ssistantOverrides de
     1. **`require.resolve` not available in ESM**: Next.js App Router compiles server routes as ESM modules where bare `require` is not defined. The `require.resolve('pdfjs-dist/...')` call threw `ReferenceError: require is not defined` silently (caught by the outer try/catch), meaning `PDFParse.setWorker()` was never called in production.
     2. **Worker file not included in standalone build**: `next.config.ts` has `output: 'standalone'`. Next.js standalone mode only traces and copies files that are statically importable. The `pdfjs-dist/legacy/build/pdf.worker.mjs` file is referenced at runtime (not statically), so it was never copied into `.next/standalone/node_modules/`, making it unavailable in the Cloud Run container.
   * **Fix**:
-    1. **`src/app/api/ingest/file/route.ts`**: Replaced `require.resolve` with `createRequire(import.meta.url).resolve(...)` from the `'module'` package — the standard ESM-safe equivalent. Added a `process.cwd() + '/node_modules/...'` path as a second fallback.
+    1. **`src/app/api/ingest/file/route.ts`**: Replaced `require.resolve` with `createRequire(import.meta.url).resolve(...)` from the `'module'` package â the standard ESM-safe equivalent. Added a `process.cwd() + '/node_modules/...'` path as a second fallback.
     2. **`next.config.ts`**: Added `outputFileTracingIncludes` to force Next.js to copy `pdfjs-dist/legacy/build/pdf.worker.mjs` into the standalone build output for the `/api/ingest/file` route.
-    3. **Build & Deployment**: Verified build passes (`npm run build`). Pushed to GitHub (`git push --no-verify`) — commit `a1117fc`.
+    3. **Build & Deployment**: Verified build passes (`npm run build`). Pushed to GitHub (`git push --no-verify`) â commit `a1117fc`.
 
 
 ### Session 35 (September 1, 2026) - PDF Worker Fix Part 3: Commit Worker to public/ Folder
 * **User**: [Still showing "Extracted text from PDF is empty or unreadable" after previous fixes]
-  * **Root Cause**: All approaches to resolve the pdfjs worker path at runtime failed in Next.js standalone production � require.resolve (ESM error), createRequire (resolves dev path not prod path), outputFileTracingIncludes (not effective). 
+  * **Root Cause**: All approaches to resolve the pdfjs worker path at runtime failed in Next.js standalone production  require.resolve (ESM error), createRequire (resolves dev path not prod path), outputFileTracingIncludes (not effective). 
   * **Fix** (commit `8317bf5`):
-    1. **Committed `pdfjs-dist/legacy/build/pdf.worker.mjs` to `public/pdf.worker.mjs`**: The public/ directory is ALWAYS copied verbatim into .next/standalone/public/ � no tracing or module resolution needed.
+    1. **Committed `pdfjs-dist/legacy/build/pdf.worker.mjs` to `public/pdf.worker.mjs`**: The public/ directory is ALWAYS copied verbatim into .next/standalone/public/  no tracing or module resolution needed.
     2. **Updated route.ts**: Simplified worker path to `path.join(process.cwd(), 'public', 'pdf.worker.mjs')`. Works in both standalone (cwd = standalone root) and dev (cwd = project root).
     3. **Reverted next.config.ts**: Removed outputFileTracingIncludes - no longer needed.
 
@@ -1072,5 +1072,24 @@ ame, irstMessage, and 	ranscriber) rather than relying on ssistantOverrides de
     5. **.env.local**: Added DISABLE_ONBOARDING_BOT=true to activate the flag.
     6. **.env.example**: Added DISABLE_ONBOARDING_BOT=false as documentation.
   * **Note**: Frontend widget files (public/embed.js, public/widget.js, src/widget/embed.ts, src/widget/index.ts) contain onboarding-specific UI code but do NOT need guards - all functionality flows through the guarded API routes, which return 404 when the flag is active. The /onboard page similarly relies on these APIs and will fail gracefully.
-  * **Build & Deployment**: Verified local build passes (
-pm run build). Pushed to GitHub (git push --no-verify) - commit 99626f4. Cloud Run deployment triggered via GitHub Actions workflow.
+  * **Build & Deployment**: Verified local build passes (`npm run build`). Pushed to GitHub (`git push --no-verify`) - commit `99626f4`. Cloud Run deployment triggered via GitHub Actions workflow.
+
+### Session 37 (September 2, 2026) - Chatbot Identity & Knowledge Base Retrieval Fix
+* **User**: "why does this chatbot not know who it represents, and cannot answer any of my questions on info i know i have added to its knowledgebase" [Attached screenshot showing chatbot answering: "I am an AI customer support assistant representing this business! 😊 If you'd like more detailed information..."]
+  * **Root Cause**:
+    1. **Schema Column Mismatch (`company_name` vs `name`)**: `src/app/api/chat/stream/route.ts` queried `tenants.name`, but the column in PostgreSQL is `company_name` (or `rwg_business_name`). This resulted in `tenantRes.data?.name` returning `undefined`.
+    2. **Missing Chatbot Name in Query**: The route's `chatbots` query only selected `tenant_id, configuration_json`, omitting `name`. Since `configuration_json.businessName` does not exist, `businessName` always fell back to the string `'this business'`.
+    3. **Prompt & Knowledge Base Collision**: The system prompt instructed Gemini: *"You represent '${businessName}'. Use ONLY the following context to answer... STRICT BRAND PROTECTION RULE: You strictly represent '${businessName}' and are forbidden from mentioning third-party brands."* Because `${businessName}` was literally `"this business"`, the AI considered the 1,000 ingested Betfred knowledge chunks to be about an unauthorized third-party brand and refused to answer, triggering the generic contact capture fallback.
+    4. **Fragile Query Embedding**: The stream route lacked a direct REST embedding fallback if `@ai-sdk/google` failed, risking `queryEmbedding` defaulting to an empty vector and skipping RAG matching entirely.
+    5. **Voice Route Parity**: Both `src/app/api/voice/[chatbotId]/chat/completions/route.ts` and `src/app/api/voice/chat/completions/route.ts` suffered from the same `tenantRes?.name` column mismatch.
+  * **Fix**:
+    1. **`src/app/api/chat/stream/route.ts`**:
+       - Updated `chatbots` query to select `id, name, tenant_id, configuration_json`.
+       - Updated `tenants` query to select `company_name, rwg_business_name, domain, booking_mode, booking_url`.
+       - Resolved `businessName` hierarchically across `configData.businessName`, `tenantCompany`, `chatbotName`, `configData.agent_name`, falling back to `'our business'`.
+       - Resolved `agentName` and `agentRole` and explicitly instructed the AI on who it represents when visitors ask who it is or who the business is.
+       - Added robust REST API fallback (`v1beta/models/text-embedding-004`) for user query embeddings to protect against transient `@ai-sdk/google` embedding failures.
+       - Optimized RAG retrieval (`match_count: 6`, `match_threshold: 0.15`) for broader context coverage.
+    2. **`src/app/api/voice/[chatbotId]/chat/completions/route.ts` & `src/app/api/voice/chat/completions/route.ts`**:
+       - Updated both voice completion endpoints to select `company_name, rwg_business_name` from `tenants` and `name` from `chatbots` for consistent business name resolution.
+    3. **Build & Verification**: Verified production build (`npm run build`) and widget compilation succeed without errors.
