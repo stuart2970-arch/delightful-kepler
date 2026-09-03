@@ -60,7 +60,9 @@ export async function GET(req: Request) {
     const { data, error } = await supabaseAdmin
       .from('document_chunks')
       .select('id, source_url, created_at')
-      .eq('chatbot_id', chatbotId);
+      .eq('chatbot_id', chatbotId)
+      .order('created_at', { ascending: false })
+      .limit(10000);
 
     if (error) throw error;
 

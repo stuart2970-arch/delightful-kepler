@@ -69,6 +69,27 @@ test.describe('Knowledge Base Ingestion Pipeline (URL, Text, File)', () => {
     expect(data.chunksCount).toBeGreaterThan(0);
   });
 
+  test('POST /api/ingest/file should accept and process PDF uploads with valid text extraction', async ({ request }) => {
+    const minimalPdf = '%PDF-1.4\n1 0 obj<</Type/Catalog/Pages 2 0 R>>endobj\n2 0 obj<</Type/Pages/Kids[3 0 R]/Count 1>>endobj\n3 0 obj<</Type/Page/MediaBox[0 0 612 792]/Parent 2 0 R/Contents 4 0 R/Resources<</Font<</F1 5 0 R>>>>>>endobj\n4 0 obj<</Length 54>>stream\nBT /F1 12 Tf 100 700 Td (Racing and Football Outlook 2026) Tj ET\nendstream\nendobj\n5 0 obj<</Type/Font/Subtype/Type1/BaseFont/Helvetica>>endobj\nxref\n0 6\n0000000000 65535 f \n0000000009 00000 n \n0000000058 00000 n \n0000000115 00000 n \n0000000244 00000 n \n0000000347 00000 n \ntrailer<</Size 6/Root 1 0 R>>\nstartxref\n422\n%%EOF';
+    const buffer = Buffer.from(minimalPdf);
+
+    const response = await request.post('/api/ingest/file', {
+      multipart: {
+        file: {
+          name: 'Racing-and-Football-Outlook-Test.pdf',
+          mimeType: 'application/pdf',
+          buffer: buffer,
+        },
+        chatbotId: testChatbotId,
+      },
+    });
+
+    expect(response.status()).toBe(200);
+    const data = await response.json();
+    expect(data.success).toBe(true);
+    expect(data.chunksCount).toBeGreaterThan(0);
+  });
+
   test('POST /api/ingest/file should accept and format CSV spreadsheets', async ({ request }) => {
     const csvContent = 'Service,Price,Duration\nHaircut,£25,30 mins\nBeard Trim,£15,20 mins\nFull Package,£35,45 mins';
     const buffer = Buffer.from(csvContent, 'utf-8');

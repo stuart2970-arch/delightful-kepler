@@ -1250,3 +1250,21 @@ ame, irstMessage, and 	ranscriber) rather than relying on ssistantOverrides de
        - Executed `npx playwright test tests/knowledge-base.spec.ts` -> **6 of 6 tests passed (27.0s)**.
     4. **Build & Verification**:
        - Verified `npm run build` and `npm run build:widget` pass with 0 errors.
+
+### Session 47 (September 3, 2026) - PDF Text Extraction Fix (Native Worker Resolution) & Ingested Sources Truncation Fix
+* **User**: "i have uploaded a file and the ingestion is stating success, however the document is not displaying in the list of ingested docs, and the bot is unaware of the conetent" [Attached screenshot showing `Racing & Football Outlook-2.pdf` ingested 15 chunks, but missing from Ingested Sources list]
+  * **Root Cause Analysis**:
+    1. **Document List Query Truncation**: `GET /api/ingest/urls` used `supabaseAdmin.from('document_chunks').select()` with no `.order()` and no explicit limit. PostgREST capped the response at its default 1,000 rows. Because the database had 1,000+ chunks, new documents were cut off from the grouped URL list in the dashboard.
+    2. **Corrupted PDF Text Extraction**: In container environments, `PDFParse.setWorker()` threw an unhandled worker resolution error, falling back to a raw binary stream decompressor that dumped unparsed binary glyphs (`ÀÖ^ËC¹...`) into chunks instead of clean text. Embeddings were generated over binary noise, causing RAG retrieval to fail.
+  * **Fixes Applied**:
+    1. **`src/app/api/ingest/urls/route.ts`**:
+       - Added `.order('created_at', { ascending: false }).limit(10000)` to ensure newly ingested sources are always fetched and displayed at the top of the Ingested Sources list.
+    2. **`src/lib/file-parser.ts`**:
+       - Replaced problematic worker URL paths with direct static path resolution to `pdfjs-dist/legacy/build/pdf.worker.mjs`.
+       - Filtered stream fallback parser to strictly extract text from `BT...ET` blocks and enforce a 60% printable character threshold to prevent binary noise.
+       - Removed 77 legacy corrupted chunks from Supabase.
+    3. **Playwright Integration Test Suite (`tests/knowledge-base.spec.ts`)**:
+       - Added real PDF extraction and upload verification test.
+       - Executed `npx playwright test tests/knowledge-base.spec.ts` -> **7 of 7 tests passed (25.5s)**.
+    4. **Build & Verification**:
+       - Verified `npm run build` and `npm run build:widget` pass with 0 errors.

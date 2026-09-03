@@ -1,4 +1,6 @@
 import zlib from 'zlib';
+import path from 'path';
+import { pathToFileURL } from 'url';
 
 /**
  * Sanitizes any text string to ensure 100% compatibility with PostgreSQL text, varchar, and JSONB columns.
@@ -22,26 +24,34 @@ export function sanitizeForPostgres(text: string): string {
     .trim();
 }
 
-function parseTextFromStream(streamStr: string, output: string[]) {
-  const tjMatches = streamStr.matchAll(/\(([^()\\]|\\[\s\S])*\)\s*(?:Tj|TJ|\'|\")/g);
-  for (const m of tjMatches) {
-    const cleaned = m[0]
-      .replace(/^\(/, '')
-      .replace(/\)\s*(?:Tj|TJ|\'|\")$/, '')
-      .replace(/\\([\s\S])/g, '$1')
-      .trim();
-    if (cleaned.length > 0) {
-      output.push(cleaned);
-    }
-  }
+function parseTextFromPdfStream(streamStr: string, output: string[]) {
+  // Only search inside BT (Begin Text) and ET (End Text) blocks to avoid font and image binaries
+  const textBlocks = streamStr.matchAll(/BT[\s\S]*?ET/g);
+  for (const block of textBlocks) {
+    const blockContent = block[0];
 
-  const tjArrayMatches = streamStr.matchAll(/\[((?:\((?:[^()\\]|\\[\s\S])*\)|[^\%\)\]])+)\]\s*TJ/g);
-  for (const m of tjArrayMatches) {
-    const innerStrings = m[1].matchAll(/\(([^()\\]|\\[\s\S])*\)/g);
-    for (const s of innerStrings) {
-      const cleaned = s[0].slice(1, -1).replace(/\\([\s\S])/g, '$1').trim();
+    // Match (string) Tj / TJ
+    const tjMatches = blockContent.matchAll(/\(([^()\\]|\\[\s\S])*\)\s*(?:Tj|TJ|\'|\")/g);
+    for (const m of tjMatches) {
+      const cleaned = m[0]
+        .replace(/^\(/, '')
+        .replace(/\)\s*(?:Tj|TJ|\'|\")$/, '')
+        .replace(/\\([\s\S])/g, '$1')
+        .trim();
       if (cleaned.length > 0) {
         output.push(cleaned);
+      }
+    }
+
+    // Match array strings [(str1) (str2)] TJ
+    const tjArrayMatches = blockContent.matchAll(/\[((?:\((?:[^()\\]|\\[\s\S])*\)|[^\%\)\]])+)\]\s*TJ/g);
+    for (const m of tjArrayMatches) {
+      const innerStrings = m[1].matchAll(/\(([^()\\]|\\[\s\S])*\)/g);
+      for (const s of innerStrings) {
+        const cleaned = s[0].slice(1, -1).replace(/\\([\s\S])/g, '$1').trim();
+        if (cleaned.length > 0) {
+          output.push(cleaned);
+        }
       }
     }
   }
@@ -51,7 +61,7 @@ function extractTextFromPdfFallback(buffer: Buffer): string {
   const textBlocks: string[] = [];
   try {
     const latinStr = buffer.toString('latin1');
-    parseTextFromStream(latinStr, textBlocks);
+    parseTextFromPdfStream(latinStr, textBlocks);
 
     const streamRegex = /\/Filter\s*\/FlateDecode[\s\S]*?stream\r?\n([\s\S]*?)\r?\nendstream/g;
     let match;
@@ -67,7 +77,7 @@ function extractTextFromPdfFallback(buffer: Buffer): string {
           if (end > start) {
             const compressedBuf = buffer.subarray(start, end);
             const decompressedBuf = zlib.inflateSync(compressedBuf);
-            parseTextFromStream(decompressedBuf.toString('latin1'), textBlocks);
+            parseTextFromPdfStream(decompressedBuf.toString('latin1'), textBlocks);
           }
         }
       } catch {
@@ -78,35 +88,44 @@ function extractTextFromPdfFallback(buffer: Buffer): string {
     console.warn('[PDF Fallback] Stream parsing warning:', err);
   }
 
-  return sanitizeForPostgres(textBlocks.join(' '));
+  // Filter out any non-prose tokens
+  const cleanTokens = textBlocks.filter((t) => {
+    const printableCount = (t.match(/[a-zA-Z0-9\s.,!?:;'\-"]/g) || []).length;
+    return printableCount / t.length >= 0.6;
+  });
+
+  return sanitizeForPostgres(cleanTokens.join(' '));
 }
 
 export async function extractTextFromPdf(buffer: Buffer): Promise<string> {
   let textContent = '';
 
-  // Primary: pdf-parse v2 (pdfjs-dist worker)
+  // Primary: pdf-parse v2 with Node resolved worker
   try {
     const { PDFParse } = await import('pdf-parse');
-    const { pathToFileURL } = await import('url');
-    const path = await import('path');
-
-    const workerPath = path.join(process.cwd(), 'public', 'pdf.worker.mjs');
-    PDFParse.setWorker(pathToFileURL(workerPath).href);
+    try {
+      const workerPath = path.join(process.cwd(), 'node_modules', 'pdfjs-dist', 'legacy', 'build', 'pdf.worker.mjs');
+      PDFParse.setWorker(pathToFileURL(workerPath).href);
+    } catch {}
 
     const parser = new PDFParse({ data: buffer });
     try {
       const result = await parser.getText();
       if (result?.text && result.text.trim().length > 0) {
-        textContent = result.text;
+        // Strip out page divider banners added by pdf-parse like "-- 1 of 5 --"
+        const cleanResult = result.text.replace(/-- \d+ of \d+ --/g, '');
+        if (cleanResult.trim().length > 0) {
+          textContent = cleanResult;
+        }
       }
     } finally {
       await parser.destroy().catch(() => {});
     }
   } catch (err: any) {
-    console.warn('[PDF Ingest] Primary pdf-parse failed:', err?.message || err);
+    console.warn('[PDF Ingest] Primary pdf-parse failed, attempting stream fallback:', err?.message || err);
   }
 
-  // Secondary fallback: zlib stream decoder
+  // Secondary fallback: PDF stream text parser
   if (!textContent || textContent.trim().length < 10) {
     const fallbackText = extractTextFromPdfFallback(buffer);
     if (fallbackText && fallbackText.length > textContent.length) {
