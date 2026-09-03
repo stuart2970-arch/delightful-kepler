@@ -1273,3 +1273,18 @@ oute.ts and src/app/api/voice/[chatbotId]/chat/completions/route.ts for maximum 
        - Executed `npx playwright test tests/knowledge-base.spec.ts` -> **7 of 7 tests passed (25.5s)**.
     4. **Build & Verification**:
        - Verified `npm run build` and `npm run build:widget` pass with 0 errors.
+
+### Session 48 (September 3, 2026) - Native Multi-Tier PDF Text Extraction & Worker Resolution Hardening
+* **User**: "[System] Initializing file upload for Racing & Football Outlook-4.pdf... [Error] Extracted text from "Racing & Football Outlook-4.pdf" is empty or unreadable. If this is a scanned image, please copy and paste the text as TXT or Markdown."
+  * **Root Cause Analysis**:
+    - During server runtime inside Next.js / Turbopack bundles, `pdfjs-dist` attempted to dynamically import `pdf.worker.mjs` using relative path chunks (`.next/dev/server/chunks/pdf.worker.mjs`), which failed with `Cannot find module ... Setting up fake worker failed`.
+    - `pdfjs` fallback failed to index multi-page magazine PDFs (like Racing & Football Outlook) with font CMaps and stream encoding.
+  * **Fixes Applied**:
+    1. **`src/lib/file-parser.ts`**:
+       - Implemented direct native `pdfjs.getDocument()` as Tier 1 with explicit `GlobalWorkerOptions.workerSrc` pointing to `pdf.worker.mjs`.
+       - Copied `pdf.worker.mjs` directly to `public/pdf.worker.mjs` to ensure static availability across all production container environments.
+       - Updated stream text decoder to support hex literal tokens (`<...>` Tj) and multi-part string arrays (`[(str1) -123 (str2)]` TJ).
+    2. **Playwright Integration Test Suite (`tests/knowledge-base.spec.ts`)**:
+       - Executed full test suite verifying PDF extraction: `7 of 7 passed (34.4s)`.
+    3. **Build & Verification**:
+       - Verified full Next.js production build (`npm run build`) and widget compilation pass with 0 errors.

@@ -25,12 +25,12 @@ export function sanitizeForPostgres(text: string): string {
 }
 
 function parseTextFromPdfStream(streamStr: string, output: string[]) {
-  // Only search inside BT (Begin Text) and ET (End Text) blocks to avoid font and image binaries
+  // 1. Text blocks BT ... ET
   const textBlocks = streamStr.matchAll(/BT[\s\S]*?ET/g);
   for (const block of textBlocks) {
     const blockContent = block[0];
 
-    // Match (string) Tj / TJ
+    // (string) Tj / ' / "
     const tjMatches = blockContent.matchAll(/\(([^()\\]|\\[\s\S])*\)\s*(?:Tj|TJ|\'|\")/g);
     for (const m of tjMatches) {
       const cleaned = m[0]
@@ -43,7 +43,7 @@ function parseTextFromPdfStream(streamStr: string, output: string[]) {
       }
     }
 
-    // Match array strings [(str1) (str2)] TJ
+    // [(str1) -123 (str2)] TJ
     const tjArrayMatches = blockContent.matchAll(/\[((?:\((?:[^()\\]|\\[\s\S])*\)|[^\%\)\]])+)\]\s*TJ/g);
     for (const m of tjArrayMatches) {
       const innerStrings = m[1].matchAll(/\(([^()\\]|\\[\s\S])*\)/g);
@@ -52,6 +52,20 @@ function parseTextFromPdfStream(streamStr: string, output: string[]) {
         if (cleaned.length > 0) {
           output.push(cleaned);
         }
+      }
+    }
+
+    // Hex strings <48656C6C6F> Tj
+    const hexMatches = blockContent.matchAll(/<([0-9a-fA-F\s]+)>\s*(?:Tj|TJ)/g);
+    for (const hm of hexMatches) {
+      const hex = hm[1].replace(/\s+/g, '');
+      if (hex.length >= 2 && hex.length % 2 === 0) {
+        try {
+          const str = Buffer.from(hex, 'hex').toString('utf8');
+          if (str && str.trim().length > 0) {
+            output.push(str.trim());
+          }
+        } catch {}
       }
     }
   }
@@ -80,52 +94,93 @@ function extractTextFromPdfFallback(buffer: Buffer): string {
             parseTextFromPdfStream(decompressedBuf.toString('latin1'), textBlocks);
           }
         }
-      } catch {
-        // Continue processing remaining streams
-      }
+      } catch {}
     }
   } catch (err) {
-    console.warn('[PDF Fallback] Stream parsing warning:', err);
+    console.warn('[PDF Fallback] Stream parsing error:', err);
   }
 
   // Filter out any non-prose tokens
   const cleanTokens = textBlocks.filter((t) => {
     const printableCount = (t.match(/[a-zA-Z0-9\s.,!?:;'\-"]/g) || []).length;
-    return printableCount / t.length >= 0.6;
+    return printableCount / t.length >= 0.5;
   });
 
   return sanitizeForPostgres(cleanTokens.join(' '));
 }
 
+/**
+ * Robust multi-tier PDF text extractor supporting multi-page documents, font encodings, and streams.
+ */
 export async function extractTextFromPdf(buffer: Buffer): Promise<string> {
   let textContent = '';
 
-  // Primary: pdf-parse v2 with Node resolved worker
+  // Tier 1: Direct native pdfjs-dist getDocument with explicit GlobalWorkerOptions.workerSrc
   try {
-    const { PDFParse } = await import('pdf-parse');
+    const pdfjs = await import('pdfjs-dist/legacy/build/pdf.mjs');
     try {
-      const workerPath = path.join(process.cwd(), 'node_modules', 'pdfjs-dist', 'legacy', 'build', 'pdf.worker.mjs');
-      PDFParse.setWorker(pathToFileURL(workerPath).href);
+      const workerFile = path.resolve(process.cwd(), 'node_modules/pdfjs-dist/legacy/build/pdf.worker.mjs');
+      pdfjs.GlobalWorkerOptions.workerSrc = pathToFileURL(workerFile).href;
     } catch {}
 
-    const parser = new PDFParse({ data: buffer });
-    try {
-      const result = await parser.getText();
-      if (result?.text && result.text.trim().length > 0) {
-        // Strip out page divider banners added by pdf-parse like "-- 1 of 5 --"
-        const cleanResult = result.text.replace(/-- \d+ of \d+ --/g, '');
-        if (cleanResult.trim().length > 0) {
-          textContent = cleanResult;
+    const uint8 = new Uint8Array(buffer);
+    const loadingTask = pdfjs.getDocument({
+      data: uint8,
+      useSystemFonts: true,
+      disableFontFace: true,
+      isEvalSupported: false,
+      useWorkerFetch: false,
+    });
+
+    const doc = await loadingTask.promise;
+    const pageTexts: string[] = [];
+
+    for (let i = 1; i <= doc.numPages; i++) {
+      try {
+        const page = await doc.getPage(i);
+        const content = await page.getTextContent();
+        const pageText = content.items
+          .map((item: any) => (item?.str ? item.str : ''))
+          .filter(Boolean)
+          .join(' ');
+
+        if (pageText.trim().length > 0) {
+          pageTexts.push(pageText.trim());
         }
+      } catch (pageErr) {
+        console.warn(`[PDF Ingest] Page ${i} extraction warning:`, pageErr);
       }
-    } finally {
-      await parser.destroy().catch(() => {});
+    }
+
+    if (pageTexts.length > 0) {
+      textContent = pageTexts.join('\n\n');
     }
   } catch (err: any) {
-    console.warn('[PDF Ingest] Primary pdf-parse failed, attempting stream fallback:', err?.message || err);
+    console.warn('[PDF Ingest] Tier 1 pdfjs-dist getDocument failed:', err?.message || err);
   }
 
-  // Secondary fallback: PDF stream text parser
+  // Tier 2: pdf-parse module fallback
+  if (!textContent || textContent.trim().length < 10) {
+    try {
+      const { PDFParse } = await import('pdf-parse');
+      const parser = new PDFParse({ data: buffer });
+      try {
+        const result = await parser.getText();
+        if (result?.text && result.text.trim().length > 0) {
+          const clean = result.text.replace(/-- \d+ of \d+ --/g, '').trim();
+          if (clean.length > 0) {
+            textContent = clean;
+          }
+        }
+      } finally {
+        await parser.destroy().catch(() => {});
+      }
+    } catch (err: any) {
+      console.warn('[PDF Ingest] Tier 2 pdf-parse failed:', err?.message || err);
+    }
+  }
+
+  // Tier 3: Decompressed PDF stream text extractor
   if (!textContent || textContent.trim().length < 10) {
     const fallbackText = extractTextFromPdfFallback(buffer);
     if (fallbackText && fallbackText.length > textContent.length) {
