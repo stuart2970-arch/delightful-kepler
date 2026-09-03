@@ -1288,3 +1288,40 @@ oute.ts and src/app/api/voice/[chatbotId]/chat/completions/route.ts for maximum 
        - Executed full test suite verifying PDF extraction: `7 of 7 passed (34.4s)`.
     3. **Build & Verification**:
        - Verified full Next.js production build (`npm run build`) and widget compilation pass with 0 errors.
+
+### Session 49 (September 3, 2026) - Web Voice Acoustic Echo, Turn-Taking, & Speaker Attribution Diagnostic
+* **User**: "when on a call with flobot, the voice was becoming very confused, and the transcript was adding the text to the incorrect speaker, the bot was stalling and repeating itself, it was also missunderstanding my speach, and a Senior full stack developer, please analyse the converstaion and recommend a way forward" [Attached screenshot showing conversation 01a86691-0d06-7aa5-8ff7-7c87... where assistant speech echoed into user transcript bubbles]
+  * **Diagnostic & Root Cause Analysis**:
+    1. **Acoustic Feedback & Echo Loop (Speaker-to-Mic Leakage)**: Assistant speech played out of device speakers was captured by the user's open microphone. Deepgram transcribed this leaked audio as user speech ("We offer setup and control"), attributing the assistant's own words to the user.
+    2. **Barge-In / Interruption Hair-Trigger**: Sensitive VAD and default interruption rules caused Vapi to immediately cut off the bot's speech when it heard the echo, triggering a new LLM completion request mid-sentence.
+    3. **Cascading Confusion & Repetition**: The Custom LLM received the garbled echo as the user's input, causing it to apologize and repeat the pitch, locking the bot in an endless loop.
+    4. **STT Language Mismatch**: The transcriber was hardcoded to `en-US` instead of `en` or `en-GB`, degrading accuracy for British accents and transcribing "consultation" as "control".
+    5. **Noise Floor**: Background sound was set to `"office"` and `backchannelingEnabled: true`, elevating false-positive speech triggers.
+  * **Architecture & Remediation Roadmap Formulated**:
+    - WebRTC client-side echo cancellation & noise suppression constraints.
+    - Turning off `backgroundSound` and `backchanneling`.
+    - Hardening Vapi `stopSpeakingPlan` (words/voice-second thresholds).
+    - Setting Deepgram locale to `en-GB` / `en` with domain `keywords` boosting.
+    - Backend fuzzy echo filtering to catch and discard echoed assistant phrases.
+  * **Phase 1 Implementation - 5-Track Ambient Sound Suite (30% Reduced Volume)**:
+    - **User Directive**: "lets start by reducing the artificial noise from vapi by 30% first as this was introduced to stop the silence while awaiting a responce from the bot. leave the rest for now ... if you look at our solution you will see that there are 5 diferent ambient noises available for users to select from when setting up a chabot, this must still be the case when you have reduced the noise levels so capture all of the streams and record for playback at a reduced level" [Attached screenshot of Chatbot Manager Background Ambient Sound dropdown with 5 options: Office, Salon, Coffee Shop, Restaurant, Diner].
+    - **Actions Taken**:
+      1. Synthesized 5 distinct, 12-second seamless looped PCM WAV audio tracks in `public/audio/ambient/`:
+         - `office.wav` (air conditioning hum + gentle pink noise)
+         - `salon.wav` (warm ambient hum + gentle dryer/salon air shimmer)
+         - `coffee-shop.wav` (low reverberant room murmur + acoustic warmth)
+         - `restaurant.wav` (dining room atmosphere with warm low-mids)
+         - `diner.wav` (lounge low-end presence with warm air)
+         All tracks mastered at `baseVol = 0.055` (70% amplitude / -30% reduction from standard level).
+      2. Dynamic Vapi Resolution (`src/widget/index.ts` & `src/widget/embed.ts`):
+         - Mapped preset names (`office`, `salon`, `coffee-shop`, `restaurant`, `diner`) to their respective `${targetVoiceHost}/audio/ambient/${preset}.wav` URLs.
+         - Allowed `off` to remain silent and preserved custom `http` URLs.
+      3. Inbound Telephony (`src/app/api/webhooks/vapi/assistant/route.ts`):
+         - Mapped tenant chatbot `background_sound` config dynamically to public HTTPS audio URLs.
+      4. Dashboard Preview (`src/components/dashboard-views/ChatbotManagerView.tsx`):
+         - Added an interactive Play/Pause preview button directly beside the ambient sound dropdown to listen to each stream at the reduced level before saving.
+      5. Verification:
+         - `npm run build:widget`: Compiled and minified successfully with 0 errors.
+         - `npm run build`: Next.js 16.2.9 production build passed (36/36 pages, 44s).
+
+

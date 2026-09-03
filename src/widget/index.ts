@@ -1216,6 +1216,19 @@ import Vapi from '@vapi-ai/web';
             const isLocalHost = apiHost.includes('localhost') || apiHost.includes('127.0.0.1') || apiHost.includes('.test');
             const targetVoiceHost = isLocalHost ? 'https://app.styleflo.ai' : apiHost;
 
+            // Resolve background ambient sound with 30% reduced volume streams
+            const ambientPresets = ['office', 'salon', 'coffee-shop', 'restaurant', 'diner'];
+            let resolvedBackgroundSound: string = 'off';
+            if (backgroundSound === 'off') {
+              resolvedBackgroundSound = 'off';
+            } else if (typeof backgroundSound === 'string' && backgroundSound.startsWith('http')) {
+              resolvedBackgroundSound = backgroundSound;
+            } else if (typeof backgroundSound === 'string' && ambientPresets.includes(backgroundSound)) {
+              resolvedBackgroundSound = `${targetVoiceHost}/audio/ambient/${backgroundSound}.wav`;
+            } else {
+              resolvedBackgroundSound = `${targetVoiceHost}/audio/ambient/office.wav`;
+            }
+
             await vapiInstance.start({
               name: `${agentName} Assistant`,
               transcriber: {
@@ -1242,7 +1255,7 @@ import Vapi from '@vapi-ai/web';
                 model: "eleven_turbo_v2_5"
               },
               firstMessage: getFormattedWelcomeMessage(storedName),
-              backgroundSound: (backgroundSound as any) || "office",
+              backgroundSound: resolvedBackgroundSound as any,
               backchannelingEnabled: true,
               metadata: {
                 tenant_id: tenantId || chatbotId,

@@ -162,10 +162,23 @@ export async function POST(request: Request) {
     }
 
     // 3. Build the full assistant object dynamically
+    const rawBgSound = config.background_sound || 'office';
+    const ambientPresets = ['office', 'salon', 'coffee-shop', 'restaurant', 'diner'];
+    let resolvedBgSound = 'off';
+    if (rawBgSound === 'off') {
+      resolvedBgSound = 'off';
+    } else if (rawBgSound && typeof rawBgSound === 'string' && rawBgSound.startsWith('http')) {
+      resolvedBgSound = rawBgSound;
+    } else if (rawBgSound && ambientPresets.includes(rawBgSound)) {
+      resolvedBgSound = `${appUrl}/audio/ambient/${rawBgSound}.wav`;
+    } else {
+      resolvedBgSound = `${appUrl}/audio/ambient/office.wav`;
+    }
+
     const overrides: any = {
       name: config.agent_name || 'Dynamic Assistant',
       firstMessage: config.welcome_message || 'Hello, how can I help you today?',
-      backgroundSound: config.background_sound || 'office',
+      backgroundSound: resolvedBgSound,
       backchannelingEnabled: true,
       transcriber: {
         provider: 'deepgram',
