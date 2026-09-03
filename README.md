@@ -389,9 +389,12 @@ This runbook documents the key fixes and architecture enhancements implemented d
   2. Fixed the date picker behavior so it no longer interrupts typing with an alert popup. It now safely accepts user input and automatically snaps valid dates to the correct Monday for the week.
 - **Account Settings Profile UI**: Added a database migration (`20260720210000_add_business_address_to_tenants.sql`) to introduce `business_address` and `postcode` to the `tenants` table. Implemented an "Account Settings" form in the dashboard allowing users to input and manage their Custom Domain, Business Address, and Postcode. Plumbed these fields through the server components, Zustand store, and the PATCH API route.
 - **Superadmin Platform Settings Migration**: Moved the global "Platform Settings" (Branding and Voice Disclaimer) from the user-facing Dashboard into the dedicated Superadmin Control Center (`/superadmin`). Created a new API endpoint (`/api/superadmin/global-settings`) utilizing the `service_role_key` to securely handle updates. Cleaned up the `DashboardClient` and `SidebarNavigation` by entirely removing the legacy settings state and UI panels.
--   2 0 2 6 - 0 7 - 2 1 :   F i x e d   m i s s i n g   s e r v i c e s   a n d   s t a f f   d a t a   f e t c h i n g   i n   d a s h b o a r d   p a g e . t s x .   T h i s   w a s   c a u s i n g   d u p l i c a t e   s e r v i c e s   t o   b e   a c c i d e n t a l l y   c r e a t e d   ( a n d   s h o w n   o n   w e b   p a g e s )   b e c a u s e   t h e y   w e r e n ' t   d i s p l a y i n g   i n   t h e   b a c k e n d   d a s h b o a r d .  
- -   2 0 2 6 - 0 7 - 2 1 :   C o n s o l i d a t e   r e d u n d a n t   b u s i n e s s _ a d d r e s s   a n d   p o s t c o d e   f i e l d s   i n t o   t h e   r w g _ s t r e e t _ a d d r e s s ,   r w g _ c i t y   a n d   r w g _ p o s t c o d e   f i e l d s   t o   s e r v e   d o u b l e   d u t y   f o r   b o t h   G o o g l e   M a p s   U I   a n d   R w G  
- -   2 0 2 6 - 0 7 - 2 1 :   A d d   G o o g l e   P l a c e s   A P I   i n t e g r a t i o n   f o r   a u t o m a t e d   i m p o r t i n g   o f   G o o g l e   B u s i n e s s   P r o f i l e   d e t a i l s  
+-   2 0 2 6 - 0 7 - 2 1 :   F i x e d   m i s s i n g   s e r v i c e s   a n d   s t a f f   d a t a   f e t c h i n g   i n   d a s h b o a r d   p a g e . t s x .   T h i s   w a s   c a u s i n g   d u p l i c a t e   s e r v i c e s   t o   b e   a c c i d e n t a l l y   c r e a t e d   ( a n d   s h o w n   o n   w e b   p a g e s )   b e c a u s e   t h e y   w e r e n ' t   d i s p l a y i n g   i n   t h e   b a c k e n d   d a s h b o a r d . 
+ 
+ -   2 0 2 6 - 0 7 - 2 1 :   C o n s o l i d a t e   r e d u n d a n t   b u s i n e s s _ a d d r e s s   a n d   p o s t c o d e   f i e l d s   i n t o   t h e   r w g _ s t r e e t _ a d d r e s s ,   r w g _ c i t y   a n d   r w g _ p o s t c o d e   f i e l d s   t o   s e r v e   d o u b l e   d u t y   f o r   b o t h   G o o g l e   M a p s   U I   a n d   R w G 
+ 
+ -   2 0 2 6 - 0 7 - 2 1 :   A d d   G o o g l e   P l a c e s   A P I   i n t e g r a t i o n   f o r   a u t o m a t e d   i m p o r t i n g   o f   G o o g l e   B u s i n e s s   P r o f i l e   d e t a i l s 
+ 
  
 - **2026-07-22:** Investigated and resolved an issue where the SuperAdmin Entitlements view was not rendering correctly due to a build failure caused by TypeScript errors introduced in earlier steps. Fixed the TS errors by ignoring them temporarily and rewriting legacy entitlement functions. Changes successfully pushed to main branch.
 
@@ -422,7 +425,8 @@ The user requested that the chatbot integration on the EmDash-generated websites
  
  # #   S e s s i o n   C h a t   H i s t o r y   L o g 
  * * D a t e * * :   2 0 2 6 - 0 7 - 2 6 
- * * S u m m a r y * * :   A d d e d   a n   o p t i o n   t o   e m b e d   t h e   c h a t b o t   i n t o   a   w e b p a g e   ( i n s t e a d   o f   a   p o p u p   w i d g e t ) .   C r e a t e d   \ s r c / w i d g e t / e m b e d . t s \   w h i c h   d u p l i c a t e s   t h e   p o p u p   l o g i c   b u t   r e n d e r s   i n l i n e .   U p d a t e d   \ s c r i p t s / b u i l d - w i d g e t . j s \   t o   o u t p u t   b o t h   \ w i d g e t . j s \   a n d   \ e m b e d . j s \ .   C u s t o m e r s   c a n   n o w   i n c l u d e   \ e m b e d . j s \   a n d   o p t i o n a l l y   p r o v i d e   \ d a t a - c o n t a i n e r - i d \   t o   s p e c i f y   w h e r e   t h e   c h a t b o t   s h o u l d   b e   r e n d e r e d .  
+ * * S u m m a r y * * :   A d d e d   a n   o p t i o n   t o   e m b e d   t h e   c h a t b o t   i n t o   a   w e b p a g e   ( i n s t e a d   o f   a   p o p u p   w i d g e t ) .   C r e a t e d   \ s r c / w i d g e t / e m b e d . t s \   w h i c h   d u p l i c a t e s   t h e   p o p u p   l o g i c   b u t   r e n d e r s   i n l i n e .   U p d a t e d   \ s c r i p t s / b u i l d - w i d g e t . j s \   t o   o u t p u t   b o t h   \ w i d g e t . j s \   a n d   \ e m b e d . j s \ .   C u s t o m e r s   c a n   n o w   i n c l u d e   \ e m b e d . j s \   a n d   o p t i o n a l l y   p r o v i d e   \ d a t a - c o n t a i n e r - i d \   t o   s p e c i f y   w h e r e   t h e   c h a t b o t   s h o u l d   b e   r e n d e r e d . 
+ 
  
 **Update (Voice Connection Debugging 6):**
 - **Discovery**: Vapi webhook voice override via ssistantOverrides failed to apply ElevenLabs voice.
@@ -452,7 +456,8 @@ ame, irstMessage, and 	ranscriber) rather than relying on ssistantOverrides de
 
 **Update (Gemini 1.5 Flash Re-integration):**
 - **Action**: Switched model provider in src/app/api/webhooks/vapi/assistant/route.ts from OpenAI (gpt-4o-mini) back to Custom LLM (custom-llm).
-- **Model Selection**: Configured the model to use gemini-1.5-flash in both oute.ts and src/app/api/voice/[chatbotId]/chat/completions/route.ts for maximum speed and cost efficiency.
+- **Model Selection**: Configured the model to use gemini-1.5-flash in both 
+oute.ts and src/app/api/voice/[chatbotId]/chat/completions/route.ts for maximum speed and cost efficiency.
 
 **Update (Fix 404 Custom LLM URL):**
 - **Discovery**: Vapi spoke 'Server error 404' when attempting to connect to the Gemini Custom LLM endpoint.
