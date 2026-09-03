@@ -1186,3 +1186,16 @@ ame, irstMessage, and 	ranscriber) rather than relying on ssistantOverrides de
        - Expanded the file input `accept` attribute to include all supported business file formats.
     5. **Build & Verification**:
        - Verified `npm run build` and `npm run build:widget` pass with 0 errors.
+
+### Session 43 (September 3, 2026) - REST Embedding Payload Schema Fix (`model` Parameter in Request Body)
+* **User**: "As a full stack developer analyse the last piece delivered by the architect and look to see wy this issue is prevalent. the user must be able to upload docs and the provider must be able to create vector embeddings" [Attached screenshot showing `[Error] All 4 embedding provider tiers failed to generate vector embeddings.` upon uploading `StyleFlo Brand Guideline Document - Google Gemini.pdf`]
+  * **Root Cause Analysis**:
+    - When calling Google Generative Language API's `:embedContent` endpoints (`v1beta/models/text-embedding-004:embedContent`, `v1/models/text-embedding-004:embedContent`, and `v1beta/models/embedding-001:embedContent`), the JSON body schema strictly requires the `model` property (e.g. `{"model": "models/text-embedding-004", "content": {"parts": [{"text": "..."}]}}`).
+    - In `src/lib/embeddings.ts`, the JSON body had omitted the `model` field, which caused Google's REST API to return `400 Bad Request: "Field 'model' is required in request body"` on every single fallback tier.
+  * **Fix**:
+    1. **`src/lib/embeddings.ts`**:
+       - Updated all REST embedding tiers (Tier 1 `v1beta/text-embedding-004`, Tier 2 `v1/text-embedding-004`, and Tier 4 `v1beta/embedding-001`) to include the mandatory `model` string in the request payload.
+       - Re-ordered Tier 1 to prioritize direct REST calls to Google's `v1beta/models/text-embedding-004:embedContent` for maximum reliability and throughput.
+       - Enhanced `batchEmbedTexts` with automatic chunk retry logic (500ms backoff on transient errors).
+    2. **Build & Verification**:
+       - Verified `npm run build` and `npm run build:widget` compile cleanly with 0 errors.
