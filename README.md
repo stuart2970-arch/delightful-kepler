@@ -1323,5 +1323,23 @@ oute.ts and src/app/api/voice/[chatbotId]/chat/completions/route.ts for maximum 
       5. Verification:
          - `npm run build:widget`: Compiled and minified successfully with 0 errors.
          - `npm run build`: Next.js 16.2.9 production build passed (36/36 pages, 44s).
+  * **Phase 2 Implementation - Authentic Acoustic Field Recordings (Zero Hiss Remediation)**:
+    - **User Feedback**: "having listened too the 5 variations, they all sould the same, which is a distinct hissing sould, so much so that the chatbot thought she was talking to someone called Rosssss ... find authentic, real acoustic recordings (real field recordings with zero hiss) for the other 4 environments (Salon, Coffee Shop, Restaurant, and Diner)"
+    - **Root Cause of Hiss**: Algorithmic pseudo-random noise (`Math.random()`) contained high-frequency spectral energy that sounded like radio static hiss ("sssss"), which Deepgram's STT phoneme model misinterpreted as a caller speaking the name "Rosssss".
+    - **Actions Taken**:
+      1. Replaced all synthetic audio with 5 authentic, high-quality acoustic field recordings (CC0 public domain licensed):
+         - **Office**: Real HVAC air conditioning room hum (`1471.mp3`, pure low-end air circulation, zero hiss).
+         - **Coffee Shop**: Authentic cafe terrace ambience from Capucins (`2561.mp3`, gentle acoustic murmur and warm room reverberation).
+         - **Restaurant**: Authentic small restaurant conversations (`3542.mp3`, soft dining room acoustic presence).
+         - **Diner**: Authentic bar & lounge atmosphere (`0480.mp3`, warm acoustic background).
+         - **Salon**: Authentic distant hair dryer low-speed hum (`0661.mp3`, soft ambient low-mid presence).
+      2. Automated WebAudio Mastering Pipeline:
+         - Downloaded each raw recording and decoded in Chromium via `OfflineAudioContext`.
+         - Applied calibrated low-pass filters (2000Hz–3000Hz) to remove any harshness or high-frequency hiss.
+         - Mastered with 30% reduced volume gains (0.25–0.35 gain) for quiet, non-intrusive room atmosphere.
+         - Applied 1.2-second crossfades at loop boundaries for seamless looping without audible seams.
+         - Exported bit-perfect 16-bit PCM WAV files to `public/audio/ambient/*.wav`.
+      3. Verified all 5 files in `public/audio/ambient/` are clean 16-bit PCM WAV (1,058,444 bytes each).
+
 
 
