@@ -64,7 +64,7 @@ export async function GET() {
       ...fetchedModels.filter((m: any) => m.id !== 'gemini-flash-latest' && m.id !== 'gemini-pro-latest')
     ];
 
-    return NextResponse.json({ models: combined, live: true }, { headers: corsHeaders });
+    return NextResponse.json({ models: combined, rawModels, live: true }, { headers: corsHeaders });
   } catch (err) {
     console.error('[Gemini Models API] Error querying Google models:', err);
     return NextResponse.json({ models: fallbackPresets, live: false }, { headers: corsHeaders });
