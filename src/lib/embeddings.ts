@@ -27,8 +27,20 @@ export function getGeminiApiKey(): string {
   return key;
 }
 
+function normalizeVector(vals: number[]): number[] {
+  if (!Array.isArray(vals) || vals.length === 0) return [];
+  if (vals.length === 768) return vals;
+  if (vals.length > 768) return vals.slice(0, 768);
+  return vals.concat(new Array(768 - vals.length).fill(0));
+}
+
 /**
- * Generates a vector embedding for a single text chunk with a multi-tier fallback strategy.
+ * Generates a vector embedding for a single text chunk with active Google models:
+ * 1. gemini-embedding-001 (Active Google Model)
+ * 2. gemini-embedding-2 (Active Google Model)
+ * 3. gemini-embedding-2-preview
+ * 4. text-embedding-004 (Legacy fallback)
+ * 5. embedding-001 (Legacy fallback)
  */
 export async function generateEmbedding(text: string, customApiKey?: string): Promise<number[]> {
   const apiKey = customApiKey || getGeminiApiKey();
@@ -36,117 +48,59 @@ export async function generateEmbedding(text: string, customApiKey?: string): Pr
 
   // Test mode mock fallback
   if (apiKey === 'mock-test-key') {
-    // Generate deterministic 768-dimension normalized vector
     return new Array(768).fill(0).map((_, i) => Math.sin(i + cleanText.length) * 0.05);
   }
 
   const tierErrors: string[] = [];
 
-  // Tier 1: Google Generative Language REST API v1beta text-embedding-004 (Direct REST with model in body)
-  try {
-    const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/text-embedding-004:embedContent?key=${apiKey}`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        model: 'models/text-embedding-004',
-        content: { parts: [{ text: cleanText }] },
-      }),
-    });
+  const candidateModels = [
+    'gemini-embedding-001',
+    'gemini-embedding-2',
+    'gemini-embedding-2-preview',
+    'text-embedding-004',
+    'embedding-001',
+  ];
 
-    if (res.ok) {
-      const data = await res.json();
-      const vals = data.embedding?.values;
-      if (Array.isArray(vals) && vals.length > 0) return vals;
-      tierErrors.push('Tier 1: 200 OK but no values array');
-    } else {
-      const errText = await res.text().catch(() => '');
-      tierErrors.push(`Tier 1 (v1beta with model): HTTP ${res.status} - ${errText.slice(0, 150)}`);
+  for (const modelName of candidateModels) {
+    try {
+      const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${modelName}:embedContent?key=${apiKey}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          model: `models/${modelName}`,
+          content: { parts: [{ text: cleanText }] },
+          outputDimensionality: 768,
+        }),
+      });
+
+      if (res.ok) {
+        const data = await res.json();
+        const vals = data.embedding?.values;
+        if (Array.isArray(vals) && vals.length > 0) {
+          return normalizeVector(vals);
+        }
+        tierErrors.push(`${modelName}: 200 OK but missing embedding.values`);
+      } else {
+        const errText = await res.text().catch(() => '');
+        tierErrors.push(`${modelName}: HTTP ${res.status} - ${errText.slice(0, 150)}`);
+      }
+    } catch (err: any) {
+      tierErrors.push(`${modelName} network error: ${err?.message || err}`);
     }
-  } catch (err: any) {
-    tierErrors.push(`Tier 1 network error: ${err?.message || err}`);
   }
 
-  // Tier 2: Google Generative Language REST API v1beta text-embedding-004 (Direct REST without model in body)
-  try {
-    const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/text-embedding-004:embedContent?key=${apiKey}`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        content: { parts: [{ text: cleanText }] },
-      }),
-    });
-
-    if (res.ok) {
-      const data = await res.json();
-      const vals = data.embedding?.values;
-      if (Array.isArray(vals) && vals.length > 0) return vals;
-      tierErrors.push('Tier 2: 200 OK but no values array');
-    } else {
-      const errText = await res.text().catch(() => '');
-      tierErrors.push(`Tier 2 (v1beta no model): HTTP ${res.status} - ${errText.slice(0, 150)}`);
-    }
-  } catch (err: any) {
-    tierErrors.push(`Tier 2 network error: ${err?.message || err}`);
-  }
-
-  // Tier 3: Google Generative Language REST API v1 text-embedding-004
-  try {
-    const res = await fetch(`https://generativelanguage.googleapis.com/v1/models/text-embedding-004:embedContent?key=${apiKey}`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        model: 'models/text-embedding-004',
-        content: { parts: [{ text: cleanText }] },
-      }),
-    });
-
-    if (res.ok) {
-      const data = await res.json();
-      const vals = data.embedding?.values;
-      if (Array.isArray(vals) && vals.length > 0) return vals;
-      tierErrors.push('Tier 3: 200 OK but no values array');
-    } else {
-      const errText = await res.text().catch(() => '');
-      tierErrors.push(`Tier 3 (v1): HTTP ${res.status} - ${errText.slice(0, 150)}`);
-    }
-  } catch (err: any) {
-    tierErrors.push(`Tier 3 network error: ${err?.message || err}`);
-  }
-
-  // Tier 4: @ai-sdk/google provider
+  // Fallback: @ai-sdk/google
   try {
     const googleProvider = createGoogleGenerativeAI({ apiKey });
     const { embedding } = await embed({
-      model: googleProvider.textEmbeddingModel('text-embedding-004'),
+      model: googleProvider.textEmbeddingModel('gemini-embedding-001'),
       value: cleanText,
     });
-    if (Array.isArray(embedding) && embedding.length > 0) return embedding;
-    tierErrors.push('Tier 4: @ai-sdk/google returned empty array');
-  } catch (err: any) {
-    tierErrors.push(`Tier 4 (@ai-sdk/google): ${err?.message || err}`);
-  }
-
-  // Tier 5: Fallback to embedding-001
-  try {
-    const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/embedding-001:embedContent?key=${apiKey}`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        model: 'models/embedding-001',
-        content: { parts: [{ text: cleanText }] },
-      }),
-    });
-
-    if (res.ok) {
-      const data = await res.json();
-      const vals = data.embedding?.values;
-      if (Array.isArray(vals) && vals.length > 0) return vals;
-    } else {
-      const errText = await res.text().catch(() => '');
-      tierErrors.push(`Tier 5 (embedding-001): HTTP ${res.status} - ${errText.slice(0, 150)}`);
+    if (Array.isArray(embedding) && embedding.length > 0) {
+      return normalizeVector(embedding);
     }
   } catch (err: any) {
-    tierErrors.push(`Tier 5 network error: ${err?.message || err}`);
+    tierErrors.push(`@ai-sdk/google: ${err?.message || err}`);
   }
 
   throw new Error(`All embedding provider tiers failed. Details: ${tierErrors.join(' | ')}`);

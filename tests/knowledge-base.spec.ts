@@ -73,6 +73,8 @@ test.describe('Knowledge Base Ingestion Pipeline (URL, Text, File)', () => {
       },
     });
     expect(textRes.status()).toBe(400);
+    const textData = await textRes.json();
+    expect(textData.error).toBeTruthy();
 
     // Missing file
     const fileRes = await request.post('/api/ingest/file', {
@@ -81,5 +83,17 @@ test.describe('Knowledge Base Ingestion Pipeline (URL, Text, File)', () => {
       },
     });
     expect(fileRes.status()).toBe(400);
+    const fileData = await fileRes.json();
+    expect(fileData.error).toBeTruthy();
+
+    // Invalid chatbot UUID
+    const invalidBotRes = await request.post('/api/ingest/text', {
+      data: {
+        text: 'This is a valid length text sample for error testing.',
+        sourceName: 'Test',
+        chatbotId: 'invalid-uuid-123',
+      },
+    });
+    expect(invalidBotRes.status()).toBe(400);
   });
 });

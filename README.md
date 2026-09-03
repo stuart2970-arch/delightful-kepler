@@ -1215,3 +1215,21 @@ ame, irstMessage, and 	ranscriber) rather than relying on ssistantOverrides de
        - Added mock fallback for Playwright / CI local test environments so test suites run deterministically without network flakiness.
     3. **Build & Verification**:
        - Verified `npm run build` and `npm run build:widget` passed with 0 errors.
+
+### Session 45 (September 3, 2026) - Real Google Embedding Models Discovery (`gemini-embedding-001` & `gemini-embedding-2`) & Playwright Suite Expansion
+* **User**: "Still failing [Error] All embedding provider tiers failed. Details: Tier 1 (v1beta with model): HTTP 404 - { "error": { "code": 404, "message": "models/text-embedding-004 is not found for API version v1beta, or is not supported for embedContent..." } } ... please ensure playwright tests are updated to accomodate this error"
+  * **Deep Root Cause Analysis**:
+    - Traced Google AI's live ModelService (`ListModels`), discovering that legacy models (`text-embedding-004` and `embedding-001`) have been superseded by Google's active generation embedding models:
+      1. `models/gemini-embedding-001`
+      2. `models/gemini-embedding-2`
+      3. `models/gemini-embedding-2-preview`
+    - Calling `text-embedding-004` caused Google's API to return `404: Not Found or not supported for embedContent`.
+  * **Fixes & Enhancements**:
+    1. **`src/lib/embeddings.ts` Model Modernization**:
+       - Updated candidate model list to prioritize `gemini-embedding-001`, `gemini-embedding-2`, and `gemini-embedding-2-preview` with `outputDimensionality: 768`.
+       - Added vector dimension normalizer (`normalizeVector`) ensuring all embeddings fit Supabase's `vector(768)` schema constraint.
+    2. **Playwright Integration Test Suite (`tests/knowledge-base.spec.ts`)**:
+       - Updated test suite with structured error response validation (400 Bad Request on invalid payloads, empty files, missing text, and invalid bot UUIDs).
+       - Executed `npx playwright test tests/knowledge-base.spec.ts` -> **4 of 4 tests passed (33.1s)**.
+    3. **Build & Verification**:
+       - Verified `npm run build` and `npm run build:widget` passed with 0 errors.
