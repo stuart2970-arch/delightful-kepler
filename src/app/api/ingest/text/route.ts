@@ -3,14 +3,16 @@ import { createServerClient } from '@supabase/ssr';
 import { createClient } from '@supabase/supabase-js';
 import { cookies } from 'next/headers';
 import { RecursiveCharacterTextSplitter } from '@langchain/textsplitters';
-import { google } from '@ai-sdk/google';
-import { embed, embedMany } from 'ai';
 import { z } from 'zod';
 import { checkFeatureEntitlement } from '@/lib/entitlements';
+import { batchEmbedTexts } from '@/lib/embeddings';
+
+export const dynamic = 'force-dynamic';
+export const maxDuration = 120;
 
 const IngestTextSchema = z.object({
-  text: z.string().min(10, { message: 'Text is too short' }),
-  sourceName: z.string().min(1, { message: 'Source name is required' }),
+  text: z.string().min(10, { message: 'Text content must be at least 10 characters long' }),
+  sourceName: z.string().min(1, { message: 'Source title/name is required' }),
   chatbotId: z.string().regex(/^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/, { message: 'Invalid chatbot ID format' }),
 });
 
@@ -61,9 +63,9 @@ export async function POST(request: Request) {
     let tenantId: string;
     let dbClient = supabase;
     const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
+    const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
     if (authError || !user) {
-      const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
       if (!serviceRoleKey) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
       
       const adminClient = createClient(supabaseUrl, serviceRoleKey);
@@ -77,7 +79,6 @@ export async function POST(request: Request) {
       if (!profile) return NextResponse.json({ error: 'User tenant profile not found' }, { status: 403 });
 
       if (profile.is_super_admin) {
-        const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
         if (!serviceRoleKey) return NextResponse.json({ error: 'Server configuration error' }, { status: 500 });
         const adminClient = createClient(supabaseUrl, serviceRoleKey);
         dbClient = adminClient;
@@ -94,61 +95,58 @@ export async function POST(request: Request) {
 
     // Clean text
     const textContent = text.replace(/\s+/g, ' ').trim();
+    if (textContent.length < 10) {
+      return NextResponse.json({ error: 'Text content is too short to ingest.' }, { status: 400 });
+    }
 
     // Check entitlements
     const estimatedIncomingChunks = Math.ceil(textContent.length / 1000);
     const entitlementCheck = await checkFeatureEntitlement(dbClient, tenantId, 'knowledge_data_chunks', estimatedIncomingChunks);
 
     if (!entitlementCheck.allowed) {
-        return NextResponse.json({ error: entitlementCheck.error }, { status: 403 });
+      return NextResponse.json({ error: entitlementCheck.error }, { status: 403 });
     }
 
-    // Split text
+    // Split text into chunks
     const splitter = new RecursiveCharacterTextSplitter({ chunkSize: 1000, chunkOverlap: 200 });
     const docOutputs = await splitter.createDocuments([textContent]);
     const chunks = docOutputs.map((doc) => doc.pageContent);
 
-    if (chunks.length === 0) return NextResponse.json({ error: 'Text splitting generated zero chunks' }, { status: 400 });
+    if (chunks.length === 0) {
+      return NextResponse.json({ error: 'Text splitting generated zero chunks' }, { status: 400 });
+    }
 
-    const geminiApiKey = process.env.GEMINI_API_KEY;
-    if (!geminiApiKey) return NextResponse.json({ error: 'Gemini integration misconfigured' }, { status: 500 });
+    console.log(`[Ingest Text][${requestId}] Generating vector embeddings for ${chunks.length} chunks via multi-tier engine...`);
+    const embeddings = await batchEmbedTexts(chunks);
 
-    const chunkData = chunks.map(chunk => ({ content: chunk, source_url: sourceName }));
-    const embeddingPromises = chunkData.map(async (chunk) => {
-      try {
-        const { embedding } = await embed({
-          model: google.textEmbeddingModel('text-embedding-004'),
-          value: chunk.content,
-          providerOptions: { google: { outputDimensionality: 768 } },
-        });
-        return { content: chunk.content, source_url: chunk.source_url, embedding };
-      } catch (err) {
-        console.warn(`[Ingest Text][${requestId}] Failed to embed chunk:`, err);
-        return null;
-      }
-    });
-
-    const results = await Promise.all(embeddingPromises);
-    const validResults = results.filter((r): r is { content: string; source_url: string; embedding: number[] } => r !== null);
-
-    if (validResults.length === 0) return NextResponse.json({ error: 'Failed to generate embeddings' }, { status: 502 });
+    if (!embeddings || embeddings.length === 0) {
+      return NextResponse.json({ error: 'Failed to generate embeddings for text chunks.' }, { status: 502 });
+    }
 
     const metadata = { source_type: 'raw_text', title: sourceName };
 
-    const recordsToInsert = validResults.map((result) => ({
+    const recordsToInsert = chunks.slice(0, embeddings.length).map((chunkContent, idx) => ({
       tenant_id: tenantId,
       chatbot_id: chatbotId,
-      content: result.content,
-      embedding: result.embedding,
-      source_url: result.source_url,
+      content: chunkContent,
+      embedding: embeddings[idx],
+      source_url: sourceName,
       metadata: metadata,
     }));
 
     const { error: dbInsertError } = await dbClient.from('document_chunks').insert(recordsToInsert);
 
-    if (dbInsertError) return NextResponse.json({ error: `Failed to save chunks: ${dbInsertError.message}` }, { status: 500 });
+    if (dbInsertError) {
+      console.error(`[Ingest Text][${requestId}] Supabase INSERT failed:`, dbInsertError);
+      return NextResponse.json({ error: `Failed to save chunks: ${dbInsertError.message}` }, { status: 500 });
+    }
 
-    return NextResponse.json({ success: true, chunksCount: recordsToInsert.length, message: `Successfully ingested ${recordsToInsert.length} chunks.` });
+    console.log(`[Ingest Text][${requestId}] Successfully ingested ${recordsToInsert.length} chunks for chatbot ${chatbotId}`);
+    return NextResponse.json({
+      success: true,
+      chunksCount: recordsToInsert.length,
+      message: `Successfully ingested ${recordsToInsert.length} chunks from "${sourceName}".`,
+    });
   } catch (error: any) {
     console.error(`[Ingest Text][${requestId}] Unhandled error:`, error);
     return NextResponse.json({ error: error.message || 'Internal server error' }, { status: 500 });

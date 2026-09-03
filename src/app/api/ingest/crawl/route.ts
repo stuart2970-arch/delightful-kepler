@@ -4,10 +4,12 @@ import { createClient } from '@supabase/supabase-js';
 import { cookies } from 'next/headers';
 import * as cheerio from 'cheerio';
 import { RecursiveCharacterTextSplitter } from '@langchain/textsplitters';
-import { google } from '@ai-sdk/google';
-import { embed, embedMany } from 'ai';
 import { z } from 'zod';
 import { checkFeatureEntitlement } from '@/lib/entitlements';
+import { batchEmbedTexts } from '@/lib/embeddings';
+
+export const dynamic = 'force-dynamic';
+export const maxDuration = 120;
 
 // Input validation schema
 const IngestRequestSchema = z.object({
@@ -52,41 +54,12 @@ export async function POST(request: Request) {
   const requestId = crypto.randomUUID();
   console.log(`[Ingest Route][${requestId}] Processing crawling request...`);
 
-  // Map GEMINI_API_KEY to GOOGLE_GENERATIVE_AI_API_KEY for the @ai-sdk/google provider
   if (process.env.GEMINI_API_KEY && !process.env.GOOGLE_GENERATIVE_AI_API_KEY) {
     process.env.GOOGLE_GENERATIVE_AI_API_KEY = process.env.GEMINI_API_KEY;
   }
 
-  // Detect if required environment keys are missing for mock mode fallback
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
-  const geminiApiKey = process.env.GEMINI_API_KEY;
-  const isMockMode = !supabaseUrl || !supabaseAnonKey || !geminiApiKey;
-
-  if (isMockMode) {
-    console.warn(`[Ingest Route][${requestId}] Running in MOCK Mode (missing environment variables).`);
-    try {
-      const body = await request.json();
-      const validation = IngestRequestSchema.safeParse(body);
-      if (!validation.success) {
-        const errorMsg = validation.error.issues.map((i) => i.message).join(', ');
-        return NextResponse.json({ error: errorMsg }, { status: 400 });
-      }
-      const { url, chatbotId } = validation.data;
-      
-      // Simulate pipeline delay
-      await new Promise((resolve) => setTimeout(resolve, 2500));
-      
-      return NextResponse.json({
-        success: true,
-        requestId,
-        chunksCount: 8,
-        message: `[MOCK MODE] Successfully crawled ${url} and ingested 8 chunks for chatbot ${chatbotId}.`,
-      });
-    } catch (parseErr) {
-      return NextResponse.json({ error: 'Invalid request body' }, { status: 400 });
-    }
-  }
+  const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
   try {
     // 1. Authenticate user session
@@ -113,7 +86,6 @@ export async function POST(request: Request) {
 
     if (authError || !user) {
       console.warn(`[Ingest Route][${requestId}] No active user session. Attempting admin client fallback...`);
-      const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
       if (!serviceRoleKey) {
         console.error(`[Ingest Route][${requestId}] Unauthorized and SUPABASE_SERVICE_ROLE_KEY is missing`);
         return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
@@ -152,7 +124,6 @@ export async function POST(request: Request) {
       }
 
       if (profile.is_super_admin) {
-        const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
         if (!serviceRoleKey) {
           return NextResponse.json({ error: 'Server configuration error' }, { status: 500 });
         }
@@ -216,11 +187,11 @@ export async function POST(request: Request) {
       );
     }
 
-    // 6. Clean HTML using Cheerio (ignore nav, footer, script, styles, header, svg, iframe)
+    // 6. Clean HTML using Cheerio
     console.log(`[Ingest Route][${requestId}] Parsing HTML and extracting prose...`);
     const $ = cheerio.load(htmlContent);
 
-    // Extract product metadata (images, prices, etc.) before head/scripts are stripped
+    // Extract product metadata before head/scripts are stripped
     const image_url = $('meta[property="og:image"]').attr('content') || 
                       $('meta[name="twitter:image"]').attr('content') || 
                       $('link[rel="image_src"]').attr('href') || null;
@@ -279,7 +250,7 @@ export async function POST(request: Request) {
       platform = 'woocommerce';
     }
 
-    // Extract site name from Open Graph or domain hostname fallback
+    // Extract site name
     const siteName = $('meta[property="og:site_name"]').attr('content') || null;
     let fallbackSiteName = 'Store';
     try {
@@ -315,7 +286,7 @@ export async function POST(request: Request) {
     // Extract clean prose text
     const textContent = $('body')
       .text()
-      .replace(/\s+/g, ' ') // Replace multiple spaces/newlines with a single space
+      .replace(/\s+/g, ' ')
       .trim();
 
     if (!textContent || textContent.length < 50) {
@@ -334,8 +305,8 @@ export async function POST(request: Request) {
     const entitlementCheck = await checkFeatureEntitlement(dbClient, tenantId, 'knowledge_data_chunks', estimatedIncomingChunks);
 
     if (!entitlementCheck.allowed) {
-        console.warn(`[Ingest Route][${requestId}] Quota Exceeded: Tenant ${tenantId}`);
-        return NextResponse.json({ error: entitlementCheck.error }, { status: 403 });
+      console.warn(`[Ingest Route][${requestId}] Quota Exceeded: Tenant ${tenantId}`);
+      return NextResponse.json({ error: entitlementCheck.error }, { status: 403 });
     }
 
     // 7. Split text into 1,000 character chunks (200 char overlap) using LangChain's splitter
@@ -354,41 +325,11 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Text splitting generated zero chunks' }, { status: 400 });
     }
 
-    // 8. Generate Gemini Embeddings (text-embedding-004, 768 dimensions)
-    const geminiApiKey = process.env.GEMINI_API_KEY;
-    if (!geminiApiKey) {
-      console.error(`[Ingest Route][${requestId}] GEMINI_API_KEY environment variable is missing`);
-      return NextResponse.json({ error: 'Gemini integration misconfigured' }, { status: 500 });
-    }
+    // 8. Generate Vector Embeddings via centralized multi-tier engine
+    console.log(`[Ingest Route][${requestId}] Generating vector embeddings for ${chunks.length} chunks via multi-tier engine...`);
+    const embeddings = await batchEmbedTexts(chunks);
 
-    const chunkData = chunks.map(chunk => ({ content: chunk, source_url: url }));
-    const embeddingPromises = chunkData.map(async (chunk) => {
-      try {
-        const { embedding } = await embed({
-          model: google.textEmbeddingModel('text-embedding-004'),
-          value: chunk.content,
-          providerOptions: {
-            google: {
-              outputDimensionality: 768,
-            },
-          },
-        });
-        return {
-          content: chunk.content,
-          source_url: chunk.source_url,
-          embedding,
-        };
-      } catch (err) {
-        console.warn(`[Ingest Route][${requestId}] Failed to embed chunk from ${chunk.source_url}:`, err);
-        return null;
-      }
-    });
-
-    console.log(`[Ingest Route][${requestId}] Generating vector embeddings for ${chunks.length} chunks via text-embedding-004...`);
-    const results = await Promise.all(embeddingPromises);
-    const validResults = results.filter((r): r is { content: string; source_url: string; embedding: number[] } => r !== null);
-
-    if (validResults.length === 0) {
+    if (!embeddings || embeddings.length === 0) {
       return NextResponse.json(
         { error: 'Failed to generate any embeddings for the chunks' },
         { status: 502 }
@@ -397,12 +338,12 @@ export async function POST(request: Request) {
 
     // 9. Batch insert document chunks into public.document_chunks
     console.log(`[Ingest Route][${requestId}] Saving document chunks to database...`);
-    const recordsToInsert = validResults.map((result) => ({
+    const recordsToInsert = chunks.slice(0, embeddings.length).map((chunkContent, idx) => ({
       tenant_id: tenantId,
       chatbot_id: chatbotId,
-      content: result.content,
-      embedding: result.embedding,
-      source_url: result.source_url,
+      content: chunkContent,
+      embedding: embeddings[idx],
+      source_url: url,
       metadata: metadata,
     }));
 
@@ -423,13 +364,13 @@ export async function POST(request: Request) {
       success: true,
       requestId,
       chunksCount: chunks.length,
-      message: `Successfully crawled and ingested ${chunks.length} chunks.`,
+      message: `Successfully crawled and ingested ${chunks.length} chunks from ${url}.`,
     });
 
   } catch (err: any) {
     console.error(`[Ingest Route][${requestId}] Unexpected error:`, err);
     return NextResponse.json(
-      { error: 'An unexpected internal error occurred during ingestion' },
+      { error: err.message || 'An unexpected internal error occurred during ingestion' },
       { status: 500 }
     );
   }

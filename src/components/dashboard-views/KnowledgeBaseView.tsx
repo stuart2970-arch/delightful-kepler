@@ -521,7 +521,7 @@ export default function KnowledgeBaseView() {
 
               {!isShopifyPreflight ? (
               <form onSubmit={ingestMode === 'url' ? handleTriggerCrawl : ingestMode === 'text' ? handleTriggerText : handleTriggerFile} className="space-y-4">
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div className={`grid grid-cols-1 ${ingestMode === 'url' ? 'md:grid-cols-3' : 'md:grid-cols-2'} gap-4`}>
                   <div className="md:col-span-1">
                     <label className="block text-xs font-semibold text-[var(--awb-color6)] mb-1.5">Target Chatbot</label>
                     <select
@@ -538,20 +538,22 @@ export default function KnowledgeBaseView() {
                       ))}
                     </select>
                   </div>
-                  <div className="md:col-span-1">
-                    <label className="block text-xs font-semibold text-[var(--awb-color6)] mb-1.5">Rescan Frequency</label>
-                    <select
-                      value={crawlSchedule}
-                      onChange={(e) => handleSaveSchedule(e.target.value)}
-                      disabled={isSavingSchedule}
-                      className="w-full bg-white border border-[#f2f3f5] rounded-xl px-3.5 py-2.5 text-sm text-[var(--awb-color8)] focus:outline-none focus:ring-1 focus:ring-indigo-500 disabled:opacity-50"
-                    >
-                      <option value="none">Never (Manual Only)</option>
-                      <option value="daily">Daily</option>
-                      <option value="weekly">Weekly</option>
-                      <option value="biweekly">Every 2 Weeks</option>
-                    </select>
-                  </div>
+                  {ingestMode === 'url' && (
+                    <div className="md:col-span-1">
+                      <label className="block text-xs font-semibold text-[var(--awb-color6)] mb-1.5">Rescan Frequency</label>
+                      <select
+                        value={crawlSchedule}
+                        onChange={(e) => handleSaveSchedule(e.target.value)}
+                        disabled={isSavingSchedule}
+                        className="w-full bg-white border border-[#f2f3f5] rounded-xl px-3.5 py-2.5 text-sm text-[var(--awb-color8)] focus:outline-none focus:ring-1 focus:ring-indigo-500 disabled:opacity-50"
+                      >
+                        <option value="none">Never (Manual Only)</option>
+                        <option value="daily">Daily</option>
+                        <option value="weekly">Weekly</option>
+                        <option value="biweekly">Every 2 Weeks</option>
+                      </select>
+                    </div>
+                  )}
                   <div className="md:col-span-1">
                     <label className="block text-xs font-semibold text-[var(--awb-color6)] mb-1.5">Source Type</label>
                     <div className="flex bg-[var(--awb-color1)] text-[var(--awb-color8)] border-[var(--awb-color3)] rounded-xl border border-[var(--awb-color3)] overflow-hidden">
@@ -560,6 +562,13 @@ export default function KnowledgeBaseView() {
                       <button type="button" onClick={() => setIngestMode('file')} className={`flex-1 py-2.5 text-xs font-semibold border-l border-[var(--awb-color3)] ${ingestMode === 'file' ? 'bg-[#198fd9] text-white font-semibold rounded-[4px] px-[29px] py-[13px]/20 text-[var(--awb-color5)]' : 'text-[var(--awb-color6)] hover:bg-white/5'}`}>File</button>
                     </div>
                   </div>
+
+                  {ingestMode !== 'url' && (
+                    <div className="md:col-span-2 flex items-center gap-2 p-3 bg-blue-500/10 border border-blue-500/20 rounded-xl text-xs text-blue-700">
+                      <svg className="w-4 h-4 shrink-0 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+                      <span><strong>Static Source:</strong> {ingestMode === 'text' ? 'Raw text snippets' : 'Uploaded documents'} are static. If your source material changes, re-submit it to refresh your assistant&apos;s knowledge. (Automated recurring rescans are exclusively available for live URLs).</span>
+                    </div>
+                  )}
                   
                   {ingestMode === 'url' && (
                     <div className="md:col-span-3">
@@ -596,7 +605,7 @@ export default function KnowledgeBaseView() {
                   )}
 
                   {ingestMode === 'text' && (
-                    <div className="md:col-span-3 space-y-4">
+                    <div className="md:col-span-2 space-y-4">
                       <div>
                         <label className="block text-xs font-semibold text-[var(--awb-color6)] mb-1.5">Source Name / Title</label>
                         <input
@@ -622,8 +631,8 @@ export default function KnowledgeBaseView() {
                   )}
 
                   {ingestMode === 'file' && (
-                    <div className="md:col-span-3">
-                      <label className="block text-xs font-semibold text-[var(--awb-color6)] mb-1.5">Upload File (PDF or TXT, max 20MB)</label>
+                    <div className="md:col-span-2">
+                      <label className="block text-xs font-semibold text-[var(--awb-color6)] mb-1.5">Upload File (PDF, DOCX, CSV, TXT, Markdown, JSON, max 20MB)</label>
                       <div className="flex items-center gap-4">
                         <label className="flex-1 max-w-sm flex items-center justify-center px-4 py-6 bg-[var(--awb-color1)] text-[var(--awb-color8)] border-[var(--awb-color3)] border-2 border-dashed border-[var(--awb-color3)] rounded-xl cursor-pointer hover:border-indigo-500/50 hover:bg-[#198fd9] text-white font-semibold rounded-[4px] px-[29px] py-[13px]/5 transition-colors">
                           <div className="space-y-1 text-center">
@@ -634,12 +643,12 @@ export default function KnowledgeBaseView() {
                               <span className="text-[var(--awb-color5)] font-semibold focus-within:outline-none focus-within:ring-2 focus-within:ring-indigo-500 focus-within:ring-offset-2 hover:text-[var(--awb-color5)]">Upload a file</span>
                               <p className="pl-1 text-xs">or drag and drop</p>
                             </div>
-                            <p className="text-xs text-[var(--awb-color6)]">PDF, TXT up to 20MB</p>
+                            <p className="text-xs text-[var(--awb-color6)]">PDF, DOCX, CSV, TXT, MD, JSON up to 20MB</p>
                           </div>
                           <input 
                             type="file" 
                             className="hidden" 
-                            accept=".txt,.pdf"
+                            accept=".pdf,.txt,.docx,.doc,.csv,.tsv,.md,.markdown,.json,.html,.xml"
                             onChange={(e) => {
                               const file = e.target.files?.[0];
                               if (file) {

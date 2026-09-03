@@ -4,137 +4,11 @@ import { createClient } from '@supabase/supabase-js';
 import { cookies } from 'next/headers';
 import { RecursiveCharacterTextSplitter } from '@langchain/textsplitters';
 import { checkFeatureEntitlement } from '@/lib/entitlements';
-import { embed } from 'ai';
-import { createGoogleGenerativeAI } from '@ai-sdk/google';
-import zlib from 'zlib';
+import { batchEmbedTexts } from '@/lib/embeddings';
+import { extractTextFromFile } from '@/lib/file-parser';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 120;
-
-// Uses @ai-sdk/google embed() — the same proven approach used in chat/stream/route.ts for RAG queries.
-// IMPORTANT: @google/genai v2 SDK incorrectly routes 'text-embedding-004' to the Vertex AI
-// PREDICT endpoint instead of the Gemini Developer API embedContent endpoint, causing 
-// auth failures with a plain GEMINI_API_KEY. @ai-sdk/google correctly targets the Developer API.
-async function generateSingleEmbedding(text: string, apiKey: string): Promise<number[]> {
-  const googleProvider = createGoogleGenerativeAI({ apiKey });
-
-  // Primary: @ai-sdk/google textEmbeddingModel — proven to work with Gemini Developer API key
-  try {
-    const { embedding } = await embed({
-      model: googleProvider.textEmbeddingModel('text-embedding-004'),
-      value: text,
-    });
-    if (Array.isArray(embedding) && embedding.length > 0) {
-      return embedding;
-    }
-  } catch (err: any) {
-    console.warn(`[@ai-sdk/google] text-embedding-004 failed: ${err?.message || err}. Trying REST fallback...`);
-  }
-
-  // Fallback: direct REST API calls — try v1 first, then v1beta
-  for (const endpoint of [
-    `https://generativelanguage.googleapis.com/v1/models/text-embedding-004:embedContent?key=${apiKey}`,
-    `https://generativelanguage.googleapis.com/v1beta/models/text-embedding-004:embedContent?key=${apiKey}`,
-    `https://generativelanguage.googleapis.com/v1beta/models/embedding-001:embedContent?key=${apiKey}`,
-  ]) {
-    try {
-      const res = await fetch(endpoint, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ content: { parts: [{ text }] } }),
-      });
-      if (!res.ok) {
-        const errText = await res.text().catch(() => '');
-        console.warn(`[REST Embedding] ${endpoint} failed (${res.status}): ${errText.slice(0, 200)}`);
-        continue;
-      }
-      const data = await res.json();
-      const vals = data.embedding?.values;
-      if (Array.isArray(vals) && vals.length > 0) return vals;
-    } catch (err: any) {
-      console.warn(`[REST Embedding] fetch error for ${endpoint}: ${err?.message || err}`);
-    }
-  }
-
-  throw new Error('All embedding methods exhausted — no embedding values returned.');
-}
-
-async function batchEmbedGemini(texts: string[], apiKey: string): Promise<number[][]> {
-  if (texts.length === 0) return [];
-
-  const BATCH_SIZE = 5; // conservative to avoid rate limits
-  const allEmbeddings: number[][] = [];
-
-  for (let i = 0; i < texts.length; i += BATCH_SIZE) {
-    const chunkBatch = texts.slice(i, i + BATCH_SIZE);
-    const batchVecs = await Promise.all(
-      chunkBatch.map(text => generateSingleEmbedding(text, apiKey))
-    );
-    allEmbeddings.push(...batchVecs);
-  }
-
-  return allEmbeddings;
-}
-
-function parseTextFromStream(streamStr: string, output: string[]) {
-  const tjMatches = streamStr.matchAll(/\(([^()\\]|\\[\s\S])*\)\s*(?:Tj|TJ|\'|\")/g);
-  for (const m of tjMatches) {
-    const cleaned = m[0]
-      .replace(/^\(/, '')
-      .replace(/\)\s*(?:Tj|TJ|\'|\")$/, '')
-      .replace(/\\([\s\S])/g, '$1')
-      .trim();
-    if (cleaned.length > 0) {
-      output.push(cleaned);
-    }
-  }
-
-  const tjArrayMatches = streamStr.matchAll(/\[((?:\((?:[^()\\]|\\[\s\S])*\)|[^\%\)\]])+)\]\s*TJ/g);
-  for (const m of tjArrayMatches) {
-    const innerStrings = m[1].matchAll(/\(([^()\\]|\\[\s\S])*\)/g);
-    for (const s of innerStrings) {
-      const cleaned = s[0].slice(1, -1).replace(/\\([\s\S])/g, '$1').trim();
-      if (cleaned.length > 0) {
-        output.push(cleaned);
-      }
-    }
-  }
-}
-
-function extractTextFromPdf(buffer: Buffer): string {
-  const textBlocks: string[] = [];
-
-  try {
-    const latinStr = buffer.toString('latin1');
-    parseTextFromStream(latinStr, textBlocks);
-
-    const streamRegex = /\/Filter\s*\/FlateDecode[\s\S]*?stream\r?\n([\s\S]*?)\r?\nendstream/g;
-    let match;
-    while ((match = streamRegex.exec(latinStr)) !== null) {
-      try {
-        const streamHeaderIndex = match.index;
-        const streamKwIndex = latinStr.indexOf('stream', streamHeaderIndex);
-        if (streamKwIndex !== -1 && streamKwIndex < match.index + match[0].length) {
-          let start = streamKwIndex + 6;
-          if (latinStr.charCodeAt(start) === 13) start++;
-          if (latinStr.charCodeAt(start) === 10) start++;
-          const end = match.index + match[0].lastIndexOf('endstream');
-          if (end > start) {
-            const compressedBuf = buffer.subarray(start, end);
-            const decompressedBuf = zlib.inflateSync(compressedBuf);
-            parseTextFromStream(decompressedBuf.toString('latin1'), textBlocks);
-          }
-        }
-      } catch {
-        // Skip un-decompressable blocks
-      }
-    }
-  } catch (err) {
-    console.warn('[PDF Ingest] Stream text parsing warning:', err);
-  }
-
-  return textBlocks.join(' ').replace(/\s+/g, ' ').trim();
-}
 
 async function createSupabaseClient() {
   const cookieStore = await cookies();
@@ -231,65 +105,27 @@ export async function POST(request: Request) {
       }
     }
 
-    // Process file
+    // Process file through universal multi-format file parser
     const arrayBuffer = await file.arrayBuffer();
     const buffer = Buffer.from(arrayBuffer);
-    const isPdf = file.type === 'application/pdf' || file.name.toLowerCase().endsWith('.pdf');
-    const isTxt = file.type === 'text/plain' || file.name.toLowerCase().endsWith('.txt');
-    let textContent = '';
+    
+    console.log(`[Ingest File][${requestId}] Parsing file "${file.name}" (size: ${buffer.length} bytes)...`);
+    const textContent = await extractTextFromFile(buffer, file.name, file.type);
 
-    if (isPdf) {
-      // Primary: pdf-parse v2 (pdfjs-dist v5 under the hood).
-      // The worker file (pdf.worker.mjs) is committed to /public and always present in the
-      // standalone build — no module resolution or path tracing needed.
-      try {
-        const { PDFParse } = await import('pdf-parse');
-        const { pathToFileURL } = await import('url');
-        const path = await import('path');
-
-        // In Next.js standalone, process.cwd() = the standalone root which contains /public
-        // In dev, process.cwd() = the project root which also contains /public
-        const workerPath = path.join(process.cwd(), 'public', 'pdf.worker.mjs');
-        PDFParse.setWorker(pathToFileURL(workerPath).href);
-
-        const parser = new PDFParse({ data: buffer });
-        try {
-          const result = await parser.getText();
-          if (result?.text && result.text.trim().length > 0) {
-            textContent = result.text;
-          }
-        } finally {
-          await parser.destroy().catch(() => {});
-        }
-      } catch (dynamicErr: any) {
-        console.warn(`[Ingest File][${requestId}] pdf-parse extraction failed: ${dynamicErr?.message || dynamicErr}`);
-      }
-
-      // Fallback: custom zlib stream extractor (handles some non-standard PDFs)
-      if (!textContent || textContent.trim().length < 10) {
-        try {
-          textContent = extractTextFromPdf(buffer);
-        } catch (err: any) {
-          console.warn(`[Ingest File][${requestId}] zlib PDF extraction warning: ${err?.message || err}`);
-        }
-      }
-    } else if (isTxt) {
-      textContent = buffer.toString('utf-8');
-    } else {
-      return NextResponse.json({ error: 'Unsupported file type. Only PDF and TXT are supported.' }, { status: 400 });
+    if (!textContent || textContent.length < 10) {
+      return NextResponse.json({
+        error: `Extracted text from "${file.name}" is empty or unreadable. If this is a scanned image, please copy and paste the text as TXT or Markdown.`
+      }, { status: 400 });
     }
 
-    textContent = textContent.replace(/\s+/g, ' ').trim();
-    if (textContent.length < 10) {
-      return NextResponse.json({ error: 'Extracted text from PDF is empty or unreadable. If this is a scanned image PDF, please copy and paste the text as TXT.' }, { status: 400 });
-    }
+    console.log(`[Ingest File][${requestId}] Extracted ${textContent.length} characters of clean text.`);
 
     // Check entitlements
     const estimatedIncomingChunks = Math.ceil(textContent.length / 1000);
     const entitlementCheck = await checkFeatureEntitlement(dbClient, tenantId, 'knowledge_data_chunks', estimatedIncomingChunks);
 
     if (!entitlementCheck.allowed) {
-        return NextResponse.json({ error: entitlementCheck.error }, { status: 403 });
+      return NextResponse.json({ error: entitlementCheck.error }, { status: 403 });
     }
 
     // Split text
@@ -297,12 +133,12 @@ export async function POST(request: Request) {
     const docOutputs = await splitter.createDocuments([textContent]);
     const chunks = docOutputs.map((doc) => doc.pageContent);
 
-    if (chunks.length === 0) return NextResponse.json({ error: 'Text splitting generated zero chunks' }, { status: 400 });
+    if (chunks.length === 0) {
+      return NextResponse.json({ error: 'Text splitting generated zero chunks' }, { status: 400 });
+    }
 
-    const geminiApiKey = process.env.GEMINI_API_KEY || process.env.GOOGLE_GENERATIVE_AI_API_KEY;
-    if (!geminiApiKey) return NextResponse.json({ error: 'Gemini integration misconfigured: missing API key' }, { status: 500 });
-
-    const embeddings = await batchEmbedGemini(chunks, geminiApiKey);
+    console.log(`[Ingest File][${requestId}] Generating vector embeddings for ${chunks.length} chunks via multi-tier engine...`);
+    const embeddings = await batchEmbedTexts(chunks);
 
     if (!embeddings || embeddings.length === 0) {
       return NextResponse.json({ error: 'Failed to generate embeddings for file chunks.' }, { status: 502 });
@@ -321,9 +157,17 @@ export async function POST(request: Request) {
 
     const { error: dbInsertError } = await dbClient.from('document_chunks').insert(recordsToInsert);
 
-    if (dbInsertError) return NextResponse.json({ error: `Failed to save chunks: ${dbInsertError.message}` }, { status: 500 });
+    if (dbInsertError) {
+      console.error(`[Ingest File][${requestId}] Supabase INSERT failed:`, dbInsertError);
+      return NextResponse.json({ error: `Failed to save chunks: ${dbInsertError.message}` }, { status: 500 });
+    }
 
-    return NextResponse.json({ success: true, chunksCount: recordsToInsert.length, message: `Successfully ingested ${recordsToInsert.length} chunks from ${file.name}.` });
+    console.log(`[Ingest File][${requestId}] Successfully ingested ${recordsToInsert.length} chunks from ${file.name}`);
+    return NextResponse.json({
+      success: true,
+      chunksCount: recordsToInsert.length,
+      message: `Successfully ingested ${recordsToInsert.length} chunks from "${file.name}".`,
+    });
   } catch (error: any) {
     console.error(`[Ingest File][${requestId}] Unhandled error:`, error);
     return NextResponse.json({ error: error.message || 'Internal server error' }, { status: 500 });

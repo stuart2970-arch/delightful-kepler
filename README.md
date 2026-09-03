@@ -1164,3 +1164,25 @@ ame, irstMessage, and 	ranscriber) rather than relying on ssistantOverrides de
        - Re-compiled and minified `public/widget.js` and `public/embed.js`.
        - Verified full Next.js production build (`npm run build`) passes with 0 errors.
        - Tested live custom-llm endpoint (`/api/voice/0d37a64b-a4e7-462d-834a-22c948bba528/chat/completions`), confirming HTTP 200 SSE streaming response from Gemini.
+
+### Session 42 (September 3, 2026) - Knowledge Base Ingestion Architecture Overhaul (URL, Text, File) & Repeatability Enforcement
+* **User**: "As a senior architect, please review the setup we are currently using for adding data to a chatbots knowledgebase, i am asking for this review due to currently being unable to add data to chatbots in any of the 3 formats available (URL, Text or file upload) and this need to be a robust way of working. Just to add to the above, the only time an ingestion method can be repeatable is if it is a URL, therefore the options should not be available in the UI if any other method is chosen, this will stop users from thinking that a doc can be changed and not re submitted"
+  * **Architectural Findings & Root Causes**:
+    1. **Vector Embedding Failures**: Both `/api/ingest/crawl` and `/api/ingest/text` relied on the static singleton `@ai-sdk/google` without fallback. Any transient provider failure or environment key variation triggered an immediate unhandled `502: Failed to generate embeddings`.
+    2. **Narrow File Format Support & PDF Parser Flaws**: File upload was restricted to `.pdf` and `.txt`, rejecting Word docs (`.docx`), spreadsheets (`.csv`), Markdown, and JSON. PDF parsing failed in containerized environments when worker scripts could not be resolved.
+    3. **UI Repeatability Confusion**: "Rescan Frequency" was shown globally across all ingestion tabs, confusing users into believing static files or raw text could be automatically re-scanned on a schedule.
+  * **Solutions & Fixes Applied**:
+    1. **Centralized Multi-Tier Embedding Engine (`src/lib/embeddings.ts`)**:
+       - Implemented `batchEmbedTexts` with a 4-tier fallback: `@ai-sdk/google` $\rightarrow$ REST `v1beta/text-embedding-004` $\rightarrow$ REST `v1/text-embedding-004` $\rightarrow$ REST `v1beta/embedding-001`.
+       - Added batch concurrency throttling (5 chunks per batch) to eliminate `429 Too Many Requests` errors.
+    2. **Universal Multi-Format File Extractor (`src/lib/file-parser.ts`)**:
+       - Created `extractTextFromFile` supporting `.pdf`, `.docx`, `.doc`, `.csv`, `.tsv`, `.md`, `.markdown`, `.json`, `.html`, `.xml`, and `.txt`.
+       - Added Word document XML decompression and CSV contextual row formatting.
+    3. **Standardized Ingestion Routes**:
+       - Refactored `src/app/api/ingest/text/route.ts`, `src/app/api/ingest/crawl/route.ts`, and `src/app/api/ingest/file/route.ts` to utilize the shared embedding and extraction engine.
+    4. **Knowledge Base UI Repeatability Rule (`KnowledgeBaseView.tsx`)**:
+       - Conditionally rendered "Rescan Frequency" **strictly** when `Source Type === 'URL'`.
+       - Added an advisory banner in 'Text' and 'File' modes clarifying that documents/text are static snapshots requiring re-upload upon modification.
+       - Expanded the file input `accept` attribute to include all supported business file formats.
+    5. **Build & Verification**:
+       - Verified `npm run build` and `npm run build:widget` pass with 0 errors.
