@@ -1110,14 +1110,21 @@ import Vapi from '@vapi-ai/web';
             const targetVoiceHost = isLocalHost ? 'https://app.styleflo.ai' : apiHost;
 
             // Resolve background ambient sound with 30% reduced volume streams
-            const ambientPresets = ['office', 'salon', 'coffee-shop', 'restaurant', 'diner'];
+            const ambientPresets = ['office', 'salon', 'barber', 'coffee-shop', 'restaurant', 'diner'];
             let resolvedBackgroundSound: string = 'off';
             if (backgroundSound === 'off') {
               resolvedBackgroundSound = 'off';
             } else if (typeof backgroundSound === 'string' && backgroundSound.startsWith('http')) {
               resolvedBackgroundSound = backgroundSound;
-            } else if (typeof backgroundSound === 'string' && ambientPresets.includes(backgroundSound)) {
-              resolvedBackgroundSound = `${targetVoiceHost}/audio/ambient/${backgroundSound}.wav`;
+            } else if (typeof backgroundSound === 'string') {
+              const cleanSound = backgroundSound.replace(/-new$/, '');
+              if (ambientPresets.includes(cleanSound)) {
+                resolvedBackgroundSound = `${targetVoiceHost}/audio/ambient/${cleanSound}.wav`;
+              } else if (cleanSound.includes('resaurant')) {
+                resolvedBackgroundSound = `${targetVoiceHost}/audio/ambient/restaurant.wav`;
+              } else {
+                resolvedBackgroundSound = `${targetVoiceHost}/audio/ambient/office.wav`;
+              }
             } else {
               resolvedBackgroundSound = `${targetVoiceHost}/audio/ambient/office.wav`;
             }

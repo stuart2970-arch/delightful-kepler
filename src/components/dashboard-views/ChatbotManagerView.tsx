@@ -642,7 +642,8 @@ export default function ChatbotManagerView() {
                                 className="flex-1 bg-[var(--awb-color1)] border border-[var(--awb-color3)] rounded-lg px-3 py-2 text-xs font-semibold text-[var(--awb-color8)] focus:outline-none focus:border-[#198fd9]"
                               >
                                 <option value="office">🏢 Office / Professional Room Hum (-30% Volume - Recommended)</option>
-                                <option value="salon">💈 Salon & Barber Atmosphere (-30% Volume)</option>
+                                <option value="salon">✂️ Hair Salon & Beauty Spa (-30% Volume)</option>
+                                <option value="barber">💈 Barber Shop & Grooming (-30% Volume)</option>
                                 <option value="coffee-shop">☕ Coffee Shop & Cafe Ambient (-30% Volume)</option>
                                 <option value="restaurant">🍽️ Restaurant & Bistro (-30% Volume)</option>
                                 <option value="diner">🍔 Diner & Lounge Ambience (-30% Volume)</option>

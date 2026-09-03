@@ -1341,5 +1341,18 @@ oute.ts and src/app/api/voice/[chatbotId]/chat/completions/route.ts for maximum 
          - Exported bit-perfect 16-bit PCM WAV files to `public/audio/ambient/*.wav`.
       3. Verified all 5 files in `public/audio/ambient/` are clean 16-bit PCM WAV (1,058,444 bytes each).
 
-
-
+### Session 50 (September 3, 2026) - Integration of New Ambient Audio Suite (Barber, Coffee Shop, Office, Restaurant, Salon)
+* **User Request**: "i have uploaded audio files to the ambience folder located C:\Users\Stuar\.gemini\antigravity\scratch\delightful-kepler\public\audio\ambient each is named the business type-new, as the senior developer integrate these and the background ambient sounds that b2b users can select when building their chatbot"
+* **Actions Taken & Technical Integration**:
+  1. **Audio File Aliasing & Normalization**:
+     - Verified all 5 newly uploaded audio files in `public/audio/ambient/`: `barber-new.wav`, `coffee-shop-new.wav`, `office-new.wav`, `resaurant-new.wav`, `salon-new.wav`.
+     - Created canonical standard copies (`barber.wav`, `coffee-shop.wav`, `office.wav`, `restaurant.wav`, `restaurant-new.wav`, `diner.wav`, `salon.wav`) in `public/audio/ambient/` so both `-new.wav` filenames and standard preset URLs load seamlessly without 404 errors.
+  2. **Dashboard UI Dropdown (`src/components/dashboard-views/ChatbotManagerView.tsx`)**:
+     - Added `barber` ("💈 Barber Shop & Grooming") as a dedicated ambient sound selection option alongside `office`, `salon`, `coffee-shop`, `restaurant`, `diner`, and `off`.
+     - Preserved live preview playback button so B2B users can test ambient room audio directly inside the Chatbot Manager.
+  3. **Widget & Telephony Webhook Resolution (`src/widget/index.ts`, `src/widget/embed.ts`, `src/app/api/webhooks/vapi/assistant/route.ts`)**:
+     - Updated `ambientPresets` across popup widget, embeddable widget, and Vapi telephony webhook routes to include `barber`.
+     - Implemented dynamic filename cleaning (`.replace(/-new$/, '')`) and typo safety (`resaurant` $\rightarrow$ `restaurant`) so legacy database entries or direct `-new` references resolve to valid audio streams.
+  4. **Build & Verification**:
+     - Recompiled widget bundles (`public/widget.js` & `public/embed.js`) via `npm run build:widget`.
+     - Verified full Next.js 16.2.9 production build (`npm run build`), passing all 36 routes cleanly.
