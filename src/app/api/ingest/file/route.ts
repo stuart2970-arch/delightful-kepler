@@ -5,7 +5,7 @@ import { cookies } from 'next/headers';
 import { RecursiveCharacterTextSplitter } from '@langchain/textsplitters';
 import { checkFeatureEntitlement } from '@/lib/entitlements';
 import { batchEmbedTexts } from '@/lib/embeddings';
-import { extractTextFromFile } from '@/lib/file-parser';
+import { extractTextFromFile, sanitizeForPostgres } from '@/lib/file-parser';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 120;
@@ -110,7 +110,8 @@ export async function POST(request: Request) {
     const buffer = Buffer.from(arrayBuffer);
     
     console.log(`[Ingest File][${requestId}] Parsing file "${file.name}" (size: ${buffer.length} bytes)...`);
-    const textContent = await extractTextFromFile(buffer, file.name, file.type);
+    const rawText = await extractTextFromFile(buffer, file.name, file.type);
+    const textContent = sanitizeForPostgres(rawText);
 
     if (!textContent || textContent.length < 10) {
       return NextResponse.json({
@@ -131,7 +132,9 @@ export async function POST(request: Request) {
     // Split text
     const splitter = new RecursiveCharacterTextSplitter({ chunkSize: 1000, chunkOverlap: 200 });
     const docOutputs = await splitter.createDocuments([textContent]);
-    const chunks = docOutputs.map((doc) => doc.pageContent);
+    const chunks = docOutputs
+      .map((doc) => sanitizeForPostgres(doc.pageContent))
+      .filter((content) => content.length > 0);
 
     if (chunks.length === 0) {
       return NextResponse.json({ error: 'Text splitting generated zero chunks' }, { status: 400 });
@@ -144,14 +147,15 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Failed to generate embeddings for file chunks.' }, { status: 502 });
     }
 
-    const metadata = { source_type: 'file', title: file.name };
+    const sanitizedFileName = sanitizeForPostgres(file.name);
+    const metadata = { source_type: 'file', title: sanitizedFileName };
 
     const recordsToInsert = chunks.slice(0, embeddings.length).map((chunkText, idx) => ({
       tenant_id: tenantId,
       chatbot_id: chatbotId,
-      content: chunkText,
+      content: sanitizeForPostgres(chunkText),
       embedding: embeddings[idx],
-      source_url: file.name,
+      source_url: sanitizedFileName,
       metadata: metadata,
     }));
 
@@ -162,11 +166,11 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: `Failed to save chunks: ${dbInsertError.message}` }, { status: 500 });
     }
 
-    console.log(`[Ingest File][${requestId}] Successfully ingested ${recordsToInsert.length} chunks from ${file.name}`);
+    console.log(`[Ingest File][${requestId}] Successfully ingested ${recordsToInsert.length} chunks from ${sanitizedFileName}`);
     return NextResponse.json({
       success: true,
       chunksCount: recordsToInsert.length,
-      message: `Successfully ingested ${recordsToInsert.length} chunks from "${file.name}".`,
+      message: `Successfully ingested ${recordsToInsert.length} chunks from "${sanitizedFileName}".`,
     });
   } catch (error: any) {
     console.error(`[Ingest File][${requestId}] Unhandled error:`, error);

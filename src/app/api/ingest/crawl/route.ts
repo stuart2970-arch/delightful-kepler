@@ -7,6 +7,7 @@ import { RecursiveCharacterTextSplitter } from '@langchain/textsplitters';
 import { z } from 'zod';
 import { checkFeatureEntitlement } from '@/lib/entitlements';
 import { batchEmbedTexts } from '@/lib/embeddings';
+import { sanitizeForPostgres } from '@/lib/file-parser';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 120;
@@ -71,7 +72,6 @@ export async function POST(request: Request) {
 
     // 2. Validate request body
     const body = await request.json();
-    console.log(`[Ingest Route][${requestId}] Raw request body:`, JSON.stringify(body));
     const validation = IngestRequestSchema.safeParse(body);
 
     if (!validation.success) {
@@ -85,16 +85,13 @@ export async function POST(request: Request) {
     let dbClient = supabase;
 
     if (authError || !user) {
-      console.warn(`[Ingest Route][${requestId}] No active user session. Attempting admin client fallback...`);
       if (!serviceRoleKey) {
-        console.error(`[Ingest Route][${requestId}] Unauthorized and SUPABASE_SERVICE_ROLE_KEY is missing`);
         return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
       }
 
       const adminClient = createClient(supabaseUrl!, serviceRoleKey);
       dbClient = adminClient;
 
-      // Fetch chatbot using admin client to resolve its tenant_id
       const { data: chatbot, error: chatbotError } = await dbClient
         .from('chatbots')
         .select('tenant_id')
@@ -102,16 +99,11 @@ export async function POST(request: Request) {
         .single();
 
       if (chatbotError || !chatbot) {
-        console.warn(`[Ingest Route][${requestId}] Chatbot lookup failed via admin client for ID ${chatbotId}:`, chatbotError);
         return NextResponse.json({ error: 'Chatbot not found' }, { status: 404 });
       }
 
       tenantId = chatbot.tenant_id;
-      console.log(`[Ingest Route][${requestId}] Resolved Tenant ID via admin client: ${tenantId}`);
     } else {
-      console.log(`[Ingest Route][${requestId}] Authenticated user: ${user.id}, chatbot: ${chatbotId}, target URL: ${url}`);
-
-      // 3. Retrieve user's profile and check for superadmin
       const { data: profile, error: profileError } = await supabase
         .from('profiles')
         .select('tenant_id, is_super_admin')
@@ -119,7 +111,6 @@ export async function POST(request: Request) {
         .single();
 
       if (profileError || !profile) {
-        console.error(`[Ingest Route][${requestId}] Profile fetch failed:`, profileError);
         return NextResponse.json({ error: 'User tenant profile not found' }, { status: 403 });
       }
 
@@ -143,7 +134,6 @@ export async function POST(request: Request) {
       } else {
         tenantId = profile.tenant_id;
 
-        // Validate that the chatbot belongs to the user's tenant
         const { data: chatbot, error: chatbotError } = await supabase
           .from('chatbots')
           .select('id')
@@ -152,7 +142,6 @@ export async function POST(request: Request) {
           .single();
 
         if (chatbotError || !chatbot) {
-          console.warn(`[Ingest Route][${requestId}] Chatbot validation failed or unauthorized access to chatbot ${chatbotId}`);
           return NextResponse.json(
             { error: 'Chatbot not found or you do not have permission to access it' },
             { status: 404 }
@@ -171,7 +160,7 @@ export async function POST(request: Request) {
           'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
           'Accept-Language': 'en-US,en;q=0.5',
         },
-        next: { revalidate: 0 }, // Do not cache
+        next: { revalidate: 0 },
       });
 
       if (!response.ok) {
@@ -180,7 +169,6 @@ export async function POST(request: Request) {
 
       htmlContent = await response.text();
     } catch (fetchErr: any) {
-      console.error(`[Ingest Route][${requestId}] HTML Fetch failed for ${url}:`, fetchErr);
       return NextResponse.json(
         { error: `Failed to retrieve content from website: ${fetchErr.message || fetchErr}` },
         { status: 422 }
@@ -188,61 +176,20 @@ export async function POST(request: Request) {
     }
 
     // 6. Clean HTML using Cheerio
-    console.log(`[Ingest Route][${requestId}] Parsing HTML and extracting prose...`);
     const $ = cheerio.load(htmlContent);
 
-    // Extract product metadata before head/scripts are stripped
     const image_url = $('meta[property="og:image"]').attr('content') || 
                       $('meta[name="twitter:image"]').attr('content') || 
                       $('link[rel="image_src"]').attr('href') || null;
                       
-    const title = $('meta[property="og:title"]').attr('content') || 
-                  $('title').text() || null;
+    const rawTitle = $('meta[property="og:title"]').attr('content') || 
+                     $('title').text() || null;
+    const title = rawTitle ? sanitizeForPostgres(rawTitle) : null;
 
     let price = null;
     let currency = null;
-
     const isProduct = url.includes('/products/') || url.includes('/product/') || url.includes('/shop/');
-    
-    if (isProduct) {
-      price = $('meta[property="product:price:amount"]').attr('content') || 
-              $('meta[property="og:price:amount"]').attr('content') || 
-              $('meta[name="twitter:price:amount"]').attr('content') || null;
-      currency = $('meta[property="product:price:currency"]').attr('content') || 
-                 $('meta[property="og:price:currency"]').attr('content') || null;
 
-      if (!price) {
-        $('script[type="application/ld+json"]').each((_, el) => {
-          try {
-            const jsonText = $(el).html();
-            if (jsonText) {
-              const json = JSON.parse(jsonText);
-              const checkProduct = (obj: any) => {
-                if (obj && (obj['@type'] === 'Product' || obj['@type'] === 'http://schema.org/Product')) {
-                  const offers = obj.offers;
-                  if (offers) {
-                    price = offers.price || (Array.isArray(offers) ? offers[0]?.price : null);
-                    currency = offers.priceCurrency || (Array.isArray(offers) ? offers[0]?.priceCurrency : null);
-                  }
-                }
-              };
-
-              if (Array.isArray(json)) {
-                json.forEach(checkProduct);
-              } else if (json['@graph'] && Array.isArray(json['@graph'])) {
-                json['@graph'].forEach(checkProduct);
-              } else {
-                checkProduct(json);
-              }
-            }
-          } catch (e) {
-            // ignore JSON error
-          }
-        });
-      }
-    }
-
-    // Identify store platform
     let platform = 'generic';
     if (htmlContent.includes('cdn.shopify.com') || url.includes('/products/')) {
       platform = 'shopify';
@@ -250,7 +197,6 @@ export async function POST(request: Request) {
       platform = 'woocommerce';
     }
 
-    // Extract site name
     const siteName = $('meta[property="og:site_name"]').attr('content') || null;
     let fallbackSiteName = 'Store';
     try {
@@ -263,13 +209,12 @@ export async function POST(request: Request) {
       price,
       currency,
       platform,
-      site_name: siteName || fallbackSiteName,
+      site_name: siteName ? sanitizeForPostgres(siteName) : fallbackSiteName,
       is_product: isProduct
     };
 
     $('nav, footer, script, style, noscript, header, iframe, svg, form, head').remove();
 
-    // Preserve anchor links as Markdown format within the scraped text content
     $('a').each((_, el) => {
       const href = $(el).attr('href');
       const text = $(el).text().trim();
@@ -283,14 +228,11 @@ export async function POST(request: Request) {
       }
     });
 
-    // Extract clean prose text
-    const textContent = $('body')
-      .text()
-      .replace(/\s+/g, ' ')
-      .trim();
+    // Extract clean prose text and sanitize for PostgreSQL
+    const rawText = $('body').text();
+    const textContent = sanitizeForPostgres(rawText);
 
     if (!textContent || textContent.length < 50) {
-      console.warn(`[Ingest Route][${requestId}] Scraped text is too short or empty (${textContent.length} chars)`);
       return NextResponse.json(
         { error: 'Failed to extract sufficient readable prose from the target URL' },
         { status: 400 }
@@ -299,33 +241,29 @@ export async function POST(request: Request) {
 
     console.log(`[Ingest Route][${requestId}] Extracted ${textContent.length} characters of clean text.`);
 
-    // 6.5. Enforce Knowledge Base Quota
-    console.log(`[Ingest Route][${requestId}] Validating knowledge base data chunk quotas using dynamic entitlements...`);
+    // Enforce quota
     const estimatedIncomingChunks = Math.ceil(textContent.length / 1000);
     const entitlementCheck = await checkFeatureEntitlement(dbClient, tenantId, 'knowledge_data_chunks', estimatedIncomingChunks);
 
     if (!entitlementCheck.allowed) {
-      console.warn(`[Ingest Route][${requestId}] Quota Exceeded: Tenant ${tenantId}`);
       return NextResponse.json({ error: entitlementCheck.error }, { status: 403 });
     }
 
-    // 7. Split text into 1,000 character chunks (200 char overlap) using LangChain's splitter
-    console.log(`[Ingest Route][${requestId}] Chunking text...`);
+    // Split text into chunks
     const splitter = new RecursiveCharacterTextSplitter({
       chunkSize: 1000,
       chunkOverlap: 200,
     });
 
     const docOutputs = await splitter.createDocuments([textContent]);
-    const chunks = docOutputs.map((doc) => doc.pageContent);
-
-    console.log(`[Ingest Route][${requestId}] Split text into ${chunks.length} chunks.`);
+    const chunks = docOutputs
+      .map((doc) => sanitizeForPostgres(doc.pageContent))
+      .filter((c) => c.length > 0);
 
     if (chunks.length === 0) {
       return NextResponse.json({ error: 'Text splitting generated zero chunks' }, { status: 400 });
     }
 
-    // 8. Generate Vector Embeddings via centralized multi-tier engine
     console.log(`[Ingest Route][${requestId}] Generating vector embeddings for ${chunks.length} chunks via multi-tier engine...`);
     const embeddings = await batchEmbedTexts(chunks);
 
@@ -336,14 +274,14 @@ export async function POST(request: Request) {
       );
     }
 
-    // 9. Batch insert document chunks into public.document_chunks
-    console.log(`[Ingest Route][${requestId}] Saving document chunks to database...`);
+    // Batch insert document chunks into PostgreSQL
+    const sanitizedUrl = sanitizeForPostgres(url);
     const recordsToInsert = chunks.slice(0, embeddings.length).map((chunkContent, idx) => ({
       tenant_id: tenantId,
       chatbot_id: chatbotId,
-      content: chunkContent,
+      content: sanitizeForPostgres(chunkContent),
       embedding: embeddings[idx],
-      source_url: url,
+      source_url: sanitizedUrl,
       metadata: metadata,
     }));
 

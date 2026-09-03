@@ -1,5 +1,27 @@
 import zlib from 'zlib';
 
+/**
+ * Sanitizes any text string to ensure 100% compatibility with PostgreSQL text, varchar, and JSONB columns.
+ * Removes null bytes (\u0000), invalid escape sequences, and unpaired Unicode surrogates.
+ */
+export function sanitizeForPostgres(text: string): string {
+  if (!text || typeof text !== 'string') return '';
+  return text
+    // Remove null bytes and escaped null characters
+    .replace(/\u0000/g, '')
+    .replace(/\\u0000/g, '')
+    .replace(/\0/g, '')
+    // Remove non-printable control characters except standard whitespace (\t, \n, \r)
+    .replace(/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/g, ' ')
+    // Remove unpaired Unicode surrogates
+    .replace(/[\uD800-\uDBFF](?![\uDC00-\uDFFF])|(?<![\uD800-\uDBFF])[\uDC00-\uDFFF]/g, '')
+    // Normalize Unicode NFC composition
+    .normalize('NFC')
+    // Clean excessive spaces
+    .replace(/[ \t]+/g, ' ')
+    .trim();
+}
+
 function parseTextFromStream(streamStr: string, output: string[]) {
   const tjMatches = streamStr.matchAll(/\(([^()\\]|\\[\s\S])*\)\s*(?:Tj|TJ|\'|\")/g);
   for (const m of tjMatches) {
@@ -56,7 +78,7 @@ function extractTextFromPdfFallback(buffer: Buffer): string {
     console.warn('[PDF Fallback] Stream parsing warning:', err);
   }
 
-  return textBlocks.join(' ').replace(/\s+/g, ' ').trim();
+  return sanitizeForPostgres(textBlocks.join(' '));
 }
 
 export async function extractTextFromPdf(buffer: Buffer): Promise<string> {
@@ -92,7 +114,7 @@ export async function extractTextFromPdf(buffer: Buffer): Promise<string> {
     }
   }
 
-  return textContent.replace(/\s+/g, ' ').trim();
+  return sanitizeForPostgres(textContent);
 }
 
 export function extractTextFromDocx(buffer: Buffer): string {
@@ -140,20 +162,18 @@ export function extractTextFromDocx(buffer: Buffer): string {
       .replace(/&gt;/g, '>')
       .replace(/&quot;/g, '"')
       .replace(/&apos;/g, "'")
-      .replace(/\s+/g, ' ')
       .trim();
 
-    return cleanText;
+    return sanitizeForPostgres(cleanText);
   } catch (err: any) {
     console.warn('[DOCX Ingest] Extraction error:', err?.message || err);
-    // Fallback: extract printable strings from buffer
-    return buffer.toString('utf8').replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
+    return sanitizeForPostgres(buffer.toString('utf8').replace(/<[^>]+>/g, ' '));
   }
 }
 
 export function formatCsvAsText(csvContent: string): string {
   const lines = csvContent.split(/\r?\n/).filter((l) => l.trim().length > 0);
-  if (lines.length <= 1) return csvContent;
+  if (lines.length <= 1) return sanitizeForPostgres(csvContent);
 
   const headers = lines[0].split(',').map((h) => h.replace(/^["']|["']$/g, '').trim());
   const formattedRows: string[] = [];
@@ -170,7 +190,7 @@ export function formatCsvAsText(csvContent: string): string {
     }
   }
 
-  return formattedRows.join('\n');
+  return sanitizeForPostgres(formattedRows.join('\n'));
 }
 
 /**
@@ -180,38 +200,37 @@ export async function extractTextFromFile(buffer: Buffer, fileName: string, mime
   const lowerName = fileName.toLowerCase();
   const lowerMime = (mimeType || '').toLowerCase();
 
+  let rawExtracted = '';
+
   // 1. PDF
   if (lowerName.endsWith('.pdf') || lowerMime.includes('pdf')) {
-    return await extractTextFromPdf(buffer);
+    rawExtracted = await extractTextFromPdf(buffer);
   }
-
   // 2. DOCX / DOC
-  if (lowerName.endsWith('.docx') || lowerName.endsWith('.doc') || lowerMime.includes('wordprocessingml') || lowerMime.includes('msword')) {
-    return extractTextFromDocx(buffer);
+  else if (lowerName.endsWith('.docx') || lowerName.endsWith('.doc') || lowerMime.includes('wordprocessingml') || lowerMime.includes('msword')) {
+    rawExtracted = extractTextFromDocx(buffer);
   }
-
   // 3. CSV / TSV
-  if (lowerName.endsWith('.csv') || lowerName.endsWith('.tsv') || lowerMime.includes('csv') || lowerMime.includes('tab-separated')) {
-    const raw = buffer.toString('utf8');
-    return formatCsvAsText(raw);
+  else if (lowerName.endsWith('.csv') || lowerName.endsWith('.tsv') || lowerMime.includes('csv') || lowerMime.includes('tab-separated')) {
+    rawExtracted = formatCsvAsText(buffer.toString('utf8'));
   }
-
   // 4. JSON
-  if (lowerName.endsWith('.json') || lowerMime.includes('json')) {
+  else if (lowerName.endsWith('.json') || lowerMime.includes('json')) {
     try {
       const parsed = JSON.parse(buffer.toString('utf8'));
-      return JSON.stringify(parsed, null, 2);
+      rawExtracted = JSON.stringify(parsed, null, 2);
     } catch {
-      return buffer.toString('utf8');
+      rawExtracted = buffer.toString('utf8');
     }
   }
-
   // 5. HTML / XML
-  if (lowerName.endsWith('.html') || lowerName.endsWith('.htm') || lowerName.endsWith('.xml')) {
-    const raw = buffer.toString('utf8');
-    return raw.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
+  else if (lowerName.endsWith('.html') || lowerName.endsWith('.htm') || lowerName.endsWith('.xml')) {
+    rawExtracted = buffer.toString('utf8').replace(/<[^>]+>/g, ' ');
+  }
+  // 6. Default: UTF-8 Text / Markdown (.txt, .md, .markdown, .rtf, etc.)
+  else {
+    rawExtracted = buffer.toString('utf8');
   }
 
-  // 6. Default: UTF-8 Text / Markdown (.txt, .md, .markdown, .rtf, etc.)
-  return buffer.toString('utf8').replace(/\s+/g, ' ').trim();
+  return sanitizeForPostgres(rawExtracted);
 }

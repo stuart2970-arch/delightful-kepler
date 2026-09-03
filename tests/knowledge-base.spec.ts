@@ -1,7 +1,16 @@
 import { test, expect } from '@playwright/test';
+import { sanitizeForPostgres } from '@/lib/file-parser';
 
 test.describe('Knowledge Base Ingestion Pipeline (URL, Text, File)', () => {
   const testChatbotId = '0d37a64b-a4e7-462d-834a-22c948bba528'; // Betfred chatbot
+
+  test('sanitizeForPostgres should strip null bytes and unsupported Unicode escape sequences', () => {
+    const dirtyText = 'StyleFlo\u0000 AI\x00 Receptionist\u0000 with \x0Bcontrol \x0Cchars and \uD800surrogates.';
+    const cleanText = sanitizeForPostgres(dirtyText);
+    expect(cleanText).not.toContain('\u0000');
+    expect(cleanText).not.toContain('\x00');
+    expect(cleanText).toBe('StyleFlo AI Receptionist with control chars and surrogates.');
+  });
 
   test('POST /api/ingest/text should ingest text and generate vector embeddings', async ({ request }) => {
     const uniqueSourceName = `Playwright Test Text ${Date.now()}`;
@@ -21,14 +30,32 @@ test.describe('Knowledge Base Ingestion Pipeline (URL, Text, File)', () => {
     expect(data.chunksCount).toBeGreaterThan(0);
   });
 
-  test('POST /api/ingest/file should accept and process markdown uploads', async ({ request }) => {
-    const fileContent = 'StyleFlo Brand Guidelines: Primary color is #260475. StyleFlo provides AI Receptionist builders for businesses.';
+  test('POST /api/ingest/text with null bytes and special unicode should sanitize and ingest cleanly', async ({ request }) => {
+    const uniqueSourceName = `Unicode Clean Test ${Date.now()}`;
+    const dirtyContent = 'Document containing null byte \u0000 and escape sequence \\u0000 for StyleFlo customer onboarding testing.';
+
+    const response = await request.post('/api/ingest/text', {
+      data: {
+        text: dirtyContent,
+        sourceName: uniqueSourceName,
+        chatbotId: testChatbotId,
+      },
+    });
+
+    expect(response.status()).toBe(200);
+    const data = await response.json();
+    expect(data.success).toBe(true);
+    expect(data.chunksCount).toBeGreaterThan(0);
+  });
+
+  test('POST /api/ingest/file should accept and process markdown uploads with binary characters', async ({ request }) => {
+    const fileContent = 'StyleFlo Brand Guidelines: \u0000Primary color is #260475.\x00 StyleFlo provides AI Receptionist builders for businesses.';
     const buffer = Buffer.from(fileContent, 'utf-8');
 
     const response = await request.post('/api/ingest/file', {
       multipart: {
         file: {
-          name: 'brand-guidelines-test.md',
+          name: 'brand-guidelines-\u0000test.md',
           mimeType: 'text/markdown',
           buffer: buffer,
         },

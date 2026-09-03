@@ -6,6 +6,7 @@ import { RecursiveCharacterTextSplitter } from '@langchain/textsplitters';
 import { z } from 'zod';
 import { checkFeatureEntitlement } from '@/lib/entitlements';
 import { batchEmbedTexts } from '@/lib/embeddings';
+import { sanitizeForPostgres } from '@/lib/file-parser';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 120;
@@ -93,8 +94,10 @@ export async function POST(request: Request) {
       }
     }
 
-    // Clean text
-    const textContent = text.replace(/\s+/g, ' ').trim();
+    // Clean and sanitize text for PostgreSQL
+    const textContent = sanitizeForPostgres(text);
+    const sanitizedSourceName = sanitizeForPostgres(sourceName);
+
     if (textContent.length < 10) {
       return NextResponse.json({ error: 'Text content is too short to ingest.' }, { status: 400 });
     }
@@ -110,7 +113,9 @@ export async function POST(request: Request) {
     // Split text into chunks
     const splitter = new RecursiveCharacterTextSplitter({ chunkSize: 1000, chunkOverlap: 200 });
     const docOutputs = await splitter.createDocuments([textContent]);
-    const chunks = docOutputs.map((doc) => doc.pageContent);
+    const chunks = docOutputs
+      .map((doc) => sanitizeForPostgres(doc.pageContent))
+      .filter((content) => content.length > 0);
 
     if (chunks.length === 0) {
       return NextResponse.json({ error: 'Text splitting generated zero chunks' }, { status: 400 });
@@ -123,14 +128,14 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Failed to generate embeddings for text chunks.' }, { status: 502 });
     }
 
-    const metadata = { source_type: 'raw_text', title: sourceName };
+    const metadata = { source_type: 'raw_text', title: sanitizedSourceName };
 
     const recordsToInsert = chunks.slice(0, embeddings.length).map((chunkContent, idx) => ({
       tenant_id: tenantId,
       chatbot_id: chatbotId,
-      content: chunkContent,
+      content: sanitizeForPostgres(chunkContent),
       embedding: embeddings[idx],
-      source_url: sourceName,
+      source_url: sanitizedSourceName,
       metadata: metadata,
     }));
 
@@ -145,7 +150,7 @@ export async function POST(request: Request) {
     return NextResponse.json({
       success: true,
       chunksCount: recordsToInsert.length,
-      message: `Successfully ingested ${recordsToInsert.length} chunks from "${sourceName}".`,
+      message: `Successfully ingested ${recordsToInsert.length} chunks from "${sanitizedSourceName}".`,
     });
   } catch (error: any) {
     console.error(`[Ingest Text][${requestId}] Unhandled error:`, error);

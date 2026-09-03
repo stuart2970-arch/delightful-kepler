@@ -1233,3 +1233,20 @@ ame, irstMessage, and 	ranscriber) rather than relying on ssistantOverrides de
        - Executed `npx playwright test tests/knowledge-base.spec.ts` -> **4 of 4 tests passed (33.1s)**.
     3. **Build & Verification**:
        - Verified `npm run build` and `npm run build:widget` passed with 0 errors.
+
+### Session 46 (September 3, 2026) - PostgreSQL Unicode & Null Byte Sanitization (`sanitizeForPostgres`) & Playwright Suite Expansion
+* **User**: "The original error has been replaced with [Error] Failed to save chunks: unsupported Unicode escape sequence, please investigate, resolve and add to tests"
+  * **Root Cause Analysis**:
+    - Extracted text from PDF font streams, binary documents, or raw text can contain null bytes (`\u0000` / `\x00`), raw control characters, or unpaired Unicode surrogates (`\uD800-\uDFFF`).
+    - PostgreSQL strictly rejects `\u0000` in `text`, `varchar`, and `JSONB` columns, throwing `22P05: unsupported Unicode escape sequence`.
+  * **Solutions Applied**:
+    1. **`src/lib/file-parser.ts`**:
+       - Created `sanitizeForPostgres(text: string): string` utility stripping null bytes (`\u0000`, `\0`, `\\u0000`), non-printable ASCII control characters (`\x00-\x08\x0B\x0C\x0E-\x1F\x7F`), and unpaired Unicode surrogates, while applying `NFC` normalization.
+    2. **Ingestion Routes Sanitization**:
+       - Updated `src/app/api/ingest/file/route.ts`, `src/app/api/ingest/text/route.ts`, and `src/app/api/ingest/crawl/route.ts` to sanitize all chunk contents, source titles, and metadata objects before calling `dbClient.from('document_chunks').insert()`.
+    3. **Playwright Integration Test Suite Expansion (`tests/knowledge-base.spec.ts`)**:
+       - Added tests asserting `sanitizeForPostgres` strips null bytes and invalid sequences.
+       - Added integration tests uploading text and files containing `\u0000` and control characters, asserting HTTP 200 and clean storage.
+       - Executed `npx playwright test tests/knowledge-base.spec.ts` -> **6 of 6 tests passed (27.0s)**.
+    4. **Build & Verification**:
+       - Verified `npm run build` and `npm run build:widget` pass with 0 errors.
