@@ -633,14 +633,14 @@ export default function KnowledgeBaseView() {
                   {ingestMode === 'file' && (
                     <div className="md:col-span-2">
                       <label className="block text-xs font-semibold text-[var(--awb-color6)] mb-1.5">Upload File (PDF, DOCX, CSV, TXT, Markdown, JSON, max 20MB)</label>
-                      <div className="flex items-center gap-4">
-                        <label className="flex-1 max-w-sm flex items-center justify-center px-4 py-6 bg-[var(--awb-color1)] text-[var(--awb-color8)] border-[var(--awb-color3)] border-2 border-dashed border-[var(--awb-color3)] rounded-xl cursor-pointer hover:border-indigo-500/50 hover:bg-[#198fd9] text-white font-semibold rounded-[4px] px-[29px] py-[13px]/5 transition-colors">
+                      <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4 w-full">
+                        <label className="w-full sm:flex-1 sm:max-w-sm flex items-center justify-center px-4 py-6 bg-[var(--awb-color1)] text-[var(--awb-color8)] border-2 border-dashed border-[var(--awb-color3)] rounded-xl cursor-pointer hover:border-[#198fd9] hover:bg-[#198fd9]/5 transition-colors">
                           <div className="space-y-1 text-center">
                             <svg className="mx-auto h-8 w-8 text-[var(--awb-color6)]" stroke="currentColor" fill="none" viewBox="0 0 48 48" aria-hidden="true">
                               <path d="M28 8H12a4 4 0 00-4 4v20m32-12v8m0 0v8a4 4 0 01-4 4H12a4 4 0 01-4-4v-4m32-4l-3.172-3.172a4 4 0 00-5.656 0L28 28M8 32l9.172-9.172a4 4 0 015.656 0L28 28m0 0l4 4m4-24h8m-4-4v8m-12 4h.02" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
                             </svg>
                             <div className="text-sm text-[var(--awb-color6)]">
-                              <span className="text-[var(--awb-color5)] font-semibold focus-within:outline-none focus-within:ring-2 focus-within:ring-indigo-500 focus-within:ring-offset-2 hover:text-[var(--awb-color5)]">Upload a file</span>
+                              <span className="text-[#198fd9] font-semibold focus-within:outline-none focus-within:ring-2 focus-within:ring-[#198fd9] focus-within:ring-offset-2">Upload a file</span>
                               <p className="pl-1 text-xs">or drag and drop</p>
                             </div>
                             <p className="text-xs text-[var(--awb-color6)]">PDF, DOCX, CSV, TXT, MD, JSON up to 20MB</p>
@@ -662,12 +662,12 @@ export default function KnowledgeBaseView() {
                           />
                         </label>
                         {selectedFile && (
-                          <div className="flex-1 bg-[var(--awb-color1)] text-[var(--awb-color8)] border-[var(--awb-color3)] border border-emerald-500/30 p-3 rounded-xl flex items-center justify-between">
-                            <div className="flex flex-col min-w-0">
+                          <div className="w-full sm:flex-1 bg-[var(--awb-color1)] text-[var(--awb-color8)] border border-emerald-500/50 p-3 rounded-xl flex items-center justify-between shadow-sm">
+                            <div className="flex flex-col min-w-0 pr-2">
                               <span className="text-sm font-semibold text-emerald-800 truncate">{selectedFile.name}</span>
                               <span className="text-xs text-[var(--awb-color6)]">{(selectedFile.size / 1024).toFixed(1)} KB</span>
                             </div>
-                            <button type="button" onClick={() => setSelectedFile(null)} className="text-[var(--awb-color6)] hover:text-red-400 p-1">
+                            <button type="button" onClick={() => setSelectedFile(null)} className="text-[var(--awb-color6)] hover:text-red-500 p-1 shrink-0">
                               <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12"></path></svg>
                             </button>
                           </div>
