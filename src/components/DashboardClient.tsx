@@ -698,15 +698,11 @@ const globalBotId = '00000000-0000-0000-0000-000000000000';
       {/* Sidebar Navigation */}
       <aside className={`${isMobileMenuOpen ? 'translate-x-0' : '-translate-x-full'} md:translate-x-0 fixed md:relative z-50 transition-transform duration-300 w-64 h-full flex-shrink-0 border-r border-[var(--awb-color3)] bg-[var(--awb-color2)] flex flex-col justify-between`}>
          <div className="p-6">
-            <div className="flex items-center justify-between mb-10 pl-2">
-               <div className="flex items-center gap-3">
-                 <div className="w-8 h-8 rounded-xl bg-[var(--awb-color8)] text-white font-extrabold flex items-center justify-center text-sm shadow-md">SF</div>
-                 <span className="font-extrabold text-xl tracking-tight text-[var(--awb-color8)]">StyleFlo</span>
-               </div>
+             <div className="flex items-center justify-end mb-6 pl-2">
                <button className="md:hidden p-2 -mr-2 text-[var(--awb-color6)] hover:text-[var(--awb-color7)]" onClick={() => setIsMobileMenuOpen(false)}>
                  <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12"></path></svg>
                </button>
-            </div>
+             </div>
             <nav className="space-y-1.5">
               {(role === 'member' 
                 ? [
@@ -760,32 +756,10 @@ const globalBotId = '00000000-0000-0000-0000-000000000000';
         
         <div className="flex-1 overflow-y-auto styleflo-scrollbar p-4 sm:p-6 lg:p-8 space-y-6 md:space-y-8">
            <SetPasswordBanner />
-           <header className="flex flex-col md:flex-row items-start md:items-center justify-between mb-6 md:mb-8 gap-4">
-              <div className="flex items-center gap-3 w-full">
-                 <button className="md:hidden p-2 -ml-2 text-[var(--awb-color6)] hover:text-[var(--awb-color7)]" onClick={() => setIsMobileMenuOpen(true)}>
-                    <svg className="w-7 h-7" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 6h16M4 12h16M4 18h16"></path></svg>
-                 </button>
-                 <div className="flex-1">
-                    <h1 className="text-2xl md:text-3xl font-extrabold text-[#260475] capitalize truncate">
-                   {activeTab === 'chatbots' ? 'Chatbot Manager' : 
-                    activeTab === 'scheduling' ? 'Scheduling & Staff' :
-                    activeTab === 'conversations' ? 'Web Chat & Voice' :
-                    activeTab === 'telephony' ? 'Phone Calls & AI Receptionist' :
-                    activeTab === 'openclaw-monitor' ? 'Messaging Gateways' :
-                    activeTab === 'crawler' ? 'Knowledge Base' :
-                    activeTab === 'billing' ? 'Billing & Usage' :
-                    activeTab === 'superadmin_voices' ? 'Voice Personas Management' :
-                    activeTab.replace('_', ' ')}
-                 </h1>
-                 <p className="text-sm text-[#434549] mt-1">Workspace: <span className="text-[#198fd9] font-semibold">{tenantName}</span></p>
-                 </div>
-              </div>
-              {isDev && (
-                 <div className="bg-indigo-50 border border-indigo-200 px-3 py-1.5 rounded-full flex items-center gap-2 shadow-sm">
-                    <span className="w-2 h-2 rounded-full bg-[#198fd9] animate-pulse"></span>
-                    <span className="text-[10px] tracking-wider uppercase text-[#198fd9] font-bold">Dev Mode Active</span>
-                 </div>
-              )}
+           <header className="md:hidden flex items-center justify-start mb-6">
+              <button className="p-2 -ml-2 text-[var(--awb-color6)] hover:text-[var(--awb-color7)]" onClick={() => setIsMobileMenuOpen(true)}>
+                 <svg className="w-7 h-7" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 6h16M4 12h16M4 18h16"></path></svg>
+              </button>
            </header>
 
            <div className="w-full space-y-8">
