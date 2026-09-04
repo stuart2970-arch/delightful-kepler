@@ -775,8 +775,8 @@ const globalBotId = '00000000-0000-0000-0000-000000000000';
         
         <div className="flex-1 overflow-y-auto styleflo-scrollbar p-0 sm:p-6 lg:p-8 space-y-4 md:space-y-8">
            <SetPasswordBanner />
-           <header className="md:hidden flex items-center justify-start mb-6">
-              <button className="p-2 -ml-2 text-[var(--awb-color6)] hover:text-[var(--awb-color7)]" onClick={() => setIsMobileMenuOpen(true)}>
+           <header className="md:hidden flex items-center justify-start mb-6 px-4 pt-4">
+              <button className="p-2 text-[var(--awb-color6)] hover:text-[var(--awb-color7)]" onClick={() => setIsMobileMenuOpen(true)}>
                  <svg className="w-7 h-7" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 6h16M4 12h16M4 18h16"></path></svg>
               </button>
            </header>
