@@ -40,88 +40,92 @@
   --font-inter: var(--font-inter, 'Inter', sans-serif);
 }
 
-body {
-  background: var(--awb-color3);
-  color: var(--awb-color7);
-  font-family: var(--font-poppins), 'Poppins', 'Inter', system-ui, -apple-system, sans-serif;
-  font-size: 16px;
-  line-height: 1.72;
-  letter-spacing: 0.015em;
+@layer base {
+  body {
+    background: var(--awb-color3);
+    color: var(--awb-color7);
+    font-family: var(--font-poppins), 'Poppins', 'Inter', system-ui, -apple-system, sans-serif;
+    font-size: 16px;
+    line-height: 1.72;
+    letter-spacing: 0.015em;
+  }
+  
+  h1, .h1 {
+    font-family: var(--font-poppins), 'Poppins', sans-serif;
+    font-weight: 400;
+    color: var(--awb-color8);
+  }
+  
+  h2, h3, h4, h5 {
+    font-family: var(--font-poppins), 'Poppins', sans-serif;
+    font-weight: 400;
+    color: var(--awb-color7);
+  }
+  
+  h6 {
+    font-family: var(--font-poppins), 'Poppins', sans-serif;
+    font-weight: 400;
+    color: var(--awb-color6);
+  }
+  
+  a {
+    color: var(--awb-color8);
+    transition: color 0.2s ease-in-out;
+  }
+  
+  a:hover {
+    color: var(--awb-color5);
+  }
 }
 
-h1, .h1 {
-  font-family: var(--font-poppins), 'Poppins', sans-serif;
-  font-weight: 400;
-  color: var(--awb-color8);
-}
-
-h2, h3, h4, h5 {
-  font-family: var(--font-poppins), 'Poppins', sans-serif;
-  font-weight: 400;
-  color: var(--awb-color7);
-}
-
-h6 {
-  font-family: var(--font-poppins), 'Poppins', sans-serif;
-  font-weight: 400;
-  color: var(--awb-color6);
-}
-
-a {
-  color: var(--awb-color8);
-  transition: color 0.2s ease-in-out;
-}
-
-a:hover {
-  color: var(--awb-color5);
-}
-
-/* WordPress Avada Theme Input Styles */
-input[type="text"],
-input[type="email"],
-input[type="password"],
-input[type="tel"],
-input[type="number"],
-select,
-textarea {
-  background-color: var(--awb-color1);
-  color: var(--awb-color8);
-  border: 1px solid var(--awb-color3);
-  border-radius: var(--form-border-radius);
-  font-size: var(--form-text-size);
-  transition: border-color 0.2s ease, box-shadow 0.2s ease;
-}
-
-input[type="text"]:focus,
-input[type="email"]:focus,
-input[type="password"]:focus,
-input[type="tel"]:focus,
-input[type="number"]:focus,
-select:focus,
-textarea:focus {
-  border-color: var(--awb-color4);
-  outline: none;
-  box-shadow: 0 0 0 3px rgba(101, 189, 125, 0.15);
-}
-
-/* WordPress Avada Theme Button Styles */
-.awb-btn,
-button.btn-primary {
-  background-color: var(--awb-color5);
-  color: var(--awb-color1);
-  padding: var(--button-padding-top) var(--button-padding-right) var(--button-padding-bottom) var(--button-padding-left);
-  border-radius: var(--button-border-radius);
-  font-family: var(--font-inter), 'Inter', sans-serif;
-  font-weight: 600;
-  font-size: 16px;
-  line-height: 1.2;
-  border: none;
-  cursor: pointer;
-  transition: background-color 0.2s ease, transform 0.1s ease;
-}
-
-.awb-btn:hover,
-button.btn-primary:hover {
-  background-color: #157ab9;
+@layer components {
+  /* WordPress Avada Theme Input Styles */
+  input[type="text"],
+  input[type="email"],
+  input[type="password"],
+  input[type="tel"],
+  input[type="number"],
+  select,
+  textarea {
+    background-color: var(--awb-color1);
+    color: var(--awb-color8);
+    border: 1px solid var(--awb-color3);
+    border-radius: var(--form-border-radius);
+    font-size: var(--form-text-size);
+    transition: border-color 0.2s ease, box-shadow 0.2s ease;
+  }
+  
+  input[type="text"]:focus,
+  input[type="email"]:focus,
+  input[type="password"]:focus,
+  input[type="tel"]:focus,
+  input[type="number"]:focus,
+  select:focus,
+  textarea:focus {
+    border-color: var(--awb-color4);
+    outline: none;
+    box-shadow: 0 0 0 3px rgba(101, 189, 125, 0.15);
+  }
+  
+  /* WordPress Avada Theme Button Styles */
+  .awb-btn,
+  button.btn-primary {
+    background-color: var(--awb-color5);
+    color: var(--awb-color1);
+    padding: var(--button-padding-top) var(--button-padding-right) var(--button-padding-bottom) var(--button-padding-left);
+    border-radius: var(--button-border-radius);
+    font-family: var(--font-inter), 'Inter', sans-serif;
+    font-weight: 600;
+    font-size: 16px;
+    line-height: 1.2;
+    border: none;
+    cursor: pointer;
+    transition: background-color 0.2s ease, transform 0.1s ease;
+  }
+  
+  .awb-btn:hover,
+  button.btn-primary:hover {
+    background-color: #157ab9;
+  }
 }
 
