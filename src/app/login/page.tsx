@@ -8,12 +8,19 @@ import LegalModal from '@/components/LegalModal';
 export default function LoginPage() {
   const router = useRouter();
   const [isLogin, setIsLogin] = useState(true);
+  const [selectedPlan, setSelectedPlan] = useState('premium');
+  const [isPlanLocked, setIsPlanLocked] = useState(false);
 
   useEffect(() => {
     if (typeof window !== 'undefined') {
       const params = new URLSearchParams(window.location.search);
       if (params.get('mode') === 'register') {
         setIsLogin(false);
+      }
+      const plan = params.get('plan');
+      if (plan) {
+        setSelectedPlan(plan);
+        setIsPlanLocked(true);
       }
     }
   }, []);
@@ -29,10 +36,13 @@ export default function LoginPage() {
   const openLegalModal = (title: string, url: string) => {
     setLegalModal({ isOpen: true, title, url });
   };
+  const closeLegalModal = () => {
+    setLegalModal({ ...legalModal, isOpen: false });
+  };
+
   const [password, setPassword] = useState('');
   const [fullName, setFullName] = useState('');
   const [companyName, setCompanyName] = useState('');
-  const [websiteUrl, setWebsiteUrl] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
@@ -210,8 +220,8 @@ export default function LoginPage() {
             data: {
               full_name: fullName,
               company_name: companyName,
-              website_url: websiteUrl,
               slug: finalSlug,
+              selected_plan: selectedPlan,
             },
           },
         });
@@ -504,15 +514,18 @@ export default function LoginPage() {
                 )}
               </div>
               <div>
-                <label className="block text-xs font-bold text-[#1E293B] mb-1.5 uppercase tracking-wide">Website URL</label>
-                <input
-                  type="url"
-                  required
-                  value={websiteUrl}
-                  onChange={(e) => setWebsiteUrl(e.target.value)}
-                  className="w-full bg-white border border-[#CBD5E1] text-[#0F172A] rounded-xl px-4 py-3 focus:outline-none focus:border-[#7E5FBB] focus:ring-2 focus:ring-[#7E5FBB]/20 transition-all text-sm placeholder-slate-400 font-medium"
-                  placeholder="https://example.com"
-                />
+                <label className="block text-xs font-bold text-[#1E293B] mb-1.5 uppercase tracking-wide">Selected Tier</label>
+                <select
+                  value={selectedPlan}
+                  onChange={(e) => setSelectedPlan(e.target.value)}
+                  disabled={isPlanLocked}
+                  className="w-full bg-white border border-[#CBD5E1] text-[#0F172A] rounded-xl px-4 py-3 focus:outline-none focus:border-[#7E5FBB] focus:ring-2 focus:ring-[#7E5FBB]/20 transition-all text-sm font-medium disabled:opacity-70 disabled:bg-slate-50"
+                >
+                  <option value="basic">Basic Tier</option>
+                  <option value="starter">Starter Tier</option>
+                  <option value="premium">Premium Tier</option>
+                  <option value="ultimate">Ultimate Tier</option>
+                </select>
               </div>
               {/* REQUIRED TERMS CHECKBOX FOR SIGNUP */}
               <div className="flex items-start gap-2.5 pt-2">
