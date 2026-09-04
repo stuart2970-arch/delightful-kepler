@@ -842,7 +842,7 @@ export default function KnowledgeBaseView() {
                             value={rule}
                             onChange={(e) => handleUpdateRuleItem(idx, e.target.value)}
                             placeholder="Enter business rule or constraint..."
-                            className="flex-1 bg-white border border-[#f2f3f5] rounded-xl px-3.5 py-2 text-sm text-[var(--awb-color8)] focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                            className="flex-1 min-w-0 bg-white border border-[#f2f3f5] rounded-xl px-3.5 py-2 text-sm text-[var(--awb-color8)] focus:outline-none focus:ring-1 focus:ring-indigo-500"
                           />
                           <button
                             type="button"
@@ -859,20 +859,20 @@ export default function KnowledgeBaseView() {
                     </div>
                   )}
 
-                  <div className="flex gap-2 pt-2">
+                  <div className="flex flex-col sm:flex-row gap-2 pt-2">
                     <input
                       type="text"
                       value={newRuleInput}
                       onChange={(e) => setNewRuleInput(e.target.value)}
                       onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); handleAddRule(); } }}
                       placeholder="e.g. Always state that prices exclude VAT, or Never discuss competitor products"
-                      className="flex-1 bg-white border border-[#f2f3f5] rounded-xl px-3.5 py-2 text-sm text-[var(--awb-color8)] focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                      className="flex-1 min-w-0 w-full bg-white border border-[#f2f3f5] rounded-xl px-3.5 py-2 text-sm text-[var(--awb-color8)] focus:outline-none focus:ring-1 focus:ring-indigo-500"
                     />
                     <button
                       type="button"
                       onClick={handleAddRule}
                       disabled={!newRuleInput.trim()}
-                      className="bg-[#198fd9] text-white font-semibold text-xs px-4 py-2 rounded-xl hover:bg-[#167bbd] disabled:opacity-50 transition-colors shrink-0 flex items-center gap-1"
+                      className="w-full sm:w-auto bg-[#198fd9] text-white font-semibold text-xs px-4 py-2 rounded-xl hover:bg-[#167bbd] disabled:opacity-50 transition-colors shrink-0 flex items-center justify-center gap-1"
                     >
                       <span>+</span> Add Rule
                     </button>
