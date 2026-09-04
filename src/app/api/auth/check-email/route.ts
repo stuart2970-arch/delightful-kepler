@@ -63,20 +63,7 @@ export async function POST(request: Request) {
       console.warn('[Check Email Route] listUsers fallback:', e);
     }
 
-    // Method 3: Probe Supabase Auth generateLink for magic link token
-    try {
-      const { data: linkData, error: linkError } = await supabaseAdmin.auth.admin.generateLink({
-        type: 'magiclink',
-        email: email,
-      });
-
-      if (linkData?.user || (linkError && !linkError.message.includes('User not found') && linkError.status !== 404)) {
-        console.log(`[Check Email Route] Email ${email} detected via generateLink probe.`);
-        return NextResponse.json({ exists: true, email }, { status: 200, headers: corsHeaders });
-      }
-    } catch (e) {
-      console.warn('[Check Email Route] generateLink probe fallback:', e);
-    }
+    // Method 3 (generateLink probe) has been removed because it implicitly creates users when checking.
 
     // Method 4: Check staff table for pre-invited members
     try {

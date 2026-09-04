@@ -288,27 +288,7 @@ export default function LoginPage() {
       <div className="absolute bottom-[-10%] right-[-10%] w-[500px] h-[500px] bg-[#260475]/10 rounded-full blur-[120px] pointer-events-none"></div>
 
       <div className="w-full max-w-md bg-white border border-[#EBE7F2] rounded-3xl p-8 md:p-10 shadow-[0_12px_40px_rgba(74,31,82,0.08)] relative z-10 backdrop-blur-xl">
-        <div className="text-center mb-7">
-          <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-[#260475] to-[#7E5FBB] p-2.5 mx-auto mb-4 flex items-center justify-center shadow-md shadow-[#7E5FBB]/20 transition-transform duration-300 hover:scale-105">
-            <img 
-              src="https://styleflo.ai/wp-content/uploads/2026/07/icon.png" 
-              alt="StyleFlo.ai Logo" 
-              className="w-full h-full object-contain" 
-              onError={(e) => {
-                const target = e.currentTarget;
-                target.style.display = 'none';
-                if (target.nextElementSibling) target.nextElementSibling.classList.remove('hidden');
-              }}
-            />
-            <span className="hidden text-white font-black text-2xl tracking-tighter">SF</span>
-          </div>
-          <h1 className="text-2xl font-black text-[#0F172A] mb-1 tracking-tight font-sans">
-            STYLE<span className="text-[#7E5FBB]">FLO</span><span className="text-xs text-[#64748B] font-mono ml-0.5 font-normal">.AI</span>
-          </h1>
-          <p className="text-xs text-[#64748B] font-medium">
-            {isLogin ? 'Sign in to manage your 24/7 AI Receptionist' : 'Create an account to activate your AI Receptionist'}
-          </p>
-        </div>
+
 
         {error && (
           <div className="mb-6 p-4 bg-rose-50 border border-rose-200 text-rose-800 rounded-xl text-xs font-medium leading-relaxed">

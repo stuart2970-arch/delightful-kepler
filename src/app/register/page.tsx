@@ -265,25 +265,6 @@ function RegisterContent() {
       <div className="absolute bottom-[-10%] right-[-10%] w-[500px] h-[500px] bg-[#7E5FBB]/25 rounded-full blur-[120px] pointer-events-none"></div>
 
       <div className="w-full max-w-md bg-[#130F26]/90 border border-purple-900/40 rounded-3xl p-8 md:p-10 shadow-[0_20px_50px_rgba(38,4,117,0.35)] relative z-10 backdrop-blur-2xl">
-        <div className="text-center mb-6">
-          <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-[#260475] via-[#4A1F52] to-[#7E5FBB] border border-purple-400/30 p-2.5 mx-auto mb-4 flex items-center justify-center shadow-xl shadow-purple-950/60 transition-transform duration-300 hover:scale-105">
-            <img 
-              src="https://styleflo.ai/wp-content/uploads/2026/07/icon.png" 
-              alt="StyleFlo.ai Logo" 
-              className="w-full h-full object-contain drop-shadow" 
-              onError={(e) => {
-                const target = e.currentTarget;
-                target.style.display = 'none';
-                if (target.nextElementSibling) target.nextElementSibling.classList.remove('hidden');
-              }}
-            />
-            <span className="hidden text-white font-black text-2xl tracking-tighter">SF</span>
-          </div>
-          <h1 className="text-2xl font-black text-white mb-1 tracking-tight font-sans">
-            STYLE<span className="text-[#9678D3]">FLO</span><span className="text-xs text-purple-300 font-mono ml-0.5 font-normal">.AI</span>
-          </h1>
-          <p className="text-xs text-purple-200/80 font-medium">Get your 24/7 AI Receptionist ready in under 5 minutes</p>
-        </div>
 
         {/* Selected Plan Banner */}
         <div className="bg-gradient-to-r from-[#260475]/60 to-[#7E5FBB]/40 border border-purple-500/30 rounded-2xl p-4 mb-6 text-center space-y-1 shadow-inner">
