@@ -8,6 +8,16 @@ import LegalModal from '@/components/LegalModal';
 export default function LoginPage() {
   const router = useRouter();
   const [isLogin, setIsLogin] = useState(true);
+
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const params = new URLSearchParams(window.location.search);
+      if (params.get('mode') === 'register') {
+        setIsLogin(false);
+      }
+    }
+  }, []);
+
   const [email, setEmail] = useState('');
   const [termsAccepted, setTermsAccepted] = useState(false);
   const [legalModal, setLegalModal] = useState<{ isOpen: boolean; title: string; url: string }>({
