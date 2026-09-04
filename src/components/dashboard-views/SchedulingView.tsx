@@ -840,10 +840,10 @@ export default function SchedulingView() {
                 <select
                   value={flexibleBreaks ? 'true' : 'false'}
                   onChange={e => setFlexibleBreaks(e.target.value === 'true')}
-                  className="w-full bg-gray-50 border border-gray-300 rounded px-3 py-2 text-xs font-semibold text-gray-800"
+                  className="w-full min-w-0 overflow-hidden text-ellipsis whitespace-nowrap bg-gray-50 border border-gray-300 rounded px-3 py-2 text-xs font-semibold text-gray-800"
                 >
-                  <option value="true">Breaks ≤30m ARE flexible (can adjust ±30m for bookings)</option>
-                  <option value="false">Breaks ARE NOT flexible (fixed duration)</option>
+                  <option value="true">Breaks ≤30m flexible (±30m)</option>
+                  <option value="false">Breaks fixed (no adjust)</option>
                 </select>
               </div>
 
@@ -852,10 +852,10 @@ export default function SchedulingView() {
                 <select
                   value={is247 ? 'true' : 'false'}
                   onChange={e => setIs247(e.target.value === 'true')}
-                  className="w-full bg-gray-50 border border-gray-300 rounded px-3 py-2 text-xs font-semibold text-gray-800"
+                  className="w-full min-w-0 overflow-hidden text-ellipsis whitespace-nowrap bg-gray-50 border border-gray-300 rounded px-3 py-2 text-xs font-semibold text-gray-800"
                 >
-                  <option value="false">We ARE NOT a 24/7 365 operation</option>
-                  <option value="true">We ARE a 24/7 365 online operation</option>
+                  <option value="false">Standard Hours</option>
+                  <option value="true">24/7 Online Operation</option>
                 </select>
               </div>
 
@@ -864,16 +864,16 @@ export default function SchedulingView() {
                 <select
                   value={openPublicHolidays ? 'true' : 'false'}
                   onChange={e => setOpenPublicHolidays(e.target.value === 'true')}
-                  className="w-full bg-gray-50 border border-gray-300 rounded px-3 py-2 text-xs font-semibold text-gray-800"
+                  className="w-full min-w-0 overflow-hidden text-ellipsis whitespace-nowrap bg-gray-50 border border-gray-300 rounded px-3 py-2 text-xs font-semibold text-gray-800"
                 >
-                  <option value="false">We DO NOT open on Public Holidays</option>
-                  <option value="true">We DO open on Public Holidays</option>
+                  <option value="false">Closed on Public Holidays</option>
+                  <option value="true">Open on Public Holidays</option>
                 </select>
               </div>
 
               <div>
                 <label className="block text-xs font-semibold text-gray-600 mb-1">Max Advance Booking Window</label>
-                <div className="flex items-center gap-2">
+                <div className="flex flex-wrap items-center gap-2">
                   <input
                     type="number"
                     min={1}
@@ -882,7 +882,7 @@ export default function SchedulingView() {
                     onChange={e => setMaxAdvanceWeeks(Number(e.target.value))}
                     className="w-24 bg-gray-50 border border-gray-300 rounded px-3 py-2 text-xs font-semibold text-gray-800"
                   />
-                  <span className="text-xs text-gray-600 font-semibold">weeks in advance</span>
+                  <span className="text-xs text-gray-600 font-semibold whitespace-nowrap">weeks in advance</span>
                 </div>
               </div>
             </div>
