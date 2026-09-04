@@ -484,11 +484,10 @@ export default function ChatbotManagerView() {
                     <div className="space-y-4 animate-in fade-in slide-in-from-right-4 duration-300">
                       <div>
                         <label className="block text-xs font-semibold text-[var(--awb-color7)] mb-1.5">Welcome Message</label>
-                        <input
-                          type="text"
+                        <textarea
                           value={newBotWelcome}
                           onChange={(e) => setNewBotWelcome(e.target.value)}
-                          className="w-full h-[50px] bg-[var(--awb-color1)] border border-[var(--awb-color3)] rounded-[6px] px-3.5 py-2 text-sm text-[var(--awb-color8)] focus:outline-none focus:border-[var(--awb-color4)]"
+                          className="w-full min-h-[50px] focus:min-h-[120px] transition-all bg-[var(--awb-color1)] border border-[var(--awb-color3)] rounded-[6px] px-3.5 py-3 text-sm text-[var(--awb-color8)] focus:outline-none focus:border-[#198fd9] resize-none overflow-y-auto"
                           required
                         />
                       </div>
@@ -524,7 +523,7 @@ export default function ChatbotManagerView() {
                       <div>
                       <label className="block text-xs font-semibold text-[var(--awb-color7)] mb-2">Select Agent Avatar Preset</label>
                       
-                      <div className="grid grid-cols-5 md:grid-cols-10 gap-2 mb-4 max-h-48 overflow-y-auto styleflo-scrollbar pr-2">
+                      <div className="grid grid-cols-4 md:grid-cols-8 gap-3 mb-4 max-h-64 overflow-y-auto styleflo-scrollbar pr-2">
                         {generatedAvatars.map((url, idx) => (
                           <button
                             key={idx}
@@ -576,7 +575,7 @@ export default function ChatbotManagerView() {
                     <div className="space-y-4 animate-in fade-in slide-in-from-right-4 duration-300">
                       <div className="flex items-center justify-between bg-[var(--awb-color2)] p-4 rounded-xl border border-[var(--awb-color3)]">
                         <div className={`w-10 h-10 rounded-xl flex items-center justify-center transition-colors ${newVoiceEnabled ? 'bg-[#198fd9] text-white' : 'bg-[var(--awb-color3)]'}`}>
-                          <svg className={`w-5 h-5 ${newVoiceEnabled ? 'text-[var(--awb-color8)]' : 'text-[var(--awb-color6)]'}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <svg className={`w-5 h-5 ${newVoiceEnabled ? 'text-white' : 'text-[var(--awb-color6)]'}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z" />
                           </svg>
                         </div>
