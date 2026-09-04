@@ -906,35 +906,7 @@ export default function ChatbotManagerView() {
                           </div>
                         </div>
 
-                        <div className="grid grid-cols-3 gap-3 pt-2">
-                          <button
-                            onClick={() => {
-                              const config = bot.configuration_json || {};
-                              setEditingBotId(bot.id);
-                              setWizardStep(3);
-                              setNewBotName(bot.name);
-                              setNewBotColor(bot.primary_color);
-                              setNewBotWelcome(config.welcome_message || 'Hello!');
-                              setNewAgentName(config.agent_name || bot.name);
-                              setNewAgentRole(config.agent_role || 'AI Assistant');
-                              setNewAgentAvatar(config.agent_avatar_url || '/avatars/avatar1.png');
-                              setNewVoiceEnabled(bot.voice_enabled || false);
-                              setNewVoiceId(config.voice_id || '');
-                              setBackgroundSound(config.background_sound || 'office');
-                              setNewAdminEmail(config.admin_email || config.notification_email || '');
-                              setWhatsappEnabled(Boolean(config.whatsapp_enabled));
-                              setWhatsappNumber(config.whatsapp_number || '');
-                              setInstagramEnabled(Boolean(config.instagram_enabled));
-                              setInstagramHandle(config.instagram_handle || '');
-                              setSmsEnabled(Boolean(config.sms_enabled));
-                              setSmsNumber(config.sms_number || '');
-                              setFileUploadEnabled(Boolean(config.file_upload_enabled));
-                              window.scrollTo({ top: 0, behavior: 'smooth' });
-                            }}
-                            className="bg-[#260475] hover:bg-[#1f0360] text-white border border-[#260475] py-2.5 px-3 rounded-xl text-xs font-bold transition-all shadow-sm text-center flex items-center justify-center gap-1.5"
-                          >
-                            📷 Avatar
-                          </button>
+                        <div className="pt-2">
                           <button
                             onClick={() => {
                               const config = bot.configuration_json || {};
@@ -959,15 +931,9 @@ export default function ChatbotManagerView() {
                               setFileUploadEnabled(Boolean(config.file_upload_enabled));
                               window.scrollTo({ top: 0, behavior: 'smooth' });
                             }}
-                            className="bg-[#198fd9] hover:bg-[#157ab9] text-white border border-[#198fd9] py-2.5 px-3 rounded-xl text-xs font-bold transition-all shadow-sm text-center flex items-center justify-center gap-1.5"
+                            className="w-full bg-[#198fd9] hover:bg-[#157ab9] text-white border border-[#198fd9] py-2.5 px-3 rounded-xl text-xs font-bold transition-all shadow-sm text-center flex items-center justify-center gap-1.5"
                           >
-                            ✏️ Persona
-                          </button>
-                          <button
-                            onClick={() => setActiveTab('telephony')}
-                            className="bg-blue-50 hover:bg-blue-100 text-[#198fd9] border border-blue-200 py-2.5 px-3 rounded-xl text-xs font-bold transition-all text-center flex items-center justify-center gap-1.5"
-                          >
-                            📞 Voice
+                            ✏️ Edit Agent
                           </button>
                         </div>
                       </div>
