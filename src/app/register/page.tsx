@@ -21,7 +21,6 @@ function RegisterContent() {
   const [password, setPassword] = useState('');
   const [fullName, setFullName] = useState('');
   const [companyName, setCompanyName] = useState('');
-  const [websiteUrl, setWebsiteUrl] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
@@ -225,7 +224,6 @@ function RegisterContent() {
           data: {
             full_name: fullName,
             company_name: companyName,
-            website_url: websiteUrl,
             slug: finalSlug,
             selected_plan: planParam,
             promo_applied: promoParam,
@@ -442,13 +440,12 @@ function RegisterContent() {
           </div>
 
           <div>
-            <label className="block text-xs font-bold text-purple-200/90 mb-1.5 uppercase tracking-wider">Website URL (Optional)</label>
+            <label className="block text-xs font-bold text-purple-200/90 mb-1.5 uppercase tracking-wider">Selected Tier</label>
             <input
-              type="url"
-              value={websiteUrl}
-              onChange={(e) => setWebsiteUrl(e.target.value)}
-              placeholder="https://www.mysalon.co.uk"
-              className="w-full h-11 bg-[#090715]/90 border border-purple-900/50 rounded-xl px-4 text-sm text-white focus:outline-none focus:border-[#9678D3] focus:ring-2 focus:ring-[#7E5FBB]/40 transition-colors placeholder-purple-300/30"
+              type="text"
+              readOnly
+              value={planInfo.name}
+              className="w-full h-11 bg-purple-900/20 border border-purple-500/30 rounded-xl px-4 text-sm text-purple-200 focus:outline-none cursor-not-allowed opacity-80"
             />
           </div>
 
