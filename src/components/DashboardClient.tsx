@@ -333,6 +333,7 @@ export default function DashboardClient({
     }
   };
 
+  const [accountOldPassword, setAccountOldPassword] = useState('');
   const [accountNewPassword, setAccountNewPassword] = useState('');
   const [accountConfirmPassword, setAccountConfirmPassword] = useState('');
   const [isUpdatingAccountPassword, setIsUpdatingAccountPassword] = useState(false);
@@ -341,6 +342,11 @@ export default function DashboardClient({
   const handleAccountPasswordUpdate = async (e: React.FormEvent) => {
     e.preventDefault();
     setAccountPasswordMsg(null);
+
+    if (!accountOldPassword) {
+      setAccountPasswordMsg({ text: 'Please enter your current password to confirm changes.', isError: true });
+      return;
+    }
 
     if (accountNewPassword.length < 6) {
       setAccountPasswordMsg({ text: 'Password must be at least 6 characters long.', isError: true });
@@ -355,23 +361,36 @@ export default function DashboardClient({
     setIsUpdatingAccountPassword(true);
     try {
       if (supabase) {
+        // First verify the old password by attempting a sign-in
+        const { error: signInError } = await supabase.auth.signInWithPassword({
+          email: userEmail,
+          password: accountOldPassword,
+        });
+
+        if (signInError) {
+          throw new Error('Incorrect current password. Please try again.');
+        }
+
         const { error } = await supabase.auth.updateUser({
           password: accountNewPassword,
           data: { has_set_password: true }
         });
         if (error) throw error;
-      }
+        
+        if (typeof window !== 'undefined') {
+          localStorage.setItem('styleflo_password_set', 'true');
+        }
 
-      if (typeof window !== 'undefined') {
-        localStorage.setItem('styleflo_password_set', 'true');
+        setAccountPasswordMsg({ text: '🔐 Password updated successfully! You can now log in anytime using your password.', isError: false });
+        setAccountOldPassword('');
+        setAccountNewPassword('');
+        setAccountConfirmPassword('');
+      } else {
+        throw new Error("Supabase client not initialized.");
       }
-
-      setAccountPasswordMsg({ text: '🔐 Password updated successfully! You can now log in anytime using your password.', isError: false });
-      setAccountNewPassword('');
-      setAccountConfirmPassword('');
     } catch (err: any) {
       console.error('Error setting password in Account Settings:', err);
-      setAccountPasswordMsg({ text: err?.message || 'Failed to update password. Please try again.', isError: true });
+      setAccountPasswordMsg({ text: err.message || 'Failed to update password. Please try again.', isError: true });
     } finally {
       setIsUpdatingAccountPassword(false);
     }
@@ -944,7 +963,18 @@ const globalBotId = '00000000-0000-0000-0000-000000000000';
                   </div>
 
                   <form onSubmit={handleAccountPasswordUpdate} className="space-y-4">
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                      <div>
+                        <label className="block text-xs font-semibold text-[#212326] mb-1.5">Current Password</label>
+                        <input
+                          type="password"
+                          value={accountOldPassword}
+                          onChange={(e) => setAccountOldPassword(e.target.value)}
+                          required
+                          className="w-full h-[50px] bg-white border border-[#f2f3f5] rounded-[6px] px-3.5 py-2 text-sm text-[#212326] focus:outline-none focus:border-[#198fd9]"
+                          placeholder="Your current password"
+                        />
+                      </div>
                       <div>
                         <label className="block text-xs font-semibold text-[#212326] mb-1.5">New Password</label>
                         <input
