@@ -1356,3 +1356,12 @@ oute.ts and src/app/api/voice/[chatbotId]/chat/completions/route.ts for maximum 
   4. **Build & Verification**:
      - Recompiled widget bundles (`public/widget.js` & `public/embed.js`) via `npm run build:widget`.
      - Verified full Next.js 16.2.9 production build (`npm run build`), passing all 36 routes cleanly.
+
+### Session Update (Agent Configuration & UI Refinement)
+* **User**: "Rename Chatbot to Agent in the left-hand navigation menu... Rename field title from Chatbot Name to ID Name... Enable Voice toggle must be greyed out unless the user's tier includes voice minutes... Omnichannel & File Uploads must be removed from this configuration step."
+  * **Fix**: 
+    1. Updated SidebarNavigation.tsx to rename "Chatbot" to "Agent".
+    2. Updated ChatbotManagerView.tsx to rename "Chatbot Name" to "ID Name" in Step 1.
+    3. Refactored ChatbotManagerView.tsx to safely pull illingData.entitlements, verify api_voice_minutes limits, and explicitly grey out and block the "Enable Voice" toggle if the tenant lacks voice minutes, prompting them to upgrade.
+    4. Cleaned up ChatbotManagerView.tsx by removing the Omnichannel (WhatsApp/Instagram/SMS) and File Upload UI blocks from the builder wizard, leaving their underlying database schema defaults intact for external activation.
+
