@@ -99,6 +99,11 @@ export default function MyProfileView() {
     }
   };
 
+  const copyToNextWeek = () => {
+    // Stub for now to prevent ReferenceError
+    console.log("Copy to next week clicked");
+  };
+
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
     setSaving(true);

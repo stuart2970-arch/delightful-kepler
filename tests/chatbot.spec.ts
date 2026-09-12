@@ -1,7 +1,7 @@
 import { test, expect } from '@playwright/test';
 
 test.describe('Chatbot & Widget Functionality', () => {
-  const testChatbotId = '0d37a64b-a4e7-462d-834a-22c948bba528'; // Betfred / Ailen Stats chatbot
+  const testChatbotId = 'e0000000-0000-0000-0000-000000000001'; // Local seed chatbot
 
   test('chatbot public API returns valid configuration and voiceEnabled flag', async ({ request }) => {
     const response = await request.get(`/api/chatbots/${testChatbotId}`);

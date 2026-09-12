@@ -1,4 +1,4 @@
-﻿/**
+/**
  * Utility functions for rolling week schedules and calendar calculations
  */
 

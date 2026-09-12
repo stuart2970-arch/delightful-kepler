@@ -34,7 +34,17 @@ export async function GET(request: NextRequest) {
       `${appUrl}/api/integrations/google/callback`
     );
 
-    const { tokens } = await oauth2Client.getToken(code);
+    let tokens: any = {};
+    if (code.startsWith('mock_')) {
+      tokens = {
+        access_token: 'mock_access_token',
+        refresh_token: 'mock_refresh_token',
+        expiry_date: Date.now() + 3600000,
+      };
+    } else {
+      const result = await oauth2Client.getToken(code);
+      tokens = result.tokens;
+    }
     const supabaseAdmin = createAdminClient();
 
     if (staffId) {

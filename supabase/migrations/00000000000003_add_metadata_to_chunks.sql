@@ -2,6 +2,9 @@
 ALTER TABLE public.document_chunks
   ADD COLUMN IF NOT EXISTS metadata jsonb DEFAULT '{}'::jsonb;
 
+-- Drop the old function so we can recreate it with a new return signature
+DROP FUNCTION IF EXISTS public.match_documents(vector, float, integer, uuid, uuid);
+
 -- Recreate match_documents RPC to include metadata
 CREATE OR REPLACE FUNCTION public.match_documents (
   query_embedding vector(768),

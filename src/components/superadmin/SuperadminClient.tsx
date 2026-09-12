@@ -84,7 +84,7 @@ export default function SuperadminClient({
   initialGlobalBrandingHtml,
   initialGlobalTrackingUrl,
   initialGlobalVoiceDisclaimer,
-  initialGlobalGeminiModel = 'gemini-2.5-flash',
+  initialGlobalGeminiModel = 'gemini-3.6-flash',
   initialFloBotConfig
 }: { 
   tenants: TenantStat[],
@@ -168,7 +168,7 @@ export default function SuperadminClient({
   const [globalBrandingHtml, setGlobalBrandingHtml] = useState(initialGlobalBrandingHtml || '<span style="opacity: 0.6; font-size: 11px;">⚡ Powered by <strong>StyleFlo</strong></span>');
   const [globalTrackingUrl, setGlobalTrackingUrl] = useState(initialGlobalTrackingUrl || 'https://styleflo.ai');
   const [globalVoiceDisclaimer, setGlobalVoiceDisclaimer] = useState(initialGlobalVoiceDisclaimer || '');
-  const [geminiModelInput, setGeminiModelInput] = useState<string>(initialGlobalGeminiModel || 'gemini-2.5-flash');
+  const [geminiModelInput, setGeminiModelInput] = useState<string>(initialGlobalGeminiModel || 'gemini-3.6-flash');
   const [isSavingGlobal, setIsSavingGlobal] = useState(false);
 
   const [availableModels, setAvailableModels] = useState<any[]>([]);
@@ -494,7 +494,7 @@ export default function SuperadminClient({
                 </p>
               </div>
               <span className="px-3 py-1 bg-indigo-500/10 border border-indigo-500/30 text-indigo-400 font-mono text-xs font-bold rounded-full">
-                Active: {geminiModelInput || 'gemini-2.5-flash'}
+                Active: {geminiModelInput || 'gemini-3.6-flash'}
               </span>
             </div>
 
@@ -507,12 +507,12 @@ export default function SuperadminClient({
                   type="text"
                   value={geminiModelInput}
                   onChange={(e) => setGeminiModelInput(e.target.value)}
-                  placeholder="e.g. gemini-2.5-flash or gemini-3.6-flash"
+                  placeholder="e.g. gemini-3.6-flash or gemini-3.6-flash"
                   className="w-full bg-gray-950 border border-gray-700 rounded-xl px-4 py-2.5 text-sm text-white focus:outline-none focus:ring-2 focus:ring-indigo-500 font-mono font-semibold"
                   required
                 />
                 <p className="text-[11px] text-gray-400 mt-1.5">
-                  Type any custom Google Gemini model ID manually (e.g. <code className="text-indigo-300 font-mono">gemini-2.5-flash</code> or <code className="text-indigo-300 font-mono">gemini-3.6-flash</code>) or click a quick-select preset below.
+                  Type any custom Google Gemini model ID manually (e.g. <code className="text-indigo-300 font-mono">gemini-3.6-flash</code> or <code className="text-indigo-300 font-mono">gemini-3.6-flash</code>) or click a quick-select preset below.
                 </p>
               </div>
 
@@ -543,7 +543,7 @@ export default function SuperadminClient({
                 <div className="flex flex-wrap gap-2">
                   {(availableModels.length > 0 ? availableModels : [
                     { id: 'gemini-flash-latest', displayName: 'gemini-flash-latest (Auto-Update Alias)', isAlias: true },
-                    { id: 'gemini-2.5-flash', displayName: 'gemini-2.5-flash (Fast & Economical)', isAlias: false },
+                    { id: 'gemini-3.6-flash', displayName: 'gemini-3.6-flash (Fast & Economical)', isAlias: false },
                     { id: 'gemini-2.5-pro', displayName: 'gemini-2.5-pro (Deep Reasoning)', isAlias: false }
                   ]).map((m) => {
                     const cleanId = m.id.replace(/^models\//i, '');

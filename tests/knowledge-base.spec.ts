@@ -2,7 +2,7 @@ import { test, expect } from '@playwright/test';
 import { sanitizeForPostgres } from '@/lib/file-parser';
 
 test.describe('Knowledge Base Ingestion Pipeline (URL, Text, File)', () => {
-  const testChatbotId = '0d37a64b-a4e7-462d-834a-22c948bba528'; // Betfred chatbot
+  const testChatbotId = 'e0000000-0000-0000-0000-000000000001'; // Local seed chatbot
 
   test('sanitizeForPostgres should strip null bytes and unsupported Unicode escape sequences', () => {
     const dirtyText = 'StyleFlo\u0000 AI\x00 Receptionist\u0000 with \x0Bcontrol \x0Cchars and \uD800surrogates.';

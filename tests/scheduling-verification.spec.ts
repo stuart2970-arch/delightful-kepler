@@ -1,7 +1,7 @@
 import { test, expect } from '@playwright/test';
 
 test.describe('Scheduling & Staff Section Verification', () => {
-  const testTenantId = 'e2e_test_tenant_123';
+  const testTenantId = '10000000-0000-0000-0000-000000000001';
 
   test('Tenant Settings API handles calendar policies save without error', async ({ request }) => {
     const response = await request.patch('/api/tenants/settings', {

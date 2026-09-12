@@ -47,7 +47,7 @@ export async function POST(request: Request) {
       .from('staff')
       .insert({
         tenant_id,
-        chatbot_id,
+        chatbot_id: chatbot_id || null,
         name,
         role: role || null,
         email,
@@ -82,7 +82,7 @@ export async function PUT(request: Request) {
     const { data, error } = await supabaseAdmin
       .from('staff')
       .update({
-        chatbot_id,
+        chatbot_id: chatbot_id || null,
         name,
         role: role || null,
         email,

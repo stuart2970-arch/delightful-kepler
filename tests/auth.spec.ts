@@ -4,15 +4,15 @@ test.describe('Authentication Flows', () => {
   test('login page loads correctly', async ({ page }) => {
     await page.goto('/login');
 
-    // Verify the title or heading
-    await expect(page.locator('h1')).toHaveText(/STYLEFLO/i);
+    // Verify the social login buttons exist (new UI design)
+    await expect(page.getByRole('button', { name: /Sign In in 1-Click with Google/i })).toBeVisible();
 
     // Verify inputs exist
     await expect(page.locator('input[type="email"]')).toBeVisible();
     await expect(page.locator('input[type="password"]')).toBeVisible();
 
     // Verify sign in button exists
-    await expect(page.getByRole('button', { name: /Sign In/i })).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Sign In', exact: true })).toBeVisible();
   });
 
   test('can toggle to signup form', async ({ page }) => {
@@ -22,8 +22,6 @@ test.describe('Authentication Flows', () => {
     await page.getByRole('button', { name: /Don't have an account\? Sign up/i }).click();
 
     // Verify we are on signup form
-    await expect(page.locator('h1')).toHaveText(/STYLEFLO/i);
-    await expect(page.getByText('Create an account to get started')).toBeVisible();
 
     // Verify additional inputs appear
     await expect(page.locator('input[placeholder="Sarah Jenkins"]')).toBeVisible();

@@ -17,8 +17,9 @@ CREATE SCHEMA IF NOT EXISTS public;
 -- -------------------------------------------------------------------------
 
 -- Ensure address and postcode columns on tenants can be NULL
-ALTER TABLE public.tenants ALTER COLUMN business_address DROP NOT NULL;
-ALTER TABLE public.tenants ALTER COLUMN postcode DROP NOT NULL;
+-- (These columns were dropped in 20260721220000)
+-- ALTER TABLE public.tenants ALTER COLUMN business_address DROP NOT NULL;
+-- ALTER TABLE public.tenants ALTER COLUMN postcode DROP NOT NULL;
 
 -- Add mobile-first context & drop-off recovery tracking columns to public.tenants if they do not exist
 ALTER TABLE public.tenants 
@@ -142,8 +143,16 @@ CREATE POLICY insert_staff ON public.staff
 
 CREATE POLICY update_staff ON public.staff
   FOR UPDATE TO authenticated
-  USING (tenant_id = public.get_auth_tenant_id() AND public.is_auth_admin())
-  WITH CHECK (tenant_id = public.get_auth_tenant_id() AND public.is_auth_admin());
+  USING (
+    tenant_id = public.get_auth_tenant_id() AND (
+      public.is_auth_admin() OR user_id = auth.uid()
+    )
+  )
+  WITH CHECK (
+    tenant_id = public.get_auth_tenant_id() AND (
+      public.is_auth_admin() OR user_id = auth.uid()
+    )
+  );
 
 CREATE POLICY delete_staff ON public.staff
   FOR DELETE TO authenticated
@@ -232,6 +241,11 @@ BEGIN
   IF matching_staff_record.id IS NOT NULL THEN
     INSERT INTO public.profiles (id, tenant_id, role, is_super_admin) 
     VALUES (NEW.id, matching_staff_record.tenant_id, 'member', false);
+
+    -- Update the staff profile to point to their Auth UID
+    UPDATE public.staff
+    SET user_id = NEW.id
+    WHERE id = matching_staff_record.id;
   ELSE
     company_name_input := COALESCE(NEW.raw_user_meta_data->>'company_name', 'My Workspace');
     meta_model := COALESCE(NEW.raw_user_meta_data->>'operational_model', 'physical');

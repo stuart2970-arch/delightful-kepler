@@ -1,4 +1,5 @@
 -- Supabase Custom JWT Auth Hook for O(1) RLS Checks
+ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS is_super_admin boolean DEFAULT false;
 
 -- 1. Create the hook function that injects tenant_id into the JWT
 CREATE OR REPLACE FUNCTION public.custom_access_token_hook(event jsonb)

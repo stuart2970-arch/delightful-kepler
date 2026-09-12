@@ -65,22 +65,9 @@ export async function POST(request: Request) {
 
     // Method 3 (generateLink probe) has been removed because it implicitly creates users when checking.
 
-    // Method 4: Check staff table for pre-invited members
-    try {
-      const { data: staffMatch } = await supabaseAdmin
-        .from('staff')
-        .select('id')
-        .ilike('email', email)
-        .limit(1)
-        .maybeSingle();
-
-      if (staffMatch) {
-        console.log(`[Check Email Route] Email ${email} found in staff table.`);
-        return NextResponse.json({ exists: true, email }, { status: 200, headers: corsHeaders });
-      }
-    } catch (e) {
-      console.warn('[Check Email Route] staff table check fallback:', e);
-    }
+    // Note: We deliberately do NOT check the `staff` table here. If a user is in the `staff` table 
+    // but not in `auth.users`, it means they were invited by an owner and still need to sign up. 
+    // Blocking them here would prevent them from creating their account.
 
     return NextResponse.json({ exists: false, email }, { status: 200, headers: corsHeaders });
   } catch (err: any) {

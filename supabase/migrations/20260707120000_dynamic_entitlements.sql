@@ -1,14 +1,14 @@
 -- Dynamic Entitlements & Metering Architecture
 
 -- 1. Create Feature Categories
-CREATE TABLE public.feature_categories (
+CREATE TABLE IF NOT EXISTS public.feature_categories (
     id TEXT PRIMARY KEY,
     name TEXT NOT NULL,
     description TEXT
 );
 
 -- 2. Create Features
-CREATE TABLE public.features (
+CREATE TABLE IF NOT EXISTS public.features (
     id TEXT PRIMARY KEY,
     category_id TEXT REFERENCES public.feature_categories(id) ON DELETE CASCADE,
     name TEXT NOT NULL,
@@ -17,7 +17,7 @@ CREATE TABLE public.features (
 );
 
 -- 3. Create Tenant Entitlements (Ledger)
-CREATE TABLE public.tenant_entitlements (
+CREATE TABLE IF NOT EXISTS public.tenant_entitlements (
     tenant_id UUID REFERENCES public.tenants(id) ON DELETE CASCADE,
     feature_id TEXT REFERENCES public.features(id) ON DELETE CASCADE,
     is_enabled BOOLEAN DEFAULT false,
@@ -29,7 +29,7 @@ CREATE TABLE public.tenant_entitlements (
 );
 
 -- 4. Create Usage Logs (Audit Trail)
-CREATE TABLE public.usage_logs (
+CREATE TABLE IF NOT EXISTS public.usage_logs (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     tenant_id UUID REFERENCES public.tenants(id) ON DELETE CASCADE,
     feature_id TEXT REFERENCES public.features(id) ON DELETE CASCADE,
@@ -50,21 +50,25 @@ CREATE POLICY "Anyone can read features" ON public.features FOR SELECT USING (tr
 
 -- Tenants can read their own entitlements
 CREATE POLICY "Tenants can view own entitlements" ON public.tenant_entitlements
-    FOR SELECT USING (tenant_id = auth.uid() OR tenant_id IN (SELECT id FROM public.tenants WHERE owner_id = auth.uid()));
+    FOR SELECT USING (tenant_id = public.get_auth_tenant_id());
 
 -- Tenants can read their own logs
 CREATE POLICY "Tenants can view own usage logs" ON public.usage_logs
-    FOR SELECT USING (tenant_id = auth.uid() OR tenant_id IN (SELECT id FROM public.tenants WHERE owner_id = auth.uid()));
+    FOR SELECT USING (tenant_id = public.get_auth_tenant_id());
 
 -- Insert Default Plan Structure
 INSERT INTO public.feature_categories (id, name, description) VALUES 
 ('ai_services', 'AI & Machine Learning', 'AI features including chatbots and knowledge bases'),
 ('scheduling', 'Scheduling', 'Booking and calendar integrations'),
-('core', 'Core Platform', 'Core SaaS features');
+('core', 'Core Platform', 'Core SaaS features')
+ON CONFLICT (id) DO NOTHING;
+ALTER TABLE public.features ADD COLUMN IF NOT EXISTS type TEXT;
+ALTER TABLE public.features ADD COLUMN IF NOT EXISTS description TEXT;
 
 INSERT INTO public.features (id, category_id, name, type, description) VALUES 
 ('chatbot_instances', 'ai_services', 'Active Chatbots', 'numeric', 'Number of active chatbot agents'),
 ('knowledge_base_crawls', 'ai_services', 'Website Crawls', 'numeric', 'Number of website ingestions per month'),
 ('llm_tokens', 'ai_services', 'LLM Tokens', 'numeric', 'Monthly token quota for AI responses'),
 ('google_calendar_sync', 'scheduling', 'Google Calendar Sync', 'boolean', 'Two-way sync with Google Calendar'),
-('custom_branding', 'core', 'Custom Branding', 'boolean', 'Remove StyleFlo branding');
+('custom_branding', 'core', 'Custom Branding', 'boolean', 'Remove StyleFlo branding')
+ON CONFLICT (id) DO NOTHING;

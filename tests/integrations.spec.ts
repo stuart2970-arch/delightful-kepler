@@ -1,7 +1,7 @@
 import { test, expect } from '@playwright/test';
 
 test.describe('Vapi, ElevenLabs & Telephony Integrations', () => {
-  const testChatbotId = '0d37a64b-a4e7-462d-834a-22c948bba528'; // Betfred / Ailen Stats chatbot
+  const testChatbotId = 'e0000000-0000-0000-0000-000000000001'; // Acme Support Bot (seeded locally)
 
   test('Vapi Assistant Webhook returns valid dynamic assistant with 11labs voice', async ({ request }) => {
     const response = await request.post('/api/webhooks/vapi/assistant', {

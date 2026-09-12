@@ -18,16 +18,6 @@ BEGIN
   WHERE lower(email) = lower(trim(p_email))
   LIMIT 1;
 
-  IF v_exists THEN
-    RETURN true;
-  END IF;
-
-  -- 2. Check staff table for pre-invited members
-  SELECT true INTO v_exists
-  FROM public.staff
-  WHERE lower(email) = lower(trim(p_email))
-  LIMIT 1;
-
   RETURN COALESCE(v_exists, false);
 END;
 $$;

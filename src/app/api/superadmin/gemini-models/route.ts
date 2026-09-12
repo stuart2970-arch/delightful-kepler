@@ -18,7 +18,7 @@ export async function GET() {
   const fallbackPresets = [
     { id: 'gemini-flash-latest', displayName: 'gemini-flash-latest (Auto-updates to Google\'s Latest Flash)', description: 'Google\'s dynamic auto-updating alias', isAlias: true },
     { id: 'gemini-pro-latest', displayName: 'gemini-pro-latest (Auto-updates to Google\'s Latest Pro)', description: 'Google\'s dynamic auto-updating alias', isAlias: true },
-    { id: 'gemini-2.5-flash', displayName: 'Gemini 2.5 Flash', description: 'Fast, high-performance workhorse model', isAlias: false },
+    { id: 'gemini-3.6-flash', displayName: 'Gemini 2.5 Flash', description: 'Fast, high-performance workhorse model', isAlias: false },
     { id: 'gemini-2.5-pro', displayName: 'Gemini 2.5 Pro', description: 'Deep reasoning and complex task model', isAlias: false },
   ];
 
