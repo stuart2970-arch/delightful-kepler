@@ -9,6 +9,7 @@
     "lint": "eslint",
     "build:widget": "node scripts/build-widget.js",
     "prepare": "husky",
+    "test:server": "dotenv -e .env.test -- next dev",
     "test:e2e": "playwright test",
     "test:e2e:ui": "playwright test --ui"
   },
