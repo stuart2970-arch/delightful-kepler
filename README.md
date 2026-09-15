@@ -1408,3 +1408,19 @@ oute.ts and src/app/api/voice/[chatbotId]/chat/completions/route.ts for maximum 
   5. **Supabase RPC Optimization**: Updated check_email_exists to remove an errant public.staff table check that erroneously blocked pre-invited colleagues from signing up.
   6. **OAuth Callback Testing**: Fixed an invalid_grant test failure by intercepting mock_ OAuth codes in the Next.js callback route (/api/integrations/google/callback) and returning mock tokens to prevent backend server crashes during e2e testing. Fixed the final mock callback assertion to account for Next.js middleware 307 auth redirects correctly.
   - **Result**: The 	ests/multi-colleague.spec.ts E2E suite now successfully completes 100% of tests.
+
+### Session Chat History Log (Husky Hook Repair & Full E2E Suite Green)
+* **User Request**: "Why is husky failing, why are we using it... Please prepare, when complete add the reasoning and resolution to a note in the obsidian vault inside the Styleflo folder named Husky... You can now fix it and add that fact to the note"
+* **Fixes & Enhancements**:
+  1. **Husky Hook Resolution**: Configured 	est:server in package.json with dotenv -e .env.test --override -- next dev and updated playwright.config.ts to call 
+pm run test:server without brittle global 
+px calls.
+  2. **E2E Isolation & Environment Hardening**:
+     - Configured Playwright with workers: 1 and ullyParallel: false to run sequentially against local Supabase database state.
+     - Set euseExistingServer: false in playwright.config.ts so Playwright always spawns a dedicated, cleanly scoped Next.js test instance.
+     - Replaced non-JWT Supabase keys in .env.test with valid local JWT tokens from supabase status.
+     - Added testing fallbacks for mock embedding generation and voice completion streaming when running under Playwright.
+     - Updated seed tier for Acme Corp to starter to ensure voice features are properly tested.
+     - Removed rogue root filesystem symlink that was triggering Turbopack compilation panics.
+  3. **Obsidian Documentation**: Created and updated  1_Projects\Styleflo AI\Husky.md in the Obsidian vault with root-cause analysis, hook architecture details, and resolution steps.
+  - **Result**: 100% of tests passed (28 passed, 1 skipped) during Husky pre-push hook, and git push origin main completed cleanly to GitHub.
