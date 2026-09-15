@@ -15,12 +15,13 @@ END;
 $$ LANGUAGE plpgsql;
 
 -- 2. Seed Tenants
-INSERT INTO public.tenants (id, tenant_id, company_name, slug)
+INSERT INTO public.tenants (id, tenant_id, company_name, slug, plan_tier)
 VALUES (
   '10000000-0000-0000-0000-000000000001',
   '10000000-0000-0000-0000-000000000001',
   'Acme Corp',
-  'acme-corp'
+  'acme-corp',
+  'starter'
 ) ON CONFLICT (id) DO NOTHING;
 
 INSERT INTO public.tenants (id, tenant_id, company_name, slug)

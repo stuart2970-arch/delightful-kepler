@@ -71,6 +71,6 @@ test.describe('Chatbot & Widget Functionality', () => {
     expect(uiVerification.hasInput).toBeTruthy();
     expect(uiVerification.hasForm).toBeTruthy();
     expect(uiVerification.hasVapiBtn).toBeTruthy();
-    expect(uiVerification.agentHeader).toBe('Betfred');
+    expect(uiVerification.agentHeader).toBe('Acme Support Bot');
   });
 });

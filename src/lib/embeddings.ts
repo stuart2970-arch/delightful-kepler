@@ -47,7 +47,7 @@ export async function generateEmbedding(text: string, customApiKey?: string): Pr
   const cleanText = text.trim();
 
   // Test mode mock fallback
-  if (apiKey === 'mock-test-key') {
+  if (process.env.PLAYWRIGHT_TEST === 'true' || apiKey === 'mock-test-key') {
     return new Array(768).fill(0).map((_, i) => Math.sin(i + cleanText.length) * 0.05);
   }
 
