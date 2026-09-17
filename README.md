@@ -1501,3 +1501,20 @@ px calls.
 
 **Build Status**: ✅ Passed
 **Playwright Tests**: ✅ 28 passed, 1 skipped (1.1m)
+
+### Session 21 — Security Vulnerability Remediation & Container Hardening (2026-09-17)
+
+**Context**: Cloud live build security scan reported 64 vulnerabilities with fixes available (spanning container Alpine OS packages and npm dependencies).
+
+1. **NPM Dependency Security Fixes**:
+   - Upgraded `next` from `16.2.9` to `16.3.5` and `eslint-config-next` to `16.3.5` to resolve critical Next.js security advisories (GHSA-6gpp-xcg3-4w24, GHSA-m99w-x7hq-7vfj, GHSA-p293-qw3h-jr36, etc.) and transitive `sharp`/`postcss` vulnerabilities.
+   - Executed `npm audit fix` patching 14 additional dependencies (`undici`, `nanoid`, `js-yaml`, `protobufjs`, `qs`, `brace-expansion`, `browserslist`).
+   - Verified `npm audit` returned **0 vulnerabilities** across all 558 packages.
+
+2. **Dockerfile Container OS Hardening**:
+   - Added `apk update && apk upgrade --no-cache` to both the `deps` stage and the final `runner` stage in `Dockerfile` to patch Alpine Linux base OS packages (musl, openssl, busybox, etc.) during Cloud Build.
+
+3. **Build & Test Verification**:
+   - `npm run build` compiled cleanly and generated minified widget.
+   - Playwright end-to-end test suite verified: **28 passed, 1 skipped (1.5m)**.
+

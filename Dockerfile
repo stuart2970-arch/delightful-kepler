@@ -3,7 +3,7 @@
 # =========================================================================
 FROM node:20-alpine AS deps
 # Check https://github.com/nodejs/docker-node/tree/b4117f9333da4138b03a546ec926ef50a31506c3#nodealpine to understand why libc6-compat might be needed.
-RUN apk add --no-cache libc6-compat
+RUN apk update && apk upgrade --no-cache && apk add --no-cache libc6-compat
 WORKDIR /app
 
 # Copy package manifests
@@ -42,6 +42,7 @@ RUN npm run build
 # STAGE 3: RUNTIME RUNNER (MINIFIED BASE)
 # =========================================================================
 FROM node:20-alpine AS runner
+RUN apk update && apk upgrade --no-cache
 WORKDIR /app
 
 ENV NODE_ENV=production
