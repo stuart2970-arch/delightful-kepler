@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState } from 'react';
+import { createBrowserClient } from '@supabase/ssr';
 import { useDashboardStore } from '../../lib/store';
 import AddOnUpsellModal from '../AddOnUpsellModal';
 
@@ -14,14 +15,39 @@ export default function TelephonyView() {
   const channelFlags = billingData?.channelFlags || { has_landline: false, has_mobile: false, has_whatsapp: false };
   const hasPhoneAddon = channelFlags.has_landline || channelFlags.has_mobile;
 
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+  const supabase = supabaseUrl && supabaseAnonKey ? createBrowserClient(supabaseUrl, supabaseAnonKey) : null;
+
+  const getAuthHeaders = async (baseHeaders: Record<string, string> = {}) => {
+    const headers: Record<string, string> = { ...baseHeaders };
+    if (supabase) {
+      try {
+        const { data: { session } } = await supabase.auth.getSession();
+        if (session?.access_token) {
+          headers['Authorization'] = `Bearer ${session.access_token}`;
+        }
+      } catch (e) {
+        console.warn('Could not get session for auth header:', e);
+      }
+    }
+    return headers;
+  };
+
   const handleProvision = async () => {
     setIsProvisioning(true);
     setError(null);
     try {
+      const headers = await getAuthHeaders({ 'Content-Type': 'application/json' });
+      const numberType = channelFlags.has_mobile && !channelFlags.has_landline && !areaCode ? 'mobile' : 'local';
       const res = await fetch('/api/telephony/provision', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ tenant_id: tenantId, area_code: areaCode || undefined }),
+        headers,
+        body: JSON.stringify({ 
+          tenant_id: tenantId, 
+          area_code: areaCode || undefined,
+          number_type: numberType,
+        }),
       });
       const data = await res.json();
       if (!res.ok) {
@@ -43,9 +69,10 @@ export default function TelephonyView() {
     setIsDeprovisioning(true);
     setError(null);
     try {
+      const headers = await getAuthHeaders({ 'Content-Type': 'application/json' });
       const res = await fetch('/api/telephony/deprovision', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers,
         body: JSON.stringify({ tenant_id: tenantId, confirmed_downgrade: true }),
       });
       const data = await res.json();

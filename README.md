@@ -1547,3 +1547,15 @@ px calls.
    - Replaced cookie-dependent RLS with server-side tenant ownership validation via `adminClient` in `/api/chatbots/[id]` and `/api/chatbots`.
    - Verified clean build (`npm run build`).
 
+### Session 24 — Support Separate Twilio Mobile & Local Regulatory Bundles (2026-09-17)
+
+**Context**: Telephony regulatory compliance in the UK requires separate Twilio Regulatory Bundles for local geographic numbers (01/02) and mobile numbers (07).
+
+1. **Updates Applied**:
+   - In `/api/telephony/provision/route.ts`, added support for `TWILIO_BUNDLE_SID_LOCAL` and `TWILIO_BUNDLE_SID_MOBILE` (with backwards-compatible fallback to `TWILIO_BUNDLE_SID`).
+   - Automatically selects the correct regulatory bundle based on whether the number being purchased is local (landline add-on or area code specified) or mobile (mobile add-on).
+   - Added area code search parsing for UK local codes (stripping leading `0`, e.g. `0151` -> `151`).
+   - Added `Authorization: Bearer` auth header fallback to `/api/telephony/provision`.
+   - Updated `TelephonyView.tsx` to pass `getAuthHeaders` and declare `number_type` ('local' vs 'mobile').
+   - Verified clean build (`npm run build`).
+
