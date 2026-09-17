@@ -42,7 +42,8 @@ RUN npm run build
 # STAGE 3: RUNTIME RUNNER (MINIFIED BASE)
 # =========================================================================
 FROM node:20-alpine AS runner
-RUN apk update && apk upgrade --no-cache
+RUN apk update && apk upgrade --no-cache && \
+    rm -rf /usr/local/lib/node_modules/npm /usr/local/bin/npm /usr/local/bin/npx /usr/local/bin/corepack
 WORKDIR /app
 
 ENV NODE_ENV=production

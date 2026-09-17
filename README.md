@@ -1511,8 +1511,9 @@ px calls.
    - Executed `npm audit fix` patching 14 additional dependencies (`undici`, `nanoid`, `js-yaml`, `protobufjs`, `qs`, `brace-expansion`, `browserslist`).
    - Verified `npm audit` returned **0 vulnerabilities** across all 558 packages.
 
-2. **Dockerfile Container OS Hardening**:
+2. **Dockerfile Container OS Hardening & Attack Surface Reduction**:
    - Added `apk update && apk upgrade --no-cache` to both the `deps` stage and the final `runner` stage in `Dockerfile` to patch Alpine Linux base OS packages (musl, openssl, busybox, etc.) during Cloud Build.
+   - Removed unused global npm/npx/corepack binaries (`/usr/local/lib/node_modules/npm`) from the production `runner` container image. Next.js standalone runs directly on `node server.js`, so stripping npm completely eliminates the 29 bundled npm vulnerabilities (`pacote`, `tar`, `sigstore`, `ip-address`, etc.).
 
 3. **Build & Test Verification**:
    - `npm run build` compiled cleanly and generated minified widget.
