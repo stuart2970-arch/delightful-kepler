@@ -65,6 +65,7 @@ ON CONFLICT (id) DO UPDATE SET
 
 -- RLS for addon_catalog (read-only for authenticated, admin write)
 ALTER TABLE public.addon_catalog ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS select_addon_catalog ON public.addon_catalog;
 CREATE POLICY select_addon_catalog ON public.addon_catalog
     FOR SELECT TO authenticated USING (true);
 
@@ -125,6 +126,7 @@ CREATE TABLE IF NOT EXISTS public.addon_audit_log (
 );
 
 ALTER TABLE public.addon_audit_log ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS select_addon_audit_log ON public.addon_audit_log;
 CREATE POLICY select_addon_audit_log ON public.addon_audit_log
     FOR SELECT TO authenticated USING (true);
 
@@ -182,11 +184,17 @@ ON CONFLICT (id) DO UPDATE SET
 
 -- 6e. Seed base tier entitlements
 -- Universal defaults enabled on all accounts
+-- Ensure chatbots_limit feature exists in features table
+INSERT INTO public.features (id, category_id, name, is_metered, is_available)
+VALUES ('chatbots_limit', 'core_ai', 'Chatbots Limit', false, true)
+ON CONFLICT (id) DO UPDATE SET name = 'Chatbots Limit', is_available = true;
+
 INSERT INTO public.tier_entitlements (tier_id, feature_id, limit_value) VALUES
     ('base_tier', 'web_widget', 1),
     ('base_tier', 'web_presence', 1),
     ('base_tier', 'lead_capture', 1),
     ('base_tier', 'chatbots_limit', 1),
+    ('base_tier', 'website_chatbots', 1),
     ('base_tier', 'knowledge_data_chunks', 500),
     ('base_tier', 'message_allowance', 1500)
 ON CONFLICT (tier_id, feature_id) DO UPDATE SET

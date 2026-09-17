@@ -1559,3 +1559,22 @@ px calls.
    - Updated `TelephonyView.tsx` to pass `getAuthHeaders` and declare `number_type` ('local' vs 'mobile').
    - Verified clean build (`npm run build`).
 
+### Session 25 — Production Supabase Database Modular Pricing Migration & Add-On Catalog Activation (2026-09-17)
+
+**Context**: User reported `⚠️ Unable to load add-ons. Please try again later. This feature may not be available on your current plan yet.` in the `AddOnUpsellModal` when clicking "Add a Landline Number" on the live site (`app.styleflo.ai`).
+
+1. **Root Cause**:
+   - Migration `20260917120000_modular_pricing_architecture.sql` had been run on the local test database during development, but had not yet been applied to the live production Supabase instance (`project_id: tkoasyjvrgaglofpzduq`).
+   - When the modal called `/api/billing/addons?category=landline`, PostgREST threw `PGRST205: Could not find the table 'public.addon_catalog' in the schema cache`, causing the endpoint to respond with HTTP 500.
+
+2. **Fixes Applied**:
+   - Updated `supabase/migrations/20260917120000_modular_pricing_architecture.sql` to guarantee idempotency (`DROP POLICY IF EXISTS` on RLS policies) and explicitly ensure the `chatbots_limit` feature exists in `public.features` before seeding `tier_entitlements`.
+   - Applied migration `modular_pricing_architecture` directly to the live production database via the Supabase MCP interface.
+   - Successfully created and seeded `public.addon_catalog` with all 10 active modular bolt-on products (Local Landline, Mobile Number, WhatsApp Primary, WhatsApp Add-on, 20/50/100 Voice Packs, 100/500 SMS Packs, and 500 Knowledge Base Data Pack).
+   - Grandfathered 121 existing tenant feature entitlements into `public.tenant_feature_overrides` before migrating tenants to `base_tier` (£9.99/mo).
+   - Created `public.addon_audit_log` with RLS.
+   - Added `has_landline`, `has_mobile`, and `has_whatsapp` channel flags to `public.tenants`.
+   - Verified `/api/billing/addons?category=landline` and general addon queries return status 200 with complete addon details.
+   - Verified production build compiles cleanly with `npm run build`.
+
+
