@@ -50,9 +50,9 @@ test.describe.serial('Multi-Colleague Dashboard & RBAC Rota Systems', () => {
 
     test('should allow Owner to view all Admin tabs and KPI Metrics', async ({ page }) => {
       // Verify all administrative tabs are visible in the sidebar navigation
-      await expect(page.locator('nav').locator('text=Scheduling & Staff').first()).toBeVisible();
-      await expect(page.locator('nav').locator('text=Chatbot').first()).toBeVisible();
-      await expect(page.locator('nav').locator('text=Billing & Usage').first()).toBeVisible();
+      await expect(page.locator('nav').locator('text=Master Calendar & Rota').first()).toBeVisible();
+      await expect(page.locator('nav').locator('text=Agent').first()).toBeVisible();
+      await expect(page.locator('nav').locator('text=Subscriptions & Add-ons').first()).toBeVisible();
       
       // Ensure 'My Profile' tab is NOT visible (Owner doesn't need self-management view here)
       await expect(page.locator('text=My Profile & Calendar')).not.toBeVisible();
@@ -60,7 +60,7 @@ test.describe.serial('Multi-Colleague Dashboard & RBAC Rota Systems', () => {
 
     test('should allow Owner to invite/create a new Colleague', async ({ page }) => {
       // Navigate to Scheduling & Staff
-      await page.click('button:has-text("Scheduling & Staff")');
+      await page.click('button:has-text("Master Calendar & Rota")');
       
       // Open "Add Staff" dialog/modal
       await page.click('button:has-text("Add Staff Member")');
@@ -88,7 +88,7 @@ test.describe.serial('Multi-Colleague Dashboard & RBAC Rota Systems', () => {
     });
 
     test.skip('should display side-by-side Master Schedule grouping appointments per stylist', async ({ page }) => {
-      await page.click('button:has-text("Scheduling & Staff")');
+      await page.click('button:has-text("Master Calendar & Rota")');
       await expect(page.locator('text=Master Schedule')).toBeVisible();
 
       // Verify multiple columns representing different staff columns are present
@@ -123,8 +123,8 @@ test.describe.serial('Multi-Colleague Dashboard & RBAC Rota Systems', () => {
       try {
         await expect(page).toHaveURL(/\/dashboard/, { timeout: 5000 });
         // Verify UI changes according to Colleague ('member') role
-        await expect(page.locator('nav').locator('text=Chatbot').first()).not.toBeVisible();
-        await expect(page.locator('nav').locator('text=Scheduling & Staff').first()).toBeVisible();
+        await expect(page.locator('nav').locator('text=Agent').first()).not.toBeVisible();
+        await expect(page.locator('nav').locator('text=Master Calendar & Rota').first()).toBeVisible();
       } catch (e) {
         // Fallback: print HTML to see what error occurred!
         console.error("Signup failed! Dumping text content:");
@@ -147,8 +147,8 @@ test.describe.serial('Multi-Colleague Dashboard & RBAC Rota Systems', () => {
 
       test('should prevent colleague from accessing admin endpoints directly (CORS/RLS enforcement)', async ({ page }) => {
         // Verify UI access restriction
-        await expect(page.locator('nav').locator('text=Chatbot').first()).not.toBeVisible();
-        await expect(page.locator('nav').locator('text=Billing & Usage').first()).not.toBeVisible();
+        await expect(page.locator('nav').locator('text=Agent').first()).not.toBeVisible();
+        await expect(page.locator('nav').locator('text=Subscriptions & Add-ons').first()).not.toBeVisible();
       });
 
       test('should allow colleague to edit only their own profile, bio, and local rota', async ({ page }) => {

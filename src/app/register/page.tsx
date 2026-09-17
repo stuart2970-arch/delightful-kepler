@@ -439,15 +439,8 @@ function RegisterContent() {
             />
           </div>
 
-          <div>
-            <label className="block text-xs font-bold text-purple-200/90 mb-1.5 uppercase tracking-wider">Selected Tier</label>
-            <input
-              type="text"
-              readOnly
-              value={planInfo.name}
-              className="w-full h-11 bg-purple-900/20 border border-purple-500/30 rounded-xl px-4 text-sm text-purple-200 focus:outline-none cursor-not-allowed opacity-80"
-            />
-          </div>
+
+          {/* Tier selection removed — all users start on base_tier */}
 
           {/* REQUIRED TERMS CHECKBOX */}
           <div className="flex items-start gap-2.5 pt-2">

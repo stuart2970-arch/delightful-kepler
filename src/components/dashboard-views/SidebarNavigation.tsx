@@ -1,7 +1,8 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { useDashboardStore, ActiveTab } from '../../lib/store';
 import { createBrowserClient } from '@supabase/ssr';
 import { useRouter } from 'next/navigation';
+import AddOnUpsellModal from '@/components/AddOnUpsellModal';
 
 export default function SidebarNavigation() {
   const router = useRouter();
@@ -14,8 +15,12 @@ export default function SidebarNavigation() {
     chatbots,
     conversations,
     userName,
-    userEmail
+    userEmail,
+    billingData,
+    tenantId
   } = useDashboardStore();
+
+  const [upsellCategory, setUpsellCategory] = useState<string | null>(null);
 
   const isOwner = role === 'owner' || role === 'admin';
 
@@ -35,20 +40,23 @@ export default function SidebarNavigation() {
 
   const globalBotId = '00000000-0000-0000-0000-000000000000';
 
+  const channelFlags = billingData?.channelFlags || { has_landline: false, has_mobile: false, has_whatsapp: false };
+
   const navItems = isOwner
     ? [
-        { id: 'scheduling', label: '🗓️ Master Calendar & Rota' },
-        { id: 'chatbots', label: '🤖 Agent', count: chatbots.filter(b => b.id !== globalBotId).length },
-        { id: 'conversations', label: '💬 Web Chat & Voice', count: conversations.filter(c => !c.is_phone_call).length },
-        { id: 'telephony', label: '📞 Phone Calls', count: conversations.filter(c => c.is_phone_call || (c.is_voice_call && c.user_session_id?.startsWith('phone_'))).length },
-        { id: 'crawler', label: '📚 Knowledge Base' },
-        { id: 'integrations', label: '🔌 Integrations' },
-        { id: 'openclaw-monitor', label: '⚡ Gateways' },
-        { id: 'billing', label: '💳 Subscriptions & Add-ons' },
+        { id: 'scheduling', label: '🗓️ Master Calendar & Rota', locked: false },
+        { id: 'chatbots', label: '🤖 Agent', count: chatbots.filter(b => b.id !== globalBotId).length, locked: false },
+        { id: 'conversations', label: '💬 Web Chat & Voice', count: conversations.filter(c => !c.is_phone_call).length, locked: false },
+        { id: 'telephony', label: '📞 Phone Calls', count: conversations.filter(c => c.is_phone_call || (c.is_voice_call && c.user_session_id?.startsWith('phone_'))).length, locked: !channelFlags.has_landline && !channelFlags.has_mobile },
+        { id: 'whatsapp', label: '📱 WhatsApp', locked: !channelFlags.has_whatsapp },
+        { id: 'crawler', label: '📚 Knowledge Base', locked: false },
+        { id: 'integrations', label: '🔌 Integrations', locked: false },
+        { id: 'openclaw-monitor', label: '⚡ Gateways', locked: false },
+        { id: 'billing', label: '💳 Subscriptions & Add-ons', locked: false },
       ]
     : [
-        { id: 'scheduling', label: '🗓️ Master Calendar & Rota' },
-        { id: 'my-profile', label: '👤 My Profile & Calendar' },
+        { id: 'scheduling', label: '🗓️ Master Calendar & Rota', locked: false },
+        { id: 'my-profile', label: '👤 My Profile & Calendar', locked: false },
       ];
 
   return (
@@ -80,7 +88,18 @@ export default function SidebarNavigation() {
             </div>
             <nav className="space-y-1.5">
               {navItems.map(tab => (
-                 <button key={tab.id} onClick={() => { setActiveTab(tab.id as ActiveTab); setIsMobileMenuOpen(false); }} className={`w-full flex items-center justify-between px-3.5 py-3 rounded-xl text-sm font-semibold transition-all duration-200 border ${activeTab === tab.id ? 'bg-[var(--awb-color1)] text-[var(--awb-color8)] border-[var(--awb-color3)] shadow-sm' : 'text-[var(--awb-color6)] hover:text-[var(--awb-color7)] hover:bg-[var(--awb-color1)]/60 border-transparent'}`}>
+                 <button 
+                   key={tab.id} 
+                   onClick={() => { 
+                     if (tab.locked) {
+                       setUpsellCategory(tab.id === 'telephony' ? 'landline' : tab.id === 'whatsapp' ? 'whatsapp' : null);
+                     } else {
+                       setActiveTab(tab.id as ActiveTab); 
+                       setIsMobileMenuOpen(false); 
+                     }
+                   }} 
+                   className={`w-full flex items-center justify-between px-3.5 py-3 rounded-xl text-sm font-semibold transition-all duration-200 border ${tab.locked ? 'opacity-40 cursor-not-allowed' : ''} ${activeTab === tab.id ? 'bg-[var(--awb-color1)] text-[var(--awb-color8)] border-[var(--awb-color3)] shadow-sm' : 'text-[var(--awb-color6)] hover:text-[var(--awb-color7)] hover:bg-[var(--awb-color1)]/60 border-transparent'}`}
+                 >
                     <div className="flex items-center gap-3 truncate">
                        <span>{tab.label}</span>
                     </div>
@@ -108,6 +127,15 @@ export default function SidebarNavigation() {
             </div>
          </div>
       </aside>
+      
+      {upsellCategory && (
+        <AddOnUpsellModal
+          isOpen={true}
+          onClose={() => setUpsellCategory(null)}
+          category={upsellCategory as any}
+          tenantId={tenantId}
+        />
+      )}
     </>
   );
 }

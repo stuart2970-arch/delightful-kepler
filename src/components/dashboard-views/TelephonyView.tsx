@@ -2,11 +2,17 @@
 
 import React, { useState } from 'react';
 import { useDashboardStore } from '../../lib/store';
+import AddOnUpsellModal from '../AddOnUpsellModal';
 
 export default function TelephonyView() {
-  const { tenantId, twilioShadowNumber, setTwilioShadowNumber, conversations } = useDashboardStore();
+  const { tenantId, twilioShadowNumber, setTwilioShadowNumber, conversations, billingData } = useDashboardStore();
   const [isProvisioning, setIsProvisioning] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [areaCode, setAreaCode] = useState('');
+  const [upsellCategory, setUpsellCategory] = useState<string | null>(null);
+
+  const channelFlags = billingData?.channelFlags || { has_landline: false, has_mobile: false, has_whatsapp: false };
+  const hasPhoneAddon = channelFlags.has_landline || channelFlags.has_mobile;
 
   const handleProvision = async () => {
     setIsProvisioning(true);
@@ -15,7 +21,7 @@ export default function TelephonyView() {
       const res = await fetch('/api/telephony/provision', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ tenant_id: tenantId }),
+        body: JSON.stringify({ tenant_id: tenantId, area_code: areaCode || undefined }),
       });
       const data = await res.json();
       if (!res.ok) {
@@ -68,8 +74,66 @@ export default function TelephonyView() {
         </p>
       </div>
 
+      {/* BOLT-ON GATING: Require landline or mobile add-on */}
+      {!hasPhoneAddon && !twilioShadowNumber ? (
+        <div className="bg-[var(--awb-color1)] border border-[var(--awb-color3)] p-6 md:p-8 rounded-2xl shadow-xl">
+          <div className="flex flex-col items-center justify-center text-center space-y-5 py-8">
+            <div className="w-16 h-16 bg-amber-50 border border-amber-200 text-amber-600 rounded-2xl flex items-center justify-center shadow-sm text-2xl">
+              🔒
+            </div>
+            <h3 className="text-xl font-bold text-[var(--awb-color8)]">Phone Channel Required</h3>
+            <p className="text-xs text-[var(--awb-color6)] max-w-lg leading-relaxed">
+              To activate your AI Phone Receptionist and receive a dedicated business number, you need an active <strong className="text-[#260475]">Landline</strong> or <strong className="text-[#260475]">Mobile</strong> channel add-on.
+            </p>
+            <div className="flex gap-3">
+              <button
+                onClick={() => setUpsellCategory('landline')}
+                className="bg-[#198fd9] hover:bg-[#157ab9] text-white text-xs font-bold py-3 px-6 rounded-xl shadow-md transition-all"
+              >
+                📞 Add Landline (from £8.99/mo)
+              </button>
+              <button
+                onClick={() => setUpsellCategory('mobile')}
+                className="bg-[#260475] hover:bg-[#1e035e] text-white text-xs font-bold py-3 px-6 rounded-xl shadow-md transition-all"
+              >
+                📱 Add Mobile (from £10.99/mo)
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : (
+      <>
       {/* DEDICATED PHONE NUMBER & CALL FORWARDING CARD */}
       <div className="bg-[var(--awb-color1)] border border-[var(--awb-color3)] p-6 md:p-8 rounded-2xl shadow-xl">
+
+        {/* Cross-sell: suggest complementary channel */}
+        {hasPhoneAddon && !twilioShadowNumber && (
+          <>
+            {channelFlags.has_landline && !channelFlags.has_mobile && (
+              <div className="bg-purple-50 border border-purple-200 rounded-xl p-4 mb-6 flex items-center justify-between">
+                <div>
+                  <p className="text-xs font-bold text-[#260475]">📱 Add a Mobile Number too?</p>
+                  <p className="text-[10px] text-[var(--awb-color6)]">Get SMS messaging (50-250 messages) and shared voice minutes with a mobile add-on.</p>
+                </div>
+                <button onClick={() => setUpsellCategory('mobile')} className="bg-[#260475] hover:bg-[#1e035e] text-white text-[10px] font-bold py-2 px-4 rounded-[4px] transition-colors whitespace-nowrap">
+                  From £10.99/mo
+                </button>
+              </div>
+            )}
+            {channelFlags.has_mobile && !channelFlags.has_landline && (
+              <div className="bg-blue-50 border border-blue-200 rounded-xl p-4 mb-6 flex items-center justify-between">
+                <div>
+                  <p className="text-xs font-bold text-[#198fd9]">📞 Add a Landline Number too?</p>
+                  <p className="text-[10px] text-[var(--awb-color6)]">Get a dedicated local landline with 10-30 shared voice minutes.</p>
+                </div>
+                <button onClick={() => setUpsellCategory('landline')} className="bg-[#198fd9] hover:bg-[#157ab9] text-white text-[10px] font-bold py-2 px-4 rounded-[4px] transition-colors whitespace-nowrap">
+                  From £8.99/mo
+                </button>
+              </div>
+            )}
+          </>
+        )}
+
         {!twilioShadowNumber ? (
           <div className="flex flex-col items-center justify-center text-center space-y-5 py-8">
             <div className="w-16 h-16 bg-blue-50 border border-blue-200 text-[#198fd9] rounded-2xl flex items-center justify-center shadow-sm">
@@ -81,6 +145,25 @@ export default function TelephonyView() {
             <p className="text-xs text-[var(--awb-color6)] max-w-lg leading-relaxed">
               Get a dedicated local UK phone number. Your AI receptionist will automatically answer calls forwarded from your business landline 24/7.
             </p>
+
+            {/* Area Code Selection */}
+            <div className="w-full max-w-xs">
+              <label className="block text-[10px] uppercase font-bold tracking-wider text-[var(--awb-color6)] mb-1.5 text-left">
+                Preferred Area Code (Optional)
+              </label>
+              <input
+                type="text"
+                value={areaCode}
+                onChange={(e) => setAreaCode(e.target.value.replace(/[^0-9]/g, ''))}
+                placeholder="e.g. 0161 for Manchester"
+                maxLength={5}
+                className="w-full bg-white border border-[var(--awb-color3)] text-[var(--awb-color8)] text-sm rounded-xl px-4 py-2.5 outline-none focus:border-[#198fd9] focus:ring-1 focus:ring-[#198fd9]/20 placeholder:text-[var(--awb-color6)]/50"
+              />
+              <p className="text-[10px] text-[var(--awb-color6)] mt-1 text-left">
+                We&apos;ll try to match your local area. Leave blank for any available UK number.
+              </p>
+            </div>
+
             {error && (
               <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-2.5 rounded-xl text-xs w-full max-w-md">
                 {error}
@@ -97,7 +180,7 @@ export default function TelephonyView() {
                     <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
                     <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
                   </svg>
-                  <span>Provisioning Local Number...</span>
+                  <span>Searching for {areaCode ? `${areaCode} numbers` : 'available numbers'}...</span>
                 </>
               ) : (
                 <span>Generate My Dedicated AI Receptionist Number</span>
@@ -231,6 +314,8 @@ export default function TelephonyView() {
           </div>
         </div>
       </div>
+      </>
+      )}
 
       {/* Downgrade & Release Confirmation Modal */}
       {showConfirmModal && (
@@ -243,7 +328,7 @@ export default function TelephonyView() {
             </div>
             <h3 className="text-lg font-bold text-[var(--awb-color8)]">Release Dedicated Phone Number?</h3>
             <p className="text-[var(--awb-color7)] text-xs leading-relaxed">
-              Releasing your dedicated phone number <strong className="text-[#260475] font-mono">{twilioShadowNumber}</strong> is <strong>permanent</strong> and cannot be undone.
+              Releasing your dedicated phone number <strong className="text-[#260475] font-mono">{twilioShadowNumber}</strong> is <strong>permanent</strong> and cannot be undone. The number will be returned to the pool and cannot be recovered.
             </p>
             {error && (
               <div className="bg-rose-50 border border-rose-200 text-rose-700 px-3 py-2 rounded-lg text-xs">
@@ -271,6 +356,16 @@ export default function TelephonyView() {
             </div>
           </div>
         </div>
+      )}
+
+      {/* Add-On Upsell Modal */}
+      {upsellCategory && (
+        <AddOnUpsellModal
+          isOpen={true}
+          onClose={() => setUpsellCategory(null)}
+          category={upsellCategory as any}
+          tenantId={tenantId}
+        />
       )}
     </div>
   );

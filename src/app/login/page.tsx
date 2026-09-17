@@ -8,7 +8,7 @@ import LegalModal from '@/components/LegalModal';
 export default function LoginPage() {
   const router = useRouter();
   const [isLogin, setIsLogin] = useState(true);
-  const [selectedPlan, setSelectedPlan] = useState('premium');
+  const [selectedPlan, setSelectedPlan] = useState('base_tier');
   const [isPlanLocked, setIsPlanLocked] = useState(false);
 
   useEffect(() => {
@@ -517,20 +517,8 @@ export default function LoginPage() {
                   </div>
                 )}
               </div>
-              <div>
-                <label className="block text-xs font-bold text-[#1E293B] mb-1.5 uppercase tracking-wide">Selected Tier</label>
-                <select
-                  value={selectedPlan}
-                  onChange={(e) => setSelectedPlan(e.target.value)}
-                  disabled={isPlanLocked}
-                  className="w-full bg-white border border-[#CBD5E1] text-[#0F172A] rounded-xl px-4 py-3 focus:outline-none focus:border-[#7E5FBB] focus:ring-2 focus:ring-[#7E5FBB]/20 transition-all text-sm font-medium disabled:opacity-70 disabled:bg-slate-50"
-                >
-                  <option value="basic">Basic Tier</option>
-                  <option value="starter">Starter Tier</option>
-                  <option value="premium">Premium Tier</option>
-                  <option value="ultimate">Ultimate Tier</option>
-                </select>
-              </div>
+
+              {/* Tier selection removed — all users start on base_tier */}
               {/* REQUIRED TERMS CHECKBOX FOR SIGNUP */}
               <div className="flex items-start gap-2.5 pt-2">
                 <input

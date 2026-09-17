@@ -1418,9 +1418,86 @@ px calls.
   2. **E2E Isolation & Environment Hardening**:
      - Configured Playwright with workers: 1 and ullyParallel: false to run sequentially against local Supabase database state.
      - Set euseExistingServer: false in playwright.config.ts so Playwright always spawns a dedicated, cleanly scoped Next.js test instance.
-     - Replaced non-JWT Supabase keys in .env.test with valid local JWT tokens from supabase status.
-     - Added testing fallbacks for mock embedding generation and voice completion streaming when running under Playwright.
-     - Updated seed tier for Acme Corp to starter to ensure voice features are properly tested.
-     - Removed rogue root filesystem symlink that was triggering Turbopack compilation panics.
-  3. **Obsidian Documentation**: Created and updated  1_Projects\Styleflo AI\Husky.md in the Obsidian vault with root-cause analysis, hook architecture details, and resolution steps.
+  * **Obsidian Documentation**: Created and updated  1_Projects\Styleflo AI\Husky.md in the Obsidian vault with root-cause analysis, hook architecture details, and resolution steps.
   - **Result**: 100% of tests passed (28 passed, 1 skipped) during Husky pre-push hook, and git push origin main completed cleanly to GitHub.
+
+### Session 19 — Modular Pricing & Billing Architecture (2026-09-17)
+**User Request**: Transition from rigid multi-tier pricing (Basic/Starter/Premium/Ultimate) to a single £9.99/mo Base Tier with modular bolt-on add-ons (landline, mobile, WhatsApp, voice packs, SMS packs, data packs). Includes 3-month rollover for voice/SMS, 85% capacity threshold banners, sidebar feature gating, upsell modals, and Stripe multi-line-item checkout.
+
+**Source Documents Read**: `Styleflo AI/Package Pricing.md`, `Styleflo AI/Antigravity Pricing Instructions.md`, `Styleflo AI/Operational Notes/Styleflo Requirements - Package Pricing.md`, `Styleflo AI/Operational Notes/Glossary of StyleFlo Elements.md`, `Styleflo AI/Technical-Notes/Twilio.md`
+
+**Changes Made**:
+1. **Database Migration** (`supabase/migrations/20260917120000_modular_pricing_architecture.sql`):
+   - Created `addon_catalog` table with 10 bolt-on products (landline, mobile, WhatsApp primary/addon, voice packs 20/50/100, SMS packs 100/500, data pack 500 chunks)
+   - Extended `tenant_active_addons` with `addon_catalog_id`, `is_active`, `activated_at`, `deactivated_at`
+   - Extended `usage_ledger` with `billing_period_start`, `expires_at`, `addon_catalog_id`, `usage_type` for 3-month rollover
+   - Added channel flags (`has_landline`, `has_mobile`, `has_whatsapp`) to `tenants`
+   - Created `addon_audit_log` table for superadmin pricing change tracking
+   - Deprecated legacy tiers (basic/starter/premium/ultimate → `is_active = false`)
+   - Inserted `base_tier` at £9.99/mo with 10 included voice minutes
+   - Grandfathered all existing tenants via `tenant_feature_overrides`
+   - Hidden undeveloped features (`custom_domain`, `inventory_control`, `crm_zapier_sync`, `email_marketing`)
+   - Created `sync_tenant_channel_flags()` PostgreSQL function
+
+2. **Entitlements Rewrite** (`src/lib/entitlements.ts`):
+   - Merged `vapi_voice_minutes` and `voice_agent_minutes_web` into shared `voice_minutes` pool
+   - Bolt-on evaluation via `tenant_active_addons` joined with `addon_catalog`
+   - 3-month rolling window for voice/SMS packs (allocation vs consumption tracking)
+   - New helpers: `getTenantChannelFlags()`, `getTenantActiveAddons()`, `getRolloverBalance()`, `checkCapacityThresholds()`, `allocateRollingCredits()`
+   - 85% capacity threshold checker pointing to bolt-on upgrades (not percentage-based tier upgrades)
+
+3. **Stripe Setup Script** (`scripts/setup-stripe-modular-products.js`):
+   - Creates Base Tier + all 10 bolt-on products in Stripe with GBP pricing
+   - Outputs SQL for updating Supabase with Stripe Price IDs
+
+4. **Superadmin Pricing Matrix** (`src/components/superadmin/PricingMatrixView.tsx`):
+   - Complete rewrite to modular component builder with 6 sections
+   - Editable GBP pricing, confirmation modal, audit log at page bottom
+   - Fetches from `/api/superadmin/addon-catalog`
+
+5. **API Routes**:
+   - `src/app/api/superadmin/addon-catalog/route.ts` — GET/PATCH for addon catalog management
+   - `src/app/api/billing/addons/route.ts` — Public addon browsing API with category filter
+   - `src/app/api/billing/checkout/route.ts` — Multi-line-item checkout, add-on proration, Stripe Customer Portal
+   - `src/app/api/webhooks/stripe/route.ts` — Handles `invoice.payment_succeeded` (auto-unlock), `invoice.payment_failed`, `customer.subscription.updated` (addon sync), `customer.subscription.deleted` (full deactivation), enhanced `checkout.session.completed`
+
+6. **UI Components**:
+   - `src/components/AddOnUpsellModal.tsx` — Inline modal for bolt-on purchases via Stripe
+   - `src/components/CapacityThresholdBanner.tsx` — 85% capacity warning banner with bolt-on upgrade CTA
+   - `src/components/dashboard-views/SidebarNavigation.tsx` — Greyed out unpurchased channels, WhatsApp nav item, upsell modal on click
+   - `src/components/DashboardClient.tsx` — Mounted capacity banner, billing tab with voice/SMS rollover meters, active add-ons grid, billing receipts button, base_tier in superadmin dropdown, synced inline sidebar labels
+   - `src/lib/store.ts` — Extended BillingData type with addons, channelFlags, rolloverUsage, thresholds
+   - `src/app/dashboard/page.tsx` — Fetches channel flags, active addons, 3-month rolling usage, 85% thresholds
+   - `src/components/dashboard-views/TelephonyView.tsx` — Gated behind landline/mobile bolt-on, area code input, cross-sell banner, upsell modal
+
+7. **Test & Seed Fixes**:
+   - `supabase/seed.sql` — Changed Acme Corp from `'starter'` to `'base_tier'`
+   - `src/app/api/chatbots/[id]/route.ts` — Added `'base_tier'` to `eligibleVoiceTiers` (base tier includes 10 voice mins)
+   - `tests/multi-colleague.spec.ts` — Updated all sidebar label selectors: 'Scheduling & Staff' → 'Master Calendar & Rota', 'Chatbot' → 'Agent', 'Billing & Usage' → 'Subscriptions & Add-ons'
+
+**Build Status**: ✅ Passed
+**Playwright Tests**: ✅ 28 passed, 1 skipped (1.1m)
+
+### Session 20 — Runtime Fixes & Tier Selector Removal (2026-09-17)
+
+**Context**: User reported console errors when browsing the dashboard (totalChatMessages ReferenceError, AddOnUpsellModal fetch failure) and requested removal of the tier selector from signup forms.
+
+1. **Superadmin Metrics Fix** — `src/app/dashboard/page.tsx`
+   - Fixed `totalChatMessages is not defined` ReferenceError: variables were declared as `globalChatMessages`/`globalChatConversations`/`globalVoiceCalls` but referenced as `total*` in the superadminData object
+
+2. **AddOnUpsellModal Fixes** — `src/components/AddOnUpsellModal.tsx`
+   - Fixed data shape: API returns array directly, not `{ addons: [] }` wrapper
+   - Fixed `AddOn` interface to match actual `addon_catalog` DB columns (`monthly_price_pence`, `included_voice_minutes`, `included_sms`, `included_messages`, `included_data_chunks`)
+   - Added `error` state with user-friendly UI fallback when fetch fails (e.g. before migration deployed to production)
+   - Replaced single `included_allowance` string with dynamic emoji-tagged badges per allowance type
+
+3. **Tier Selector Removal** — `src/app/login/page.tsx` + `src/app/register/page.tsx`
+   - Removed the "Selected Tier" dropdown (Basic/Starter/Premium/Ultimate) from login signup form
+   - Removed the read-only tier input from the register page
+   - Hardcoded `selectedPlan` default to `'base_tier'` — all new signups go straight to base tier
+
+4. **DB Default Update** — `supabase/migrations/20260917120000_modular_pricing_architecture.sql`
+   - Added `ALTER TABLE public.tenants ALTER COLUMN plan_tier SET DEFAULT 'base_tier'` so new signups via `handle_new_user` trigger automatically get `base_tier` instead of legacy `basic`
+
+**Build Status**: ✅ Passed
+**Playwright Tests**: ✅ 28 passed, 1 skipped (1.1m)

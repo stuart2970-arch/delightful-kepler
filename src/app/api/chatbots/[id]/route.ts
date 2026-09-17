@@ -114,7 +114,7 @@ export async function GET(
       planTier = tenantData?.plan_tier || 'basic';
     }
     
-    const eligibleVoiceTiers = ['starter', 'premium', 'ultimate'];
+    const eligibleVoiceTiers = ['base_tier', 'starter', 'premium', 'ultimate'];
     let voiceProvider = 'none';
     if (eligibleVoiceTiers.includes(planTier)) {
       voiceProvider = '11labs';

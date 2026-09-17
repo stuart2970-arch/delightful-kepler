@@ -15,6 +15,7 @@ import PlatformSettingsView from './dashboard-views/PlatformSettingsView';
 import MyProfileView from './dashboard-views/MyProfileView';
 import OpenClawMonitorView from './dashboard-views/OpenClawMonitorView';
 import SetPasswordBanner from './SetPasswordBanner';
+import CapacityThresholdBanner from './CapacityThresholdBanner';
 import { useDashboardStore } from '../lib/store';
 
 interface Chatbot {
@@ -724,19 +725,19 @@ const globalBotId = '00000000-0000-0000-0000-000000000000';
              </div>
             <nav className="space-y-1.5">
               {(role === 'member' 
-                ? [
-                    { id: 'scheduling', label: 'Scheduling & Staff', icon: <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" /> },
+                 ? [
+                    { id: 'scheduling', label: 'Master Calendar & Rota', icon: <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" /> },
                     { id: 'my-profile', label: 'My Profile & Calendar', icon: <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" /> }
                   ]
                 : [
-                    { id: 'chatbots', label: 'Chatbot', icon: <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 002-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />, count: (chatbots || []).filter(b => b.id !== globalBotId).length },
-                    { id: 'scheduling', label: 'Scheduling & Staff', icon: <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" /> },
-                    { id: 'conversations', label: 'Communications', icon: <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z" />, count: (conversations || []).filter(c => c && !c.is_phone_call).length },
+                    { id: 'chatbots', label: 'Agent', icon: <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 002-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />, count: (chatbots || []).filter(b => b.id !== globalBotId).length },
+                    { id: 'scheduling', label: 'Master Calendar & Rota', icon: <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" /> },
+                    { id: 'conversations', label: 'Web Chat & Voice', icon: <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z" />, count: (conversations || []).filter(c => c && !c.is_phone_call).length },
                     { id: 'crawler', label: 'Knowledge Base', icon: <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" /> },
                     { id: 'integrations', label: 'Integrations', icon: <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 10V3L4 14h7v7l9-11h-7z" /> },
                     ...(isSuperAdmin ? [{ id: 'openclaw-monitor', label: 'Gateways', icon: <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 10V3L4 14h7v7l9-11h-7z" /> }] : []),
                     { id: 'telephony', label: 'Phone Calls', icon: <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" />, count: (conversations || []).filter(c => c && (c.is_phone_call || (c.is_voice_call && c.user_session_id?.startsWith('phone_')))).length },
-                    { id: 'billing', label: 'Billing & Usage', icon: <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z" /> },
+                    { id: 'billing', label: 'Subscriptions & Add-ons', icon: <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z" /> },
                     { id: 'account', label: 'Account Settings', icon: <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" /> },
                   ]
               ).map(tab => (
@@ -775,6 +776,7 @@ const globalBotId = '00000000-0000-0000-0000-000000000000';
         
         <div className="flex-1 overflow-y-auto styleflo-scrollbar p-0 sm:p-6 lg:p-8 space-y-4 md:space-y-8">
            <SetPasswordBanner />
+           <CapacityThresholdBanner thresholds={billingData?.thresholds || []} tenantId={tenantId} />
            <header className="md:hidden flex items-center justify-start mb-6 px-4 pt-4">
               <button className="p-2 text-[var(--awb-color6)] hover:text-[var(--awb-color7)]" onClick={() => setIsMobileMenuOpen(true)}>
                  <svg className="w-7 h-7" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 6h16M4 12h16M4 18h16"></path></svg>
@@ -800,13 +802,27 @@ const globalBotId = '00000000-0000-0000-0000-000000000000';
               <div className="bg-[var(--awb-color1)] border border-[var(--awb-color3)] p-6 rounded-2xl shadow-xl">
                 <div className="flex justify-between items-center mb-6">
                   <div>
-                    <h3 className="text-lg font-bold text-[var(--awb-color8)]">Current Plan: <span className="text-[var(--awb-color5)] uppercase tracking-wider font-bold">{billingData?.planTier || 'Basic'}</span></h3>
-                    <p className="text-xs text-[var(--awb-color6)] mt-1">Manage your usage limits and active entitlements.</p>
+                    <h3 className="text-lg font-bold text-[var(--awb-color8)]">Current Plan: <span className="text-[var(--awb-color5)] uppercase tracking-wider font-bold">{billingData?.planTier === 'base_tier' ? 'Base Subscription' : billingData?.planTier || 'Base'}</span></h3>
+                    <p className="text-xs text-[var(--awb-color6)] mt-1">£9.99/mo • Manage your usage limits, active add-ons, and entitlements.</p>
                   </div>
-                  <a href="https://styleflo.ai/pricing" target="_blank" rel="noopener noreferrer" className="bg-[#198fd9] hover:bg-[#157ab9] text-white text-xs font-bold py-2.5 px-5 rounded-[4px] shadow-sm transition-colors whitespace-nowrap">
-                    Compare & Upgrade Plans
-                  </a>
-                </div>                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  <button
+                    onClick={async () => {
+                      try {
+                        const res = await fetch('/api/billing/checkout', {
+                          method: 'POST',
+                          headers: { 'Content-Type': 'application/json' },
+                          body: JSON.stringify({ action: 'portal', tenantId }),
+                        });
+                        const data = await res.json();
+                        if (data.url) window.location.href = data.url;
+                      } catch (err) { console.error(err); }
+                    }}
+                    className="bg-[#198fd9] hover:bg-[#157ab9] text-white text-xs font-bold py-2.5 px-5 rounded-[4px] shadow-sm transition-colors whitespace-nowrap"
+                  >
+                    Billing Receipts & Invoices
+                  </button>
+                </div>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                   {/* Chunks Progress */}
                   <div className="bg-[var(--awb-color2)] p-5 rounded-xl border border-[var(--awb-color3)]">
                     <h4 className="text-sm font-bold text-[var(--awb-color7)] mb-2">Knowledge Base Data Chunks</h4>
@@ -823,9 +839,9 @@ const globalBotId = '00000000-0000-0000-0000-000000000000';
 
                   {/* Message Allowance */}
                   <div className="bg-[var(--awb-color2)] p-5 rounded-xl border border-[var(--awb-color3)]">
-                    <h4 className="text-sm font-bold text-[var(--awb-color7)] mb-2">Monthly Message Allowance</h4>
+                    <h4 className="text-sm font-bold text-[var(--awb-color7)] mb-2">Monthly Chat Messages</h4>
                     <div className="flex justify-between text-xs text-[var(--awb-color6)] mb-2">
-                      <span>{billingData?.usage?.messages || 0} messages used this month</span>
+                      <span>{billingData?.usage?.messages || 0} used this month</span>
                       <span>
                         {billingData?.entitlements?.find((e: { feature_id: string; limit_value: number }) => e.feature_id === 'message_allowance')?.limit_value === -1 ? 'Unlimited' : (billingData?.entitlements?.find((e: { feature_id: string; limit_value: number }) => e.feature_id === 'message_allowance')?.limit_value || 0) + ' total'}
                       </span>
@@ -834,7 +850,58 @@ const globalBotId = '00000000-0000-0000-0000-000000000000';
                       <div className="bg-[var(--awb-color5)] h-2.5 rounded-full" style={{ width: `${billingData?.entitlements?.find((e: { feature_id: string; limit_value: number }) => e.feature_id === 'message_allowance')?.limit_value === -1 ? 100 : Math.min(100, ((billingData?.usage?.messages || 0) / (billingData?.entitlements?.find((e: { feature_id: string; limit_value: number }) => e.feature_id === 'message_allowance')?.limit_value || 1)) * 100)}%`}}></div>
                     </div>
                   </div>
+
+                  {/* Voice Minutes (Rolling) */}
+                  <div className="bg-[var(--awb-color2)] p-5 rounded-xl border border-[var(--awb-color3)]">
+                    <div className="flex items-center gap-2 mb-2">
+                      <h4 className="text-sm font-bold text-[var(--awb-color7)]">Shared Voice Minutes</h4>
+                      <span className="text-[9px] font-bold bg-amber-100 text-amber-700 px-1.5 py-0.5 rounded-full">3-month rollover</span>
+                    </div>
+                    <div className="flex justify-between text-xs text-[var(--awb-color6)] mb-2">
+                      <span>{billingData?.rolloverUsage?.voice_minutes_consumed || 0} used</span>
+                      <span>{billingData?.rolloverUsage?.voice_minutes_remaining || 0} remaining</span>
+                    </div>
+                    <div className="w-full bg-[var(--awb-color3)] rounded-full h-2.5">
+                      <div className="bg-[#9333ea] h-2.5 rounded-full" style={{ width: `${billingData?.rolloverUsage?.voice_minutes_allocated ? Math.min(100, (billingData.rolloverUsage.voice_minutes_consumed / billingData.rolloverUsage.voice_minutes_allocated) * 100) : 0}%`}}></div>
+                    </div>
+                  </div>
+
+                  {/* SMS (Rolling) */}
+                  <div className="bg-[var(--awb-color2)] p-5 rounded-xl border border-[var(--awb-color3)]">
+                    <div className="flex items-center gap-2 mb-2">
+                      <h4 className="text-sm font-bold text-[var(--awb-color7)]">SMS Messages</h4>
+                      <span className="text-[9px] font-bold bg-amber-100 text-amber-700 px-1.5 py-0.5 rounded-full">3-month rollover</span>
+                    </div>
+                    <div className="flex justify-between text-xs text-[var(--awb-color6)] mb-2">
+                      <span>{billingData?.rolloverUsage?.sms_consumed || 0} used</span>
+                      <span>{billingData?.rolloverUsage?.sms_remaining || 0} remaining</span>
+                    </div>
+                    <div className="w-full bg-[var(--awb-color3)] rounded-full h-2.5">
+                      <div className="bg-[#198fd9] h-2.5 rounded-full" style={{ width: `${billingData?.rolloverUsage?.sms_allocated ? Math.min(100, (billingData.rolloverUsage.sms_consumed / billingData.rolloverUsage.sms_allocated) * 100) : 0}%`}}></div>
+                    </div>
+                  </div>
                 </div>
+
+                {/* Active Add-ons */}
+                {billingData?.addons?.length > 0 && (
+                  <div className="mt-6">
+                    <h4 className="text-sm font-bold text-[var(--awb-color7)] mb-3">Active Add-ons</h4>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                      {billingData.addons.map((addon: any) => (
+                        <div key={addon.id} className="bg-[var(--awb-color2)] border border-[var(--awb-color3)] rounded-xl p-4 flex items-center gap-3">
+                          <div className="w-8 h-8 rounded-lg bg-[#260475] text-white flex items-center justify-center text-xs font-bold">
+                            {addon.category === 'landline' ? '📞' : addon.category === 'mobile' ? '📱' : addon.category === 'whatsapp' ? '💬' : addon.category === 'voice_pack' ? '🎙️' : addon.category === 'sms_pack' ? '✉️' : '📦'}
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <p className="text-xs font-bold text-[var(--awb-color8)] truncate">{addon.name}</p>
+                            <p className="text-[10px] text-[var(--awb-color6)]">£{(addon.monthly_price_pence / 100).toFixed(2)}/mo</p>
+                          </div>
+                          <div className="w-2 h-2 rounded-full bg-green-500 shrink-0" title="Active"></div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
               </div>
 
               {/* Superadmin Overview */}
@@ -925,10 +992,11 @@ const globalBotId = '00000000-0000-0000-0000-000000000000';
                                     }
                                   }}
                                 >
-                                  <option value="basic">Basic</option>
-                                  <option value="starter">Starter</option>
-                                  <option value="premium">Premium</option>
-                                  <option value="ultimate">Ultimate</option>
+                                  <option value="base_tier">Base Tier</option>
+                                  <option value="basic">Basic (Legacy)</option>
+                                  <option value="starter">Starter (Legacy)</option>
+                                  <option value="premium">Premium (Legacy)</option>
+                                  <option value="ultimate">Ultimate (Legacy)</option>
                                 </select>
                               </div>
                             </td>

@@ -1,0 +1,36 @@
+steps:
+  # Step 1: Build the Docker image, passing the secrets as build args
+  - name: 'gcr.io/cloud-builders/docker'
+    entrypoint: 'bash'
+    args:
+      - '-c'
+      - |
+        docker build \
+          --build-arg NEXT_PUBLIC_SUPABASE_URL=$_SUPABASE_URL \
+          --build-arg NEXT_PUBLIC_SUPABASE_ANON_KEY=$_SUPABASE_ANON_KEY \
+          --build-arg NEXT_PUBLIC_GA_MEASUREMENT_ID=${_GA_MEASUREMENT_ID:-G-DHF4NRZEE3} \
+          --build-arg NEXT_PUBLIC_FB_PIXEL_ID=${_FB_PIXEL_ID:-1083974731158850} \
+          -t europe-west2-docker.pkg.dev/$PROJECT_ID/styleflo-repo/styleflo-app:$COMMIT_SHA .
+
+  # Step 2: Push the image to Artifact Registry
+  - name: 'gcr.io/cloud-builders/docker'
+    args: ['push', 'europe-west2-docker.pkg.dev/$PROJECT_ID/styleflo-repo/styleflo-app:$COMMIT_SHA']
+
+  # Step 3: Deploy to Cloud Run
+  - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
+    entrypoint: gcloud
+    args:
+      - 'run'
+      - 'deploy'
+      - 'styleflo-new' # Change this if your service has a different name
+      - '--image'
+      - 'europe-west2-docker.pkg.dev/$PROJECT_ID/styleflo-repo/styleflo-app:$COMMIT_SHA'
+      - '--region'
+      - 'europe-west2'
+      - '--allow-unauthenticated'
+
+images:
+  - 'europe-west2-docker.pkg.dev/$PROJECT_ID/styleflo-repo/styleflo-app:$COMMIT_SHA'
+
+options:
+  logging: CLOUD_LOGGING_ONLY

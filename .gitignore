@@ -57,6 +57,12 @@ terraform.rc
 # Local Scratch folder
 scratch/
 
+# Supabase local state (contains secrets)
+supabase/.temp/
+supabase/.branches/
 
+# Test state
+tests/.test-state.json
+test-results/
 
 certificates

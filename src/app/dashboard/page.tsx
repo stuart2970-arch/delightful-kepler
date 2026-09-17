@@ -99,7 +99,15 @@ export default async function DashboardPage(props: { searchParams?: Promise<{ [k
   let registeredAddressSameAsTrading = true;
   let rwgAddressSameAsTrading = true;
   let userRole: 'owner' | 'admin' | 'member' = 'owner';
-  let billingData: any = { planTier: 'basic', entitlements: [], usage: { chunks: 0, messages: 0 } };
+  let billingData: any = {
+    planTier: 'base_tier',
+    entitlements: [],
+    usage: { chunks: 0, messages: 0 },
+    addons: [],
+    channelFlags: { has_landline: false, has_mobile: false, has_whatsapp: false },
+    rolloverUsage: { voice_minutes_allocated: 0, voice_minutes_consumed: 0, voice_minutes_remaining: 0, sms_allocated: 0, sms_consumed: 0, sms_remaining: 0 },
+    thresholds: [],
+  };
   let superadminData: any = null;
 
   try {
@@ -289,9 +297,14 @@ export default async function DashboardPage(props: { searchParams?: Promise<{ [k
     billingData.usage.chunks = chunksCount || 0;
 
     if (tenantId) {
-      const { data: tenantData } = await queryClient.from('tenants').select('plan_tier').eq('id', tenantId).maybeSingle();
+      const { data: tenantData } = await queryClient.from('tenants').select('plan_tier, has_landline, has_mobile, has_whatsapp').eq('id', tenantId).maybeSingle();
       if (tenantData) {
         billingData.planTier = tenantData.plan_tier;
+        billingData.channelFlags = {
+          has_landline: tenantData.has_landline ?? false,
+          has_mobile: tenantData.has_mobile ?? false,
+          has_whatsapp: tenantData.has_whatsapp ?? false,
+        };
         const { data: entitlements } = await queryClient
           .from('tier_entitlements')
           .select('feature_id, limit_value, features(name, is_metered)')
@@ -303,7 +316,7 @@ export default async function DashboardPage(props: { searchParams?: Promise<{ [k
       firstDay.setDate(1);
       firstDay.setHours(0, 0, 0, 0);
 
-      // Current user usage
+      // Current user usage (standard monthly)
       const { data: usageRows } = await queryClient
         .from('usage_ledger')
         .select('quantity, feature_id')
@@ -315,6 +328,120 @@ export default async function DashboardPage(props: { searchParams?: Promise<{ [k
           .filter(r => r.feature_id === 'message_allowance')
           .reduce((sum, r) => sum + (r.quantity || 0), 0);
       }
+
+      // Fetch active add-ons with catalog details
+      const { data: activeAddons } = await queryClient
+        .from('tenant_active_addons')
+        .select(`
+          id,
+          addon_catalog_id,
+          is_active,
+          activated_at,
+          addon_catalog (
+            name,
+            category,
+            monthly_price_pence,
+            included_voice_minutes,
+            included_sms,
+            included_messages,
+            included_data_chunks
+          )
+        `)
+        .eq('tenant_id', tenantId)
+        .eq('is_active', true);
+
+      if (activeAddons) {
+        billingData.addons = activeAddons.map((a: any) => ({
+          id: a.id,
+          addon_catalog_id: a.addon_catalog_id,
+          name: a.addon_catalog?.name || '',
+          category: a.addon_catalog?.category || '',
+          monthly_price_pence: a.addon_catalog?.monthly_price_pence || 0,
+          included_voice_minutes: a.addon_catalog?.included_voice_minutes || 0,
+          included_sms: a.addon_catalog?.included_sms || 0,
+          included_messages: a.addon_catalog?.included_messages || 0,
+          included_data_chunks: a.addon_catalog?.included_data_chunks || 0,
+          is_active: a.is_active,
+          activated_at: a.activated_at,
+        }));
+      }
+
+      // Fetch 3-month rolling usage for voice/SMS
+      const now = new Date();
+      const threeMonthsAgo = new Date(now);
+      threeMonthsAgo.setMonth(threeMonthsAgo.getMonth() - 3);
+
+      const { data: allocations } = await queryClient
+        .from('usage_ledger')
+        .select('feature_id, quantity')
+        .eq('tenant_id', tenantId)
+        .eq('usage_type', 'allocation')
+        .in('feature_id', ['voice_minutes', 'sms_messages'])
+        .gte('expires_at', now.toISOString())
+        .gte('billing_period_start', threeMonthsAgo.toISOString());
+
+      const { data: consumptions } = await queryClient
+        .from('usage_ledger')
+        .select('feature_id, quantity')
+        .eq('tenant_id', tenantId)
+        .eq('usage_type', 'consumption')
+        .in('feature_id', ['voice_minutes', 'sms_messages'])
+        .gte('recorded_at', threeMonthsAgo.toISOString());
+
+      const sumFeature = (rows: any[] | null, fid: string) =>
+        (rows || []).filter(r => r.feature_id === fid).reduce((s, r) => s + (r.quantity || 0), 0);
+
+      billingData.rolloverUsage = {
+        voice_minutes_allocated: sumFeature(allocations, 'voice_minutes'),
+        voice_minutes_consumed: sumFeature(consumptions, 'voice_minutes'),
+        voice_minutes_remaining: Math.max(0, sumFeature(allocations, 'voice_minutes') - sumFeature(consumptions, 'voice_minutes')),
+        sms_allocated: sumFeature(allocations, 'sms_messages'),
+        sms_consumed: sumFeature(consumptions, 'sms_messages'),
+        sms_remaining: Math.max(0, sumFeature(allocations, 'sms_messages') - sumFeature(consumptions, 'sms_messages')),
+      };
+
+      // Compute 85% capacity thresholds
+      const thresholds: any[] = [];
+      const featureUpgradeMap: Record<string, { category: string; addonId: string; addonName: string; pricePence: number }> = {
+        knowledge_data_chunks: { category: 'data_pack', addonId: 'data_pack_500', addonName: '500 Knowledge Base Chunks', pricePence: 999 },
+        voice_minutes: { category: 'voice_pack', addonId: 'voice_pack_20', addonName: '20 Voice Minutes Pack', pricePence: 1500 },
+        sms_messages: { category: 'sms_pack', addonId: 'sms_pack_100', addonName: '100 SMS Pack', pricePence: 599 },
+        message_allowance: { category: 'data_pack', addonId: 'data_pack_500', addonName: '500 Knowledge Base Chunks', pricePence: 999 },
+      };
+
+      for (const ent of (billingData.entitlements || [])) {
+        if (!ent.limit_value || ent.limit_value <= 0) continue;
+        let currentUsage = 0;
+
+        if (ent.feature_id === 'knowledge_data_chunks') {
+          currentUsage = chunksCount || 0;
+        } else if (ent.feature_id === 'message_allowance') {
+          currentUsage = billingData.usage.messages || 0;
+        } else if (ent.feature_id === 'voice_minutes') {
+          currentUsage = billingData.rolloverUsage.voice_minutes_consumed || 0;
+        } else if (ent.feature_id === 'sms_messages') {
+          currentUsage = billingData.rolloverUsage.sms_consumed || 0;
+        }
+
+        const percentUsed = Math.round((currentUsage / ent.limit_value) * 100);
+        if (percentUsed >= 85) {
+          const upgrade = featureUpgradeMap[ent.feature_id];
+          if (upgrade) {
+            thresholds.push({
+              featureId: ent.feature_id,
+              featureName: ent.features?.name || ent.feature_id,
+              percentUsed,
+              currentUsage,
+              limit: ent.limit_value,
+              upgradeCategory: upgrade.category,
+              upgradeAddonId: upgrade.addonId,
+              upgradeAddonName: upgrade.addonName,
+              upgradePricePence: upgrade.pricePence,
+            });
+          }
+        }
+      }
+      billingData.thresholds = thresholds;
     }
 
     if (isSuperAdmin && !isImpersonating) {
@@ -379,11 +506,11 @@ export default async function DashboardPage(props: { searchParams?: Promise<{ [k
       superadminData = {
         tenants: allTenantsList || [],
         usage: allUsage || [],
-        totalChatMessages,
+        totalChatMessages: globalChatMessages,
         monthlyChatMessages,
-        totalChatConversations,
+        totalChatConversations: globalChatConversations,
         monthlyChatConversations,
-        totalVoiceCalls,
+        totalVoiceCalls: globalVoiceCalls,
         monthlyVoiceCalls,
         totalVoiceMinutes,
         monthlyVoiceMinutes,
