@@ -47,7 +47,7 @@ export async function POST(request: Request) {
     const updates: Record<string, any> = {};
 
     if (newTier !== undefined) {
-      const validTiers = ['basic', 'starter', 'premium', 'ultimate', 'trial', 'free'];
+      const validTiers = ['base_tier', 'basic', 'starter', 'premium', 'ultimate', 'trial', 'free'];
       if (!validTiers.includes(newTier)) {
         return NextResponse.json({ error: 'Invalid subscription tier' }, { status: 400 });
       }

@@ -1519,3 +1519,17 @@ px calls.
    - `npm run build` compiled cleanly and generated minified widget.
    - Playwright end-to-end test suite verified: **28 passed, 1 skipped (1.5m)**.
 
+### Session 22 — Superadmin Billing Override Fix for base_tier (2026-09-17)
+
+**Context**: User reported "Override failed." alert when attempting to override a tenant's plan to `base_tier` from the Superadmin dashboard.
+
+1. **Root Cause**:
+   - In `/api/billing/override/route.ts`, the `validTiers` validation array was missing `'base_tier'` (it only had `['basic', 'starter', 'premium', 'ultimate', 'trial', 'free']`), rejecting any override to `base_tier` with HTTP 400.
+   - In `/api/webhooks/wpmudev/route.ts`, `validTiers` was also missing `'base_tier'`.
+
+2. **Fixes Applied**:
+   - Added `'base_tier'` to `validTiers` in `src/app/api/billing/override/route.ts`.
+   - Added `'base_tier'` to `validTiers` in `src/app/api/webhooks/wpmudev/route.ts`.
+   - Improved error reporting in `src/components/DashboardClient.tsx` to surface exact server error message if an override fails.
+   - Verified clean production build with `npm run build`.
+

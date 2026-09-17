@@ -23,10 +23,10 @@ export async function POST(req: Request) {
     const companyName = payload.company_name || payload.business_name || payload['text-2'] || 'My Workspace';
     const fullName = payload.full_name || payload.name || payload['name-1'] || '';
     
-    let planTier = (payload.plan_tier || payload.tier || payload.plan || 'pro').toString().toLowerCase();
-    const validTiers = ['basic', 'starter', 'premium', 'ultimate', 'trial'];
+    let planTier = (payload.plan_tier || payload.tier || payload.plan || 'base_tier').toString().toLowerCase();
+    const validTiers = ['base_tier', 'basic', 'starter', 'premium', 'ultimate', 'trial'];
     if (!validTiers.includes(planTier)) {
-      planTier = 'pro';
+      planTier = 'base_tier';
     }
 
     const isActive = payload.is_active !== undefined ? Boolean(payload.is_active) : true;

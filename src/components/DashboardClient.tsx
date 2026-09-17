@@ -984,10 +984,11 @@ const globalBotId = '00000000-0000-0000-0000-000000000000';
                                         if(res.ok) {
                                           alert('Plan overridden successfully. Refresh to see changes.');
                                         } else {
-                                          alert('Override failed.');
+                                          const errData = await res.json().catch(() => ({}));
+                                          alert(`Override failed: ${errData.error || res.statusText || 'Unknown error'}`);
                                         }
-                                      } catch(err) {
-                                        alert('Error overriding plan.');
+                                      } catch(err: any) {
+                                        alert(`Error overriding plan: ${err.message || err}`);
                                       }
                                     }
                                   }}
