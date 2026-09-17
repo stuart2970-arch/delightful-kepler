@@ -1533,3 +1533,17 @@ px calls.
    - Improved error reporting in `src/components/DashboardClient.tsx` to surface exact server error message if an override fails.
    - Verified clean production build with `npm run build`.
 
+### Session 23 — Mobile Iframe Third-Party Cookie Bypass & Chatbot Save Fix (2026-09-17)
+
+**Context**: User reported `Failed to save to database: Unauthorized` error popup on mobile when updating an agent on `styleflo.ai/app/`.
+
+1. **Root Cause**:
+   - On mobile browsers (Safari ITP / Android Chrome), accessing the dashboard embedded via iframe (`styleflo.ai/app/` embedding `app.styleflo.ai`) causes third-party cookies to be blocked by default.
+   - The `/api/chatbots/[id]`, `/api/chatbots`, and `/api/chatbots/upload-avatar` routes relied exclusively on server-side cookies (`await cookies()`), causing `supabase.auth.getUser()` to return `null` and respond with `401 Unauthorized`.
+
+2. **Fixes Applied**:
+   - Added `Authorization: Bearer <session.access_token>` header fallback in `src/app/api/chatbots/[id]/route.ts` (PATCH and DELETE), `src/app/api/chatbots/route.ts` (POST), and `src/app/api/chatbots/upload-avatar/route.ts` (POST).
+   - Added `getAuthHeaders` helper in `ChatbotManagerView.tsx` and `DashboardClient.tsx` to read the active session access token from local storage and pass the Bearer header in fetch requests.
+   - Replaced cookie-dependent RLS with server-side tenant ownership validation via `adminClient` in `/api/chatbots/[id]` and `/api/chatbots`.
+   - Verified clean build (`npm run build`).
+

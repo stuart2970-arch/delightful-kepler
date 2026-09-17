@@ -42,9 +42,21 @@ function getSupabaseAdmin() {
 export async function POST(request: Request) {
   try {
     const supabase = await createSupabaseClient();
-    const { data: { user }, error: authError } = await supabase.auth.getUser();
+    let user = (await supabase.auth.getUser()).data?.user;
 
-    if (authError || !user) {
+    // Fallback to Bearer token in Authorization header if cookies are blocked
+    if (!user) {
+      const authHeader = request.headers.get('Authorization');
+      if (authHeader && authHeader.startsWith('Bearer ')) {
+        const token = authHeader.replace('Bearer ', '').trim();
+        const { data: userData } = await supabase.auth.getUser(token);
+        if (userData?.user) {
+          user = userData.user;
+        }
+      }
+    }
+
+    if (!user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 

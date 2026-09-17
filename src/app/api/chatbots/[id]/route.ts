@@ -217,21 +217,53 @@ export async function PATCH(
       },
     });
 
-    const { data: { user } } = await supabase.auth.getUser();
+    let user = (await supabase.auth.getUser()).data?.user;
+
+    // Fallback to Bearer token in Authorization header if cookies are blocked (e.g. mobile/third-party iframe)
+    if (!user) {
+      const authHeader = request.headers.get('Authorization');
+      if (authHeader && authHeader.startsWith('Bearer ')) {
+        const token = authHeader.replace('Bearer ', '').trim();
+        const { data: userData } = await supabase.auth.getUser(token);
+        if (userData?.user) {
+          user = userData.user;
+        }
+      }
+    }
 
     if (!user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const { data: profile } = await supabase
+    const adminClient = getSupabaseAdmin();
+    const { data: profile } = await adminClient
       .from('profiles')
-      .select('is_super_admin')
+      .select('tenant_id, is_super_admin')
       .eq('id', user.id)
       .single();
 
-    const dbClient = profile?.is_super_admin ? getSupabaseAdmin() : supabase;
+    if (!profile) {
+      return NextResponse.json({ error: 'User profile not found' }, { status: 403 });
+    }
 
-    const { data: chatbot, error: chatbotError } = await dbClient
+    // Verify ownership: user must be superadmin or own the chatbot's tenant
+    if (!profile.is_super_admin) {
+      const { data: existingBot } = await adminClient
+        .from('chatbots')
+        .select('tenant_id')
+        .eq('id', id)
+        .single();
+
+      if (!existingBot) {
+        return NextResponse.json({ error: 'Chatbot not found' }, { status: 404 });
+      }
+
+      if (existingBot.tenant_id !== profile.tenant_id) {
+        return NextResponse.json({ error: 'Forbidden: Unauthorized access to this chatbot' }, { status: 403 });
+      }
+    }
+
+    const { data: chatbot, error: chatbotError } = await adminClient
       .from('chatbots')
       .update({
         name,
@@ -286,33 +318,59 @@ export async function DELETE(
       },
     });
 
-    const { data: { user } } = await supabase.auth.getUser();
+    let user = (await supabase.auth.getUser()).data?.user;
+
+    // Fallback to Bearer token in Authorization header if cookies are blocked
+    if (!user) {
+      const authHeader = request.headers.get('Authorization');
+      if (authHeader && authHeader.startsWith('Bearer ')) {
+        const token = authHeader.replace('Bearer ', '').trim();
+        const { data: userData } = await supabase.auth.getUser(token);
+        if (userData?.user) {
+          user = userData.user;
+        }
+      }
+    }
 
     if (!user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const { data: profile } = await supabase
+    const adminClient = getSupabaseAdmin();
+    const { data: profile } = await adminClient
       .from('profiles')
-      .select('is_super_admin')
+      .select('tenant_id, is_super_admin')
       .eq('id', user.id)
       .single();
 
-    const dbClient = profile?.is_super_admin ? getSupabaseAdmin() : supabase;
+    if (!profile) {
+      return NextResponse.json({ error: 'User profile not found' }, { status: 403 });
+    }
 
-    const { error: deleteError, count } = await dbClient
+    if (!profile.is_super_admin) {
+      const { data: existingBot } = await adminClient
+        .from('chatbots')
+        .select('tenant_id')
+        .eq('id', id)
+        .single();
+
+      if (!existingBot) {
+        return NextResponse.json({ error: 'Chatbot not found' }, { status: 404 });
+      }
+
+      if (existingBot.tenant_id !== profile.tenant_id) {
+        return NextResponse.json({ error: 'Forbidden: Unauthorized access to this chatbot' }, { status: 403 });
+      }
+    }
+
+    const { error: deleteError } = await adminClient
       .from('chatbots')
-      .delete({ count: 'exact' })
+      .delete()
       .eq('id', id);
 
     if (deleteError) {
       console.error('[Chatbot Config DELETE API] Error deleting chatbot:', deleteError);
       return NextResponse.json({ error: deleteError.message }, { status: 500 });
-    }
-
-    if (count === 0) {
-      // RLS prevented deletion (or the bot didn't exist), enforce 403 Forbidden
-      return NextResponse.json({ error: '403 Forbidden: Unauthorized access to this chatbot' }, { status: 403 });
     }
 
     return NextResponse.json({ success: true });

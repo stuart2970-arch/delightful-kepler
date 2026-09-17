@@ -88,6 +88,21 @@ export default function ChatbotManagerView() {
     }
   };
 
+  const getAuthHeaders = async (baseHeaders: Record<string, string> = {}) => {
+    const headers: Record<string, string> = { ...baseHeaders };
+    if (supabase) {
+      try {
+        const { data: { session } } = await supabase.auth.getSession();
+        if (session?.access_token) {
+          headers['Authorization'] = `Bearer ${session.access_token}`;
+        }
+      } catch (e) {
+        console.warn('Could not retrieve session for auth header:', e);
+      }
+    }
+    return headers;
+  };
+
   const handleCustomAvatarUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -108,8 +123,10 @@ export default function ChatbotManagerView() {
       formData.append('file', file);
       formData.append('tenantId', tenantId);
 
+      const headers = await getAuthHeaders();
       const response = await fetch('/api/chatbots/upload-avatar', {
         method: 'POST',
+        headers,
         body: formData,
       });
 
@@ -165,10 +182,11 @@ export default function ChatbotManagerView() {
     };
 
     try {
+      const headers = await getAuthHeaders({ 'Content-Type': 'application/json' });
       // Always route through API endpoints to bypass RLS issues and function even if client-side Supabase client is uninitialized
       const response = await fetch('/api/chatbots', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers,
         body: JSON.stringify({
           id: newId,
           tenant_id: tenantId,
@@ -244,10 +262,11 @@ export default function ChatbotManagerView() {
     };
 
     try {
+      const headers = await getAuthHeaders({ 'Content-Type': 'application/json' });
       // Always route through API endpoints to bypass RLS issues and function even if client-side Supabase client is uninitialized
       const response = await fetch(`/api/chatbots/${encodeURIComponent(editingBotId)}`, {
         method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
+        headers,
         body: JSON.stringify({
           name: newBotName,
           primary_color: newBotColor,
@@ -303,8 +322,10 @@ export default function ChatbotManagerView() {
     setIsDeletingBot(true);
     let successfullyDeleted = false;
     try {
+      const headers = await getAuthHeaders();
       const response = await fetch(`/api/chatbots/${encodeURIComponent(showDeleteModal)}`, {
         method: 'DELETE',
+        headers,
       });
       if (!response.ok) {
         const errData = await response.json();

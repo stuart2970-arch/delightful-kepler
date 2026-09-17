@@ -34,7 +34,19 @@ async function getSupabaseAuthClient() {
 export async function POST(request: Request) {
   try {
     const supabase = await getSupabaseAuthClient();
-    const { data: { user } } = await supabase.auth.getUser();
+    let user = (await supabase.auth.getUser()).data?.user;
+
+    // Fallback to Bearer token in Authorization header if cookies are blocked
+    if (!user) {
+      const authHeader = request.headers.get('Authorization');
+      if (authHeader && authHeader.startsWith('Bearer ')) {
+        const token = authHeader.replace('Bearer ', '').trim();
+        const { data: userData } = await supabase.auth.getUser(token);
+        if (userData?.user) {
+          user = userData.user;
+        }
+      }
+    }
 
     if (!user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
@@ -47,23 +59,26 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'id, name, and tenant_id are required' }, { status: 400 });
     }
 
-    const { data: profile } = await supabase
+    const { createClient } = await import('@supabase/supabase-js');
+    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.SUPABASE_URL!;
+    const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
+    const adminClient = createClient(supabaseUrl, serviceRoleKey);
+
+    const { data: profile } = await adminClient
       .from('profiles')
-      .select('is_super_admin')
+      .select('tenant_id, is_super_admin')
       .eq('id', user.id)
       .single();
 
-    const isSuperAdmin = profile?.is_super_admin === true;
-
-    let dbClient = supabase;
-    if (isSuperAdmin) {
-      const { createClient } = await import('@supabase/supabase-js');
-      const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.SUPABASE_URL!;
-      const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
-      dbClient = createClient(supabaseUrl, serviceRoleKey);
+    if (!profile) {
+      return NextResponse.json({ error: 'User profile not found' }, { status: 403 });
     }
 
-    const { data: chatbot, error } = await dbClient
+    if (!profile.is_super_admin && tenant_id !== profile.tenant_id) {
+      return NextResponse.json({ error: 'Forbidden: You do not own this tenant' }, { status: 403 });
+    }
+
+    const { data: chatbot, error } = await adminClient
       .from('chatbots')
       .insert({
         id,

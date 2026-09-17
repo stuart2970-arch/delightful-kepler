@@ -446,6 +446,21 @@ const globalBotId = '00000000-0000-0000-0000-000000000000';
     }
   };
 
+  const getAuthHeaders = async (baseHeaders: Record<string, string> = {}) => {
+    const headers: Record<string, string> = { ...baseHeaders };
+    if (supabase) {
+      try {
+        const { data: { session } } = await supabase.auth.getSession();
+        if (session?.access_token) {
+          headers['Authorization'] = `Bearer ${session.access_token}`;
+        }
+      } catch (e) {
+        console.warn('Could not retrieve session for auth header:', e);
+      }
+    }
+    return headers;
+  };
+
   // Auto-select first real chatbot for crawler if available
   useEffect(() => {
     const realBots = chatbots.filter(b => b.id !== globalBotId);
@@ -475,10 +490,11 @@ const globalBotId = '00000000-0000-0000-0000-000000000000';
     };
 
     try {
+      const headers = await getAuthHeaders({ 'Content-Type': 'application/json' });
       // Always route through API endpoints to bypass RLS issues and function even if client-side Supabase client is uninitialized
       const response = await fetch('/api/chatbots', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers,
         body: JSON.stringify({
           id: newId,
           tenant_id: tenantId,
@@ -537,10 +553,11 @@ const globalBotId = '00000000-0000-0000-0000-000000000000';
     };
 
     try {
+      const headers = await getAuthHeaders({ 'Content-Type': 'application/json' });
       // Always route through API endpoints to bypass RLS issues and function even if client-side Supabase client is uninitialized
       const response = await fetch(`/api/chatbots/${encodeURIComponent(editingBotId)}`, {
         method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
+        headers,
         body: JSON.stringify({
           name: newBotName,
           primary_color: newBotColor,
