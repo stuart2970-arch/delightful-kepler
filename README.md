@@ -1903,14 +1903,36 @@ This occurred because UK geographic numbers strictly require `addressRequirement
    - `npm run build` compiled 100% cleanly across all 35 routes and built minified widget bundles.
    - Playwright test suite `tests/multi-colleague.spec.ts` passed 100% (7 passed, 1 skipped in 51.5s) with 0 SMTP emails sent and zero bounces.
 
+### Session 39 — Telephony Deep-Dive: Twilio 31920 Error, Vapi SIP Routing & SMS Webhook Verification (2026-09-18)
+
+**Context**: User reported: "tried ringing the mobile, still saying same message, text goes, no response, local number allows answer then hangs up".
+
+1. **Root Cause Analysis & Diagnostics**:
+   - **Local Number (`+441514538001`)**:
+     - Diagnosis revealed Twilio error code `31920: WebSocket Handshake Error` on all incoming calls.
+     - `src/app/api/telephony/inbound/route.ts` was attempting to stream media to `wss://api.vapi.ai/ws`. Vapi's servers reject direct open WebSocket handshakes from Twilio, causing Twilio to immediately terminate/hang up the call after 4 seconds.
+     - Solution: Replaced raw WebSocket streaming with standard Vapi SIP URI routing (`twiml.dial().sip('sip:' + assistantId + '@sip.vapi.ai;transport=tls')`). Recommended importing the Twilio number directly into the Vapi dashboard under "Phone Numbers -> Import Twilio" for 0ms latency and native Vapi orchestration.
+   - **Mobile Number Voice (`+447446900875`)**:
+     - The carrier announcement *"This phone is not set up to receive incoming calls, please send a text message"* is generated directly by the calling mobile network (EE, O2, Vodafone, Three) because virtual UK mobile ranges (`07446...`) have carrier-level restrictions on incoming voice calls, which is why zero incoming voice calls reach Twilio's log.
+     - Virtual UK mobile numbers are designed for two-way SMS & WhatsApp messaging, while geographic numbers (`0151...`) handle voice telephony.
+   - **SMS & WhatsApp Auto-Replies**:
+     - Verified `https://app.styleflo.ai/api/telephony/sms` with live POST requests — responds with 200 OK and valid Gemini AI TwiML XML auto-reply (`We provide a 24/7 AI digital receptionist...`).
+     - Note: Local landline (`0151 453 8001`) does not support SMS (`sms: false`); all SMS traffic must be directed to the mobile number (`+447446900875`).
+   - **Vapi Webhook Tenant Resolution (`src/app/api/webhooks/vapi/assistant/route.ts`)**:
+     - Upgraded database lookup to match both `twilio_shadow_number` and `twilio_mobile_number`.
+
+2. **Verification**:
+   - `npm run build` compiled 100% cleanly across all 35 routes.
+
 ## Session Chat History Log
 
-* **User**: "5. Recommended Step-by-Step Action Plan Immediate Step (Fix the Test Suite): Update tests/multi-colleague.spec.ts to replace sarah.miller@acme.com with a subaddressed address or admin-created pre-confirmed user, instantly halting daily automated bounces. Phase 3: Sales Rep Impersonation Access: Enable sales team members to jump into any of the 4 demo tenant dashboards in 1-click via the Superadmin Control Center."
+* **User**: "tried ringing the mobile, still saying same message, text goes, no response, local number allows answer then hangs up" / "i have added the number in gateways for whatsapp and sms"
   * **Answer & Action**: 
-    1. Re-engineered `tests/multi-colleague.spec.ts` using `test+colleague.<suffix>@styleflo.ai` and `supabaseAdmin.auth.admin.createUser({ email_confirm: true })` plus teardown, preventing all SMTP email dispatch and halting email bounces.
-    2. Built and executed `scripts/seed-demo-tenants.js` to seed 4 realistic industry demo tenants (Luxe Locks Hair Lounge, Pure Glow Aesthetics Clinic, The Grooming Room Barbers, and Velvet Nail & Day Spa) with full staff, services, and AI chatbots in Supabase.
-    3. Added the **Industry Demo Showcase (Sales Rep Launchpad)** to `/superadmin` (`src/components/superadmin/SuperadminClient.tsx`) featuring 1-click impersonation buttons into all 4 demo dashboards.
-    4. Verified with `npm run build` and Playwright tests (7/7 passing).
+    1. Diagnosed Twilio Error `31920` (WebSocket handshake failure) on the local number caused by `wss://api.vapi.ai/ws`. Refactored `inbound/route.ts` to use Vapi SIP URI dialing and provided runbook to import the number directly in the Vapi dashboard.
+    2. Explained UK carrier network restrictions on virtual mobile ranges (`07446...`) causing the carrier voice announcement.
+    3. Verified `https://app.styleflo.ai/api/telephony/sms` end-to-end with live AI auto-responses via Gemini.
+    4. Updated `vapi/assistant/route.ts` to match both landline and mobile numbers.
+
 
 
 

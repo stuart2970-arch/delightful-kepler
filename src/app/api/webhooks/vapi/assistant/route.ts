@@ -50,11 +50,11 @@ export async function POST(request: Request) {
     let chatbot: any = null;
 
     if (twilioNumber) {
-      // Try exact match first
+      // Try exact match first on shadow landline or mobile
       const { data: exactMatch } = await supabaseAdmin
         .from('tenants')
         .select('id, plan_tier')
-        .eq('twilio_shadow_number', twilioNumber)
+        .or(`twilio_shadow_number.eq.${twilioNumber},twilio_mobile_number.eq.${twilioNumber}`)
         .maybeSingle();
 
       tenant = exactMatch;
@@ -66,7 +66,7 @@ export async function POST(request: Request) {
           const { data: fuzzyMatch } = await supabaseAdmin
             .from('tenants')
             .select('id, plan_tier')
-            .ilike('twilio_shadow_number', `%${cleanDigits}%`)
+            .or(`twilio_shadow_number.ilike.%${cleanDigits}%,twilio_mobile_number.ilike.%${cleanDigits}%`)
             .maybeSingle();
 
           tenant = fuzzyMatch;

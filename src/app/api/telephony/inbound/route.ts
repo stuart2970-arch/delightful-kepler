@@ -63,17 +63,12 @@ export async function POST(request: Request) {
 
     if (chatbotError || !chatbot || !assistantId || assistantId.startsWith('vapi-')) {
       console.error(`[Telephony Inbound] No valid Vapi assistant configured for tenant: ${tenant.id}`);
-      twiml.say('Sorry, the AI receptionist is currently unavailable. Please try again later.');
+      twiml.say({ voice: 'Polly.Amy' }, 'Sorry, the AI receptionist is currently unavailable. Please try again later.');
     } else {
-      // 3. Connect the call to Vapi using the vapi_assistant_id
-      const connect = twiml.connect();
-      const stream = connect.stream({
-        url: 'wss://api.vapi.ai/ws', // correct Vapi inbound WebSocket URL
-      });
-      stream.parameter({
-        name: 'assistantId',
-        value: assistantId
-      });
+      console.log(`[Telephony Inbound] Connecting call to Vapi SIP Assistant ${assistantId}`);
+      // Connect the call to Vapi using standard SIP URI
+      const dial = twiml.dial();
+      dial.sip(`sip:${assistantId}@sip.vapi.ai;transport=tls`);
     }
 
     return new NextResponse(twiml.toString(), {
