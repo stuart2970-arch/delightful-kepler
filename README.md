@@ -1739,3 +1739,21 @@ px calls.
    - Tested Manchester (`0161`), London (`020`), Warrington (`01925`), and Birmingham (`0121`): all returned 100% matching results.
    - `npm run build` compiled 100% cleanly in 4.8s.
    - Playwright integration tests passed (4 of 4 passed in 19.8s).
+
+### Session 32 — Example Agents Architecture & Supabase Zero-Bounce Strategy (2026-09-18)
+
+**Context**: User requested an investigation into how to create example agents to display to prospective clients, while resolving Supabase's warning regarding excessive bounced emails caused by dummy / test accounts.
+
+1. **Deliverables Created**:
+   - Technical investigation and strategy specification: [`Styleflo AI/Technical-Notes/Example-Agents-and-Dummy-Email-Strategy.md`](file:///c:/Users/Stuar/.gemini/antigravity/scratch/delightful-kepler/Styleflo%20AI/Technical-Notes/Example-Agents-and-Dummy-Email-Strategy.md).
+   - Artifact guide: `example_agents_dummy_email_strategy.md`.
+
+2. **Key Findings & Root Cause Analysis**:
+   - **Playwright Test Suite (`multi-colleague.spec.ts`)**: Every `git push` runs E2E tests via Husky pre-push hooks that submitted dummy signups with `@acme.com` to `/login?mode=register`. This invoked `supabase.auth.signUp()` which triggered automated verification emails to non-existent domains, generating dozens of hard bounces per week.
+   - **`supabase.auth.signUp()` vs `admin.createUser()`**: Client-side `signUp()` dispatches SMTP verification emails by default. In contrast, server-side `supabaseAdmin.auth.admin.createUser({ email_confirm: true })` bypasses SMTP entirely and marks the user as verified with zero outbound emails.
+
+3. **Strategic Recommendations**:
+   - **Public Web Showcase (Option 1 - Zero Auth / Zero Email)**: Build a public demo page embedding live widgets for 4 vertical personas (Hair Salon, Aesthetics, Barber, Spa) using existing public endpoints (`/api/chat/public-init` & `/api/chat/stream`). Clients interact immediately with zero signup friction.
+   - **Pre-Seeded Demo Tenants (Option 2 - Sales Pitches)**: Seed permanent showcase tenants with realistic staff rotas, appointment calendars, and call transcripts via `admin.createUser({ email_confirm: true })`.
+   - **Subaddressing Protocol**: Enforce using `demo+<name>@styleflo.ai` rather than fake domains (`@acme.com`, `@fake.com`).
+   - **Sanitize E2E Tests**: Decouple `multi-colleague.spec.ts` from public signup SMTP triggers to permanently protect Supabase sender reputation.
