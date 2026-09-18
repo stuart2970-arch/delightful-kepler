@@ -1693,3 +1693,18 @@ px calls.
 3. **Verification**:
    - `npm run build` compiled 100% cleanly across all 35 routes.
    - Verified search API, provisioning parameters, and store hydration.
+
+### Session 30 — Twilio WhatsApp & Meta Business Integration Specification (2026-09-18)
+
+**Context**: User requested an experienced business analyst investigation and step-by-step integration guide detailing what is required from Meta and Twilio to enable WhatsApp for StyleFlo tenants, without writing code at this time.
+
+1. **Deliverables Created**:
+   - Technical specification document in [`Styleflo AI/Technical-Notes/Twilio-WhatsApp-Meta-Integration-Guide.md`](file:///c:/Users/Stuar/.gemini/antigravity/scratch/delightful-kepler/Styleflo%20AI/Technical-Notes/Twilio-WhatsApp-Meta-Integration-Guide.md).
+   - Artifact guide in `twilio_whatsapp_meta_integration_guide.md`.
+
+2. **Key Analysis & Recommendations**:
+   - **Meta Gatekeepers & Requirements**: Defined the prerequisites for Meta Business Portfolio, official Business Verification (Companies House certificate and utility bill), display name branding regulations, phone number cleanliness rules (numbers must be deleted from consumer apps before API registration), and Commerce Policy compliance.
+   - **24-Hour Customer Service Window vs. Outbound Templates**: Clarified that inbound client questions open a 24-hour window allowing free-form AI conversation via Gemini without pre-approved templates. Outbound messages initiated by the salon (such as appointment reminders) strictly require pre-approved Meta message templates (Utility category).
+   - **Multi-Tenancy Strategy for StyleFlo**: Evaluated Model A (StyleFlo Master WABA with per-tenant Twilio Senders) vs. Model B (Meta Embedded Signup / ISV Tech Provider). Recommended Model A for MVP/launch to eliminate friction for salon owners, with Model B reserved for future enterprise clients.
+   - **Commercials & Margins**: Analyzed Meta per-conversation pricing (service vs. utility vs. marketing) alongside Twilio's per-message fee ($0.005), confirming that StyleFlo's £9.99/mo (add-on) and £19.99/mo (standalone) bolt-ons deliver 55%–75% gross margins on 500 messages/mo.
+   - **Step-by-Step 6-Phase Roadmap**: Structured clear phases covering Meta verification, Twilio sender linking, webhook routing, template approval governance, and dashboard UX (click-to-chat links & QR codes).
