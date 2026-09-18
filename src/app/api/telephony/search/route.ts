@@ -32,8 +32,8 @@ async function getSupabaseAuthClient() {
   });
 }
 
-function sanitizeUkAreaCode(input?: string): string {
-  if (!input) return '';
+function sanitizeUkAreaCode(input?: unknown): string {
+  if (!input || (typeof input !== 'string' && typeof input !== 'number')) return '';
   let code = input.toString().trim();
   // Strip +44, 0044, or leading 0s
   code = code.replace(/^\+44/, '').replace(/^0044/, '').replace(/^0+/, '');

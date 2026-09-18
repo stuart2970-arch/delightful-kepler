@@ -69,10 +69,12 @@ export default function TelephonyView() {
   };
 
   // Search available numbers from Twilio
-  const handleSearchNumbers = async (codeOverride?: string) => {
+  const handleSearchNumbers = async (codeOverride?: unknown) => {
     setIsSearching(true);
     setError(null);
-    const targetCode = codeOverride !== undefined ? codeOverride : (activeChannelTab === 'landline' ? areaCode || undefined : undefined);
+    const targetCode = typeof codeOverride === 'string'
+      ? codeOverride
+      : (activeChannelTab === 'landline' ? areaCode || undefined : undefined);
     try {
       const headers = await getAuthHeaders({ 'Content-Type': 'application/json' });
       const res = await fetch('/api/telephony/search', {
@@ -346,7 +348,7 @@ export default function TelephonyView() {
                 )}
 
                 <button
-                  onClick={handleSearchNumbers}
+                  onClick={() => handleSearchNumbers()}
                   disabled={isSearching || isProvisioning}
                   className="w-full sm:w-auto bg-[#198fd9] hover:bg-[#157ab9] text-white text-xs font-bold py-3 px-6 rounded-xl shadow-md transition-all flex items-center justify-center gap-2"
                 >

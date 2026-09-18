@@ -1757,3 +1757,26 @@ px calls.
    - **Pre-Seeded Demo Tenants (Option 2 - Sales Pitches)**: Seed permanent showcase tenants with realistic staff rotas, appointment calendars, and call transcripts via `admin.createUser({ email_confirm: true })`.
    - **Subaddressing Protocol**: Enforce using `demo+<name>@styleflo.ai` rather than fake domains (`@acme.com`, `@fake.com`).
    - **Sanitize E2E Tests**: Decouple `multi-colleague.spec.ts` from public signup SMTP triggers to permanently protect Supabase sender reputation.
+
+### Session 33 — Fix Telephony Circular JSON Serialization & Mobile Number Hydration (2026-09-18)
+
+**Context**: User reported two critical bugs on the Telephony view:
+1. Clicking "Search Available Landline Numbers" threw a red banner error: `Converting circular structure to JSON --> starting at object with constructor 'Window' --- property 'window' closes the circle`.
+2. The user had previously purchased a mobile number and saved details, but the dashboard reverted to asking them to start again ("Setup Required").
+
+1. **Root Cause Analysis**:
+   - **Circular JSON Error**: In `TelephonyView.tsx`, the search button had `onClick={handleSearchNumbers}`. Because React passes the `MouseEvent` (which contains `view: Window` with circular window references) as the first argument, `handleSearchNumbers` treated the click event as `codeOverride`. When passed to `JSON.stringify({ area_code: targetCode })`, `JSON.stringify` failed with a circular structure exception.
+   - **Mobile Number Missing from Dashboard Hydration**: While `twilio_mobile_number` was properly saved in PostgreSQL (`+447446900875` for the tenant), the server-side query in `src/app/dashboard/page.tsx` on lines 131 and 199 omitted `twilio_mobile_number` from the explicit `.select(...)` column list. Consequently, `tenant.twilio_mobile_number` was `undefined`, and `page.tsx` hydrated `initialTwilioMobileNumber` as `null` on every page refresh, causing the UI to show "Setup Required".
+
+2. **Fixes & Enhancements Applied**:
+   - **Fixed Circular JSON Serialization (`TelephonyView.tsx`)**:
+     - Updated search button to use zero-argument arrow invocation: `onClick={() => handleSearchNumbers()}`.
+     - Hardened `handleSearchNumbers` signature: `const targetCode = typeof codeOverride === 'string' ? codeOverride : ...`, guaranteeing that event objects can never be treated as an area code override.
+     - Added defensive check in `sanitizeUkAreaCode` (`search/route.ts`) ensuring non-string inputs return safely.
+   - **Restored Mobile Number Hydration (`src/app/dashboard/page.tsx`)**:
+     - Added `twilio_mobile_number` to the `.select(...)` query for both standard tenant loading (line 131) and impersonated tenant loading (line 199).
+     - Verified tenant `7b0f485d-49b8-416e-8c6f-1effea14a57b` currently holds active mobile number `+447446900875` in the database.
+
+3. **Verification**:
+   - Confirmed `+447446900875` in `public.tenants` via database query.
+   - `npm run build` compiled 100% cleanly across all 35 routes.
