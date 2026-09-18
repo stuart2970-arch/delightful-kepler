@@ -103,7 +103,7 @@ export async function POST(request: Request) {
 
     const primaryCountry = process.env.TWILIO_PHONE_COUNTRY || 'GB';
     const appBaseUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://app.styleflo.ai';
-    const addressSid = process.env.TWILIO_ADDRESS_SID;
+    const addressSid = process.env.TWILIO_ADDRESS_SID_LOCAL || process.env.TWILIO_ADDRESS_SID;
 
     // Support separate bundle SIDs for mobile vs local regulatory compliance
     const bundleSidLocal = process.env.TWILIO_BUNDLE_SID_LOCAL || process.env.TWILIO_LOCAL_BUNDLE_SID || process.env.TWILIO_BUNDLE_SID;
@@ -158,17 +158,37 @@ export async function POST(request: Request) {
         voiceMethod: 'POST',
       };
 
-      // When a regulatory bundle (like UK local/mobile) is present, Twilio binds the phone number
-      // to the bundle and automatically resolves the verified address embedded within that bundle.
-      // Passing an explicit addressSid alongside bundleSid causes Twilio to reject the purchase
-      // unless that addressSid strictly matches the supporting document inside the bundle.
-      if (bundleSid) {
-        purchaseParams.bundleSid = bundleSid;
-      } else if (addressSid && !isMobile) {
-        purchaseParams.addressSid = addressSid;
+      let resolvedAddressSid = addressSid;
+
+      // Twilio requires an AddressSid for UK geographic/local numbers (addressRequirements: local).
+      // If bundleSid is present, we automatically resolve the approved address assigned directly to that bundle
+      // to guarantee a 100% match, preventing both "AddressSid parameter was empty" and "Address not contained in bundle".
+      if (!isMobile && bundleSid) {
+        try {
+          const itemAssignments = await client.numbers.v2.regulatoryCompliance.bundles(bundleSid).itemAssignments.list();
+          for (const item of itemAssignments) {
+            if (item.objectSid && item.objectSid.startsWith('RD')) {
+              const doc = await client.numbers.v2.regulatoryCompliance.supportingDocuments(item.objectSid).fetch();
+              if (doc.attributes && Array.isArray((doc.attributes as any).address_sids) && (doc.attributes as any).address_sids.length > 0) {
+                resolvedAddressSid = (doc.attributes as any).address_sids[0];
+                break;
+              }
+            }
+          }
+        } catch (err: any) {
+          console.warn('[Telephony Provisioning] Could not query bundle items, falling back to configured address:', err.message);
+        }
+
+        // Hardened fallback for StyleFlo UK local bundle (Basecamp Liverpool)
+        if (!resolvedAddressSid && bundleSid === 'BUf676ba5c4a24f355ecdcc59d0e61e818') {
+          resolvedAddressSid = 'AD11e6b1f650f21544d4ef5e9447fad0e5';
+        }
       }
 
-      console.log(`[Telephony Provisioning] Purchasing number ${targetPhoneNumber} with bundle ${bundleSid || 'none'}`);
+      if (resolvedAddressSid && !isMobile) purchaseParams.addressSid = resolvedAddressSid;
+      if (bundleSid) purchaseParams.bundleSid = bundleSid;
+
+      console.log(`[Telephony Provisioning] Purchasing number ${targetPhoneNumber} with bundle ${bundleSid || 'none'} and address ${purchaseParams.addressSid || 'none'}`);
       return await client.incomingPhoneNumbers.create(purchaseParams);
     }
 
