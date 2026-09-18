@@ -138,8 +138,8 @@ export async function GET(
       }
     }
 
-    // Voice is active if chatbot has voice_enabled ON (or not explicitly false) AND has minutes
-    const isVoiceActive = (chatbot.voice_enabled !== false) && hasVoiceMinutes;
+    // Voice is active if tenant has plan entitlement, minutes in usage_ledger, or bot has voice_enabled
+    const isVoiceActive = hasVoiceMinutes || Boolean(chatbot.voice_enabled);
     const voiceProvider = isVoiceActive ? '11labs' : 'none';
 
     const globalBot = chatbots.find(b => b.id === globalSettingsId);
