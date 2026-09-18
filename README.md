@@ -1656,3 +1656,40 @@ px calls.
    - Tested live endpoint `POST https://app.styleflo.ai/api/billing/checkout` with sliding scale add-on payload.
    - Live checkout session successfully generated: `Status: 200 OK` returning live Stripe Checkout URL (`https://checkout.stripe.com/c/pay/cs_test_...`).
    - Verified dynamic pricing calculation (£12.99 / 18 voice minutes) and Stripe Test Mode readiness on production.
+
+### Session 29 — Post-Checkout Phone Selection Journey, Dual Channel Telephony & Number Search (2026-09-18)
+
+**Context**: User subscribed to both a local landline and mobile number add-on via Stripe. Upon returning to the dashboard, the add-ons were not activated and there was no mechanism to search for, select, or manage local or mobile numbers.
+
+1. **Root Cause Analysis**:
+   - **Stripe Webhook Foreign Key Violation**: `tenant_active_addons.feature_id` references `features.id` (e.g. `telephone_number`, `mobile_number`). The webhook attempted to insert `addon.category` (`landline`, `mobile`), resulting in an unhandled Postgres foreign key error (`23503`) which silently failed add-on activation and channel flag synchronization.
+   - **Single Number Tenant Storage**: `public.tenants` only had `twilio_shadow_number` (intended for landline), lacking a distinct field for mobile numbers.
+   - **Missing Search & Selection Experience**: No UI existed to query Twilio for available numbers by UK area code or mobile prefix, forcing users into blind auto-provisioning without previewing numbers.
+   - **Post-Checkout Routing**: Returning from Stripe with `?checkout_status=success` was unhandled, landing the user on the default chatbots tab without guidance.
+
+2. **Fixes & Enhancements Applied**:
+   - **Database Migration (`supabase/migrations/20260918140000_add_twilio_mobile_number.sql`)**:
+     - Added `twilio_mobile_number TEXT` to `public.tenants`.
+     - Updated live Supabase instance and synchronized active flags (`has_landline: true`, `has_mobile: true`) for the tenant.
+   - **Stripe Webhook Correction (`/api/webhooks/stripe/route.ts`)**:
+     - Added `mapAddonCategoryToFeatureId` mapping add-on categories (`landline` -> `telephone_number`, `mobile` -> `mobile_number`) to conform with database foreign key constraints.
+     - Added explicit error inspection and logging on `tenant_active_addons` upserts.
+   - **Twilio Real-Time Number Search API (`/api/telephony/search/route.ts`)**:
+     - Created search endpoint supporting UK local numbers (filtered by sanitized area code, e.g. `0151` -> `151`) and mobile numbers (`07`).
+     - Returns numbers with locality badges and clean UK formatting (e.g. `0151 321 0044`).
+   - **Provisioning & Deprovisioning Enhancements (`/api/telephony/provision/route.ts`, `/api/telephony/deprovision/route.ts`)**:
+     - Added optional `phone_number` payload parameter allowing tenants to purchase their chosen number directly.
+     - Persists mobile numbers to `twilio_mobile_number` and landlines to `twilio_shadow_number`.
+     - Supports independent number deprovisioning by channel (`number_type: 'local' | 'mobile'`).
+   - **Interactive Number Selection UI (`TelephonyView.tsx`)**:
+     - Dual channel tabbed interface: `📞 Local Landline Number` and `📱 Mobile Number`.
+     - Area code search box with live results grid, formatted display, and 1-click "Select & Activate" buttons.
+     - "Quick Assign Next Available" fallback for instant automated setup.
+     - Active number management card with copy buttons and provider-specific call divert codes (BT, Virgin, Sky, Standard Mobile).
+   - **Dashboard Integration & Auto-Navigation (`DashboardClient.tsx`, `page.tsx`, `store.ts`)**:
+     - Added `twilioMobileNumber` state to global Zustand store.
+     - Automatically navigates to the Telephony view upon detecting `?checkout_status=success` with a celebratory welcome and configuration banner.
+
+3. **Verification**:
+   - `npm run build` compiled 100% cleanly across all 35 routes.
+   - Verified search API, provisioning parameters, and store hydration.

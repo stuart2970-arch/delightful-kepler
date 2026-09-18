@@ -90,6 +90,7 @@ interface DashboardClientProps {
   initialPostcode?: string;
   initialGoogleConnectedEmail?: string | null;
   initialTwilioShadowNumber?: string | null;
+  initialTwilioMobileNumber?: string | null;
 
   initialTradingAddressStreet?: string;
   initialTradingAddressCity?: string;
@@ -139,6 +140,7 @@ export default function DashboardClient({
   initialBusinessAddress,
   initialPostcode,
   initialTwilioShadowNumber,
+  initialTwilioMobileNumber,
 
   initialTradingAddressStreet,
   initialTradingAddressCity,
@@ -185,6 +187,7 @@ export default function DashboardClient({
       businessAddress: initialBusinessAddress || '',
       postcode: initialPostcode || '',
       twilioShadowNumber: initialTwilioShadowNumber || null,
+      twilioMobileNumber: initialTwilioMobileNumber || null,
 
       tradingAddressStreet: initialTradingAddressStreet || '',
       tradingAddressCity: initialTradingAddressCity || '',
@@ -264,6 +267,29 @@ export default function DashboardClient({
   } = useDashboardStore();
 
   const [isSavingAccountSettings, setIsSavingAccountSettings] = useState(false);
+  const [checkoutNotification, setCheckoutNotification] = useState<{ type: 'success' | 'cancelled'; message: string } | null>(null);
+
+  // Auto-detect return from Stripe checkout
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const params = new URLSearchParams(window.location.search);
+      const checkoutStatus = params.get('checkout_status');
+      if (checkoutStatus === 'success') {
+        setActiveTab('telephony');
+        setCheckoutNotification({
+          type: 'success',
+          message: '🎉 Subscription & Add-on payment successful! Your telephone channel is active. Search and select your preferred number below.',
+        });
+        window.history.replaceState({}, document.title, window.location.pathname);
+      } else if (checkoutStatus === 'cancelled') {
+        setCheckoutNotification({
+          type: 'cancelled',
+          message: 'Checkout was cancelled. No charges were made.',
+        });
+        window.history.replaceState({}, document.title, window.location.pathname);
+      }
+    }
+  }, [setActiveTab]);
 
   const handleSaveAccountSettings = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -794,6 +820,25 @@ const globalBotId = '00000000-0000-0000-0000-000000000000';
         <div className="flex-1 overflow-y-auto styleflo-scrollbar p-0 sm:p-6 lg:p-8 space-y-4 md:space-y-8">
            <SetPasswordBanner />
            <CapacityThresholdBanner thresholds={billingData?.thresholds || []} tenantId={tenantId} />
+
+           {checkoutNotification && (
+             <div className={`p-4 rounded-xl border flex items-center justify-between shadow-md transition-all ${
+               checkoutNotification.type === 'success'
+                 ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-300'
+                 : 'bg-amber-500/10 border-amber-500/30 text-amber-300'
+             }`}>
+               <div className="flex items-center gap-3 text-sm font-semibold">
+                 <span>{checkoutNotification.message}</span>
+               </div>
+               <button
+                 onClick={() => setCheckoutNotification(null)}
+                 className="p-1 hover:bg-white/10 rounded-lg text-sm text-gray-400 hover:text-white"
+                 aria-label="Dismiss banner"
+               >
+                 ✕
+               </button>
+             </div>
+           )}
            <header className="md:hidden flex items-center justify-start mb-6 px-4 pt-4">
               <button className="p-2 text-[var(--awb-color6)] hover:text-[var(--awb-color7)]" onClick={() => setIsMobileMenuOpen(true)}>
                  <svg className="w-7 h-7" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 6h16M4 12h16M4 18h16"></path></svg>

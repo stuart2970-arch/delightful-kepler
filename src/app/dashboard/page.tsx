@@ -66,6 +66,7 @@ export default async function DashboardPage(props: { searchParams?: Promise<{ [k
   let initialGoogleConnected = false;
   let initialGoogleConnectedEmail = null;
   let initialTwilioShadowNumber = null;
+  let initialTwilioMobileNumber = null;
   
   let chatbots: any[] = [];
   let conversations: any[] = [];
@@ -162,6 +163,7 @@ export default async function DashboardPage(props: { searchParams?: Promise<{ [k
         operatingHoursOverrides = tenant.operating_hours_overrides || [];
         holidaySettings = tenant.holiday_settings || {};
         initialTwilioShadowNumber = tenant.twilio_shadow_number || null;
+        initialTwilioMobileNumber = tenant.twilio_mobile_number || null;
       }
 
       // Check Google Connection Status
@@ -229,6 +231,7 @@ export default async function DashboardPage(props: { searchParams?: Promise<{ [k
         operatingHoursOverrides = impTenant.operating_hours_overrides || [];
         holidaySettings = impTenant.holiday_settings || {};
         initialTwilioShadowNumber = impTenant.twilio_shadow_number || null;
+        initialTwilioMobileNumber = impTenant.twilio_mobile_number || null;
       }
 
       // Check Google Connection Status for Impersonated Tenant
@@ -551,6 +554,7 @@ export default async function DashboardPage(props: { searchParams?: Promise<{ [k
         initialRegisteredAddressSameAsTrading={registeredAddressSameAsTrading}
         initialRwgAddressSameAsTrading={rwgAddressSameAsTrading}
         initialTwilioShadowNumber={initialTwilioShadowNumber}
+        initialTwilioMobileNumber={initialTwilioMobileNumber}
         initialRwgConfig={rwgConfig}
         initialBookingMode={bookingMode}
         initialBookingUrl={bookingUrl}

@@ -44,7 +44,8 @@ function getSupabaseAdmin() {
 export async function POST(request: Request) {
   try {
     const body = await request.json();
-    const { tenant_id, confirmed_downgrade } = body;
+    const { tenant_id, confirmed_downgrade, number_type } = body;
+    const isMobile = number_type === 'mobile';
 
     if (!tenant_id) {
       return NextResponse.json({ error: 'tenant_id is required' }, { status: 400 });
@@ -59,30 +60,37 @@ export async function POST(request: Request) {
       isAuthorized = true;
     } else {
       const supabase = await getSupabaseAuthClient();
-      const { data: { user }, error: authError } = await supabase.auth.getUser();
-      if (user && !authError) {
+      let user = (await supabase.auth.getUser()).data?.user;
+
+      if (!user && authHeader && authHeader.startsWith('Bearer ')) {
+        const token = authHeader.replace('Bearer ', '').trim();
+        const { data: userData } = await supabase.auth.getUser(token);
+        if (userData?.user) user = userData.user;
+      }
+
+      if (user) {
         const { data: profile } = await supabase
           .from('profiles')
-          .select('tenant_id')
+          .select('tenant_id, is_super_admin')
           .eq('id', user.id)
-          .eq('tenant_id', tenant_id)
           .single();
-        if (profile) {
+
+        if (profile && (profile.is_super_admin || profile.tenant_id === tenant_id)) {
           isAuthorized = true;
         }
       }
     }
 
     if (!isAuthorized) {
-      return NextResponse.json({ error: 'Unauthorized to deprovision this tenant' }, { status: 403 });
+      return NextResponse.json({ error: 'Unauthorized to deprovision numbers for this tenant' }, { status: 403 });
     }
 
     const adminSupabase = getSupabaseAdmin();
 
-    // 1. Get current shadow number from tenant
+    // 1. Get current number from tenant
     const { data: tenant, error: tenantError } = await adminSupabase
       .from('tenants')
-      .select('id, twilio_shadow_number')
+      .select('id, twilio_shadow_number, twilio_mobile_number')
       .eq('id', tenant_id)
       .single();
 
@@ -90,9 +98,9 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Tenant not found' }, { status: 404 });
     }
 
-    const numberToRelease = tenant.twilio_shadow_number;
+    const numberToRelease = isMobile ? tenant.twilio_mobile_number : tenant.twilio_shadow_number;
     if (!numberToRelease) {
-      return NextResponse.json({ success: true, message: 'No phone number currently provisioned for this tenant' });
+      return NextResponse.json({ success: true, message: `No ${isMobile ? 'mobile' : 'landline'} phone number currently provisioned for this tenant` });
     }
 
     console.log(`[Telephony Deprovisioning] Releasing number ${numberToRelease} for tenant ${tenant_id}...`);
@@ -144,14 +152,15 @@ export async function POST(request: Request) {
       }
     }
 
-    // 4. Reset twilio_shadow_number in Supabase
+    // 4. Reset number column in Supabase
+    const clearPayload = isMobile ? { twilio_mobile_number: null } : { twilio_shadow_number: null };
     const { error: clearError } = await adminSupabase
       .from('tenants')
-      .update({ twilio_shadow_number: null })
+      .update(clearPayload)
       .eq('id', tenant_id);
 
     if (clearError) {
-      console.error('[Telephony Deprovisioning] Error clearing tenant shadow number in Supabase:', clearError);
+      console.error('[Telephony Deprovisioning] Error clearing tenant number in Supabase:', clearError);
       return NextResponse.json({ error: 'Failed to update database' }, { status: 500 });
     }
 

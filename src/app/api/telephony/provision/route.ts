@@ -54,7 +54,7 @@ export async function POST(request: Request) {
     }
 
     const body = await request.json();
-    const { tenant_id, area_code, number_type } = body;
+    const { tenant_id, area_code, number_type, phone_number } = body;
 
     if (!tenant_id) {
       return NextResponse.json({ error: 'tenant_id is required' }, { status: 400 });
@@ -113,34 +113,39 @@ export async function POST(request: Request) {
     let purchasedNumber: any = null;
 
     async function tryPurchaseNumber(country: string) {
-      let available: any[] = [];
+      let targetPhoneNumber = phone_number;
 
-      if (isMobile) {
-        console.log(`[Telephony Provisioning] Searching mobile numbers for country: ${country}`);
-        available = await client.availablePhoneNumbers(country).mobile.list({ limit: 1 });
-      } else {
-        const searchParams: any = { limit: 1 };
-        if (area_code) {
-          // Clean leading zero for UK local codes (e.g. 0151 -> 151, 01925 -> 1925)
-          const cleanCode = area_code.replace(/^0+/, '');
-          searchParams.areaCode = cleanCode;
+      if (!targetPhoneNumber) {
+        let available: any[] = [];
+
+        if (isMobile) {
+          console.log(`[Telephony Provisioning] Searching mobile numbers for country: ${country}`);
+          available = await client.availablePhoneNumbers(country).mobile.list({ limit: 1 });
+        } else {
+          const searchParams: any = { limit: 1 };
+          if (area_code) {
+            // Clean leading zero for UK local codes (e.g. 0151 -> 151, 01925 -> 1925)
+            const cleanCode = area_code.replace(/^0+/, '');
+            searchParams.areaCode = cleanCode;
+          }
+          console.log(`[Telephony Provisioning] Searching local numbers for country: ${country}`, searchParams);
+          available = await client.availablePhoneNumbers(country).local.list(searchParams);
+
+          // Fall back to general local numbers if specified area code had 0 available
+          if ((!available || available.length === 0) && area_code) {
+            console.log(`[Telephony Provisioning] No numbers for area code ${area_code}, falling back to any local number`);
+            available = await client.availablePhoneNumbers(country).local.list({ limit: 1 });
+          }
         }
-        console.log(`[Telephony Provisioning] Searching local numbers for country: ${country}`, searchParams);
-        available = await client.availablePhoneNumbers(country).local.list(searchParams);
 
-        // Fall back to general local numbers if specified area code had 0 available
-        if ((!available || available.length === 0) && area_code) {
-          console.log(`[Telephony Provisioning] No numbers for area code ${area_code}, falling back to any local number`);
-          available = await client.availablePhoneNumbers(country).local.list({ limit: 1 });
+        if (!available || available.length === 0) {
+          throw new Error(`No ${isMobile ? 'mobile' : 'local'} phone numbers available for country: ${country}`);
         }
-      }
-
-      if (!available || available.length === 0) {
-        throw new Error(`No ${isMobile ? 'mobile' : 'local'} phone numbers available for country: ${country}`);
+        targetPhoneNumber = available[0].phoneNumber;
       }
 
       const purchaseParams: any = {
-        phoneNumber: available[0].phoneNumber,
+        phoneNumber: targetPhoneNumber,
         voiceUrl: `${appBaseUrl}/api/telephony/inbound`,
         voiceMethod: 'POST',
       };
@@ -148,7 +153,7 @@ export async function POST(request: Request) {
       if (addressSid && !isMobile) purchaseParams.addressSid = addressSid;
       if (bundleSid) purchaseParams.bundleSid = bundleSid;
 
-      console.log(`[Telephony Provisioning] Purchasing number ${available[0].phoneNumber} with bundle ${bundleSid || 'none'}`);
+      console.log(`[Telephony Provisioning] Purchasing number ${targetPhoneNumber} with bundle ${bundleSid || 'none'}`);
       return await client.incomingPhoneNumbers.create(purchaseParams);
     }
 
@@ -203,9 +208,13 @@ export async function POST(request: Request) {
     }
 
     // 3. Save it to Supabase
+    const updateData = isMobile
+      ? { twilio_mobile_number: purchasedNumber.phoneNumber }
+      : { twilio_shadow_number: purchasedNumber.phoneNumber };
+
     const { error: updateError } = await supabase
       .from('tenants')
-      .update({ twilio_shadow_number: purchasedNumber.phoneNumber })
+      .update(updateData)
       .eq('id', tenant_id);
 
     if (updateError) {
@@ -213,7 +222,11 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Failed to save number to database' }, { status: 500 });
     }
 
-    return NextResponse.json({ success: true, number: purchasedNumber.phoneNumber });
+    return NextResponse.json({ 
+      success: true, 
+      number: purchasedNumber.phoneNumber,
+      number_type: isMobile ? 'mobile' : 'local' 
+    });
   } catch (error: any) {
     console.error('[Telephony Provisioning API] Unexpected error:', error);
     return NextResponse.json({ error: error.message || 'Internal server error' }, { status: 500 });

@@ -22,6 +22,28 @@ async function syncChannelFlags(supabaseAdmin: any, tenantId: string) {
 }
 
 /**
+ * Map addon category to valid feature_id in public.features table
+ */
+function mapAddonCategoryToFeatureId(category: string): string {
+  switch (category) {
+    case 'landline':
+      return 'telephone_number';
+    case 'mobile':
+      return 'mobile_number';
+    case 'whatsapp':
+      return 'whatsapp_omni';
+    case 'voice_pack':
+      return 'voice_minutes';
+    case 'sms_pack':
+      return 'sms_messages';
+    case 'data_pack':
+      return 'data_chunks_addon';
+    default:
+      return category;
+  }
+}
+
+/**
  * Process add-on line items from a Stripe subscription.
  * Matches stripe_price_id to addon_catalog and activates/deactivates add-ons.
  */
@@ -44,6 +66,8 @@ async function processAddonLineItems(
 
     if (!addon) continue; // Not an addon line item (could be the base subscription)
 
+    const featureId = mapAddonCategoryToFeatureId(addon.category);
+
     if (action === 'activate') {
       // Upsert the active addon
       const { data: existing } = await supabaseAdmin
@@ -54,7 +78,7 @@ async function processAddonLineItems(
         .maybeSingle();
 
       if (existing) {
-        await supabaseAdmin
+        const { error: updateErr } = await supabaseAdmin
           .from('tenant_active_addons')
           .update({
             is_active: true,
@@ -63,18 +87,20 @@ async function processAddonLineItems(
             stripe_subscription_item_id: item.id || null,
           })
           .eq('id', existing.id);
+        if (updateErr) console.error('[Stripe Webhook] Error updating active addon:', updateErr);
       } else {
-        await supabaseAdmin
+        const { error: insertErr } = await supabaseAdmin
           .from('tenant_active_addons')
           .insert({
             tenant_id: tenantId,
             addon_catalog_id: addon.id,
-            feature_id: addon.category,
+            feature_id: featureId,
             quantity: 1,
             is_active: true,
             activated_at: new Date().toISOString(),
             stripe_subscription_item_id: item.id || null,
           });
+        if (insertErr) console.error('[Stripe Webhook] Error inserting active addon:', insertErr);
       }
 
       // Allocate rolling credits for voice/SMS packs
@@ -376,6 +402,7 @@ export async function POST(req: Request) {
             const messagesCount = addon.included_messages || 0;
 
             // Upsert tenant_active_addons
+            const featureId = mapAddonCategoryToFeatureId(addon.category);
             const { data: existing } = await supabaseAdmin
               .from('tenant_active_addons')
               .select('id')
@@ -384,7 +411,7 @@ export async function POST(req: Request) {
               .maybeSingle();
 
             if (existing) {
-              await supabaseAdmin
+              const { error: updateErr } = await supabaseAdmin
                 .from('tenant_active_addons')
                 .update({
                   is_active: true,
@@ -393,18 +420,20 @@ export async function POST(req: Request) {
                   stripe_subscription_item_id: dataObject.subscription || null,
                 })
                 .eq('id', existing.id);
+              if (updateErr) console.error('[Stripe Webhook] Error updating active addon:', updateErr);
             } else {
-              await supabaseAdmin
+              const { error: insertErr } = await supabaseAdmin
                 .from('tenant_active_addons')
                 .insert({
                   tenant_id: targetTenantId,
                   addon_catalog_id: addon.id,
-                  feature_id: addon.category,
+                  feature_id: featureId,
                   quantity: 1,
                   is_active: true,
                   activated_at: new Date().toISOString(),
                   stripe_subscription_item_id: dataObject.subscription || null,
                 });
+              if (insertErr) console.error('[Stripe Webhook] Error inserting active addon:', insertErr);
             }
 
             // Allocate rolling credits

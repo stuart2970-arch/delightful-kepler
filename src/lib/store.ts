@@ -143,6 +143,8 @@ export interface DashboardState {
   setPostcode: (postcode: string) => void;
   twilioShadowNumber: string | null;
   setTwilioShadowNumber: (number: string | null) => void;
+  twilioMobileNumber: string | null;
+  setTwilioMobileNumber: (number: string | null) => void;
 
   // New Address Profile Fields
   tradingAddressStreet: string;
@@ -276,6 +278,8 @@ export const useDashboardStore = create<DashboardState>((set) => ({
   setDomain: (domain) => set({ domain }),
   twilioShadowNumber: null,
   setTwilioShadowNumber: (number) => set({ twilioShadowNumber: number }),
+  twilioMobileNumber: null,
+  setTwilioMobileNumber: (number) => set({ twilioMobileNumber: number }),
   rwgConfig: {},
   setRwgConfig: (rwgConfig) => set({ rwgConfig }),
   bookingMode: 'single_calendar',
