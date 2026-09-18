@@ -1,6 +1,11 @@
 import { test, expect } from '@playwright/test';
 import * as fs from 'fs';
 import * as path from 'path';
+import { createClient } from '@supabase/supabase-js';
+
+const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || 'https://tkoasyjvrgaglofpzduq.supabase.co';
+const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+const supabaseAdmin = serviceRoleKey ? createClient(supabaseUrl, serviceRoleKey) : null;
 
 /**
  * Playwright E2E Integration Suite: Multi-Colleague Dashboard, RBAC, and Calendar Connection
@@ -23,7 +28,7 @@ function getInviteEmail() {
       if (data.inviteEmail) return data.inviteEmail;
     } catch (e) {}
   }
-  return 'sarah.miller@acme.com';
+  return 'test+colleague@styleflo.ai';
 }
 
 function setInviteEmail(email: string) {
@@ -66,7 +71,7 @@ test.describe.serial('Multi-Colleague Dashboard & RBAC Rota Systems', () => {
       await page.click('button:has-text("Add Staff Member")');
       
       const uniqueSuffix = Date.now();
-      const inviteEmail = `sarah.miller.${uniqueSuffix}@acme.com`;
+      const inviteEmail = `test+colleague.${uniqueSuffix}@styleflo.ai`;
       setInviteEmail(inviteEmail);
 
       // Fill out colleague invite details
@@ -102,36 +107,40 @@ test.describe.serial('Multi-Colleague Dashboard & RBAC Rota Systems', () => {
     });
   });
 
-  test.describe.serial('Role: Colleague (colleague@acme.com)', () => {
+  test.describe.serial('Role: Colleague (test+colleague@styleflo.ai)', () => {
     test('should trigger automatic RBAC matching on colleague sign-up', async ({ page }) => {
-      await page.goto('/login?mode=register');
-      
-      // Sign up with the exact email that the owner invited
       const inviteEmail = getInviteEmail();
-      await page.fill('input[placeholder="Sarah Jenkins"]', 'Sarah Miller');
-      await page.fill('input[placeholder="StyleFlo Lounge"]', 'Acme Corporation');
+
+      // If supabaseAdmin is available, create the pre-confirmed user via Admin API
+      // to avoid triggering SMTP verification emails and prevent email bounces!
+      if (supabaseAdmin) {
+        const { error: createErr } = await supabaseAdmin.auth.admin.createUser({
+          email: inviteEmail,
+          password: 'securepass123!',
+          email_confirm: true,
+          user_metadata: { full_name: 'Sarah Miller' }
+        });
+        if (createErr) console.warn('[E2E Test] Admin user creation note:', createErr.message);
+      } else {
+        await page.goto('/login?mode=register');
+        await page.fill('input[placeholder="Sarah Jenkins"]', 'Sarah Miller');
+        await page.fill('input[placeholder="StyleFlo Lounge"]', 'Acme Corporation');
+        await page.fill('input[type="email"]', inviteEmail);
+        await page.fill('input[type="password"]', 'securepass123!');
+        await page.check('#loginTermsAccepted');
+        await page.click('button:has-text("Create Account")');
+      }
+
+      // Log in as the confirmed colleague to verify dashboard access and RBAC
+      await page.goto('/login');
       await page.fill('input[type="email"]', inviteEmail);
       await page.fill('input[type="password"]', 'securepass123!');
+      await page.click('button[type="submit"]');
 
-      // Check the terms and conditions checkbox
-      await page.check('#loginTermsAccepted');
-      
-      // Note: Triggers on_auth_user_created trigger which checks pre-invited email
-      await page.click('button:has-text("Create Account")');
-      
-      // Depending on Supabase email confirmation settings, it either redirects or shows a success message
-      try {
-        await expect(page).toHaveURL(/\/dashboard/, { timeout: 5000 });
-        // Verify UI changes according to Colleague ('member') role
-        await expect(page.locator('nav').locator('text=Agent').first()).not.toBeVisible();
-        await expect(page.locator('nav').locator('text=Master Calendar & Rota').first()).toBeVisible();
-      } catch (e) {
-        // Fallback: print HTML to see what error occurred!
-        console.error("Signup failed! Dumping text content:");
-        console.error(await page.locator('body').innerText());
-        // Fallback: If email confirmations are on, we get a success message instead of a redirect
-        await expect(page.locator('text=Account created successfully')).toBeVisible();
-      }
+      await expect(page).toHaveURL(/\/dashboard/, { timeout: 10000 });
+      // Verify UI changes according to Colleague ('member') role
+      await expect(page.locator('nav').locator('text=Agent').first()).not.toBeVisible();
+      await expect(page.locator('nav').locator('text=Master Calendar & Rota').first()).toBeVisible();
     });
 
     test.describe.serial('Colleague Dashboard Operations', () => {
@@ -215,6 +224,21 @@ test.describe.serial('Multi-Colleague Dashboard & RBAC Rota Systems', () => {
         // 1. Staff table must hold: google_access_token, google_refresh_token, google_token_expiry
         // 2. Tenants table MUST remain NULL for these fields (ensuring isolation from general business calendar)
       });
+    });
+
+    test.afterAll(async () => {
+      if (supabaseAdmin) {
+        try {
+          const inviteEmail = getInviteEmail();
+          const { data: users } = await supabaseAdmin.auth.admin.listUsers();
+          const testUser = users?.users.find(u => u.email === inviteEmail);
+          if (testUser) {
+            await supabaseAdmin.auth.admin.deleteUser(testUser.id);
+          }
+        } catch (err: any) {
+          console.warn('[E2E Test] Colleague cleanup note:', err.message);
+        }
+      }
     });
   });
 });

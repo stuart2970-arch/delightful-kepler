@@ -80,6 +80,57 @@ function safeFormatDate(dateStr: any, options?: Intl.DateTimeFormatOptions): str
   }
 }
 
+const DEMO_SALES_TENANTS = [
+  {
+    id: 'd0000000-0000-0000-0000-000000000001',
+    name: 'Luxe Locks Hair Lounge',
+    badge: 'Hair & Styling',
+    icon: '💇',
+    color: 'from-purple-950/40 via-purple-900/20 to-gray-900 border-purple-500/40 text-purple-300',
+    btnBg: 'bg-purple-600 hover:bg-purple-500 shadow-purple-900/40',
+    domain: 'luxelocks.styleflo.ai',
+    aiPersona: 'Luxe Locks AI Stylist Concierge',
+    staff: 'Sarah Miller, David Evans',
+    keyServices: 'Balayage (£145), Blow Dry (£55), Olaplex (£35)',
+  },
+  {
+    id: 'd0000000-0000-0000-0000-000000000002',
+    name: 'Pure Glow Aesthetics Clinic',
+    badge: 'Medical Aesthetics',
+    icon: '💉',
+    color: 'from-teal-950/40 via-teal-900/20 to-gray-900 border-teal-500/40 text-teal-300',
+    btnBg: 'bg-teal-600 hover:bg-teal-500 shadow-teal-900/40',
+    domain: 'pureglow.styleflo.ai',
+    aiPersona: 'Pure Glow Clinical AI Advisor',
+    staff: 'Dr. Emily Hayes (MBChB), Chloe Morgan',
+    keyServices: 'Anti-Wrinkle (£195), Profhilo (£250), Hydrafacial (£115)',
+  },
+  {
+    id: 'd0000000-0000-0000-0000-000000000003',
+    name: 'The Grooming Room Barbers',
+    badge: 'Barber & Grooming',
+    icon: '💈',
+    color: 'from-amber-950/40 via-amber-900/20 to-gray-900 border-amber-500/40 text-amber-300',
+    btnBg: 'bg-amber-600 hover:bg-amber-500 shadow-amber-900/40',
+    domain: 'groomingroom.styleflo.ai',
+    aiPersona: 'Grooming Room Barber Concierge',
+    staff: 'Marcus Vance, Liam Cooper',
+    keyServices: 'Executive Cut & Beard (£38), Hot Towel Shave (£28), Skin Fade (£26)',
+  },
+  {
+    id: 'd0000000-0000-0000-0000-000000000004',
+    name: 'Velvet Nail & Day Spa',
+    badge: 'Nails & Wellness Spa',
+    icon: '💅',
+    color: 'from-pink-950/40 via-pink-900/20 to-gray-900 border-pink-500/40 text-pink-300',
+    btnBg: 'bg-pink-600 hover:bg-pink-500 shadow-pink-900/40',
+    domain: 'velvetspa.styleflo.ai',
+    aiPersona: 'Velvet Spa Wellness Assistant',
+    staff: 'Sophie Bennett, Maya Patel',
+    keyServices: 'Deep Tissue Massage (£70), BIAB Nails (£44), Spa Pedicure (£50)',
+  },
+];
+
 export default function SuperadminClient({ 
   tenants,
   initialGlobalBrandingHtml,
@@ -591,17 +642,87 @@ export default function SuperadminClient({
       )}
 
       {activeTab === 'overview' && (
-        <div className="bg-gray-900 border border-gray-800 rounded-2xl overflow-hidden mt-6">
-        <div className="p-4 border-b border-gray-800 flex items-center justify-between">
-          <h2 className="text-lg font-bold text-white">Active Tenants</h2>
-          <input 
-            type="text" 
-            placeholder="Search company or ID..." 
-            value={searchTerm}
-            onChange={e => setSearchTerm(e.target.value)}
-            className="bg-gray-950 border border-gray-800 rounded-lg px-4 py-2 text-sm text-white focus:outline-none focus:border-indigo-500 w-64"
-          />
-        </div>
+        <div className="space-y-6 mt-6">
+          {/* Sales Rep 1-Click Demo Showcase */}
+          <div className="bg-gradient-to-br from-indigo-950/40 via-gray-900 to-purple-950/30 border border-indigo-500/30 rounded-2xl p-6 shadow-xl relative overflow-hidden">
+            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6">
+              <div>
+                <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-indigo-500/10 border border-indigo-500/20 text-indigo-400 text-xs font-semibold mb-2">
+                  <span>🎯 Sales Enablement</span>
+                  <span>•</span>
+                  <span>1-Click Live Pitch Environments</span>
+                </div>
+                <h2 className="text-xl font-bold text-white flex items-center gap-2">
+                  <span>Industry Demo Showcase (Sales Rep Launchpad)</span>
+                </h2>
+                <p className="text-sm text-gray-400 mt-1">
+                  Instant 1-click impersonation into fully configured industry demo accounts. Pre-populated with realistic staff rotas, service menus, operating hours, and active AI concierges ready for live sales calls.
+                </p>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+              {DEMO_SALES_TENANTS.map((demo) => (
+                <div 
+                  key={demo.id} 
+                  className={`bg-gradient-to-b ${demo.color} border rounded-xl p-5 flex flex-col justify-between transition-all duration-200 hover:scale-[1.02] hover:shadow-lg`}
+                >
+                  <div className="space-y-3">
+                    <div className="flex items-center justify-between">
+                      <span className="text-2xl">{demo.icon}</span>
+                      <span className="text-[11px] font-bold px-2 py-0.5 rounded-full bg-black/40 border border-white/10 uppercase tracking-wider">
+                        {demo.badge}
+                      </span>
+                    </div>
+                    <div>
+                      <h3 className="font-bold text-white text-base leading-snug">{demo.name}</h3>
+                      <p className="text-xs text-gray-400 font-mono mt-0.5">{demo.domain}</p>
+                    </div>
+
+                    <div className="bg-black/30 rounded-lg p-2.5 space-y-1.5 text-xs border border-white/5">
+                      <div>
+                        <span className="text-gray-400">🤖 AI Concierge:</span>{' '}
+                        <span className="text-gray-200 font-medium">{demo.aiPersona}</span>
+                      </div>
+                      <div>
+                        <span className="text-gray-400">👥 Staff:</span>{' '}
+                        <span className="text-gray-200">{demo.staff}</span>
+                      </div>
+                      <div>
+                        <span className="text-gray-400">✨ Services:</span>{' '}
+                        <span className="text-gray-200">{demo.keyServices}</span>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="mt-4 pt-3 border-t border-white/10">
+                    <Link
+                      href={`/dashboard?tenant_id=${demo.id}`}
+                      className={`w-full flex items-center justify-center gap-2 py-2.5 px-3 rounded-lg text-white text-xs font-bold transition shadow-md ${demo.btnBg}`}
+                    >
+                      <span>🚀 Open Demo Dashboard</span>
+                      <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14 5l7 7m0 0l-7 7m7-7H3" />
+                      </svg>
+                    </Link>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* Active Tenants Table */}
+          <div className="bg-gray-900 border border-gray-800 rounded-2xl overflow-hidden">
+          <div className="p-4 border-b border-gray-800 flex items-center justify-between">
+            <h2 className="text-lg font-bold text-white">Active Tenants</h2>
+            <input 
+              type="text" 
+              placeholder="Search company or ID..." 
+              value={searchTerm}
+              onChange={e => setSearchTerm(e.target.value)}
+              className="bg-gray-950 border border-gray-800 rounded-lg px-4 py-2 text-sm text-white focus:outline-none focus:border-indigo-500 w-64"
+            />
+          </div>
         
         <div className="overflow-x-auto">
           <table className="w-full text-left border-collapse">
@@ -692,7 +813,8 @@ export default function SuperadminClient({
           </table>
         </div>
       </div>
-      )}
+    </div>
+    )}
 
       {activeTab === 'pricing' && (
         <div className="space-y-6">
