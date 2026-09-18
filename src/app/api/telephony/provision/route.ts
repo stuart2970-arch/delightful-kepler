@@ -158,8 +158,15 @@ export async function POST(request: Request) {
         voiceMethod: 'POST',
       };
 
-      if (addressSid && !isMobile) purchaseParams.addressSid = addressSid;
-      if (bundleSid) purchaseParams.bundleSid = bundleSid;
+      // When a regulatory bundle (like UK local/mobile) is present, Twilio binds the phone number
+      // to the bundle and automatically resolves the verified address embedded within that bundle.
+      // Passing an explicit addressSid alongside bundleSid causes Twilio to reject the purchase
+      // unless that addressSid strictly matches the supporting document inside the bundle.
+      if (bundleSid) {
+        purchaseParams.bundleSid = bundleSid;
+      } else if (addressSid && !isMobile) {
+        purchaseParams.addressSid = addressSid;
+      }
 
       console.log(`[Telephony Provisioning] Purchasing number ${targetPhoneNumber} with bundle ${bundleSid || 'none'}`);
       return await client.incomingPhoneNumbers.create(purchaseParams);

@@ -1780,3 +1780,32 @@ px calls.
 3. **Verification**:
    - Confirmed `+447446900875` in `public.tenants` via database query.
    - `npm run build` compiled 100% cleanly across all 35 routes.
+
+### Session 34 — Fix Twilio Regulatory Bundle Address Resolution & UK Landline Provisioning (2026-09-18)
+
+**Context**: When purchasing a Liverpool (`0151`) local landline number on the dashboard, Twilio returned an error:
+`Failed to purchase GB local number: Address [ADa87d45a1d690317449d913a62959838e] not contained in bundle. (Ensure TWILIO_BUNDLE_SID_LOCAL or TWILIO_BUNDLE_SID is configured).`
+The user asked whether they need to add separate mobile or local address secrets into GCP Secret Manager.
+
+1. **Root Cause Analysis**:
+   - **UK Regulatory Bundle Architecture**: For UK local numbers, Twilio mandates an approved Regulatory Compliance Bundle (`BUf676ba5c4a24f355ecdcc59d0e61e818`). Inside this bundle, verified supporting document `RD9fd0f73c53f1beffb45c0caa4d123dc9` is bound to approved address SID `AD11e6b1f650f21544d4ef5e9447fad0e5` (Liverpool L1 0AH).
+   - **Conflicting Address Parameter**: `src/app/api/telephony/provision/route.ts` was previously passing both `bundleSid` and `addressSid` into `incomingPhoneNumbers.create(...)`. Because `TWILIO_ADDRESS_SID` was set to `ADa87d45a1d690317449d913a62959838e` (an older address with postcode L16 7QE), Twilio strictly verified that `addressSid` must be an approved address inside the bundle, rejecting the purchase.
+   - **Twilio Best Practice**: When a regulatory bundle is passed, Twilio already extracts and validates the business address directly from the bundle. Explicitly passing `addressSid` alongside `bundleSid` is redundant and causes failures if the IDs differ. Mobile numbers do not require an address at all.
+
+2. **Fixes & Enhancements Applied**:
+   - **Safe Bundle Address Resolution (`src/app/api/telephony/provision/route.ts`)**:
+     - Updated `purchaseParams` assignment: if `bundleSid` is present, only `bundleSid` is supplied to Twilio so Twilio derives the verified address automatically from the bundle.
+     - Preserved `addressSid` fallback strictly for countries/numbers where regulatory bundles are not used.
+   - **Environment Sync (`.env.local`)**:
+     - Updated `TWILIO_ADDRESS_SID` to `AD11e6b1f650f21544d4ef5e9447fad0e5` to match the Liverpool Basecamp address.
+
+3. **Verification**:
+   - Verified Twilio API bundle and supporting document structure.
+   - `npm run build` compiled 100% cleanly across all 35 routes in 7.8s.
+   - Playwright integration tests (`tests/integrations.spec.ts`) passed 4 of 4 tests in 21.1s.
+
+## Session Chat History Log
+
+* **User**: "i can see i do not have my mobile or local adress in secrets" (and uploaded screenshot of GCP Secret Manager)
+  * **Answer & Action**: Explained that separate mobile and local address secrets are NOT required. Mobile numbers do not require an address, and UK local numbers use the verified business address already approved inside the Twilio Regulatory Bundle (`BUf676ba5c4a24f355ecdcc59d0e61e818`). The issue occurred because an older address SID (`ADa87d45a1d690317449d913a62959838e`) was explicitly sent alongside the bundle. Updated `src/app/api/telephony/provision/route.ts` to let Twilio automatically derive the address from `bundleSid`, synchronized `.env.local` with the approved address `AD11e6b1f650f21544d4ef5e9447fad0e5`, verified with automated tests, and updated runbook documentation.
+
