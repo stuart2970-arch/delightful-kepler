@@ -218,13 +218,37 @@ export async function POST(req: Request) {
     }
 
     // =====================================================================
-    // Handle customer.subscription.deleted — Deactivate all add-ons
+    // Handle customer.subscription.deleted — Deactivate add-on or whole subscription
     // =====================================================================
     if (eventType === 'customer.subscription.deleted') {
       const tenantId = dataObject.metadata?.tenant_id;
+      const isAddon = dataObject.metadata?.is_addon === 'true';
+      const addonCatalogId = dataObject.metadata?.addon_catalog_id;
 
       if (tenantId) {
-        // Deactivate all add-ons for this tenant
+        if (isAddon && addonCatalogId) {
+          // Deactivate ONLY this specific add-on
+          await supabaseAdmin
+            .from('tenant_active_addons')
+            .update({ is_active: false, deactivated_at: new Date().toISOString() })
+            .eq('tenant_id', tenantId)
+            .eq('addon_catalog_id', addonCatalogId);
+
+          await syncChannelFlags(supabaseAdmin, tenantId);
+
+          await supabaseAdmin.from('addon_audit_log').insert({
+            tenant_id: tenantId,
+            addon_catalog_id: addonCatalogId,
+            action: 'addon_deactivated',
+            old_value: { stripe_subscription_id: dataObject.id },
+            summary: `Deactivated add-on ${addonCatalogId} due to Stripe subscription cancellation.`,
+          });
+
+          console.log(`[Stripe Webhook] Add-on ${addonCatalogId} deactivated for tenant ${tenantId}`);
+          return NextResponse.json({ success: true, message: `Add-on ${addonCatalogId} cancelled` });
+        }
+
+        // Deactivate all add-ons for this tenant when base subscription is cancelled
         await supabaseAdmin
           .from('tenant_active_addons')
           .update({ is_active: false, deactivated_at: new Date().toISOString() })
@@ -242,7 +266,7 @@ export async function POST(req: Request) {
           })
           .eq('id', tenantId);
 
-        console.log(`[Stripe Webhook] Subscription cancelled for tenant ${tenantId}, all add-ons deactivated`);
+        console.log(`[Stripe Webhook] Base subscription cancelled for tenant ${tenantId}, all add-ons deactivated`);
         return NextResponse.json({ success: true, message: `Tenant ${tenantId} subscription cancelled` });
       }
     }
@@ -324,6 +348,103 @@ export async function POST(req: Request) {
 
       // Save Stripe customer ID for future lookups
       const stripeCustomerId = dataObject.customer;
+
+      // Check if this checkout session is for an add-on
+      if (dataObject.metadata?.is_addon === 'true') {
+        const addonCatalogId = dataObject.metadata?.addon_catalog_id;
+        const customPricePence = dataObject.metadata?.custom_price_pence ? Number(dataObject.metadata.custom_price_pence) : null;
+        const customVoiceMinutes = dataObject.metadata?.custom_voice_minutes ? Number(dataObject.metadata.custom_voice_minutes) : null;
+        const customSms = dataObject.metadata?.custom_sms ? Number(dataObject.metadata.custom_sms) : null;
+
+        if (stripeCustomerId) {
+          await supabaseAdmin
+            .from('tenants')
+            .update({ stripe_customer_id: stripeCustomerId })
+            .eq('id', targetTenantId);
+        }
+
+        if (addonCatalogId) {
+          const { data: addon } = await supabaseAdmin
+            .from('addon_catalog')
+            .select('*')
+            .eq('id', addonCatalogId)
+            .maybeSingle();
+
+          if (addon) {
+            const voiceMinutes = customVoiceMinutes !== null ? customVoiceMinutes : (addon.included_voice_minutes || 0);
+            const smsCount = customSms !== null ? customSms : (addon.included_sms || 0);
+            const messagesCount = addon.included_messages || 0;
+
+            // Upsert tenant_active_addons
+            const { data: existing } = await supabaseAdmin
+              .from('tenant_active_addons')
+              .select('id')
+              .eq('tenant_id', targetTenantId)
+              .eq('addon_catalog_id', addon.id)
+              .maybeSingle();
+
+            if (existing) {
+              await supabaseAdmin
+                .from('tenant_active_addons')
+                .update({
+                  is_active: true,
+                  activated_at: new Date().toISOString(),
+                  deactivated_at: null,
+                  stripe_subscription_item_id: dataObject.subscription || null,
+                })
+                .eq('id', existing.id);
+            } else {
+              await supabaseAdmin
+                .from('tenant_active_addons')
+                .insert({
+                  tenant_id: targetTenantId,
+                  addon_catalog_id: addon.id,
+                  feature_id: addon.category,
+                  quantity: 1,
+                  is_active: true,
+                  activated_at: new Date().toISOString(),
+                  stripe_subscription_item_id: dataObject.subscription || null,
+                });
+            }
+
+            // Allocate rolling credits
+            if (voiceMinutes > 0) {
+              await allocateRollingCredits(targetTenantId, 'voice_minutes', voiceMinutes, addon.id);
+            }
+            if (smsCount > 0) {
+              await allocateRollingCredits(targetTenantId, 'sms_messages', smsCount, addon.id);
+            }
+            if (messagesCount > 0) {
+              await allocateRollingCredits(targetTenantId, 'whatsapp_messages', messagesCount, addon.id);
+            }
+
+            // Sync channel flags
+            await syncChannelFlags(supabaseAdmin, targetTenantId);
+
+            // Audit log
+            await supabaseAdmin.from('addon_audit_log').insert({
+              tenant_id: targetTenantId,
+              addon_catalog_id: addon.id,
+              action: 'addon_activated',
+              new_value: {
+                custom_price_pence: customPricePence,
+                voice_minutes: voiceMinutes,
+                sms: smsCount,
+                stripe_subscription_id: dataObject.subscription,
+              },
+              summary: `Activated ${addon.id} (${voiceMinutes} voice mins, ${smsCount} SMS) via Stripe checkout.`,
+            });
+
+            console.log(`[Stripe Webhook] Add-on ${addon.id} activated for tenant ${targetTenantId}`);
+            return NextResponse.json({
+              success: true,
+              message: `Add-on ${addon.id} activated for tenant ${targetTenantId}`,
+              tenant_id: targetTenantId,
+            });
+          }
+        }
+      }
+
       const updatePayload: any = {
         plan_tier: planTier,
         is_active: true,

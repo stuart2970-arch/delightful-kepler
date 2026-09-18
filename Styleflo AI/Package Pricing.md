@@ -27,10 +27,10 @@ This specification outlines the restructured modular pricing model for Styleflo 
 ## 2. Modular Channel Bolt-ons
 Users can add communication channels independently without being forced into rigid higher software tiers:
 
-* **Local Landline Bolt-on:** **£8.99 – £19.00 / month**
-  * Includes dedicated landline number + **shared voice minute pool** (10–30 shared minutes).
+* **Local Landline Bolt-on:** **£8.99 – £19.99 / month**
+  * Includes dedicated landline number + **shared voice minute pool** (10–30 shared minutes; sliding scale in £1 multiples).
 * **Mobile Number Bolt-on:** **£10.99 – £14.99 / month**
-  * Includes dedicated mobile number + **50 to 250 SMS messages** + **shared voice minutes**.
+  * Includes dedicated mobile number + **50 to 250 SMS messages** + **shared voice minutes** (sliding scale in £1 multiples).
 * **WhatsApp Bolt-on:** **£19.99 / month** (standalone primary) or **£9.99 / month** (as an add-on bundle)
   * Includes **500 messages included** per month (backed by Twilio / Meta API).
 

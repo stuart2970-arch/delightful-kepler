@@ -64,5 +64,6 @@ supabase/.branches/
 # Test state
 tests/.test-state.json
 test-results/
+playwright-report/
 
 certificates

@@ -40,10 +40,15 @@ export async function PATCH(req: Request) {
     const supabase = createClient(supabaseUrl, supabaseKey);
 
     const body = await req.json();
-    const { type, id, updates } = body;
+    const type = body.type || 'addon';
+    const id = body.id;
+    const updates = body.updates || { ...body };
+    delete updates.id;
+    delete updates.type;
+    delete updates.summary;
 
-    if (!type || !id || !updates) {
-      return NextResponse.json({ error: 'Missing required fields' }, { status: 400 });
+    if (!id || Object.keys(updates).length === 0) {
+      return NextResponse.json({ error: 'Missing required fields (id, updates)' }, { status: 400 });
     }
 
     // Try to get auth user
@@ -52,7 +57,7 @@ export async function PATCH(req: Request) {
     if (authHeader) {
       const token = authHeader.replace('Bearer ', '');
       const { data: { user } } = await supabase.auth.getUser(token);
-      if (user) performedBy = user.id;
+      if (user) performedBy = user.email || user.id;
     }
 
     let oldValues = null;
@@ -79,19 +84,22 @@ export async function PATCH(req: Request) {
     if (updateError) throw updateError;
 
     // Write audit log
-    const summaryText = `Updated ${type} (${id})`;
-    const { error: auditError } = await supabase.from('addon_audit_log').insert({
-      item_type: type,
-      item_id: id,
-      old_values: oldValues,
-      new_values: updates,
+    const summaryText = body.summary || `Updated ${type} (${id}): ${Object.keys(updates).join(', ')}`;
+    const auditInsert: Record<string, any> = {
+      addon_catalog_id: id,
+      action: type === 'base_tier' ? 'base_tier_updated' : 'addon_updated',
+      old_value: oldValues,
+      new_value: updates,
       summary: summaryText,
-      performed_by: performedBy
-    });
+    };
+    // performed_by expects uuid if set
+    if (performedBy && performedBy !== 'system' && performedBy.match(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i)) {
+      auditInsert.performed_by = performedBy;
+    }
+    const { error: auditError } = await supabase.from('addon_audit_log').insert(auditInsert);
 
     if (auditError) {
       console.error('Failed to write audit log:', auditError);
-      // We don't fail the request if just the audit log fails, but we log it
     }
 
     return NextResponse.json({ success: true });

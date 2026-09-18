@@ -3,6 +3,7 @@
 import React, { Component, ReactNode, useState, useEffect } from 'react';
 import Link from 'next/link';
 import SuperAdminEntitlementsView from './SuperAdminEntitlementsView';
+import PricingMatrixView from './PricingMatrixView';
 import PlatformSettingsView from '../dashboard-views/PlatformSettingsView';
 import SuperAdminVoiceManagerView from '../dashboard-views/SuperAdminVoiceManagerView';
 import OpenClawMonitorView from '../dashboard-views/OpenClawMonitorView';
@@ -164,6 +165,7 @@ export default function SuperadminClient({
   const [isSavingHoliday, setIsSavingHoliday] = useState(false);
 
   const [activeTab, setActiveTab] = useState<'overview' | 'pricing' | 'holidays' | 'settings' | 'voices' | 'gateways' | 'flobot'>('overview');
+  const [pricingSubTab, setPricingSubTab] = useState<'sliding' | 'tiers'>('sliding');
 
   const [globalBrandingHtml, setGlobalBrandingHtml] = useState(initialGlobalBrandingHtml || '<span style="opacity: 0.6; font-size: 11px;">⚡ Powered by <strong>StyleFlo</strong></span>');
   const [globalTrackingUrl, setGlobalTrackingUrl] = useState(initialGlobalTrackingUrl || 'https://styleflo.ai');
@@ -693,7 +695,39 @@ export default function SuperadminClient({
       )}
 
       {activeTab === 'pricing' && (
-        <SuperAdminEntitlementsView />
+        <div className="space-y-6">
+          {/* Sub-tab switcher */}
+          <div className="flex space-x-2 bg-gray-950 p-1.5 rounded-xl border border-gray-800 w-fit">
+            <button
+              onClick={() => setPricingSubTab('sliding')}
+              className={`px-4 py-2 text-xs font-bold rounded-lg transition-all flex items-center gap-2 cursor-pointer ${
+                pricingSubTab === 'sliding'
+                  ? 'bg-indigo-600 text-white shadow-md'
+                  : 'text-gray-400 hover:text-white hover:bg-gray-800/60'
+              }`}
+            >
+              <span>🎚️</span>
+              <span>Modular Add-ons & Sliding Scales</span>
+            </button>
+            <button
+              onClick={() => setPricingSubTab('tiers')}
+              className={`px-4 py-2 text-xs font-bold rounded-lg transition-all flex items-center gap-2 cursor-pointer ${
+                pricingSubTab === 'tiers'
+                  ? 'bg-indigo-600 text-white shadow-md'
+                  : 'text-gray-400 hover:text-white hover:bg-gray-800/60'
+              }`}
+            >
+              <span>📋</span>
+              <span>Subscription Tiers & Entitlements</span>
+            </button>
+          </div>
+
+          {pricingSubTab === 'sliding' ? (
+            <PricingMatrixView />
+          ) : (
+            <SuperAdminEntitlementsView />
+          )}
+        </div>
       )}
 
       {activeTab === 'holidays' && (

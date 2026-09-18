@@ -1559,22 +1559,71 @@ px calls.
    - Updated `TelephonyView.tsx` to pass `getAuthHeaders` and declare `number_type` ('local' vs 'mobile').
    - Verified clean build (`npm run build`).
 
-### Session 25 — Production Supabase Database Modular Pricing Migration & Add-On Catalog Activation (2026-09-17)
+### Session 26 — Modular Add-On Checkout Error Fix & Comprehensive Sliding Scale Pricing (2026-09-18)
 
-**Context**: User reported `⚠️ Unable to load add-ons. Please try again later. This feature may not be available on your current plan yet.` in the `AddOnUpsellModal` when clicking "Add a Landline Number" on the live site (`app.styleflo.ai`).
+**Context**: User reported that clicking the "Subscribe" button in the `AddOnUpsellModal` threw `initiating checkout: Error: Checkout failed` in the browser console. Additionally, requirements were clarified for a sliding scale with £1 multiples across **Local Landline Numbers** (£8.99 – £19.99/mo for 10–30 shared voice mins), **Mobile Phone Numbers** (£10.99 – £14.99/mo for 50–250 SMS), **Sliding Voice Packs** (£15.00 to £50.00 for 20–100 mins with 3-month rollover), and **Sliding SMS Packs** (£5.99 to £14.99 for 100–500 SMS with 3-month rollover).
 
-1. **Root Cause**:
-   - Migration `20260917120000_modular_pricing_architecture.sql` had been run on the local test database during development, but had not yet been applied to the live production Supabase instance (`project_id: tkoasyjvrgaglofpzduq`).
-   - When the modal called `/api/billing/addons?category=landline`, PostgREST threw `PGRST205: Could not find the table 'public.addon_catalog' in the schema cache`, causing the endpoint to respond with HTTP 500.
+1. **Root Cause of Checkout Failure**:
+   - In `/api/billing/checkout/route.ts`, Mode 2 (Add-on checkout) strictly checked `if (addonError || !addon?.stripe_price_id) return 404`. Because bolt-ons in `addon_catalog` did not have pre-created static Stripe price IDs, every add-on checkout failed with a 404 error.
+   - The `tenants` table lacked the `stripe_customer_id` column that the route attempted to query.
+   - The checkout route lacked support for dynamic recurring `price_data` for sliding scales and custom allowances.
 
-2. **Fixes Applied**:
-   - Updated `supabase/migrations/20260917120000_modular_pricing_architecture.sql` to guarantee idempotency (`DROP POLICY IF EXISTS` on RLS policies) and explicitly ensure the `chatbots_limit` feature exists in `public.features` before seeding `tier_entitlements`.
-   - Applied migration `modular_pricing_architecture` directly to the live production database via the Supabase MCP interface.
-   - Successfully created and seeded `public.addon_catalog` with all 10 active modular bolt-on products (Local Landline, Mobile Number, WhatsApp Primary, WhatsApp Add-on, 20/50/100 Voice Packs, 100/500 SMS Packs, and 500 Knowledge Base Data Pack).
-   - Grandfathered 121 existing tenant feature entitlements into `public.tenant_feature_overrides` before migrating tenants to `base_tier` (£9.99/mo).
-   - Created `public.addon_audit_log` with RLS.
-   - Added `has_landline`, `has_mobile`, and `has_whatsapp` channel flags to `public.tenants`.
-   - Verified `/api/billing/addons?category=landline` and general addon queries return status 200 with complete addon details.
-   - Verified production build compiles cleanly with `npm run build`.
+2. **Fixes & Enhancements Applied**:
+   - **Database Migration**: Added `stripe_customer_id TEXT` column to `public.tenants`. Updated `public.addon_catalog` description for `landline_addon` to reflect the £8.99 – £19.99/mo range with 10–30 shared voice minutes.
+   - **Interactive Sliding Scale UI (`AddOnUpsellModal.tsx`)**:
+     - **Landline Slider**: 11 steps of £1 increments from £8.99 (10 mins) to £19.99 (30 mins). Live updates for price and voice minutes pill.
+     - **Mobile Slider**: 4 steps of £1 increments from £10.99 (50 SMS) to £14.99 (250 SMS, +50 SMS per £1 step) + 10 shared voice mins.
+     - **Voice Packs Slider**: Sliding scale from £15.00 (20 mins) to £50.00 (100 mins) in £1 multiples with one-click quick preset buttons (20m, 54m, 100m) and 3-month rollover badge.
+     - **SMS Packs Slider**: Sliding scale from £5.99 (100 SMS) to £14.99 (500 SMS) in £1 multiples with one-click quick preset buttons (100 SMS, 278 SMS, 500 SMS) and 3-month rollover badge.
+     - **Error Handling**: Captured checkout API errors and displayed clear, inline warning banners in the modal rather than failing silently to the console.
+   - **Dynamic Stripe Checkout Route (`/api/billing/checkout/route.ts`)**:
+     - Accepts `customPricePence`, `customVoiceMinutes`, and `customSms`.
+     - Leverages Stripe Checkout's recurring `price_data` parameter (`recurring: { interval: 'month' }`), generating subscriptions on the fly without requiring static pre-created price IDs.
+     - Automatically passes tenant ID, add-on catalog ID, and custom allowances in session and subscription metadata.
+     - Resolves user email from profile if tenant Stripe customer ID is not yet assigned.
+   - **Webhook Isolation (`/api/webhooks/stripe/route.ts`)**:
+     - In `checkout.session.completed`, detected `is_addon: 'true'` to activate the specific add-on in `tenant_active_addons`, allocate custom rolling minutes and SMS, sync channel flags (`has_landline`, `has_mobile`), and record in `addon_audit_log` without modifying the tenant's base `plan_tier`.
+     - In `customer.subscription.deleted`, ensured cancelling an add-on subscription only deactivates that specific add-on rather than cancelling the tenant's entire StyleFlo subscription.
+   - **Documentation & Matrix Updates**:
+     - Updated `PricingMatrixView.tsx` landline maximum to £19.99.
+     - Updated `Styleflo AI/Package Pricing.md` specification with £1 multiple sliding scales.
+     - Added test suite `tests/addons-sliding-scale.spec.ts`.
+
+3. **Verification**:
+   - `npm run build` compiled 100% cleanly in 3.6s with all 34 routes optimized and minified widget bundled.
+
+### Session 27 — Superadmin Sliding Scale Controls & Database-Driven Add-on Config (2026-09-18)
+
+**Context**: User requested the ability on the Superadmin God Page to edit both lower and upper costs, and lower and upper allowances, for all sliding scale add-on values.
+
+1. **Database Schema Extension (`public.addon_catalog`)**:
+   - Added columns: `max_price_pence` (INTEGER), `max_voice_minutes` (INTEGER), `max_sms` (INTEGER), `max_data_chunks` (INTEGER), `is_sliding` (BOOLEAN DEFAULT false), and `price_step_pence` (INTEGER DEFAULT 100).
+   - Seeded baseline bounds for:
+     - `landline_addon`: £8.99 to £19.99 (899 to 1999 pence), 10 to 30 voice mins.
+     - `mobile_addon`: £10.99 to £14.99 (1099 to 1499 pence), 50 to 250 SMS, 10 voice mins.
+     - `voice_pack_20`: £15.00 to £50.00 (1500 to 5000 pence), 20 to 100 voice mins.
+     - `sms_pack_100`: £5.99 to £14.99 (599 to 1499 pence), 100 to 500 SMS.
+
+2. **Superadmin UI & API Enhancements**:
+   - **God Mode Sub-Navigation**: Updated `/superadmin`'s "Pricing & Packaging" tab to feature sub-tabs:
+     - `🎚️ Modular Add-ons & Sliding Scales` (`PricingMatrixView.tsx`)
+     - `📋 Subscription Tiers & Entitlements` (`SuperAdminEntitlementsView.tsx`)
+   - **Interactive God Page Editor (`PricingMatrixView.tsx`)**:
+     - Built dark-mode controls allowing superadmins to configure Lower Cost (£), Upper Cost (£), Lower Allowance, and Upper Allowance for Local Landline, Mobile Number, Voice Packs, and SMS Packs.
+     - Real-time scale projection calculating total steps, increments, and range preview.
+     - Includes fixed add-ons editor (WhatsApp Primary, WhatsApp Add-on, Knowledge Base Chunks).
+     - Live audit log displaying change history.
+   - **Backend API (`/api/superadmin/addon-catalog`)**:
+     - Supports flexible PATCH updates for min/max prices and allowances.
+     - Conforms to `addon_audit_log_action_check` constraint using `addon_updated` / `base_tier_updated` action codes with before/after state snapshots.
+
+3. **Dynamic Tenant Synchronization (`AddOnUpsellModal.tsx`)**:
+   - Replaced hardcoded bounds with dynamic calculations derived from `addOns` fetched from `/api/billing/addons`.
+   - Modals automatically adjust slider ranges (`maxSteps`), step costs, dynamic scale labels, and quick preset buttons based on Superadmin configurations in real-time.
+
+4. **Verification**:
+   - `npm run build` compiled 100% cleanly in 2.8s across all 34 routes.
+   - Verified API GET, PATCH, and direct audit log insertions with PostgreSQL constraints.
+
 
 

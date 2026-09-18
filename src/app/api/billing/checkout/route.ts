@@ -20,7 +20,7 @@ export async function POST(req: Request) {
     const supabase = createClient(supabaseUrl, supabaseKey);
 
     const body = await req.json();
-    const { priceId, addonPriceIds, addonCatalogId, tenantId, customerEmail, returnUrl, action } = body;
+    const { priceId, addonPriceIds, addonCatalogId, tenantId, customerEmail, returnUrl, action, customPricePence, customVoiceMinutes, customSms } = body;
 
     // Mode 3: Customer Portal
     if (action === 'portal') {
@@ -46,42 +46,92 @@ export async function POST(req: Request) {
       return NextResponse.json({ url: session.url });
     }
 
-    // Mode 2: Add-on to existing subscription
+    // Mode 2: Add-on to existing subscription (Fixed or Sliding Scale)
     if (addonCatalogId && tenantId) {
       const { data: addon, error: addonError } = await supabase
         .from('addon_catalog')
-        .select('stripe_price_id')
+        .select('*')
         .eq('id', addonCatalogId)
         .single();
 
-      if (addonError || !addon?.stripe_price_id) {
-        return NextResponse.json({ error: 'Add-on not found or missing Stripe price ID' }, { status: 404 });
+      if (addonError || !addon) {
+        return NextResponse.json({ error: 'Add-on not found in catalog' }, { status: 404 });
       }
 
       const { data: tenant } = await supabase
         .from('tenants')
-        .select('stripe_customer_id')
+        .select('stripe_customer_id, company_name')
         .eq('id', tenantId)
-        .single();
+        .maybeSingle();
+
+      const finalPricePence = (customPricePence && Number(customPricePence) > 0)
+        ? Math.round(Number(customPricePence))
+        : addon.monthly_price_pence;
+
+      const finalVoiceMinutes = (customVoiceMinutes !== undefined && Number(customVoiceMinutes) >= 0)
+        ? Math.round(Number(customVoiceMinutes))
+        : (addon.included_voice_minutes || 0);
+
+      const finalSms = (customSms !== undefined && Number(customSms) >= 0)
+        ? Math.round(Number(customSms))
+        : (addon.included_sms || 0);
+
+      // Construct line item: use static price if available and no custom pricing was chosen;
+      // otherwise, dynamically create a recurring price using price_data.
+      let lineItem: Stripe.Checkout.SessionCreateParams.LineItem;
+
+      if (addon.stripe_price_id && !customPricePence) {
+        lineItem = {
+          price: addon.stripe_price_id,
+          quantity: 1,
+        };
+      } else {
+        // Build descriptive line item title & description
+        let lineDescription = addon.description || addon.name;
+        if (finalVoiceMinutes > 0 && finalSms > 0) {
+          lineDescription = `Includes ${finalVoiceMinutes} shared voice mins + ${finalSms} SMS messages`;
+        } else if (finalVoiceMinutes > 0) {
+          lineDescription = `Includes dedicated number + ${finalVoiceMinutes} shared voice mins`;
+        } else if (finalSms > 0) {
+          lineDescription = `Includes ${finalSms} SMS messages`;
+        }
+
+        lineItem = {
+          price_data: {
+            currency: 'gbp',
+            product_data: {
+              name: `${addon.name}${customPricePence ? ` (£${(finalPricePence / 100).toFixed(2)}/mo)` : ''}`,
+              description: lineDescription,
+              metadata: {
+                addon_catalog_id: addonCatalogId,
+                tenant_id: tenantId,
+              },
+            },
+            unit_amount: finalPricePence,
+            recurring: {
+              interval: 'month',
+            },
+          },
+          quantity: 1,
+        };
+      }
+
+      const metadataPayload = {
+        tenant_id: tenantId,
+        is_addon: 'true',
+        addon_catalog_id: addonCatalogId,
+        custom_price_pence: String(finalPricePence),
+        custom_voice_minutes: String(finalVoiceMinutes),
+        custom_sms: String(finalSms),
+      };
 
       const sessionConfig: Stripe.Checkout.SessionCreateParams = {
         mode: 'subscription',
         payment_method_types: ['card'],
-        line_items: [
-          {
-            price: addon.stripe_price_id,
-            quantity: 1,
-          },
-        ],
-        metadata: {
-          tenant_id: tenantId,
-          is_addon: 'true',
-          addon_catalog_id: addonCatalogId
-        },
+        line_items: [lineItem],
+        metadata: metadataPayload,
         subscription_data: {
-          metadata: {
-            tenant_id: tenantId,
-          }
+          metadata: metadataPayload,
         },
         success_url: `${returnUrl || 'https://app.styleflo.ai/dashboard'}?checkout_status=success&session_id={CHECKOUT_SESSION_ID}`,
         cancel_url: `${returnUrl || 'https://app.styleflo.ai/dashboard'}?checkout_status=cancelled`,
@@ -89,8 +139,27 @@ export async function POST(req: Request) {
 
       if (tenant?.stripe_customer_id) {
         sessionConfig.customer = tenant.stripe_customer_id;
-      } else if (customerEmail) {
-        sessionConfig.customer_email = customerEmail;
+      } else {
+        // Resolve tenant user email if available
+        let resolvedEmail = customerEmail;
+        if (!resolvedEmail) {
+          const { data: profile } = await supabase
+            .from('profiles')
+            .select('id')
+            .eq('tenant_id', tenantId)
+            .limit(1)
+            .maybeSingle();
+
+          if (profile?.id) {
+            const { data: userData } = await supabase.auth.admin.getUserById(profile.id);
+            if (userData?.user?.email) {
+              resolvedEmail = userData.user.email;
+            }
+          }
+        }
+        if (resolvedEmail) {
+          sessionConfig.customer_email = resolvedEmail;
+        }
       }
 
       const session = await stripe.checkout.sessions.create(sessionConfig);
