@@ -24,12 +24,13 @@ export async function POST(request: Request) {
       return new NextResponse('Invalid request', { status: 400 });
     }
 
-    // 1. Find the tenant by the shadow number
+    // 1. Find the tenant by landline (twilio_shadow_number) or mobile (twilio_mobile_number)
     const { data: tenant, error: tenantError } = await supabase
       .from('tenants')
       .select('id')
-      .eq('twilio_shadow_number', to)
-      .single();
+      .or(`twilio_shadow_number.eq.${to},twilio_mobile_number.eq.${to}`)
+      .limit(1)
+      .maybeSingle();
 
     if (tenantError || !tenant) {
       console.error(`[Telephony Inbound] No tenant found for number: ${to}`);
