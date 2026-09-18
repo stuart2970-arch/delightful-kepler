@@ -1625,5 +1625,26 @@ px calls.
    - `npm run build` compiled 100% cleanly in 2.8s across all 34 routes.
    - Verified API GET, PATCH, and direct audit log insertions with PostgreSQL constraints.
 
+### Session 28 — Programmatic Stripe Account Setup, Webhook & Customer Portal Configuration (2026-09-18)
 
+**Context**: User requested guidance on choosing the right Stripe account type for StyleFlo (and whether B2B salon client deposits/payments change the architecture), followed by programmatic setup of a new Stripe account using test credentials.
+
+1. **Architectural Analysis & Recommendation**:
+   - **Current SaaS Subscription & Add-on Billing**: Direct standard Stripe account.
+   - **Future Multi-Tenant B2B Salon Payments & Deposits**: Stripe Connect (Express accounts). The master StyleFlo account acts as the Connect Platform, onboarding individual salon businesses with their own Stripe Express accounts. Payments flow directly to the salons while StyleFlo automatically collects platform application fees. The root Stripe account architecture remains identical and ready for this expansion.
+
+2. **Programmatic Account Automation (`scripts/setup-stripe.js`)**:
+   - **Account Verification**: Validated account (`acct_1UGz9jGWlF8UVrZO`, Country: GB, Currency: GBP).
+   - **Production Webhook Registration**: Programmatically registered endpoint `we_1UGzIhGWlF8UVrZOFGuMa6TJ` pointing to `https://app.styleflo.ai/api/webhooks/stripe` subscribed to:
+     - `checkout.session.completed`
+     - `customer.subscription.created`
+     - `customer.subscription.updated`
+     - `customer.subscription.deleted`
+     - `invoice.payment_succeeded`
+     - `invoice.payment_failed`
+   - **Customer Portal Configuration**: Programmatically generated customer billing portal config (`bpc_1UGzIiGWlF8UVrZOtyd08n16`) supporting self-serve payment method updates, invoice history, customer details, and period-end cancellation.
+   - **Environment Synchronization**: Persisted `NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY`, `STRIPE_SECRET_KEY`, and auto-minted `STRIPE_WEBHOOK_SECRET` in `.env.local`.
+
+3. **Cloud Run Infrastructure Mapping**:
+   - Verified target production service `styleflo-new` in region `europe-west2` on project `styleflo-ai`.
 
