@@ -1,1 +1,1 @@
-npm run test:e2e
+cmd.exe /c "npm run test:e2e"
