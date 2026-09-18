@@ -61,4 +61,11 @@ test.describe('Vapi, ElevenLabs & Telephony Integrations', () => {
     // Twilio webhooks return TwiML XML or 200 response
     expect(response.status()).toBeLessThan(500);
   });
+
+  test('Telephony Search endpoint rejects unauthenticated requests with 401', async ({ request }) => {
+    const response = await request.post('/api/telephony/search', {
+      data: { number_type: 'local', area_code: '0151' }
+    });
+    expect(response.status()).toBe(401);
+  });
 });

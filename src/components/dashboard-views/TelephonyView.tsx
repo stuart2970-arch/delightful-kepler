@@ -43,6 +43,7 @@ export default function TelephonyView() {
   const [isSearching, setIsSearching] = useState(false);
   const [searchResults, setSearchResults] = useState<AvailableNumber[]>([]);
   const [hasSearched, setHasSearched] = useState(false);
+  const [searchedCode, setSearchedCode] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [areaCode, setAreaCode] = useState('');
   const [upsellCategory, setUpsellCategory] = useState<string | null>(null);
@@ -68,9 +69,10 @@ export default function TelephonyView() {
   };
 
   // Search available numbers from Twilio
-  const handleSearchNumbers = async () => {
+  const handleSearchNumbers = async (codeOverride?: string) => {
     setIsSearching(true);
     setError(null);
+    const targetCode = codeOverride !== undefined ? codeOverride : (activeChannelTab === 'landline' ? areaCode || undefined : undefined);
     try {
       const headers = await getAuthHeaders({ 'Content-Type': 'application/json' });
       const res = await fetch('/api/telephony/search', {
@@ -78,7 +80,7 @@ export default function TelephonyView() {
         headers,
         body: JSON.stringify({
           number_type: activeChannelTab,
-          area_code: activeChannelTab === 'landline' ? areaCode || undefined : undefined,
+          area_code: targetCode || undefined,
         }),
       });
       const data = await res.json();
@@ -86,6 +88,7 @@ export default function TelephonyView() {
         throw new Error(data.error || 'Failed to search available numbers');
       }
       setSearchResults(data.numbers || []);
+      setSearchedCode(data.searchedAreaCode || null);
       setHasSearched(true);
     } catch (err: any) {
       setError(err.message);
@@ -225,7 +228,7 @@ export default function TelephonyView() {
       {/* CHANNEL TABS SELECTOR */}
       <div className="flex border-b border-[var(--awb-color3)] gap-3">
         <button
-          onClick={() => { setActiveChannelTab('landline'); setSearchResults([]); setHasSearched(false); setError(null); }}
+          onClick={() => { setActiveChannelTab('landline'); setSearchResults([]); setHasSearched(false); setSearchedCode(null); setError(null); }}
           className={`pb-3 px-4 text-sm font-bold border-b-2 transition-all flex items-center gap-2 ${
             activeChannelTab === 'landline'
               ? 'border-[#198fd9] text-[#198fd9]'
@@ -249,7 +252,7 @@ export default function TelephonyView() {
         </button>
 
         <button
-          onClick={() => { setActiveChannelTab('mobile'); setSearchResults([]); setHasSearched(false); setError(null); }}
+          onClick={() => { setActiveChannelTab('mobile'); setSearchResults([]); setHasSearched(false); setSearchedCode(null); setError(null); }}
           className={`pb-3 px-4 text-sm font-bold border-b-2 transition-all flex items-center gap-2 ${
             activeChannelTab === 'mobile'
               ? 'border-[#260475] text-[#260475]'
@@ -377,13 +380,49 @@ export default function TelephonyView() {
             {/* SEARCH RESULTS LIST */}
             {hasSearched && (
               <div className="space-y-3 pt-2">
-                <h4 className="text-xs font-bold uppercase tracking-wider text-[var(--awb-color8)]">
-                  Available Numbers ({searchResults.length} Found)
-                </h4>
+                <div className="flex items-center justify-between">
+                  <h4 className="text-xs font-bold uppercase tracking-wider text-[var(--awb-color8)]">
+                    Available Numbers ({searchResults.length} Found{searchedCode ? ` for Area Code ${searchedCode}` : ''})
+                  </h4>
+                  {searchedCode && (
+                    <span className="text-[10px] bg-blue-50 text-[#198fd9] px-2.5 py-1 rounded-full font-semibold border border-blue-200">
+                      ✓ Strict code match: {searchedCode}
+                    </span>
+                  )}
+                </div>
 
                 {searchResults.length === 0 ? (
-                  <div className="text-center p-8 bg-[var(--awb-color2)] border border-[var(--awb-color3)] rounded-xl text-xs text-[var(--awb-color6)]">
-                    No numbers currently available matching that area code. Try leaving the area code blank or searching a nearby town code.
+                  <div className="p-6 bg-amber-50 border border-amber-200 rounded-xl text-center space-y-3">
+                    <div className="w-10 h-10 bg-amber-100 text-amber-700 rounded-full flex items-center justify-center mx-auto text-lg font-bold">
+                      ⚠️
+                    </div>
+                    <div>
+                      <h4 className="text-sm font-bold text-amber-900">
+                        {searchedCode
+                          ? `No numbers currently available for area code "${searchedCode}"`
+                          : 'No numbers currently available'}
+                      </h4>
+                      <p className="text-xs text-amber-700 max-w-md mx-auto mt-1 leading-relaxed">
+                        {searchedCode ? (
+                          <>There are currently no available UK local numbers in stock starting with <strong>{searchedCode}</strong>. All returned numbers must strictly match the requested area code.</>
+                        ) : (
+                          <>No phone numbers are currently available from the carrier. Please try searching again in a few moments.</>
+                        )}
+                      </p>
+                    </div>
+                    {searchedCode && (
+                      <div className="pt-1 flex flex-wrap justify-center gap-3">
+                        <button
+                          onClick={() => {
+                            setAreaCode('');
+                            handleSearchNumbers('');
+                          }}
+                          className="bg-white border border-amber-300 hover:bg-amber-100 text-amber-900 text-xs font-bold py-2 px-4 rounded-xl shadow-sm transition-all"
+                        >
+                          Browse all available UK local numbers instead →
+                        </button>
+                      </div>
+                    )}
                   </div>
                 ) : (
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-3">

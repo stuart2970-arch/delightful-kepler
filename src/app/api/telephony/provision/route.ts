@@ -122,18 +122,26 @@ export async function POST(request: Request) {
           console.log(`[Telephony Provisioning] Searching mobile numbers for country: ${country}`);
           available = await client.availablePhoneNumbers(country).mobile.list({ limit: 1 });
         } else {
-          const searchParams: any = { limit: 1 };
-          if (area_code) {
-            // Clean leading zero for UK local codes (e.g. 0151 -> 151, 01925 -> 1925)
-            const cleanCode = area_code.replace(/^0+/, '');
-            searchParams.areaCode = cleanCode;
-          }
-          console.log(`[Telephony Provisioning] Searching local numbers for country: ${country}`, searchParams);
-          available = await client.availablePhoneNumbers(country).local.list(searchParams);
+          const cleanCode = area_code
+            ? area_code.toString().trim().replace(/^(\+44|0044|0)+/, '').replace(/[\s-]/g, '')
+            : '';
 
-          // Fall back to general local numbers if specified area code had 0 available
-          if ((!available || available.length === 0) && area_code) {
-            console.log(`[Telephony Provisioning] No numbers for area code ${area_code}, falling back to any local number`);
+          if (cleanCode) {
+            const searchPattern = `+44${cleanCode}*`;
+            console.log(`[Telephony Provisioning] Searching local numbers matching pattern ${searchPattern} for country: ${country}`);
+            const rawList = await client.availablePhoneNumbers(country).local.list({
+              contains: searchPattern,
+              limit: 5,
+            });
+            available = (rawList || []).filter((num: any) =>
+              num.phoneNumber && num.phoneNumber.startsWith(`+44${cleanCode}`)
+            );
+
+            if (!available || available.length === 0) {
+              throw new Error(`No phone numbers are currently available for area code ${area_code}. Please choose an available number from the list or try another area code.`);
+            }
+          } else {
+            console.log(`[Telephony Provisioning] Searching general local numbers for country: ${country}`);
             available = await client.availablePhoneNumbers(country).local.list({ limit: 1 });
           }
         }

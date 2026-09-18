@@ -32,6 +32,16 @@ async function getSupabaseAuthClient() {
   });
 }
 
+function sanitizeUkAreaCode(input?: string): string {
+  if (!input) return '';
+  let code = input.toString().trim();
+  // Strip +44, 0044, or leading 0s
+  code = code.replace(/^\+44/, '').replace(/^0044/, '').replace(/^0+/, '');
+  // Remove spaces or hyphens
+  code = code.replace(/[\s-]/g, '');
+  return code;
+}
+
 function formatUkDisplayNumber(rawNumber: string): string {
   // Convert +441513210044 to 0151 321 0044
   if (!rawNumber) return rawNumber;
@@ -43,13 +53,17 @@ function formatUkDisplayNumber(rawNumber: string): string {
   if (formatted.startsWith('07') && formatted.length === 11) {
     return `${formatted.slice(0, 5)} ${formatted.slice(5)}`;
   }
-  // Local 4-digit code: 0151 xxx xxxx
-  if (formatted.length === 11) {
-    return `${formatted.slice(0, 4)} ${formatted.slice(4, 7)} ${formatted.slice(7)}`;
-  }
-  // London / 3-digit: 020 xxxx xxxx
+  // London and 3-digit UK area codes: 020 xxxx xxxx, 023 xxxx xxxx, 024, 028, 029
   if (formatted.startsWith('02') && formatted.length === 11) {
     return `${formatted.slice(0, 3)} ${formatted.slice(3, 7)} ${formatted.slice(7)}`;
+  }
+  // 5-digit area codes: e.g. 01925 (Warrington)
+  if (formatted.startsWith('01925') && formatted.length === 11) {
+    return `${formatted.slice(0, 5)} ${formatted.slice(5)}`;
+  }
+  // Standard 4-digit UK area codes: 0151 xxx xxxx, 0161 xxx xxxx, 0121 xxx xxxx, 0113 xxx xxxx
+  if (formatted.length === 11) {
+    return `${formatted.slice(0, 4)} ${formatted.slice(4, 7)} ${formatted.slice(7)}`;
   }
   return formatted;
 }
@@ -91,24 +105,33 @@ export async function POST(request: Request) {
     const country = process.env.TWILIO_PHONE_COUNTRY || 'GB';
 
     let available: any[] = [];
+    const cleanCode = !isMobile && area_code ? sanitizeUkAreaCode(area_code) : '';
 
     if (isMobile) {
       console.log(`[Telephony Search] Searching mobile numbers for country ${country}...`);
-      available = await client.availablePhoneNumbers(country).mobile.list({ limit: 6 });
-    } else {
-      const searchParams: any = { limit: 6 };
-      if (area_code) {
-        const cleanCode = area_code.replace(/^0+/, '').trim();
-        if (cleanCode) searchParams.areaCode = cleanCode;
-      }
-      console.log(`[Telephony Search] Searching local numbers for country ${country}...`, searchParams);
-      available = await client.availablePhoneNumbers(country).local.list(searchParams);
+      available = await client.availablePhoneNumbers(country).mobile.list({ limit: 12 });
+    } else if (cleanCode) {
+      // In Twilio for GB (UK), areaCode is not supported because it is NANPA-specific.
+      // Searching UK geographic numbers requires using the 'contains' pattern '+44<cleanCode>*'
+      const searchPattern = `+44${cleanCode}*`;
+      console.log(`[Telephony Search] Searching local numbers matching pattern ${searchPattern} for country ${country}...`);
+      
+      const rawList = await client.availablePhoneNumbers(country).local.list({
+        contains: searchPattern,
+        limit: 12,
+      });
 
-      // Fallback if specific area code returned no matches
-      if ((!available || available.length === 0) && searchParams.areaCode) {
-        console.log(`[Telephony Search] No numbers for areaCode ${searchParams.areaCode}, searching general local...`);
-        available = await client.availablePhoneNumbers(country).local.list({ limit: 6 });
-      }
+      // Strict enforcement: ALL returned numbers must start with the requested area code (+44 + cleanCode)
+      available = (rawList || []).filter((num: any) =>
+        num.phoneNumber && num.phoneNumber.startsWith(`+44${cleanCode}`)
+      );
+
+      console.log(`[Telephony Search] Found ${available.length} verified matching numbers for pattern ${searchPattern}`);
+      // NOTE: We NEVER fall back to random UK local numbers when the user asked for a specific code!
+    } else {
+      // General UK local numbers when no specific area code is requested
+      console.log(`[Telephony Search] Searching general local numbers for country ${country}...`);
+      available = await client.availablePhoneNumbers(country).local.list({ limit: 12 });
     }
 
     const numbers = (available || []).map((num: any) => ({
@@ -126,6 +149,10 @@ export async function POST(request: Request) {
       numbers,
       count: numbers.length,
       searchedAreaCode: area_code || null,
+      cleanCode: cleanCode || null,
+      message: cleanCode && numbers.length === 0
+        ? `No phone numbers are currently available for area code ${area_code}. Please try another area code.`
+        : undefined,
     });
   } catch (error: any) {
     console.error('[Telephony Search API] Error:', error);

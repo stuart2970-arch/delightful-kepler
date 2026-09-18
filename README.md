@@ -1705,6 +1705,37 @@ px calls.
 2. **Key Analysis & Recommendations**:
    - **Meta Gatekeepers & Requirements**: Defined the prerequisites for Meta Business Portfolio, official Business Verification (Companies House certificate and utility bill), display name branding regulations, phone number cleanliness rules (numbers must be deleted from consumer apps before API registration), and Commerce Policy compliance.
    - **24-Hour Customer Service Window vs. Outbound Templates**: Clarified that inbound client questions open a 24-hour window allowing free-form AI conversation via Gemini without pre-approved templates. Outbound messages initiated by the salon (such as appointment reminders) strictly require pre-approved Meta message templates (Utility category).
-   - **Multi-Tenancy Strategy for StyleFlo**: Evaluated Model A (StyleFlo Master WABA with per-tenant Twilio Senders) vs. Model B (Meta Embedded Signup / ISV Tech Provider). Recommended Model A for MVP/launch to eliminate friction for salon owners, with Model B reserved for future enterprise clients.
-   - **Commercials & Margins**: Analyzed Meta per-conversation pricing (service vs. utility vs. marketing) alongside Twilio's per-message fee ($0.005), confirming that StyleFlo's £9.99/mo (add-on) and £19.99/mo (standalone) bolt-ons deliver 55%–75% gross margins on 500 messages/mo.
    - **Step-by-Step 6-Phase Roadmap**: Structured clear phases covering Meta verification, Twilio sender linking, webhook routing, template approval governance, and dashboard UX (click-to-chat links & QR codes).
+
+### Session 31 — Strict UK Area Code Search, Pattern Matching & Out-of-Stock Notifications (2026-09-18)
+
+**Context**: User reported that searching for a Liverpool `0151` number returned only 1 result, and searching again returned a different random number. Required that whenever a user searches by area code, ALL returned numbers must strictly match that code, and if none are available, the user must be explicitly informed rather than given random UK numbers.
+
+1. **Root Cause Analysis**:
+   - In Twilio's `availablePhoneNumbers('GB').local.list`, the `areaCode` parameter is strictly designed for North American Numbering Plan (NANPA) 3-digit codes and returns 0 results for UK geographic codes (e.g. `151`).
+   - The route previously fell back to general local search (`availablePhoneNumbers('GB').local.list({ limit: 6 })`) whenever `areaCode` yielded 0 results. This returned random local numbers from across the UK (Edinburgh, Reading, Exeter, Southampton), which occasionally happened to contain only one Liverpool number.
+   - Searching again refreshed the random local pool, returning another inconsistent random number.
+
+2. **Fixes & Enhancements Applied**:
+   - **Twilio Pattern Matching (`/api/telephony/search/route.ts`)**:
+     - Replaced unsupported `areaCode` parameter with sanitized UK pattern search: `contains: '+44' + cleanCode + '*'`.
+     - Added `sanitizeUkAreaCode` helper stripping leading `+44`, `0044`, spaces, and `0`s (e.g. `0151` -> `151`, `01925` -> `1925`, `020` -> `20`).
+     - Added strict defensive post-filtering: `num.phoneNumber.startsWith('+44' + cleanCode)` ensuring 100% of returned numbers belong to the requested code.
+     - Removed silent fallback to general UK numbers when a specific area code is requested.
+     - Increased search result limit from 6 to 12.
+     - Refined `formatUkDisplayNumber` to accurately handle 3-digit codes (London `020 4538 6585`), 5-digit codes (`01925 937589`), and 4-digit codes (`0151 453 4469`).
+   - **Strict Provisioning Fallback (`/api/telephony/provision/route.ts`)**:
+     - Updated automated number provisioning to use `contains: '+44' + cleanCode + '*'`.
+     - Throws a descriptive error if no numbers are available for that code instead of purchasing a number from a different city.
+   - **Interactive UI Feedback (`TelephonyView.tsx`)**:
+     - Added `searchedCode` tracking state and strict code match badge (`✓ Strict code match: 0151`).
+     - Added an explicit amber warning banner when no numbers are available for the requested code: *"No numbers currently available for area code [code]"* with an option to browse all UK local numbers.
+     - Reset search results and code state cleanly when toggling between channels.
+   - **Automated Testing (`tests/integrations.spec.ts`)**:
+     - Added test asserting `POST /api/telephony/search` security.
+
+3. **Verification**:
+   - Tested Twilio `contains: '+44151*'` directly: verified 12 out of 12 numbers returned are Liverpool (`+44151...`).
+   - Tested Manchester (`0161`), London (`020`), Warrington (`01925`), and Birmingham (`0121`): all returned 100% matching results.
+   - `npm run build` compiled 100% cleanly in 4.8s.
+   - Playwright integration tests passed (4 of 4 passed in 19.8s).
