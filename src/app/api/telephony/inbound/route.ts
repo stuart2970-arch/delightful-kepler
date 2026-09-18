@@ -46,30 +46,60 @@ export async function POST(request: Request) {
       });
     }
 
-    // 2. Find the Vapi assistant ID for this tenant
-    // Assuming the tenant has one active voice-enabled chatbot
-    const { data: chatbot, error: chatbotError } = await supabase
-      .from('chatbots')
-      .select('vapi_assistant_id')
+    // 2. Check tenant voice minutes entitlement from usage_ledger (purchased numbers & bolt-ons)
+    const { data: voiceUsage } = await supabase
+      .from('usage_ledger')
+      .select('quantity, usage_type')
       .eq('tenant_id', tenant.id)
-      .not('vapi_assistant_id', 'is', null)
-      .limit(1)
+      .in('feature_id', ['voice_minutes', 'vapi_voice_minutes', 'voice_agent_minutes_web']);
+
+    const allocatedMinutes = (voiceUsage || [])
+      .filter(u => u.usage_type === 'allocation')
+      .reduce((s, u) => s + (u.quantity || 0), 0);
+    const consumedMinutes = (voiceUsage || [])
+      .filter(u => u.usage_type === 'consumption')
+      .reduce((s, u) => s + (u.quantity || 0), 0);
+    const remainingMinutes = Math.max(0, allocatedMinutes - consumedMinutes);
+
+    // Also check plan tier included voice
+    const { data: tenantData } = await supabase
+      .from('tenants')
+      .select('plan_tier')
+      .eq('id', tenant.id)
       .single();
+
+    const planTier = tenantData?.plan_tier || 'basic';
+    const tierHasVoice = ['base_tier', 'starter', 'premium', 'ultimate', 'trial'].includes(planTier);
 
     const VoiceResponse = twilio.twiml.VoiceResponse;
     const twiml = new VoiceResponse();
 
-    const assistantId = process.env.VAPI_MASTER_ASSISTANT_ID || chatbot?.vapi_assistant_id;
-
-    if (chatbotError || !chatbot || !assistantId || assistantId.startsWith('vapi-')) {
-      console.error(`[Telephony Inbound] No valid Vapi assistant configured for tenant: ${tenant.id}`);
-      twiml.say({ voice: 'Polly.Amy' }, 'Sorry, the AI receptionist is currently unavailable. Please try again later.');
-    } else {
-      console.log(`[Telephony Inbound] Connecting call to Vapi SIP Assistant ${assistantId}`);
-      // Connect the call to Vapi using standard SIP URI
-      const dial = twiml.dial();
-      dial.sip(`sip:${assistantId}@sip.vapi.ai;transport=tls`);
+    if (remainingMinutes <= 0 && !tierHasVoice) {
+      console.warn(`[Telephony Inbound] Tenant ${tenant.id} has exhausted voice minutes.`);
+      twiml.say({ voice: 'Polly.Amy' }, 'Thank you for calling. This business line has run out of voice minutes. Please reach out by text message or online.');
+      return new NextResponse(twiml.toString(), {
+        status: 200,
+        headers: { 'Content-Type': 'text/xml' },
+      });
     }
+
+    // 3. Resolve the Vapi assistant ID for this tenant's chatbot
+    const { data: chatbots } = await supabase
+      .from('chatbots')
+      .select('id, name, vapi_assistant_id, configuration_json')
+      .eq('tenant_id', tenant.id)
+      .limit(5);
+
+    const activeBot = (chatbots || []).find(b => b.vapi_assistant_id && !b.vapi_assistant_id.startsWith('vapi-')) || (chatbots || [])[0];
+    const rawBotAssistantId = activeBot?.vapi_assistant_id || (activeBot?.configuration_json as any)?.vapi_assistant_id;
+
+    const resolvedAssistantId = (rawBotAssistantId && !rawBotAssistantId.startsWith('vapi-'))
+      ? rawBotAssistantId
+      : (process.env.VAPI_MASTER_ASSISTANT_ID || '1bb95940-1cb9-4c54-9b16-ba5bc11daae2');
+
+    console.log(`[Telephony Inbound] Connecting call to Vapi SIP Assistant ${resolvedAssistantId} (tenant has ${remainingMinutes} mins remaining, plan: ${planTier})`);
+    const dial = twiml.dial();
+    dial.sip(`sip:${resolvedAssistantId}@sip.vapi.ai;transport=tls`);
 
     return new NextResponse(twiml.toString(), {
       status: 200,

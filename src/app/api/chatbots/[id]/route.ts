@@ -114,31 +114,37 @@ export async function GET(
       planTier = tenantData?.plan_tier || 'basic';
     }
     
-    const eligibleVoiceTiers = ['base_tier', 'starter', 'premium', 'ultimate', 'basic', 'trial'];
-    
-    // Check Voice Entitlement: check tier or usage ledger allocations (bolt-ons)
+    // Check Voice Entitlement:
+    // B2B modular architecture: Voice is active if:
+    // 1. Tenant has purchased voice minutes (via phone number bolt-ons or minute packs) with remaining balance in usage_ledger
+    // 2. Tenant is on a plan tier that includes voice out-of-the-box
+    // 3. Chatbot has voice explicitly enabled
     let hasVoiceMinutes = false;
-    if (chatbot.tenant_id) {
-      if (eligibleVoiceTiers.includes(planTier)) {
-        hasVoiceMinutes = true;
-      } else {
-        const { data: voiceUsage } = await supabaseAdmin
-          .from('usage_ledger')
-          .select('quantity, usage_type')
-          .eq('tenant_id', chatbot.tenant_id)
-          .in('feature_id', ['voice_minutes', 'vapi_voice_minutes', 'voice_agent_minutes_web']);
+    let voiceMinutesRemaining = 0;
 
-        if (voiceUsage && voiceUsage.length > 0) {
-          const allocated = voiceUsage.filter(u => u.usage_type === 'allocation').reduce((s, u) => s + (u.quantity || 0), 0);
-          const consumed = voiceUsage.filter(u => u.usage_type === 'consumption').reduce((s, u) => s + (u.quantity || 0), 0);
-          if (allocated > consumed) {
-            hasVoiceMinutes = true;
-          }
+    if (chatbot.tenant_id) {
+      const { data: voiceUsage } = await supabaseAdmin
+        .from('usage_ledger')
+        .select('quantity, usage_type')
+        .eq('tenant_id', chatbot.tenant_id)
+        .in('feature_id', ['voice_minutes', 'vapi_voice_minutes', 'voice_agent_minutes_web']);
+
+      if (voiceUsage && voiceUsage.length > 0) {
+        const allocated = voiceUsage.filter(u => u.usage_type === 'allocation').reduce((s, u) => s + (u.quantity || 0), 0);
+        const consumed = voiceUsage.filter(u => u.usage_type === 'consumption').reduce((s, u) => s + (u.quantity || 0), 0);
+        voiceMinutesRemaining = Math.max(0, allocated - consumed);
+        if (voiceMinutesRemaining > 0) {
+          hasVoiceMinutes = true;
         }
+      }
+
+      // Base subscription tiers that inherently include voice minutes
+      const tiersWithIncludedVoice = ['base_tier', 'starter', 'premium', 'ultimate', 'trial'];
+      if (tiersWithIncludedVoice.includes(planTier)) {
+        hasVoiceMinutes = true;
       }
     }
 
-    // Voice is active if tenant has plan entitlement, minutes in usage_ledger, or bot has voice_enabled
     const isVoiceActive = hasVoiceMinutes || Boolean(chatbot.voice_enabled);
     const voiceProvider = isVoiceActive ? '11labs' : 'none';
 
