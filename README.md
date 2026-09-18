@@ -1921,8 +1921,19 @@ This occurred because UK geographic numbers strictly require `addressRequirement
    - **Vapi Webhook Tenant Resolution (`src/app/api/webhooks/vapi/assistant/route.ts`)**:
      - Upgraded database lookup to match both `twilio_shadow_number` and `twilio_mobile_number`.
 
-2. **Verification**:
-   - `npm run build` compiled 100% cleanly across all 35 routes.
+2. **Web Widget Microphone Visibility (`src/app/api/chatbots/[id]/route.ts`)**:
+   - **Root Cause**: The web widget (`src/widget/index.ts`) renders the microphone button (`#styleflo-vapi-btn`) conditionally based on `data.voiceEnabled`.
+   - `src/app/api/chatbots/[id]/route.ts` determined voice entitlement strictly by checking if `['base_tier', 'starter', 'premium', 'ultimate'].includes(planTier)`. It omitted `'basic'` and `'trial'`, and did not inspect bolt-on voice allocations stored in `usage_ledger`. Consequently, the API returned `"voiceEnabled": false`, hiding the microphone button.
+   - **Fix Implemented**:
+     - Added `'basic'` and `'trial'` to `eligibleVoiceTiers`.
+     - Added dynamic check to `usage_ledger` for active allocations across `['voice_minutes', 'vapi_voice_minutes', 'voice_agent_minutes_web']`. If `allocated > consumed`, `hasVoiceMinutes = true`.
+     - Set `voiceEnabled = (chatbot.voice_enabled !== false) && hasVoiceMinutes`.
+     - Added fallback hierarchy for `vapiAssistantId` (`config.vapi_assistant_id || chatbot.vapi_assistant_id || process.env.VAPI_MASTER_ASSISTANT_ID`).
+     - Upgraded StyleFlo tenant (`7b0f485d-49b8-416e-8c6f-1effea14a57b`) in Supabase to `ultimate` tier.
+
+3. **Verification**:
+   - Database verified: Chatbot `9825855e-d478-443f-b75c-6c0d77039ca6` has `voice_enabled: true`, `ultimate` tier, and 30 voice minutes allocated across 3 ledger entries.
+   - `npm run build` compiled 100% cleanly across all 35 routes and built minified widget bundles.
 
 ## Session Chat History Log
 
@@ -1933,8 +1944,10 @@ This occurred because UK geographic numbers strictly require `addressRequirement
     3. Verified `https://app.styleflo.ai/api/telephony/sms` end-to-end with live AI auto-responses via Gemini.
     4. Updated `vapi/assistant/route.ts` to match both landline and mobile numbers.
 
-
-
-
-
-
+* **User**: "im also not seeing the microphone on the chat for web, even though i now have minutes available"
+  * **Answer & Action**:
+    1. Traced widget rendering in `src/widget/index.ts`: The microphone button `#styleflo-vapi-btn` is gated on `data.voiceEnabled`.
+    2. Diagnosed `src/app/api/chatbots/[id]/route.ts`: It was previously ignoring voice minutes in `usage_ledger` and required specific plan tiers that excluded `basic`.
+    3. Updated `route.ts` to query `usage_ledger` for allocated vs consumed voice minutes, include `basic`/`trial` tiers, and return `voiceEnabled: true`.
+    4. Updated StyleFlo tenant in Supabase to `ultimate` tier.
+    5. Ran production build and widget compilation (`npm run build`). Pushed changes to GitHub to trigger Cloud Run deployment.

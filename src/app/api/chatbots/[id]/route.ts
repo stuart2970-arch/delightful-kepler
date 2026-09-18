@@ -114,17 +114,33 @@ export async function GET(
       planTier = tenantData?.plan_tier || 'basic';
     }
     
-    const eligibleVoiceTiers = ['base_tier', 'starter', 'premium', 'ultimate'];
-    let voiceProvider = 'none';
-    if (eligibleVoiceTiers.includes(planTier)) {
-      voiceProvider = '11labs';
+    const eligibleVoiceTiers = ['base_tier', 'starter', 'premium', 'ultimate', 'basic', 'trial'];
+    
+    // Check Voice Entitlement: check tier or usage ledger allocations (bolt-ons)
+    let hasVoiceMinutes = false;
+    if (chatbot.tenant_id) {
+      if (eligibleVoiceTiers.includes(planTier)) {
+        hasVoiceMinutes = true;
+      } else {
+        const { data: voiceUsage } = await supabaseAdmin
+          .from('usage_ledger')
+          .select('quantity, usage_type')
+          .eq('tenant_id', chatbot.tenant_id)
+          .in('feature_id', ['voice_minutes', 'vapi_voice_minutes', 'voice_agent_minutes_web']);
+
+        if (voiceUsage && voiceUsage.length > 0) {
+          const allocated = voiceUsage.filter(u => u.usage_type === 'allocation').reduce((s, u) => s + (u.quantity || 0), 0);
+          const consumed = voiceUsage.filter(u => u.usage_type === 'consumption').reduce((s, u) => s + (u.quantity || 0), 0);
+          if (allocated > consumed) {
+            hasVoiceMinutes = true;
+          }
+        }
+      }
     }
 
-    // Check Voice Entitlement
-    let hasVoiceMinutes = false;
-    if (chatbot.tenant_id && eligibleVoiceTiers.includes(planTier)) {
-      hasVoiceMinutes = true;
-    }
+    // Voice is active if chatbot has voice_enabled ON (or not explicitly false) AND has minutes
+    const isVoiceActive = (chatbot.voice_enabled !== false) && hasVoiceMinutes;
+    const voiceProvider = isVoiceActive ? '11labs' : 'none';
 
     const globalBot = chatbots.find(b => b.id === globalSettingsId);
     const globalConfig = (globalBot?.configuration_json || {}) as Record<string, any>;
@@ -163,9 +179,9 @@ export async function GET(
       welcomeMessage: config.welcome_message || 'Hello! How can I help you today?',
       brandingHtml: (planTier === 'premium' || planTier === 'ultimate') ? '' : (globalConfig.branding_html || '<span style="opacity: 0.6; font-size: 11px;">⚡ Powered by <strong>StyleFlo</strong></span>'),
       brandingUrl: (planTier === 'premium' || planTier === 'ultimate') ? '' : (globalConfig.branding_url || 'https://styleflo.ai'),
-      voiceEnabled: hasVoiceMinutes,
+      voiceEnabled: isVoiceActive,
       vapiPublicKey: process.env.NEXT_PUBLIC_VAPI_PUBLIC_KEY || process.env.VAPI_PUBLIC_KEY || '',
-      vapiAssistantId: process.env.VAPI_MASTER_ASSISTANT_ID || '',
+      vapiAssistantId: config.vapi_assistant_id || (chatbot as any).vapi_assistant_id || process.env.VAPI_MASTER_ASSISTANT_ID || '',
       globalVoiceDisclaimer: globalConfig.global_voice_disclaimer || '',
       voiceProvider: voiceProvider,
       voiceId: resolvedVoiceId,
