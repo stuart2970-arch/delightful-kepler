@@ -1645,6 +1645,14 @@ px calls.
    - **Customer Portal Configuration**: Programmatically generated customer billing portal config (`bpc_1UGzIiGWlF8UVrZOtyd08n16`) supporting self-serve payment method updates, invoice history, customer details, and period-end cancellation.
    - **Environment Synchronization**: Persisted `NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY`, `STRIPE_SECRET_KEY`, and auto-minted `STRIPE_WEBHOOK_SECRET` in `.env.local`.
 
-3. **Cloud Run Infrastructure Mapping**:
+3. **Cloud Run Infrastructure Mapping & Secret Management**:
    - Verified target production service `styleflo-new` in region `europe-west2` on project `styleflo-ai`.
+   - Updated Google Secret Manager secret `STRIPE_SECRET_KEY` with version 2 containing the new test key.
+   - Pinned `styleflo-new` environment variable `STRIPE_SECRET_KEY` to `:latest` secret reference.
+   - Configured `NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY` and `STRIPE_WEBHOOK_SECRET` on Cloud Run.
+   - Deployed active revision `styleflo-new-00889-x27` serving 100% of production traffic.
 
+4. **Production Live Verification**:
+   - Tested live endpoint `POST https://app.styleflo.ai/api/billing/checkout` with sliding scale add-on payload.
+   - Live checkout session successfully generated: `Status: 200 OK` returning live Stripe Checkout URL (`https://checkout.stripe.com/c/pay/cs_test_...`).
+   - Verified dynamic pricing calculation (£12.99 / 18 voice minutes) and Stripe Test Mode readiness on production.
