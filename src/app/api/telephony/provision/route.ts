@@ -156,6 +156,8 @@ export async function POST(request: Request) {
         phoneNumber: targetPhoneNumber,
         voiceUrl: `${appBaseUrl}/api/telephony/inbound`,
         voiceMethod: 'POST',
+        smsUrl: `${appBaseUrl}/api/telephony/sms`,
+        smsMethod: 'POST',
       };
 
       let resolvedAddressSid = addressSid;

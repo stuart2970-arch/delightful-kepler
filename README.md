@@ -1847,10 +1847,35 @@ This occurred because UK geographic numbers strictly require `addressRequirement
 
 * **User**: "i can see i do not have my mobile or local adress in secrets" (and uploaded screenshot of GCP Secret Manager)
   * **Answer & Action**: Explained that separate mobile and local address secrets are NOT required. Mobile numbers do not require an address, and UK local numbers use the verified business address already approved inside the Twilio Regulatory Bundle (`BUf676ba5c4a24f355ecdcc59d0e61e818`).
-* **User**: "⚠️ Failed to purchase GB local number: Phone Number Requires an Address but the 'AddressSid' parameter was empty.. (Ensure TWILIO_BUNDLE_SID_LOCAL or TWILIO_BUNDLE_SID is configured)."
-  * **Answer & Action**: Diagnosed that UK local numbers mandate `addressRequirements: local`, meaning an `addressSid` MUST be provided, and it MUST match the bundle. Built dynamic automated address extraction into `src/app/api/telephony/provision/route.ts` that inspects the regulatory bundle supporting documents at runtime and populates `AD11e6b1f650f21544d4ef5e9447fad0e5`. Provided exact instructions for updating the secret version in Cloud Run.
-* **User**: "BUea98d6cb1d7703c0d019b9de1d8be055 is my primary compliance profile surely this is needed"
-  * **Answer & Action**: Queried Twilio Trust Hub API and confirmed `BUea98d6cb1d7703c0d019b9de1d8be055` is the Primary Customer Profile for StyleFlo AI. Explained that phone number provisioning requires the country-specific regulatory bundles (`BUf676ba...` for Local and `BU7e1c1d...` for Mobile), which inherit from this primary profile. Updated `src/app/api/telephony/inbound/route.ts` to match incoming calls across both `twilio_shadow_number` and `twilio_mobile_number`.
+### Session 37 — Inbound SMS Webhook with Gemini AI Auto-Replies (2026-09-18)
+
+**Context**: User reported that texting the active mobile number (`+447446900875`) did not generate any response.
+
+1. **Root Cause Analysis**:
+   - In Twilio, the mobile number had its Voice Webhook configured (`https://app.styleflo.ai/api/telephony/inbound`), but its Messaging Webhook (`smsUrl`) was completely empty (`""`).
+   - Consequently, incoming SMS messages were logged in Twilio but never routed to StyleFlo to generate an automated AI response.
+
+2. **Fixes & Enhancements Applied**:
+   - **New Inbound SMS Webhook Route (`src/app/api/telephony/sms/route.ts`)**:
+     - Receives incoming Twilio SMS payloads (`From`, `To`, `Body`).
+     - Matches tenant via `twilio_mobile_number` or `twilio_shadow_number`.
+     - Links customer into `conversations` and `messages` tables.
+     - Performs semantic RAG search across `document_chunks`.
+     - Prompts Gemini (`gemini-flash-latest`) for concise plain-text SMS response.
+     - Returns TwiML Messaging XML (`<Response><Message>...</Message></Response>`) to dispatch the reply instantly.
+   - **Automated Provisioning Sync (`src/app/api/telephony/provision/route.ts`)**:
+     - Added `smsUrl` and `smsMethod` to `purchaseParams` so all future numbers automatically have SMS configured upon purchase.
+   - **Live Number Updated**:
+     - Updated existing active number `+447446900875` in Twilio via API with `smsUrl: https://app.styleflo.ai/api/telephony/sms`.
+
+3. **Verification**:
+   - `npm run build` compiled 100% cleanly including `/api/telephony/sms`.
+
+## Session Chat History Log
+
+* **User**: "the text does not generate any response?"
+  * **Answer & Action**: Diagnosed that the mobile number had an empty `smsUrl` in Twilio. Built `/api/telephony/sms/route.ts` with Gemini RAG auto-replies, integrated Supabase conversation logging, automated `smsUrl` in `provision/route.ts`, and updated active mobile number `+447446900875` in Twilio directly via API.
+
 
 
 
