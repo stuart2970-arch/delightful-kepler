@@ -48,7 +48,7 @@ export default function SidebarNavigation() {
         { id: 'chatbots', label: '🤖 Agent', count: chatbots.filter(b => b.id !== globalBotId).length, locked: false },
         { id: 'conversations', label: '💬 Web Chat & Voice', count: conversations.filter(c => !c.is_phone_call).length, locked: false },
         { id: 'telephony', label: '📞 Phone Calls', count: conversations.filter(c => c.is_phone_call || (c.is_voice_call && c.user_session_id?.startsWith('phone_'))).length, locked: !channelFlags.has_landline && !channelFlags.has_mobile },
-        { id: 'whatsapp', label: '📱 WhatsApp', locked: !channelFlags.has_whatsapp },
+        { id: 'whatsapp', label: '📱 WhatsApp & Meta', locked: false },
         { id: 'crawler', label: '📚 Knowledge Base', locked: false },
         { id: 'integrations', label: '🔌 Integrations', locked: false },
         { id: 'openclaw-monitor', label: '⚡ Gateways', locked: false },

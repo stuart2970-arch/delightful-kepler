@@ -1936,7 +1936,45 @@ This occurred because UK geographic numbers strictly require `addressRequirement
    - All 6 telephony and widget Playwright tests passed cleanly in `tests/integrations.spec.ts` and `tests/chatbot.spec.ts`.
    - All 8 RBAC multi-colleague tests passed cleanly in `tests/multi-colleague.spec.ts`.
 
+### Session 40 — Native Meta Integration: WhatsApp Cloud API, Instagram Messaging & Messenger (2026-09-19)
+
+**Context**: User requested native Meta integration for WhatsApp, Instagram, and Messenger bypassing OpenClaw, preparing the conversational journey and verification endpoints for Meta App Review.
+
+1. **Architecture & Implementation**:
+   - **Database Migration (`supabase/migrations/20260919120000_meta_native_integrations.sql`)**:
+     - Added native Meta configuration columns to `chatbots` and `tenants`: `whatsapp_phone_number_id`, `whatsapp_waba_id`, `meta_access_token`, `meta_verify_token`, `meta_app_secret`, `instagram_account_id`, `messenger_enabled`, `messenger_page_id`.
+     - Added indexes on phone number IDs, Instagram IDs, and Messenger page IDs for fast webhook event routing.
+   - **Core Meta Graph API Library (`src/lib/meta.ts`)**:
+     - Built helper methods for Meta Graph API v21.0 outbound messaging (`sendWhatsAppMessage`, `sendMessengerMessage`, `sendInstagramMessage`, `markWhatsAppMessageAsRead`, and `validateMetaSignature`).
+   - **Unified Webhook Endpoints (`src/app/api/webhooks/meta/route.ts` & `/api/webhooks/whatsapp/route.ts`)**:
+     - `GET`: Handles Meta's webhook verification challenge (`hub.mode === 'subscribe'`, `hub.verify_token`, returning `hub.challenge` as plain text with 200 OK).
+     - `POST`: Parses incoming messages from WhatsApp Cloud API, Instagram Messaging, and Facebook Messenger.
+     - Performs tenant/chatbot resolution, Supabase Vector RAG knowledge retrieval (`match_documents`), conversational history assembly, Gemini AI text generation, and outbound dispatch via Meta Graph API.
+     - Logs conversations and messages to Supabase (`conversations` with channel tags and `messages`).
+   - **User Connection Pages & Journey Simulator (`src/components/dashboard-views/WhatsAppMetaView.tsx`)**:
+     - Built dedicated dashboard management hub with sub-tabs for WhatsApp setup, Instagram setup, Messenger setup, Webhook & Verification, and Interactive Journey Simulator.
+     - Included one-click copyable Webhook Callback URL and Verify Token, instant Webhook Handshake Verifier, and Meta App Review compliance references (`https://styleflo.ai/privacy`, `https://styleflo.ai/terms`).
+     - Interactive Journey Simulator allows testing the conversational AI flow directly in the dashboard with sample queries, live Gemini responses, and latency metrics.
+   - **Data Deletion Compliance Endpoint (`src/app/api/data-deletion/route.ts`)**:
+     - Provides the required Meta user data deletion callback with confirmation tracking codes.
+   - **Gateways View Update (`src/components/dashboard-views/OpenClawMonitorView.tsx`)**:
+     - Updated to reflect direct native Meta integration (bypassing OpenClaw) and direct routing to WhatsApp & Meta setup.
+
+2. **Verification**:
+   - `npm run build` compiled 100% cleanly across all 35 routes and widget scripts with 0 errors.
+   - All 10 tests in `tests/integrations.spec.ts` passed (100%), including Webhook Challenge handshake, WhatsApp alias forwarding, token mismatch 403 rejection, Journey Simulator AI generation, Settings API, and Data Deletion callback.
+
 ## Session Chat History Log
+
+* **User**: "lets start the whatsapp integration, i have created an app with mete, but cannot verify until the journey is ready, i have requested whatsapp, instagram and Messenger options" / "this integration will bypasss openclaw" / "i already have the privacy and terms pages on styleflo.ai. you also need to build the user connection pages in the dashboard"
+  * **Answer & Action**:
+    1. Created and applied migration `20260919120000_meta_native_integrations.sql` to store Meta credentials and channel toggles.
+    2. Implemented `src/lib/meta.ts` with Meta Graph API v21.0 send methods for WhatsApp, Instagram, and Messenger.
+    3. Built unified webhook handlers `/api/webhooks/meta` and `/api/webhooks/whatsapp` handling Meta `hub.challenge` verification and two-way AI conversational journeys.
+    4. Built `WhatsAppMetaView.tsx` with dedicated user connection pages for WhatsApp, Instagram, and Messenger, live Webhook Handshake Verifier, and an interactive Journey Simulator.
+    5. Implemented `/api/data-deletion` compliance callback and linked live privacy/terms pages (`https://styleflo.ai/privacy`, `https://styleflo.ai/terms`).
+    6. Verified with 10 Playwright integration tests and full production build (`npm run build`).
+
 
 * **User**: "tried ringing the mobile, still saying same message, text goes, no response, local number allows answer then hangs up" / "i have added the number in gateways for whatsapp and sms"
   * **Answer & Action**: 

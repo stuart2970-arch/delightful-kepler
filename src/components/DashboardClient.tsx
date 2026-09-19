@@ -14,6 +14,7 @@ import SuperAdminVoiceManagerView from './dashboard-views/SuperAdminVoiceManager
 import PlatformSettingsView from './dashboard-views/PlatformSettingsView';
 import MyProfileView from './dashboard-views/MyProfileView';
 import OpenClawMonitorView from './dashboard-views/OpenClawMonitorView';
+import WhatsAppMetaView from './dashboard-views/WhatsAppMetaView';
 import SetPasswordBanner from './SetPasswordBanner';
 import CapacityThresholdBanner from './CapacityThresholdBanner';
 import { useDashboardStore } from '../lib/store';
@@ -1361,6 +1362,7 @@ const globalBotId = '00000000-0000-0000-0000-000000000000';
 {/* Integrations Tab */}
           {activeTab === 'integrations' && <IntegrationsView />}
           {activeTab === 'telephony' && <TelephonyView />}
+          {activeTab === 'whatsapp' && <WhatsAppMetaView />}
           {activeTab === 'scheduling' && <SchedulingView />}
           {activeTab === 'my-profile' && <MyProfileView />}
           {activeTab === 'openclaw-monitor' && <OpenClawMonitorView />}

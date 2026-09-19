@@ -19,7 +19,7 @@ interface LogEntry {
 }
 
 export default function OpenClawMonitorView() {
-  const { tradingAddressPhone, twilioShadowNumber, tenantName, tenantId } = useDashboardStore();
+  const { tradingAddressPhone, twilioShadowNumber, tenantName, tenantId, setActiveTab } = useDashboardStore();
   const [nodeStatus] = useState<'healthy' | 'degraded' | 'offline'>('healthy');
   const [latency, setLatency] = useState<number>(42);
   const isWhatsappConnected = Boolean(tradingAddressPhone);
@@ -29,7 +29,7 @@ export default function OpenClawMonitorView() {
     { 
       id: '1', 
       name: 'WhatsApp', 
-      type: 'WhatsApp Business API', 
+      type: 'Meta WhatsApp Cloud API (Native)', 
       status: isWhatsappConnected ? 'connected' : 'disconnected', 
       activeTenants: isWhatsappConnected ? 1 : 0, 
       uptime: isWhatsappConnected ? '14d 6h' : '0m', 
@@ -207,18 +207,20 @@ export default function OpenClawMonitorView() {
                     <button 
                       type="button"
                       onClick={() => {
-                        setActiveConfigModal(channel);
-                        if (channel.name === 'Instagram') {
-                          setActivePhoneOrHandle('@styleflosalon');
-                        } else if (channel.name === 'Telegram') {
-                          setActivePhoneOrHandle('@StyleFloBot');
+                        if (channel.name === 'WhatsApp' || channel.name === 'Instagram') {
+                          setActiveTab('whatsapp');
                         } else {
-                          setActivePhoneOrHandle(tradingAddressPhone || twilioShadowNumber || '');
+                          setActiveConfigModal(channel);
+                          if (channel.name === 'Telegram') {
+                            setActivePhoneOrHandle('@StyleFloBot');
+                          } else {
+                            setActivePhoneOrHandle(tradingAddressPhone || twilioShadowNumber || '');
+                          }
                         }
                       }}
                       className="text-[#198fd9] hover:text-[#157ab9] font-bold text-xs hover:underline transition cursor-pointer"
                     >
-                      Settings →
+                      {channel.name === 'WhatsApp' || channel.name === 'Instagram' ? 'Configure Meta →' : 'Settings →'}
                     </button>
                   </div>
                 </div>
@@ -229,18 +231,22 @@ export default function OpenClawMonitorView() {
           {/* GATEWAY CALLBACK INFO */}
           <div className="bg-[var(--awb-color1)] border border-[var(--awb-color3)] p-6 rounded-2xl shadow-xl space-y-3">
             <h3 className="text-base font-bold text-[var(--awb-color8)] flex items-center gap-2">
-              🧠 Gateway Endpoint & Status
+              🧠 Native Meta Webhook Endpoint &amp; Status
             </h3>
             <p className="text-xs text-[var(--awb-color6)] leading-relaxed">
-              All 2-way client messages across WhatsApp, Instagram, and SMS are automatically received, authenticated, and processed by your StyleFlo AI assistant.
+              Direct Meta Graph API integration (bypassing OpenClaw). Incoming customer messages across WhatsApp, Instagram, and Messenger are authenticated and answered by your StyleFlo AI assistant.
             </p>
             <div className="bg-[var(--awb-color2)] rounded-xl p-3.5 font-mono text-xs border border-[var(--awb-color3)] text-[var(--awb-color8)] flex items-center justify-between">
               <div>
-                <span className="text-[#198fd9] font-bold">HTTPS Endpoint:</span> https://app.styleflo.ai/api/gateways/webhook
+                <span className="text-[#198fd9] font-bold">HTTPS Webhook:</span> https://app.styleflo.ai/api/webhooks/meta
               </div>
-              <span className="px-2 py-0.5 rounded bg-emerald-100 text-emerald-800 text-[10px] font-bold">
-                ✓ Verified Active
-              </span>
+              <button
+                type="button"
+                onClick={() => setActiveTab('whatsapp')}
+                className="px-2.5 py-1 rounded bg-emerald-100 hover:bg-emerald-200 text-emerald-800 text-[10px] font-bold transition cursor-pointer"
+              >
+                Manage Meta Channels →
+              </button>
             </div>
           </div>
         </div>
