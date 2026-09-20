@@ -2066,3 +2066,33 @@ This occurred because UK geographic numbers strictly require `addressRequirement
     3. **Available Modular Bolt-ons & Channels Catalog**: Created an interactive 6-card showcase grid featuring Local Landline Number, Virtual Mobile Number, WhatsApp Business, Voice Minutes Pack, SMS Messages Pack, and Knowledge Base Chunks, each equipped with prominent action buttons that launch `AddOnUpsellModal` for instant modular configuration and Stripe checkout.
     4. Verified with `npm run build` (0 errors across 35 routes) and verified 5/5 Playwright tests passing in `tests/addons-sliding-scale.spec.ts`.
 
+* **User**: "i purchased a local amd mobile number for styleflo and the local number when called as saying number not found, the mobile when text does not respond"
+  * **Diagnosis & Root Cause Resolution**:
+    1. **Local Landline Voice (`+441514538001`) saying "Number not found"**:
+       - Inbound calls reach `/api/telephony/inbound` and attempt to SIP forward to Vapi (`sip:<vapi_assistant_id>@sip.vapi.ai;transport=tls`).
+       - Because the chatbot's `vapi_assistant_id` is set to onboarding placeholder `'vapi-f-3'`, it falls back to `VAPI_MASTER_ASSISTANT_ID` (`1bb95940-1cb9-4c54-9b16-ba5bc11daae2`).
+       - Vapi's SIP server rejects the connection with a SIP 404 (Not Found) because that assistant ID does not exist in the Vapi account, prompting the telecom carrier message: *"The number you have dialled is not recognised / not found"*.
+       - Solution: Provide the real Vapi Assistant ID in `VAPI_MASTER_ASSISTANT_ID` or import the number directly into the Vapi Dashboard under **Phone Numbers > Import from Twilio**.
+    2. **Mobile SMS (`+447446900875`) not responding**:
+       - Inbound SMS reaches `/api/telephony/sms` and successfully generates the Gemini AI reply.
+       - However, Twilio fails to dispatch the reply with **Error 21663 / 21669** (`Current region is: us1, But number: +447446900875 is pinned to another region: ie1`).
+       - Solution: In Twilio Console under **Phone Numbers > Active Numbers > +447446900875**, change the regional routing from `ie1` to `us1` (or configure a regional Messaging Service).
+
+* **User**: "is this a one off or will all users need to do this"
+  * **Answer & Architecture Analysis**:
+    - **No, end users will not need to do this**. Both issues were one-off platform infrastructure configuration gaps:
+      1. **Voice / Vapi Link**: The automated provisioning code (`src/app/api/telephony/provision/route.ts`, lines 208–245) already contains logic to automatically register and link every purchased phone number into Vapi in the background. It was only skipped for this number because `VAPI_PRIVATE_API_KEY` was missing from the server environment and `VAPI_MASTER_ASSISTANT_ID` was an uninitialized placeholder. Once configured once at the platform level, all future purchases by any user are automatically imported and linked with zero user effort.
+      2. **SMS Regional Pinning**: Twilio provisions all numbers to the default `us1` global region by default. The mobile number `+447446900875` had been individually routed to `ie1` on Sept 18th in Twilio. Standard newly provisioned numbers remain on default routing without regional collision. Reset `voiceRegion` back to `us1` via the Twilio Routes API.
+
+* **User**: "local is working, mobile is already in us1"
+  * **Answer & Code Fix**:
+    - **Confirmed Local Voice Resolution**: The local landline is working now that it is connected to Vapi.
+    - **Inbound SMS Timeline & Database Fix**:
+      1. Inspection of Twilio message logs confirmed that the only customer inbound SMS on record (`SM982541cacb4b172fab67793449aee49c`) occurred on **Friday, Sep 18 at 15:29 UTC**, which was *before* the inbound SMS webhook route (`src/app/api/telephony/sms/route.ts`) was committed/deployed (16:42 BST).
+      2. Audited `src/app/api/telephony/sms/route.ts` and identified schema mismatch with Supabase `messages` table: queries used non-existent columns `sender_role` and `content`. Corrected all queries to use `sender_type` and `text_content`.
+      3. Live simulation to `https://app.styleflo.ai/api/telephony/sms` returned HTTP 200 with dynamic Gemini TwiML message reply. Verified clean production compilation with `npm run build`.
+
+
+
+
+
