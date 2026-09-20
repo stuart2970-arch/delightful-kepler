@@ -2092,6 +2092,14 @@ This occurred because UK geographic numbers strictly require `addressRequirement
       2. Audited `src/app/api/telephony/sms/route.ts` and identified schema mismatch with Supabase `messages` table: queries used non-existent columns `sender_role` and `content`. Corrected all queries to use `sender_type` and `text_content`.
       3. Live simulation to `https://app.styleflo.ai/api/telephony/sms` returned HTTP 200 with dynamic Gemini TwiML message reply. Verified clean production compilation with `npm run build`.
 
+* **User**: "i have got as far as this page but the messaging service will not allow me to save when i try to select it"
+  * **Answer & Guidance**: Clarified Twilio phone number messaging architecture:
+    - Users should **NOT** select a Messaging Service from the top dropdown. In Twilio, you configure either via a Messaging Service pool OR direct Webhooks.
+    - Because StyleFlo uses a direct webhook integration, the `Messaging Service` dropdown must be left unselected (`Select a Messaging Service`).
+    - The configuration shown in the user's screenshot (`Configure with: Webhook`, `A message comes in: Webhook -> https://app.styleflo.ai/api/telephony/sms`, `HTTP POST`) is already 100% complete and active.
+    - Verified Twilio incoming message logs and identified that zero customer inbound texts have registered in Twilio today. Prompted user to check whether their test was sent as standard cellular SMS (green bubble) vs. unsupported iMessage/RCS.
+
+
 
 
 
