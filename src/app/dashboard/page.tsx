@@ -35,6 +35,8 @@ async function createSupabaseServerClient() {
 }
 
 export default async function DashboardPage(props: { searchParams?: Promise<{ [key: string]: string | string[] | undefined }> }) {
+  const resolvedSearchParams = props.searchParams ? await props.searchParams : {};
+  const initialTab = typeof resolvedSearchParams.tab === 'string' ? resolvedSearchParams.tab : undefined;
   const supabase = await createSupabaseServerClient();
   
   const {
@@ -569,7 +571,7 @@ export default async function DashboardPage(props: { searchParams?: Promise<{ [k
         superadminData={superadminData}
         role={userRole}
         initialTab={initialTab}
-        isImpersonating={isSuperAdmin && typeof (props.searchParams ? await props.searchParams : {}).tenant_id === 'string'}
+        isImpersonating={isSuperAdmin && typeof resolvedSearchParams.tenant_id === 'string'}
       />
     </main>
   );
