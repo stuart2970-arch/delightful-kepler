@@ -105,6 +105,7 @@ interface DashboardClientProps {
   initialRegisteredAddressSameAsTrading?: boolean;
   initialRwgAddressSameAsTrading?: boolean;
   initialAppointments?: Record<string, unknown>[];
+  initialTab?: string;
 }
 
 export default function DashboardClient({
@@ -154,6 +155,7 @@ export default function DashboardClient({
   initialIsRegisteredCompany,
   initialRegisteredAddressSameAsTrading,
   initialRwgAddressSameAsTrading,
+  initialTab,
 }: DashboardClientProps) {
   // Synchronize state with store whenever props or tenantId change
   useEffect(() => {
@@ -269,6 +271,21 @@ export default function DashboardClient({
 
   const [isSavingAccountSettings, setIsSavingAccountSettings] = useState(false);
   const [checkoutNotification, setCheckoutNotification] = useState<{ type: 'success' | 'cancelled'; message: string } | null>(null);
+  const [isOpeningPortal, setIsOpeningPortal] = useState(false);
+  const [billingMessage, setBillingMessage] = useState<string | null>(null);
+
+  // Sync tab from URL params (?tab=...) or initialTab prop
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const params = new URLSearchParams(window.location.search);
+      const tabParam = params.get('tab') || initialTab;
+      if (tabParam) {
+        setActiveTab(tabParam as any);
+      }
+    } else if (initialTab) {
+      setActiveTab(initialTab as any);
+    }
+  }, [initialTab, setActiveTab]);
 
   // Auto-detect return from Stripe checkout
   useEffect(() => {
@@ -870,21 +887,60 @@ const globalBotId = '00000000-0000-0000-0000-000000000000';
                   </div>
                   <button
                     onClick={async () => {
+                      setIsOpeningPortal(true);
+                      setBillingMessage(null);
                       try {
+                        const isLocal = typeof window !== 'undefined' && (window.location.hostname.includes('localhost') || window.location.hostname.includes('.test'));
+                        const wpAppUrl = isLocal ? 'https://styleflo.test/app' : 'https://styleflo.ai/app';
                         const res = await fetch('/api/billing/checkout', {
                           method: 'POST',
                           headers: { 'Content-Type': 'application/json' },
-                          body: JSON.stringify({ action: 'portal', tenantId }),
+                          body: JSON.stringify({ action: 'portal', tenantId, returnUrl: wpAppUrl }),
                         });
                         const data = await res.json();
-                        if (data.url) window.location.href = data.url;
-                      } catch (err) { console.error(err); }
+                        if (data.url) {
+                          if (typeof window !== 'undefined' && window.top && window.top !== window) {
+                            window.top.location.href = data.url;
+                          } else {
+                            window.location.href = data.url;
+                          }
+                        } else if (data.error) {
+                          setBillingMessage(data.error);
+                          setIsOpeningPortal(false);
+                        } else {
+                          setBillingMessage('Unable to connect to Stripe portal. Please try again later.');
+                          setIsOpeningPortal(false);
+                        }
+                      } catch (err: any) {
+                        console.error('Stripe portal error:', err);
+                        setBillingMessage(err.message || 'Failed to open billing portal');
+                        setIsOpeningPortal(false);
+                      }
                     }}
-                    className="bg-[#198fd9] hover:bg-[#157ab9] text-white text-xs font-bold py-2.5 px-5 rounded-[4px] shadow-sm transition-colors whitespace-nowrap"
+                    disabled={isOpeningPortal}
+                    className="bg-[#198fd9] hover:bg-[#157ab9] disabled:bg-[#198fd9]/60 text-white text-xs font-bold py-2.5 px-5 rounded-[4px] shadow-sm transition-colors whitespace-nowrap flex items-center gap-2 cursor-pointer"
                   >
-                    Billing Receipts & Invoices
+                    {isOpeningPortal && (
+                      <div className="w-3 h-3 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                    )}
+                    {isOpeningPortal ? 'Connecting to Stripe...' : 'Billing Receipts & Invoices'}
                   </button>
                 </div>
+
+                {billingMessage && (
+                  <div className="mb-6 p-4 bg-amber-50 border border-amber-200 rounded-xl text-xs text-amber-800 flex items-center justify-between shadow-sm animate-fadeIn">
+                    <div className="flex items-center gap-2">
+                      <span className="text-base">ℹ️</span>
+                      <span>{billingMessage}</span>
+                    </div>
+                    <button 
+                      onClick={() => setBillingMessage(null)} 
+                      className="text-amber-600 hover:text-amber-900 font-bold ml-3 text-sm cursor-pointer"
+                    >
+                      ✕
+                    </button>
+                  </div>
+                )}
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                   {/* Chunks Progress */}
                   <div className="bg-[var(--awb-color2)] p-5 rounded-xl border border-[var(--awb-color3)]">

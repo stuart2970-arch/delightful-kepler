@@ -32,15 +32,58 @@ export async function POST(req: Request) {
         .from('tenants')
         .select('stripe_customer_id')
         .eq('id', tenantId)
-        .single();
+        .maybeSingle();
 
-      if (tenantError || !tenant?.stripe_customer_id) {
-        return NextResponse.json({ error: 'Customer not found or no Stripe customer ID associated' }, { status: 404 });
+      let stripeCustomerId = tenant?.stripe_customer_id;
+
+      // Fallback: If tenant has no stripe_customer_id saved, look up customer by email in Stripe
+      if (!stripeCustomerId) {
+        let resolvedEmail = customerEmail;
+        if (!resolvedEmail) {
+          const { data: profile } = await supabase
+            .from('profiles')
+            .select('id')
+            .eq('tenant_id', tenantId)
+            .limit(1)
+            .maybeSingle();
+
+          if (profile?.id) {
+            const { data: userData } = await supabase.auth.admin.getUserById(profile.id);
+            if (userData?.user?.email) {
+              resolvedEmail = userData.user.email;
+            }
+          }
+        }
+
+        if (resolvedEmail) {
+          const existingCustomers = await stripe.customers.list({
+            email: resolvedEmail,
+            limit: 1,
+          });
+          if (existingCustomers.data.length > 0) {
+            stripeCustomerId = existingCustomers.data[0].id;
+            await supabase
+              .from('tenants')
+              .update({ stripe_customer_id: stripeCustomerId })
+              .eq('id', tenantId);
+          }
+        }
       }
 
+      if (!stripeCustomerId) {
+        return NextResponse.json({ 
+          error: 'No Stripe billing profile found for this workspace yet. Receipts and invoices will appear here automatically after your first subscription or add-on is purchased.',
+          noCustomer: true 
+        }, { status: 200 });
+      }
+
+      const isLocal = process.env.NODE_ENV === 'development' || process.env.NEXT_PUBLIC_ENV === 'development';
+      const wpAppUrl = isLocal ? 'https://styleflo.test/app' : 'https://styleflo.ai/app';
+      const defaultReturnUrl = wpAppUrl;
+
       const session = await stripe.billingPortal.sessions.create({
-        customer: tenant.stripe_customer_id,
-        return_url: returnUrl || 'https://app.styleflo.ai/dashboard/billing',
+        customer: stripeCustomerId,
+        return_url: returnUrl || defaultReturnUrl,
       });
 
       return NextResponse.json({ url: session.url });
@@ -125,6 +168,9 @@ export async function POST(req: Request) {
         custom_sms: String(finalSms),
       };
 
+      const isLocal = process.env.NODE_ENV === 'development' || process.env.NEXT_PUBLIC_ENV === 'development';
+      const wpAppUrl = isLocal ? 'https://styleflo.test/app' : 'https://styleflo.ai/app';
+
       const sessionConfig: Stripe.Checkout.SessionCreateParams = {
         mode: 'subscription',
         payment_method_types: ['card'],
@@ -133,8 +179,8 @@ export async function POST(req: Request) {
         subscription_data: {
           metadata: metadataPayload,
         },
-        success_url: `${returnUrl || 'https://app.styleflo.ai/dashboard'}?checkout_status=success&session_id={CHECKOUT_SESSION_ID}`,
-        cancel_url: `${returnUrl || 'https://app.styleflo.ai/dashboard'}?checkout_status=cancelled`,
+        success_url: `${returnUrl || wpAppUrl}?checkout_status=success&session_id={CHECKOUT_SESSION_ID}`,
+        cancel_url: `${returnUrl || wpAppUrl}?checkout_status=cancelled`,
       };
 
       if (tenant?.stripe_customer_id) {
@@ -198,8 +244,8 @@ export async function POST(req: Request) {
         metadata: {
           tenant_id: tenantId || '',
         },
-        success_url: `${returnUrl || 'https://app.styleflo.ai/dashboard'}?checkout_status=success&session_id={CHECKOUT_SESSION_ID}`,
-        cancel_url: `${returnUrl || 'https://styleflo.ai/#pricing'}?checkout_status=cancelled`,
+        success_url: `${returnUrl || (process.env.NODE_ENV === 'development' || process.env.NEXT_PUBLIC_ENV === 'development' ? 'https://styleflo.test/app' : 'https://styleflo.ai/app')}?checkout_status=success&session_id={CHECKOUT_SESSION_ID}`,
+        cancel_url: `${returnUrl || (process.env.NODE_ENV === 'development' || process.env.NEXT_PUBLIC_ENV === 'development' ? 'https://styleflo.test/#pricing' : 'https://styleflo.ai/#pricing')}?checkout_status=cancelled`,
       });
 
       return NextResponse.json({ url: session.url, sessionId: session.id });

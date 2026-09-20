@@ -1997,3 +1997,64 @@ This occurred because UK geographic numbers strictly require `addressRequirement
     3. Re-architected `src/app/api/chatbots/[id]/route.ts` so voice entitlement is driven first and foremost by `usage_ledger` balance (`remainingVoiceMinutes > 0`).
     4. Re-architected `src/app/api/telephony/inbound/route.ts` to check `usage_ledger` voice minutes and gracefully route calls to the master assistant if the chatbot has legacy mock IDs.
     5. Verified test suites pass 100% and pushed changes to `origin/main`.
+
+### Session 41 — Billing Receipts & Invoices Navigation & Stripe Portal Route Resolution (2026-09-20)
+
+**Context**: User reported: *"at the moment, the billing reciepts and invoices navigation item breaks the app, please investigate"*.
+
+1. **Root Cause Analysis**:
+   - **Missing Return Route (`404 Not Found`)**:
+     - When clicking "Billing Receipts & Invoices", `src/app/api/billing/checkout/route.ts` created a Stripe Billing Portal session with a fallback `return_url: 'https://app.styleflo.ai/dashboard/billing'`.
+     - Next.js App Router had no route for `/dashboard/billing` (the dashboard is a client-side tab system at `/dashboard`).
+     - When users clicked "← Return to StyleFlo" inside the Stripe Billing Portal, Stripe redirected them to `https://app.styleflo.ai/dashboard/billing`, crashing the browser into a `404 - This page could not be found` screen and kicking them out of the app.
+   - **Missing Stripe Customer ID Handling**:
+     - For workspaces without a pre-existing `stripe_customer_id` stored in `public.tenants`, the backend returned a raw `404` error with no client-side error handling, causing the button to fail silently with no feedback.
+   - **Environment-Specific Return URLs**:
+     - The return URL was hardcoded to production (`https://app.styleflo.ai/dashboard/billing`), breaking local development and preview environments.
+   - **Missing URL Tab Synchronization**:
+     - The dashboard client did not inspect the `?tab=billing` URL parameter on page load, meaning returning users would always land back on the default `chatbots` tab instead of their billing view.
+
+2. **Fixes & Enhancements Applied**:
+   - **Dedicated Redirect Route (`src/app/dashboard/billing/page.tsx`)**:
+     - Created a Next.js server page at `/dashboard/billing` that immediately issues a clean server redirect to `/dashboard?tab=billing`.
+     - Guarantees zero 404s for any legacy bookmarks, external links, or Stripe return redirects.
+   - **Stripe Customer Fallback & Dynamic Return URL (`src/app/api/billing/checkout/route.ts`)**:
+     - If `tenant.stripe_customer_id` is null, the endpoint automatically checks Stripe for an existing customer matching the user's email address and links it to `tenants.stripe_customer_id`.
+     - If no customer exists in Stripe, returns a friendly 200 message with `{ noCustomer: true }` explaining that receipts appear after the first purchase.
+     - Updated default return URL fallback to `${NEXT_PUBLIC_SITE_URL}/dashboard?tab=billing`.
+   - **Tab Synchronization & Responsive UI Feedback (`src/components/DashboardClient.tsx` & `src/app/dashboard/page.tsx`)**:
+      - Added `initialTab` server prop and client-side URL search parameter detection for `?tab=...` so that `/dashboard?tab=billing` instantly activates the Subscriptions & Add-ons view.
+      - Added `isOpeningPortal` loading spinner state to the "Billing Receipts & Invoices" button ("Connecting to Stripe...").
+      - Rendered an inline dismissible info banner if no Stripe billing account has been established yet.
+   - **Iframe Sandboxing & WordPress Wrapper Escape (`styleflo.ai/app`)**:
+      - B2B users access the dashboard embedded inside the WordPress wrapper at `https://styleflo.ai/app` (or `https://styleflo.test/app` locally).
+      - Because Stripe Billing Portal and Stripe Checkout enforce `X-Frame-Options: DENY` and CSP `frame-ancestors 'none'`, opening Stripe via `window.location.href` inside the iframe causes browser security blocks and a broken app screen.
+      - Added top-window breakout logic across `DashboardClient.tsx`, `AddOnUpsellModal.tsx`, `BillingView.tsx`, and `onboard/page.tsx`:
+        ```typescript
+        if (typeof window !== 'undefined' && window.top && window.top !== window) {
+          window.top.location.href = data.url;
+        } else {
+          window.location.href = data.url;
+        }
+        ```
+      - Configured all Stripe `return_url`, `success_url`, and `cancel_url` parameters in both frontend callers and the backend checkout route (`/api/billing/checkout`) to point strictly to the WordPress parent wrapper (`https://styleflo.ai/app` in production or `https://styleflo.test/app` in dev) rather than the internal `app.styleflo.ai` backend origin.
+      - Added redirect at `/dashboard/billing` pointing to `https://styleflo.ai/app`.
+
+3. **Verification**:
+   - Tested Stripe Billing Portal session creation and verified top-window navigation.
+   - `npm run build` compiled 100% cleanly across all 35 routes and widget scripts.
+   - Verified automated test suite in `tests/addons-sliding-scale.spec.ts`.
+
+## Session Chat History Log
+
+* **User**: "How do b2b users purchase additional minutes for their plan"
+  * **Answer & Action**: Explained the two pathways: (1) Sliding Voice Minute Packs (20 to 100 mins/mo in £1 increments with 3-month rollover) triggered via the 85% capacity threshold banner or modal, and (2) Phone Number Bolt-ons (Local landlines bundled with 10–30 mins, or Mobile numbers with 10 mins + SMS). Traced the end-to-end flow from slider UI to Stripe Checkout to `usage_ledger` allocation and dynamic voice entitlement gating.
+
+* **User**: "at the moment, the billing reciepts and invoices navigation item breaks the app, please investigate"
+  * **Answer & Action**: Diagnosed that Stripe Billing Portal return URL was hardcoded to `/dashboard/billing`, which did not exist as a route in Next.js and caused a 404 page crash when returning from Stripe. Also identified silent failure when workspaces had no `stripe_customer_id`. Created `src/app/dashboard/billing/page.tsx` redirecting to `/dashboard?tab=billing`, added dynamic customer resolution and loading states, enabled `?tab=billing` URL state hydration, and verified clean compilation via `npm run build`.
+
+* **User**: "have you taken into consideration the fact thatb2b users can only access the appat styleflo.ai/app"
+  * **Answer & Action**: Fully accounted for the WordPress iframe architecture (`styleflo.ai/app`):
+    1. **Iframe Breakout for Stripe**: Stripe Billing Portal and Stripe Checkout enforce `X-Frame-Options: DENY` and CSP `frame-ancestors 'none'`, meaning navigating inside the iframe completely breaks with browser security errors. Updated `DashboardClient.tsx`, `AddOnUpsellModal.tsx`, and `BillingView.tsx` to detect `window.top !== window` and navigate the top window (`window.top.location.href = data.url`).
+    2. **Return Destination Routing**: Updated all Stripe checkout sessions, portal sessions, and `/dashboard/billing` redirects to return users to `https://styleflo.ai/app` (or `https://styleflo.test/app` in dev), preserving their session inside the WordPress container without dumping them onto raw backend domain URLs or 404s.
+    3. Verified full Next.js production build (`npm run build`).

@@ -184,6 +184,7 @@ export default async function DashboardPage(props: { searchParams?: Promise<{ [k
     let isImpersonating = false;
     let queryClient = supabase;
     const resolvedParams = props.searchParams ? await props.searchParams : {};
+    const initialTab = typeof resolvedParams.tab === 'string' ? resolvedParams.tab : undefined;
     
     if (isSuperAdmin && resolvedParams.tenant_id && typeof resolvedParams.tenant_id === 'string') {
       tenantId = resolvedParams.tenant_id;
@@ -567,6 +568,7 @@ export default async function DashboardPage(props: { searchParams?: Promise<{ [k
         billingData={billingData}
         superadminData={superadminData}
         role={userRole}
+        initialTab={initialTab}
         isImpersonating={isSuperAdmin && typeof (props.searchParams ? await props.searchParams : {}).tenant_id === 'string'}
       />
     </main>

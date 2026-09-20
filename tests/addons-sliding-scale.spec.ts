@@ -44,4 +44,12 @@ test.describe('Modular Add-Ons & Sliding Scale Checkout API', () => {
     });
     expect([404, 500]).toContain(res.status());
   });
+
+  test('POST /api/billing/checkout with action: portal returns structured response or 400 when tenantId is missing', async ({ request }) => {
+    const res = await request.post('/api/billing/checkout', {
+      headers: { 'Content-Type': 'application/json' },
+      data: { action: 'portal' },
+    });
+    expect([400, 500]).toContain(res.status());
+  });
 });

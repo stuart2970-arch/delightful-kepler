@@ -87,6 +87,9 @@ export default function AddOnUpsellModal({ isOpen, onClose, category, tenantId }
     setIsSubscribing(addonCatalogId);
     setError(null);
     try {
+      const isLocal = typeof window !== 'undefined' && (window.location.hostname.includes('localhost') || window.location.hostname.includes('.test'));
+      const wpAppUrl = isLocal ? 'https://styleflo.test/app' : 'https://styleflo.ai/app';
+
       const response = await fetch('/api/billing/checkout', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -96,6 +99,7 @@ export default function AddOnUpsellModal({ isOpen, onClose, category, tenantId }
           customPricePence,
           customVoiceMinutes,
           customSms,
+          returnUrl: wpAppUrl,
         }),
       });
 
@@ -106,7 +110,11 @@ export default function AddOnUpsellModal({ isOpen, onClose, category, tenantId }
       }
 
       if (data.url) {
-        window.location.href = data.url;
+        if (typeof window !== 'undefined' && window.top && window.top !== window) {
+          window.top.location.href = data.url;
+        } else {
+          window.location.href = data.url;
+        }
       } else {
         throw new Error('No checkout URL received from payment provider');
       }
