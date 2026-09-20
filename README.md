@@ -2058,3 +2058,11 @@ This occurred because UK geographic numbers strictly require `addressRequirement
     1. **Iframe Breakout for Stripe**: Stripe Billing Portal and Stripe Checkout enforce `X-Frame-Options: DENY` and CSP `frame-ancestors 'none'`, meaning navigating inside the iframe completely breaks with browser security errors. Updated `DashboardClient.tsx`, `AddOnUpsellModal.tsx`, and `BillingView.tsx` to detect `window.top !== window` and navigate the top window (`window.top.location.href = data.url`).
     2. **Return Destination Routing**: Updated all Stripe checkout sessions, portal sessions, and `/dashboard/billing` redirects to return users to `https://styleflo.ai/app` (or `https://styleflo.test/app` in dev), preserving their session inside the WordPress container without dumping them onto raw backend domain URLs or 404s.
     3. Verified full Next.js production build (`npm run build`).
+
+* **User**: "in subscriptions and ad ons, can you add a button to each one that launches the respective modal for purchasing bolt ons"
+  * **Answer & Action**: Upgraded the **Subscriptions & Add-ons** (`billing`) tab in `DashboardClient.tsx` to provide 1-click modal launch buttons across every item:
+    1. **Entitlement Progress Cards**: Added "+ Add Chunks" (`data_pack`), "+ Add Minutes" (`voice_pack`), "+ Add SMS" (`sms_pack`), and "Upgrade Plan" (redirects to pricing page) directly in the card headers.
+    2. **Active Add-ons**: Added an "Adjust" action button to active add-on cards launching their respective configuration modal.
+    3. **Available Modular Bolt-ons & Channels Catalog**: Created an interactive 6-card showcase grid featuring Local Landline Number, Virtual Mobile Number, WhatsApp Business, Voice Minutes Pack, SMS Messages Pack, and Knowledge Base Chunks, each equipped with prominent action buttons that launch `AddOnUpsellModal` for instant modular configuration and Stripe checkout.
+    4. Verified with `npm run build` (0 errors across 35 routes) and verified 5/5 Playwright tests passing in `tests/addons-sliding-scale.spec.ts`.
+

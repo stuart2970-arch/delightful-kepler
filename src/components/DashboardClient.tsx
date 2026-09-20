@@ -17,6 +17,7 @@ import OpenClawMonitorView from './dashboard-views/OpenClawMonitorView';
 import WhatsAppMetaView from './dashboard-views/WhatsAppMetaView';
 import SetPasswordBanner from './SetPasswordBanner';
 import CapacityThresholdBanner from './CapacityThresholdBanner';
+import AddOnUpsellModal, { AddOnCategory } from './AddOnUpsellModal';
 import { useDashboardStore } from '../lib/store';
 
 interface Chatbot {
@@ -273,6 +274,7 @@ export default function DashboardClient({
   const [checkoutNotification, setCheckoutNotification] = useState<{ type: 'success' | 'cancelled'; message: string } | null>(null);
   const [isOpeningPortal, setIsOpeningPortal] = useState(false);
   const [billingMessage, setBillingMessage] = useState<string | null>(null);
+  const [billingUpsellCategory, setBillingUpsellCategory] = useState<AddOnCategory | null>(null);
 
   // Sync tab from URL params (?tab=...) or initialTab prop
   useEffect(() => {
@@ -944,7 +946,16 @@ const globalBotId = '00000000-0000-0000-0000-000000000000';
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                   {/* Chunks Progress */}
                   <div className="bg-[var(--awb-color2)] p-5 rounded-xl border border-[var(--awb-color3)]">
-                    <h4 className="text-sm font-bold text-[var(--awb-color7)] mb-2">Knowledge Base Data Chunks</h4>
+                    <div className="flex justify-between items-start mb-2">
+                      <h4 className="text-sm font-bold text-[var(--awb-color7)]">Knowledge Base Data Chunks</h4>
+                      <button
+                        onClick={() => setBillingUpsellCategory('data_pack')}
+                        className="bg-[#198fd9] hover:bg-[#157ab9] text-white text-[11px] font-bold py-1 px-3 rounded-[4px] shadow-sm transition-colors cursor-pointer flex items-center gap-1 shrink-0"
+                        title="Purchase additional Knowledge Base data capacity"
+                      >
+                        + Add Chunks
+                      </button>
+                    </div>
                     <div className="flex justify-between text-xs text-[var(--awb-color6)] mb-2">
                       <span>{billingData?.usage?.chunks || 0} used</span>
                       <span>
@@ -958,7 +969,24 @@ const globalBotId = '00000000-0000-0000-0000-000000000000';
 
                   {/* Message Allowance */}
                   <div className="bg-[var(--awb-color2)] p-5 rounded-xl border border-[var(--awb-color3)]">
-                    <h4 className="text-sm font-bold text-[var(--awb-color7)] mb-2">Monthly Chat Messages</h4>
+                    <div className="flex justify-between items-start mb-2">
+                      <h4 className="text-sm font-bold text-[var(--awb-color7)]">Monthly Chat Messages</h4>
+                      <button
+                        onClick={() => {
+                          const isLocal = typeof window !== 'undefined' && (window.location.hostname.includes('localhost') || window.location.hostname.includes('.test'));
+                          const target = `${isLocal ? 'https://styleflo.test' : 'https://styleflo.ai'}/pricing?tenant_id=${tenantId}`;
+                          if (typeof window !== 'undefined' && window.top && window.top !== window) {
+                            window.top.location.href = target;
+                          } else {
+                            window.location.href = target;
+                          }
+                        }}
+                        className="bg-[var(--awb-color3)] hover:bg-[var(--awb-color4)] text-[var(--awb-color8)] text-[11px] font-bold py-1 px-3 rounded-[4px] shadow-sm transition-colors cursor-pointer flex items-center gap-1 shrink-0"
+                        title="Upgrade plan to increase monthly chat message quota"
+                      >
+                        Upgrade Plan
+                      </button>
+                    </div>
                     <div className="flex justify-between text-xs text-[var(--awb-color6)] mb-2">
                       <span>{billingData?.usage?.messages || 0} used this month</span>
                       <span>
@@ -972,9 +1000,18 @@ const globalBotId = '00000000-0000-0000-0000-000000000000';
 
                   {/* Voice Minutes (Rolling) */}
                   <div className="bg-[var(--awb-color2)] p-5 rounded-xl border border-[var(--awb-color3)]">
-                    <div className="flex items-center gap-2 mb-2">
-                      <h4 className="text-sm font-bold text-[var(--awb-color7)]">Shared Voice Minutes</h4>
-                      <span className="text-[9px] font-bold bg-amber-100 text-amber-700 px-1.5 py-0.5 rounded-full">3-month rollover</span>
+                    <div className="flex justify-between items-start mb-2">
+                      <div className="flex items-center gap-2">
+                        <h4 className="text-sm font-bold text-[var(--awb-color7)]">Shared Voice Minutes</h4>
+                        <span className="text-[9px] font-bold bg-amber-100 text-amber-700 px-1.5 py-0.5 rounded-full">3-month rollover</span>
+                      </div>
+                      <button
+                        onClick={() => setBillingUpsellCategory('voice_pack')}
+                        className="bg-[#9333ea] hover:bg-[#7e22ce] text-white text-[11px] font-bold py-1 px-3 rounded-[4px] shadow-sm transition-colors cursor-pointer flex items-center gap-1 shrink-0"
+                        title="Purchase sliding voice minute pack (20 to 100 mins)"
+                      >
+                        + Add Minutes
+                      </button>
                     </div>
                     <div className="flex justify-between text-xs text-[var(--awb-color6)] mb-2">
                       <span>{billingData?.rolloverUsage?.voice_minutes_consumed || 0} used</span>
@@ -987,9 +1024,18 @@ const globalBotId = '00000000-0000-0000-0000-000000000000';
 
                   {/* SMS (Rolling) */}
                   <div className="bg-[var(--awb-color2)] p-5 rounded-xl border border-[var(--awb-color3)]">
-                    <div className="flex items-center gap-2 mb-2">
-                      <h4 className="text-sm font-bold text-[var(--awb-color7)]">SMS Messages</h4>
-                      <span className="text-[9px] font-bold bg-amber-100 text-amber-700 px-1.5 py-0.5 rounded-full">3-month rollover</span>
+                    <div className="flex justify-between items-start mb-2">
+                      <div className="flex items-center gap-2">
+                        <h4 className="text-sm font-bold text-[var(--awb-color7)]">SMS Messages</h4>
+                        <span className="text-[9px] font-bold bg-amber-100 text-amber-700 px-1.5 py-0.5 rounded-full">3-month rollover</span>
+                      </div>
+                      <button
+                        onClick={() => setBillingUpsellCategory('sms_pack')}
+                        className="bg-[#198fd9] hover:bg-[#157ab9] text-white text-[11px] font-bold py-1 px-3 rounded-[4px] shadow-sm transition-colors cursor-pointer flex items-center gap-1 shrink-0"
+                        title="Purchase sliding SMS pack (100 to 500 SMS)"
+                      >
+                        + Add SMS
+                      </button>
                     </div>
                     <div className="flex justify-between text-xs text-[var(--awb-color6)] mb-2">
                       <span>{billingData?.rolloverUsage?.sms_consumed || 0} used</span>
@@ -1007,19 +1053,182 @@ const globalBotId = '00000000-0000-0000-0000-000000000000';
                     <h4 className="text-sm font-bold text-[var(--awb-color7)] mb-3">Active Add-ons</h4>
                     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
                       {billingData.addons.map((addon: any) => (
-                        <div key={addon.id} className="bg-[var(--awb-color2)] border border-[var(--awb-color3)] rounded-xl p-4 flex items-center gap-3">
-                          <div className="w-8 h-8 rounded-lg bg-[#260475] text-white flex items-center justify-center text-xs font-bold">
-                            {addon.category === 'landline' ? '📞' : addon.category === 'mobile' ? '📱' : addon.category === 'whatsapp' ? '💬' : addon.category === 'voice_pack' ? '🎙️' : addon.category === 'sms_pack' ? '✉️' : '📦'}
+                        <div key={addon.id} className="bg-[var(--awb-color2)] border border-[var(--awb-color3)] rounded-xl p-4 flex items-center justify-between gap-3">
+                          <div className="flex items-center gap-3 min-w-0">
+                            <div className="w-8 h-8 rounded-lg bg-[#260475] text-white flex items-center justify-center text-xs font-bold shrink-0">
+                              {addon.category === 'landline' ? '📞' : addon.category === 'mobile' ? '📱' : addon.category === 'whatsapp' ? '💬' : addon.category === 'voice_pack' ? '🎙️' : addon.category === 'sms_pack' ? '✉️' : '📦'}
+                            </div>
+                            <div className="min-w-0">
+                              <p className="text-xs font-bold text-[var(--awb-color8)] truncate">{addon.name}</p>
+                              <p className="text-[10px] text-[var(--awb-color6)]">£{(addon.monthly_price_pence / 100).toFixed(2)}/mo</p>
+                            </div>
                           </div>
-                          <div className="flex-1 min-w-0">
-                            <p className="text-xs font-bold text-[var(--awb-color8)] truncate">{addon.name}</p>
-                            <p className="text-[10px] text-[var(--awb-color6)]">£{(addon.monthly_price_pence / 100).toFixed(2)}/mo</p>
+                          <div className="flex items-center gap-2 shrink-0">
+                            <button
+                              onClick={() => setBillingUpsellCategory(addon.category as AddOnCategory)}
+                              className="bg-[var(--awb-color1)] hover:bg-[var(--awb-color3)] text-[var(--awb-color8)] border border-[var(--awb-color3)] text-[11px] font-bold py-1 px-2.5 rounded-[4px] transition-colors cursor-pointer"
+                            >
+                              Adjust
+                            </button>
+                            <div className="w-2 h-2 rounded-full bg-green-500 shrink-0" title="Active"></div>
                           </div>
-                          <div className="w-2 h-2 rounded-full bg-green-500 shrink-0" title="Active"></div>
                         </div>
                       ))}
                     </div>
                   </div>
+                )}
+
+                {/* Available Modular Bolt-ons & Channels Catalog */}
+                <div className="mt-8 pt-6 border-t border-[var(--awb-color3)]">
+                  <div className="mb-4">
+                    <h4 className="text-base font-extrabold text-[var(--awb-color8)]">Available Modular Bolt-ons</h4>
+                    <p className="text-xs text-[var(--awb-color6)] mt-0.5">
+                      Enhance your AI workspace with dedicated phone numbers, channels, and sliding capacity extensions.
+                    </p>
+                  </div>
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                    {/* 1. Landline */}
+                    <div className="bg-[var(--awb-color2)] border border-[var(--awb-color3)] hover:border-[#198fd9] rounded-xl p-4 flex flex-col justify-between transition-colors shadow-sm">
+                      <div>
+                        <div className="flex items-center justify-between mb-2">
+                          <div className="flex items-center gap-2">
+                            <span className="text-xl">📞</span>
+                            <h5 className="text-xs font-extrabold text-[var(--awb-color8)]">Local Landline Number</h5>
+                          </div>
+                          <span className="text-[11px] font-bold text-[var(--awb-color5)]">From £8.99/mo</span>
+                        </div>
+                        <p className="text-[11px] text-[var(--awb-color6)] mb-3 leading-relaxed">
+                          Dedicated local UK area number (01/02) bundled with 10–30 shared voice minutes.
+                        </p>
+                      </div>
+                      <button
+                        onClick={() => setBillingUpsellCategory('landline')}
+                        className="w-full bg-[#198fd9] hover:bg-[#157ab9] text-white text-xs font-bold py-2 px-3 rounded-[4px] shadow-sm transition-colors cursor-pointer flex items-center justify-center gap-1.5"
+                      >
+                        <span>📞</span> Get Landline Bolt-on
+                      </button>
+                    </div>
+
+                    {/* 2. Mobile */}
+                    <div className="bg-[var(--awb-color2)] border border-[var(--awb-color3)] hover:border-[#198fd9] rounded-xl p-4 flex flex-col justify-between transition-colors shadow-sm">
+                      <div>
+                        <div className="flex items-center justify-between mb-2">
+                          <div className="flex items-center gap-2">
+                            <span className="text-xl">📱</span>
+                            <h5 className="text-xs font-extrabold text-[var(--awb-color8)]">Virtual Mobile Number</h5>
+                          </div>
+                          <span className="text-[11px] font-bold text-[var(--awb-color5)]">From £10.99/mo</span>
+                        </div>
+                        <p className="text-[11px] text-[var(--awb-color6)] mb-3 leading-relaxed">
+                          UK 07 virtual mobile number with inbound/outbound SMS and 10 shared voice minutes.
+                        </p>
+                      </div>
+                      <button
+                        onClick={() => setBillingUpsellCategory('mobile')}
+                        className="w-full bg-[#198fd9] hover:bg-[#157ab9] text-white text-xs font-bold py-2 px-3 rounded-[4px] shadow-sm transition-colors cursor-pointer flex items-center justify-center gap-1.5"
+                      >
+                        <span>📱</span> Get Mobile Bolt-on
+                      </button>
+                    </div>
+
+                    {/* 3. WhatsApp */}
+                    <div className="bg-[var(--awb-color2)] border border-[var(--awb-color3)] hover:border-[#198fd9] rounded-xl p-4 flex flex-col justify-between transition-colors shadow-sm">
+                      <div>
+                        <div className="flex items-center justify-between mb-2">
+                          <div className="flex items-center gap-2">
+                            <span className="text-xl">💬</span>
+                            <h5 className="text-xs font-extrabold text-[var(--awb-color8)]">WhatsApp Business</h5>
+                          </div>
+                          <span className="text-[11px] font-bold text-[var(--awb-color5)]">From £9.99/mo</span>
+                        </div>
+                        <p className="text-[11px] text-[var(--awb-color6)] mb-3 leading-relaxed">
+                          Official Meta WhatsApp Cloud API integration with automated AI responses and booking.
+                        </p>
+                      </div>
+                      <button
+                        onClick={() => setBillingUpsellCategory('whatsapp')}
+                        className="w-full bg-[#10b981] hover:bg-[#059669] text-white text-xs font-bold py-2 px-3 rounded-[4px] shadow-sm transition-colors cursor-pointer flex items-center justify-center gap-1.5"
+                      >
+                        <span>💬</span> Enable WhatsApp Bolt-on
+                      </button>
+                    </div>
+
+                    {/* 4. Voice Minutes */}
+                    <div className="bg-[var(--awb-color2)] border border-[var(--awb-color3)] hover:border-[#9333ea] rounded-xl p-4 flex flex-col justify-between transition-colors shadow-sm">
+                      <div>
+                        <div className="flex items-center justify-between mb-2">
+                          <div className="flex items-center gap-2">
+                            <span className="text-xl">🎙️</span>
+                            <h5 className="text-xs font-extrabold text-[var(--awb-color8)]">Voice Minutes Pack</h5>
+                          </div>
+                          <span className="text-[11px] font-bold text-[#9333ea]">From £15.00/mo</span>
+                        </div>
+                        <p className="text-[11px] text-[var(--awb-color6)] mb-3 leading-relaxed">
+                          Sliding scale 20–100 shared voice minutes with 3-month rollover protection.
+                        </p>
+                      </div>
+                      <button
+                        onClick={() => setBillingUpsellCategory('voice_pack')}
+                        className="w-full bg-[#9333ea] hover:bg-[#7e22ce] text-white text-xs font-bold py-2 px-3 rounded-[4px] shadow-sm transition-colors cursor-pointer flex items-center justify-center gap-1.5"
+                      >
+                        <span>🎙️</span> Configure Voice Pack
+                      </button>
+                    </div>
+
+                    {/* 5. SMS Pack */}
+                    <div className="bg-[var(--awb-color2)] border border-[var(--awb-color3)] hover:border-[#198fd9] rounded-xl p-4 flex flex-col justify-between transition-colors shadow-sm">
+                      <div>
+                        <div className="flex items-center justify-between mb-2">
+                          <div className="flex items-center gap-2">
+                            <span className="text-xl">✉️</span>
+                            <h5 className="text-xs font-extrabold text-[var(--awb-color8)]">SMS Messages Pack</h5>
+                          </div>
+                          <span className="text-[11px] font-bold text-[var(--awb-color5)]">From £5.99/mo</span>
+                        </div>
+                        <p className="text-[11px] text-[var(--awb-color6)] mb-3 leading-relaxed">
+                          Sliding scale 100–500 SMS text messages with 3-month rollover protection.
+                        </p>
+                      </div>
+                      <button
+                        onClick={() => setBillingUpsellCategory('sms_pack')}
+                        className="w-full bg-[#198fd9] hover:bg-[#157ab9] text-white text-xs font-bold py-2 px-3 rounded-[4px] shadow-sm transition-colors cursor-pointer flex items-center justify-center gap-1.5"
+                      >
+                        <span>✉️</span> Configure SMS Pack
+                      </button>
+                    </div>
+
+                    {/* 6. Knowledge Chunks */}
+                    <div className="bg-[var(--awb-color2)] border border-[var(--awb-color3)] hover:border-[#198fd9] rounded-xl p-4 flex flex-col justify-between transition-colors shadow-sm">
+                      <div>
+                        <div className="flex items-center justify-between mb-2">
+                          <div className="flex items-center gap-2">
+                            <span className="text-xl">📦</span>
+                            <h5 className="text-xs font-extrabold text-[var(--awb-color8)]">Knowledge Base Chunks</h5>
+                          </div>
+                          <span className="text-[11px] font-bold text-[var(--awb-color5)]">From £4.99/mo</span>
+                        </div>
+                        <p className="text-[11px] text-[var(--awb-color6)] mb-3 leading-relaxed">
+                          Additional vector database capacity for large PDF catalogs, menus, and site crawls.
+                        </p>
+                      </div>
+                      <button
+                        onClick={() => setBillingUpsellCategory('data_pack')}
+                        className="w-full bg-[#198fd9] hover:bg-[#157ab9] text-white text-xs font-bold py-2 px-3 rounded-[4px] shadow-sm transition-colors cursor-pointer flex items-center justify-center gap-1.5"
+                      >
+                        <span>📦</span> Add Knowledge Capacity
+                      </button>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Upsell Modal Mount for Subscriptions & Add-ons Tab */}
+                {billingUpsellCategory && (
+                  <AddOnUpsellModal
+                    isOpen={true}
+                    onClose={() => setBillingUpsellCategory(null)}
+                    category={billingUpsellCategory}
+                    tenantId={tenantId}
+                  />
                 )}
               </div>
 
