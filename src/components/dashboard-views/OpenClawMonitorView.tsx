@@ -19,11 +19,11 @@ interface LogEntry {
 }
 
 export default function OpenClawMonitorView() {
-  const { tradingAddressPhone, twilioShadowNumber, tenantName, tenantId, setActiveTab } = useDashboardStore();
+  const { tradingAddressPhone, twilioShadowNumber, twilioMobileNumber, tenantName, tenantId, setActiveTab } = useDashboardStore();
   const [nodeStatus] = useState<'healthy' | 'degraded' | 'offline'>('healthy');
   const [latency, setLatency] = useState<number>(42);
   const isWhatsappConnected = Boolean(tradingAddressPhone);
-  const isSmsConnected = Boolean(twilioShadowNumber);
+  const isSmsConnected = Boolean(twilioShadowNumber || twilioMobileNumber);
 
   const channels: ChannelConnection[] = useMemo(() => [
     { 
@@ -77,14 +77,14 @@ export default function OpenClawMonitorView() {
   const [logLevelFilter, setLogLevelFilter] = useState<'all' | 'info' | 'warn' | 'error'>('all');
 
   const [activeConfigModal, setActiveConfigModal] = useState<ChannelConnection | null>(null);
-  const [activePhoneOrHandle, setActivePhoneOrHandle] = useState<string>(tradingAddressPhone || twilioShadowNumber || '');
+  const [activePhoneOrHandle, setActivePhoneOrHandle] = useState<string>(tradingAddressPhone || twilioShadowNumber || twilioMobileNumber || '');
   const [isSavingChannelConfig, setIsSavingChannelConfig] = useState(false);
 
   useEffect(() => {
-    if (tradingAddressPhone || twilioShadowNumber) {
-      setActivePhoneOrHandle(tradingAddressPhone || twilioShadowNumber || '');
+    if (tradingAddressPhone || twilioShadowNumber || twilioMobileNumber) {
+      setActivePhoneOrHandle(tradingAddressPhone || twilioShadowNumber || twilioMobileNumber || '');
     }
-  }, [tradingAddressPhone, twilioShadowNumber]);
+  }, [tradingAddressPhone, twilioShadowNumber, twilioMobileNumber]);
 
   const [logs, setLogs] = useState<LogEntry[]>([
     { timestamp: new Date().toTimeString().split(' ')[0], level: 'info', channel: 'SYSTEM', message: 'Messaging Gateway v1.8 active.' },
@@ -204,24 +204,58 @@ export default function OpenClawMonitorView() {
 
                   <div className="mt-3 flex justify-between items-center text-xs text-[var(--awb-color6)] pt-2 border-t border-[var(--awb-color3)]">
                     <span className="text-[11px]">Last msg: <strong className="text-[var(--awb-color8)]">{channel.lastMessageAt}</strong></span>
-                    <button 
-                      type="button"
-                      onClick={() => {
-                        if (channel.name === 'WhatsApp' || channel.name === 'Instagram') {
-                          setActiveTab('whatsapp');
-                        } else {
-                          setActiveConfigModal(channel);
-                          if (channel.name === 'Telegram') {
-                            setActivePhoneOrHandle('@StyleFloBot');
+                    <div className="flex items-center gap-2">
+                      {channel.status === 'connected' && (channel.name === 'SMS (Twilio)' || channel.name === 'WhatsApp') && (
+                        <button
+                          type="button"
+                          onClick={async (e) => {
+                            e.stopPropagation();
+                            if (!confirm(`Are you sure you want to disconnect ${channel.name}?`)) return;
+                            try {
+                              if (channel.name === 'SMS (Twilio)') {
+                                await fetch('/api/tenants/settings', {
+                                  method: 'PATCH',
+                                  headers: { 'Content-Type': 'application/json' },
+                                  body: JSON.stringify({ tenantId, twilioShadowNumber: null, twilioMobileNumber: null })
+                                });
+                                useDashboardStore.setState({ twilioShadowNumber: null, twilioMobileNumber: null });
+                              } else if (channel.name === 'WhatsApp') {
+                                await fetch('/api/tenants/settings', {
+                                  method: 'PATCH',
+                                  headers: { 'Content-Type': 'application/json' },
+                                  body: JSON.stringify({ tenantId, tradingAddressPhone: null })
+                                });
+                                useDashboardStore.setState({ tradingAddressPhone: null });
+                              }
+                              alert(`${channel.name} channel disconnected successfully.`);
+                            } catch (err: any) {
+                              alert('Error disconnecting: ' + err.message);
+                            }
+                          }}
+                          className="text-xs text-rose-600 hover:text-rose-800 font-bold hover:underline transition cursor-pointer"
+                        >
+                          Disconnect
+                        </button>
+                      )}
+                      <button 
+                        type="button"
+                        onClick={() => {
+                          if (channel.name === 'WhatsApp' || channel.name === 'Instagram') {
+                            setActiveTab('whatsapp');
                           } else {
-                            setActivePhoneOrHandle(tradingAddressPhone || twilioShadowNumber || '');
+                            setActiveConfigModal(channel);
+                            if (channel.name === 'Telegram') {
+                              setActivePhoneOrHandle('@StyleFloBot');
+                            } else {
+                              setActivePhoneOrHandle(tradingAddressPhone || twilioShadowNumber || twilioMobileNumber || '');
+                            }
                           }
-                        }
-                      }}
-                      className="text-[#198fd9] hover:text-[#157ab9] font-bold text-xs hover:underline transition cursor-pointer"
-                    >
-                      {channel.name === 'WhatsApp' || channel.name === 'Instagram' ? 'Configure Meta →' : 'Settings →'}
-                    </button>
+                        }}
+                        className="text-[#198fd9] hover:text-[#157ab9] font-bold text-xs hover:underline transition cursor-pointer"
+                      >
+                        {channel.name === 'WhatsApp' || channel.name === 'Instagram' ? 'Configure Meta →' : 'Settings →'}
+                      </button>
+                    </div>
                   </div>
                 </div>
               ))}
@@ -386,7 +420,7 @@ export default function OpenClawMonitorView() {
             </div>
 
             <div className="flex justify-between items-center gap-3 pt-3 border-t border-[var(--awb-color3)]">
-              {activeConfigModal.status === 'connected' ? (
+              {(activeConfigModal.status === 'connected' || (activeConfigModal.name === 'SMS (Twilio)' && (twilioShadowNumber || twilioMobileNumber)) || (activeConfigModal.name === 'WhatsApp' && tradingAddressPhone)) ? (
                 <button
                   type="button"
                   onClick={async () => {
@@ -397,9 +431,9 @@ export default function OpenClawMonitorView() {
                         await fetch('/api/tenants/settings', {
                           method: 'PATCH',
                           headers: { 'Content-Type': 'application/json' },
-                          body: JSON.stringify({ tenantId, twilioShadowNumber: null })
+                          body: JSON.stringify({ tenantId, twilioShadowNumber: null, twilioMobileNumber: null })
                         });
-                        useDashboardStore.setState({ twilioShadowNumber: null });
+                        useDashboardStore.setState({ twilioShadowNumber: null, twilioMobileNumber: null });
                       } else if (activeConfigModal.name === 'WhatsApp') {
                         await fetch('/api/tenants/settings', {
                           method: 'PATCH',
@@ -418,7 +452,7 @@ export default function OpenClawMonitorView() {
                     }
                   }}
                   disabled={isSavingChannelConfig}
-                  className="px-3.5 py-2 rounded-xl text-xs font-bold text-rose-700 bg-rose-50 hover:bg-rose-100 border border-rose-200 transition disabled:opacity-50"
+                  className="px-3.5 py-2 rounded-xl text-xs font-bold text-rose-700 bg-rose-50 hover:bg-rose-100 border border-rose-200 transition disabled:opacity-50 cursor-pointer"
                 >
                   Disconnect Channel
                 </button>
@@ -444,10 +478,11 @@ export default function OpenClawMonitorView() {
                           headers: { 'Content-Type': 'application/json' },
                           body: JSON.stringify({
                             tenantId,
-                            twilioShadowNumber: newPhone
+                            twilioShadowNumber: newPhone,
+                            twilioMobileNumber: newPhone
                           })
                         });
-                        useDashboardStore.setState({ twilioShadowNumber: newPhone });
+                        useDashboardStore.setState({ twilioShadowNumber: newPhone, twilioMobileNumber: newPhone });
                       } else if (activeConfigModal.name === 'WhatsApp') {
                         const newPhone = activePhoneOrHandle.trim() || null;
                         await fetch('/api/tenants/settings', {
@@ -469,7 +504,7 @@ export default function OpenClawMonitorView() {
                     }
                   }}
                   disabled={isSavingChannelConfig}
-                  className="bg-[#198fd9] hover:bg-[#157ab9] text-white text-xs font-semibold px-5 py-2 rounded-xl shadow-md transition disabled:opacity-50"
+                  className="bg-[#198fd9] hover:bg-[#157ab9] text-white text-xs font-semibold px-5 py-2 rounded-xl shadow-md transition disabled:opacity-50 cursor-pointer"
                 >
                   {isSavingChannelConfig ? 'Saving...' : 'Save Settings'}
                 </button>
