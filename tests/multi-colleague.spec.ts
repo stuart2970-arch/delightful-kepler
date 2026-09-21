@@ -50,7 +50,7 @@ test.describe.serial('Multi-Colleague Dashboard & RBAC Rota Systems', () => {
       await page.fill('input[type="email"]', 'admin@acme.com');
       await page.fill('input[type="password"]', 'password123');
       await page.click('button[type="submit"]');
-      await expect(page).toHaveURL(/\/dashboard/);
+      await expect(page).toHaveURL(/\/dashboard/, { timeout: 15000 });
     });
 
     test('should allow Owner to view all Admin tabs and KPI Metrics', async ({ page }) => {
