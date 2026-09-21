@@ -218,8 +218,33 @@ export async function POST(request: NextRequest) {
       text: messageBody,
     });
 
-    // 4. Semantic Vector RAG Search using Gemini Embedding
-    let contextText = '';
+    // 4. Fetch Services, Staff, and Semantic Vector RAG Search
+    const [servicesRes, staffRes] = await Promise.all([
+      supabaseAdmin
+        .from('services')
+        .select('name, description, duration_minutes, price')
+        .eq('tenant_id', tenantId),
+      supabaseAdmin
+        .from('staff')
+        .select('name, bio')
+        .eq('tenant_id', tenantId),
+    ]);
+
+    let servicesText = '';
+    if (servicesRes.data && servicesRes.data.length > 0) {
+      servicesText = servicesRes.data
+        .map((s: any) => `- ${s.name}: ${s.description || 'Service available'} (${s.duration_minutes || 30} mins, £${s.price || 0})`)
+        .join('\n');
+    }
+
+    let staffText = '';
+    if (staffRes.data && staffRes.data.length > 0) {
+      staffText = staffRes.data
+        .map((st: any) => `- ${st.name}${st.bio ? `: ${st.bio}` : ''}`)
+        .join('\n');
+    }
+
+    let docChunksText = '';
     try {
       const { embedding } = await embed({
         model: google.textEmbeddingModel('gemini-embedding-001'),
@@ -228,14 +253,14 @@ export async function POST(request: NextRequest) {
 
       const { data: chunks } = await supabaseAdmin.rpc('match_documents', {
         query_embedding: embedding,
-        match_threshold: 0.35,
-        match_count: 4,
+        match_threshold: 0.25,
+        match_count: 6,
         targeting_tenant_id: tenantId,
         targeting_chatbot_id: chatbotId,
       });
 
       if (chunks && chunks.length > 0) {
-        contextText = chunks.map((c: any) => c.content).join('\n');
+        docChunksText = chunks.map((c: any) => c.content).join('\n');
       }
     } catch (embedErr: any) {
       console.warn('[Twilio SMS Webhook] RAG search fallback:', embedErr?.message || embedErr);
@@ -243,12 +268,23 @@ export async function POST(request: NextRequest) {
         .from('document_chunks')
         .select('content')
         .eq('chatbot_id', chatbotId)
-        .limit(4);
+        .limit(6);
 
       if (fallbackChunks) {
-        contextText = fallbackChunks.map((c: any) => c.content).join('\n');
+        docChunksText = fallbackChunks.map((c: any) => c.content).join('\n');
       }
     }
+
+    const contextText = `
+SERVICES & PRICING:
+${servicesText || 'No specific services table entries.'}
+
+STAFF / TEAM MEMBERS:
+${staffText || 'No specific staff table entries.'}
+
+ADDITIONAL KNOWLEDGE BASE CONTENT:
+${docChunksText || 'No additional file chunks.'}
+`.trim();
 
     // Load Last 10 conversation messages for historical context
     const { data: history } = await supabaseAdmin
