@@ -78,9 +78,32 @@ export default function InboxView() {
     }
   };
 
-  // Fetch messages when conversation selection changes
+  // Sync conversations on mount and auto-poll every 10 seconds
   useEffect(() => {
-    if (!selectedConversation) {
+    if (!tenantId) return;
+
+    const syncConvs = async () => {
+      try {
+        const res = await fetch(`/api/conversations?tenantId=${encodeURIComponent(tenantId)}`);
+        if (res.ok) {
+          const data = await res.json();
+          if (data.conversations && Array.isArray(data.conversations)) {
+            setConversations(data.conversations);
+          }
+        }
+      } catch (err) {
+        console.error('Failed to sync conversations:', err);
+      }
+    };
+
+    syncConvs();
+    const interval = setInterval(syncConvs, 10000);
+    return () => clearInterval(interval);
+  }, [tenantId, setConversations]);
+
+  // Fetch messages when conversation selection changes, with 5s auto-polling for live chat
+  useEffect(() => {
+    if (!selectedConversation || !tenantId) {
       setConversationMessages([]);
       return;
     }
@@ -88,8 +111,6 @@ export default function InboxView() {
     const convoId = selectedConversation;
 
     async function fetchMessages() {
-      setIsFetchingMessages(true);
-      
       try {
         const response = await fetch(
           `/api/messages?conversationId=${encodeURIComponent(convoId)}&tenantId=${encodeURIComponent(tenantId)}`
@@ -124,7 +145,10 @@ export default function InboxView() {
       setIsFetchingMessages(false);
     }
 
+    setIsFetchingMessages(true);
     fetchMessages();
+    const messageInterval = setInterval(fetchMessages, 5000);
+    return () => clearInterval(messageInterval);
   }, [selectedConversation, supabase, tenantId]);
 
   const selectedConvObj = (conversations || []).find(c => c && c.id === selectedConversation);
@@ -182,20 +206,21 @@ export default function InboxView() {
                 <div className="flex gap-1 shrink-0">
                   <button
                     onClick={async () => {
-                      if (!supabase || !tenantId) return;
+                      if (!tenantId) return;
                       try {
-                        const { data } = await supabase
-                          .from('conversations')
-                          .select('*')
-                          .eq('tenant_id', tenantId)
-                          .order('created_at', { ascending: false });
-                        if (data) setConversations(data);
+                        const res = await fetch(`/api/conversations?tenantId=${encodeURIComponent(tenantId)}`);
+                        if (res.ok) {
+                          const data = await res.json();
+                          if (data.conversations && Array.isArray(data.conversations)) {
+                            setConversations(data.conversations);
+                          }
+                        }
                       } catch (err) {
                         console.error('Sync failed:', err);
                       }
                     }}
                     title="Sync Latest Communications"
-                    className="p-1 rounded bg-[var(--awb-color2)] text-[var(--awb-color8)] hover:bg-gray-200 transition-colors"
+                    className="p-1 rounded bg-[var(--awb-color2)] text-[var(--awb-color8)] hover:bg-gray-200 transition-colors cursor-pointer"
                   >
                     <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path></svg>
                   </button>
