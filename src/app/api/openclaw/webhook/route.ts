@@ -88,8 +88,8 @@ export async function POST(request: NextRequest) {
     await supabaseAdmin.from('messages').insert({
       conversation_id: conversation.id,
       tenant_id: tenantId,
-      sender_role: 'user',
-      content: messageText
+      sender_type: 'user',
+      text_content: messageText
     });
 
     // 4. Generate Semantic Embeddings for RAG search
@@ -129,13 +129,13 @@ export async function POST(request: NextRequest) {
     // Fetch Last 10 conversation transcripts for conversational context
     const { data: history } = await supabaseAdmin
       .from('messages')
-      .select('sender_role, content')
+      .select('sender_type, text_content')
       .eq('conversation_id', conversation.id)
       .order('created_at', { ascending: false })
       .limit(10);
 
     const historyPrompt = history
-      ? history.slice().reverse().map((h: any) => `${h.sender_role === 'user' ? 'Customer' : 'Assistant'}: ${h.content}`).join('\n')
+      ? history.slice().reverse().map((h: any) => `${h.sender_type === 'user' ? 'Customer' : 'Assistant'}: ${h.text_content}`).join('\n')
       : '';
 
     // 5. Invoke Gemini LLM with strict compliance rules
@@ -166,8 +166,8 @@ CRITICAL INSTRUCTIONS:
     await supabaseAdmin.from('messages').insert({
       conversation_id: conversation.id,
       tenant_id: tenantId,
-      sender_role: 'assistant',
-      content: cleanAiResponse
+      sender_type: 'bot',
+      text_content: cleanAiResponse
     });
 
     // Check if customer provided email/phone contact details and send consolidated notification

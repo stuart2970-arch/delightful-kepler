@@ -39,32 +39,25 @@ function twimlResponse(messageText: string) {
 }
 
 /**
- * Safely insert message supporting both database schema versions
- * (sender_type/text_content vs sender_role/content)
+ * Insert message strictly matching Supabase messages table schema (sender_type IN ('user', 'bot') and text_content)
  */
 async function insertMessage(supabaseAdmin: any, payload: { conversation_id: string; tenant_id: string; role: 'user' | 'assistant'; text: string }) {
   const { conversation_id, tenant_id, role, text } = payload;
+  const senderType = role === 'user' ? 'user' : 'bot';
 
   try {
-    // Primary attempt: sender_type & text_content
-    const { error: err1 } = await supabaseAdmin.from('messages').insert({
+    const { error } = await supabaseAdmin.from('messages').insert({
       conversation_id,
       tenant_id,
-      sender_type: role,
+      sender_type: senderType,
       text_content: text,
     });
 
-    if (!err1) return;
-
-    // Secondary fallback: sender_role & content
-    await supabaseAdmin.from('messages').insert({
-      conversation_id,
-      tenant_id,
-      sender_role: role,
-      content: text,
-    });
+    if (error) {
+      console.error('[Twilio SMS] Message insert error:', error.message);
+    }
   } catch (err: any) {
-    console.warn('[Twilio SMS] Message insert non-fatal warning:', err?.message);
+    console.warn('[Twilio SMS] Message insert non-fatal exception:', err?.message);
   }
 }
 

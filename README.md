@@ -2134,3 +2134,16 @@ This occurred because UK geographic numbers strictly require `addressRequirement
      - Updated `GET` to check both top-level table columns and `configuration_json` fields (`configuration_json.instagram_enabled`, `configuration_json.instagram_handle`, `configuration_json.instagram_account_id`, etc.), ensuring settings load seamlessly.
   3. **Webhook Chatbot Resolution Fallbacks (`src/app/api/webhooks/meta/route.ts`)**:
      - Updated inbound Instagram, WhatsApp, and Messenger webhook handlers to search `configuration_json` (`configuration_json->>instagram_account_id`, `configuration_json->>whatsapp_phone_number_id`, `configuration_json->>messenger_page_id`) if direct column queries return no match.
+
+### Session 18 (September 21, 2026) - Fix Missing Agent Messages in Conversation Explorer & Messaging Logs
+* **User**: "I see the convo now, but uts inly showing the customers texts, its not captured the agents side of the conversation"
+* **Root Cause Discovered**:
+  - The Supabase database schema for `public.messages` defines `sender_type text NOT NULL CHECK (sender_type IN ('user', 'bot'))` and column `text_content`.
+  - In `twilio/sms/route.ts`, `webhooks/meta/route.ts`, `openclaw/webhook/route.ts`, and `integrations/meta/test-journey/route.ts`, assistant message logging attempted to insert `{ sender_role: 'assistant', content: text }` or `{ sender_type: 'assistant', text_content: text }`.
+  - Postgres rejected all assistant inserts with check constraint errors (`sender_type IN ('user', 'bot')`) and missing column errors (`sender_role`/`content` do not exist on `messages` table). Only user messages (`sender_type: 'user'`) succeeded, causing the Conversation Explorer to show customer messages without agent replies.
+* **Fixes Implemented**:
+  1. **Twilio SMS Route (`src/app/api/webhooks/twilio/sms/route.ts`)**: Refactored `insertMessage` helper to map `role === 'user' ? 'user' : 'bot'` and insert strictly into `sender_type` and `text_content`.
+  2. **Meta & Instagram Webhooks (`src/app/api/webhooks/meta/route.ts`)**: Fixed user and bot message inserts to use `sender_type: 'user' | 'bot'` and `text_content`. Updated history query to select `sender_type, text_content`.
+  3. **OpenClaw Webhook (`src/app/api/openclaw/webhook/route.ts`)**: Updated incoming and assistant inserts and history queries to use `sender_type` and `text_content`.
+  4. **Meta Test Journey API (`src/app/api/integrations/meta/test-journey/route.ts`)**: Corrected simulated user and assistant message inserts to match Supabase database schema.
+  5. **Verification**: Built application, verified clean compilation, and pushed to `main`.

@@ -417,8 +417,8 @@ async function processMessageJourney(params: {
       await supabaseAdmin.from('messages').insert({
         conversation_id: conversationId,
         tenant_id: tenantId,
-        sender_role: 'user',
-        content: incomingText,
+        sender_type: 'user',
+        text_content: incomingText,
       });
     }
   }
@@ -462,7 +462,7 @@ async function processMessageJourney(params: {
   if (conversationId) {
     const { data: history } = await supabaseAdmin
       .from('messages')
-      .select('sender_role, content')
+      .select('sender_type, text_content')
       .eq('conversation_id', conversationId)
       .order('created_at', { ascending: false })
       .limit(6);
@@ -471,7 +471,7 @@ async function processMessageJourney(params: {
       historyPrompt = history
         .slice()
         .reverse()
-        .map((h: any) => `${h.sender_role === 'user' ? 'Customer' : 'Assistant'}: ${h.content}`)
+        .map((h: any) => `${h.sender_type === 'user' ? 'Customer' : 'Assistant'}: ${h.text_content}`)
         .join('\n');
     }
   }
@@ -524,8 +524,8 @@ ${contextText}
     await supabaseAdmin.from('messages').insert({
       conversation_id: conversationId,
       tenant_id: tenantId,
-      sender_role: 'assistant',
-      content: replyText,
+      sender_type: 'bot',
+      text_content: replyText,
     });
   }
 
