@@ -4,6 +4,7 @@ import { generateText, embed } from 'ai';
 import { google } from '@ai-sdk/google';
 import twilio from 'twilio';
 import { sendConsolidatedLeadEmail } from '@/lib/lead-notifier';
+import { getActiveGeminiModel } from '@/lib/gemini-config';
 
 export const dynamic = 'force-dynamic';
 
@@ -44,15 +45,6 @@ function twimlResponse(messageText: string) {
 async function insertMessage(supabaseAdmin: any, payload: { conversation_id: string; tenant_id: string; role: 'user' | 'assistant'; text: string }) {
   const { conversation_id, tenant_id, role, text } = payload;
 
-  const insertData: Record<string, any> = {
-    conversation_id,
-    tenant_id,
-    sender_type: role,
-    text_content: text,
-    sender_role: role,
-    content: text,
-  };
-
   try {
     // Primary attempt: sender_type & text_content
     const { error: err1 } = await supabaseAdmin.from('messages').insert({
@@ -76,17 +68,44 @@ async function insertMessage(supabaseAdmin: any, payload: { conversation_id: str
   }
 }
 
+export async function GET(request: NextRequest) {
+  return POST(request);
+}
+
 export async function POST(request: NextRequest) {
   if (process.env.GEMINI_API_KEY && !process.env.GOOGLE_GENERATIVE_AI_API_KEY) {
     process.env.GOOGLE_GENERATIVE_AI_API_KEY = process.env.GEMINI_API_KEY;
   }
 
   try {
-    // 1. Parse Twilio form-encoded payload (application/x-www-form-urlencoded)
-    const formData = await request.formData();
-    const fromNumber = (formData.get('From') as string) || '';
-    const toNumber = (formData.get('To') as string) || '';
-    const messageBody = (formData.get('Body') as string) || '';
+    // 1. Parse Twilio payload (searchParams, formData, or raw URLSearchParams)
+    let fromNumber = '';
+    let toNumber = '';
+    let messageBody = '';
+
+    const { searchParams } = new URL(request.url);
+    fromNumber = searchParams.get('From') || searchParams.get('from') || '';
+    toNumber = searchParams.get('To') || searchParams.get('to') || '';
+    messageBody = searchParams.get('Body') || searchParams.get('body') || '';
+
+    if (!fromNumber || !messageBody) {
+      try {
+        const formData = await request.formData();
+        fromNumber = (formData.get('From') as string) || (formData.get('from') as string) || fromNumber;
+        toNumber = (formData.get('To') as string) || (formData.get('to') as string) || toNumber;
+        messageBody = (formData.get('Body') as string) || (formData.get('body') as string) || messageBody;
+      } catch (e1) {
+        try {
+          const bodyText = await request.text();
+          const parsed = new URLSearchParams(bodyText);
+          fromNumber = parsed.get('From') || parsed.get('from') || fromNumber;
+          toNumber = parsed.get('To') || parsed.get('to') || toNumber;
+          messageBody = parsed.get('Body') || parsed.get('body') || messageBody;
+        } catch (e2) {
+          // ignore parsing error
+        }
+      }
+    }
 
     if (!fromNumber || !messageBody) {
       console.warn('[Twilio SMS Webhook] Missing From or Body parameter');
@@ -98,13 +117,11 @@ export async function POST(request: NextRequest) {
     const supabaseAdmin = getSupabaseAdmin();
 
     // 2. Resolve target Tenant and Chatbot
-    // Clean raw digits for resilient matching
     const digitsTo = toNumber.replace(/[^\d]/g, '');
     let tenant: any = null;
     let chatbot: any = null;
 
     if (digitsTo) {
-      // Find matching tenant by twilio_mobile_number, twilio_shadow_number, or trading_address_phone
       const { data: matchedTenants } = await supabaseAdmin
         .from('tenants')
         .select('*');
@@ -114,7 +131,13 @@ export async function POST(request: NextRequest) {
           const mob = (t.twilio_mobile_number || '').replace(/[^\d]/g, '');
           const shad = (t.twilio_shadow_number || '').replace(/[^\d]/g, '');
           const trad = (t.trading_address_phone || '').replace(/[^\d]/g, '');
-          return (mob && digitsTo.endsWith(mob)) || (shad && digitsTo.endsWith(shad)) || (trad && digitsTo.endsWith(trad)) || mob === digitsTo || shad === digitsTo;
+          
+          const tailTo = digitsTo.slice(-9);
+          if (!tailTo) return false;
+
+          return (mob && mob.endsWith(tailTo)) || 
+                 (shad && shad.endsWith(tailTo)) || 
+                 (trad && trad.endsWith(tailTo));
         });
       }
     }
@@ -136,14 +159,21 @@ export async function POST(request: NextRequest) {
     if (!chatbot) {
       const { data: fallbackBot } = await supabaseAdmin
         .from('chatbots')
-        .select('*, tenant:tenants(*)')
+        .select('*')
         .neq('id', '00000000-0000-0000-0000-000000000000')
         .limit(1)
         .maybeSingle();
 
       if (fallbackBot) {
         chatbot = fallbackBot;
-        if (!tenant) tenant = fallbackBot.tenant;
+        if (!tenant) {
+          const { data: fallbackTenant } = await supabaseAdmin
+            .from('tenants')
+            .select('*')
+            .eq('id', fallbackBot.tenant_id)
+            .maybeSingle();
+          tenant = fallbackTenant;
+        }
       }
     }
 
@@ -258,8 +288,9 @@ STRICT SMS FORMATTING RULES:
     let cleanAiResponse = `Hi! Thanks for contacting ${botName}. How can we help you today?`;
 
     try {
+      const activeModel = await getActiveGeminiModel().catch(() => 'gemini-3.6-flash');
       const { text: aiResponse } = await generateText({
-        model: google('gemini-3.6-flash'),
+        model: google(activeModel),
         system: systemInstruction,
         prompt: `Conversation History:\n${historyPrompt}\n\nCustomer SMS: ${messageBody}`,
       });

@@ -5,8 +5,7 @@ let cachedModel: { model: string; fetchedAt: number } | null = null;
 export const DEFAULT_GEMINI_MODEL = 'gemini-3.6-flash';
 
 export const PRESET_GEMINI_MODELS = [
-  { id: 'gemini-3.6-flash', label: 'Gemini 2.5 Flash (Fastest, High Performance - Recommended)' },
-  { id: 'gemini-2.5-pro', label: 'Gemini 2.5 Pro (Deep Reasoning & Large Context)' },
+  { id: 'gemini-3.6-flash', label: 'Gemini 3.6 Flash (Fastest, High Performance - Recommended)' },
   { id: 'gemini-flash-latest', label: 'gemini-flash-latest (Auto-updates to Google\'s Latest Flash)' },
 ];
 
@@ -38,8 +37,7 @@ export async function getActiveGeminiModel(): Promise<string> {
       const configuredModel = globalBot?.configuration_json?.default_gemini_model;
       if (configuredModel && typeof configuredModel === 'string' && configuredModel.trim()) {
         let resolved = configuredModel.trim().replace(/^models\//i, '');
-        // Auto-upgrade deprecated Gemini model strings
-        if (resolved === 'gemini-2.0-flash' || resolved === 'gemini-1.5-flash' || resolved === 'gemini-1.5-pro') {
+        if (resolved === 'gemini-2.5-flash' || resolved === 'gemini-2.0-flash' || resolved === 'gemini-1.5-flash' || resolved === 'gemini-1.5-pro') {
           resolved = 'gemini-3.6-flash';
         }
         cachedModel = { model: resolved, fetchedAt: now };
@@ -51,7 +49,7 @@ export async function getActiveGeminiModel(): Promise<string> {
   }
 
   let envModel = (process.env.DEFAULT_GEMINI_MODEL || process.env.GEMINI_MODEL || DEFAULT_GEMINI_MODEL).trim().replace(/^models\//i, '');
-  if (envModel === 'gemini-2.0-flash' || envModel === 'gemini-1.5-flash' || envModel === 'gemini-1.5-pro') {
+  if (envModel === 'gemini-2.5-flash' || envModel === 'gemini-2.0-flash' || envModel === 'gemini-1.5-flash' || envModel === 'gemini-1.5-pro') {
     envModel = 'gemini-3.6-flash';
   }
   cachedModel = { model: envModel, fetchedAt: now };
