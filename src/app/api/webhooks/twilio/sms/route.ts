@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import { generateText, embed } from 'ai';
 import { google } from '@ai-sdk/google';
+import twilio from 'twilio';
 import { sendConsolidatedLeadEmail } from '@/lib/lead-notifier';
 
 export const dynamic = 'force-dynamic';
@@ -24,17 +25,55 @@ function getSupabaseAdmin() {
  */
 function twimlResponse(messageText: string) {
   const cleanText = messageText.replace(/[*#`_-]/g, '').trim();
-  const xml = `<?xml version="1.0" encoding="UTF-8"?>
-<Response>
-    <Message>${cleanText.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')}</Message>
-</Response>`;
+  const VoiceResponse = twilio.twiml.MessagingResponse;
+  const twiml = new VoiceResponse();
+  twiml.message(cleanText);
 
-  return new NextResponse(xml, {
+  return new NextResponse(twiml.toString(), {
     status: 200,
     headers: {
       'Content-Type': 'text/xml; charset=utf-8',
     },
   });
+}
+
+/**
+ * Safely insert message supporting both database schema versions
+ * (sender_type/text_content vs sender_role/content)
+ */
+async function insertMessage(supabaseAdmin: any, payload: { conversation_id: string; tenant_id: string; role: 'user' | 'assistant'; text: string }) {
+  const { conversation_id, tenant_id, role, text } = payload;
+
+  const insertData: Record<string, any> = {
+    conversation_id,
+    tenant_id,
+    sender_type: role,
+    text_content: text,
+    sender_role: role,
+    content: text,
+  };
+
+  try {
+    // Primary attempt: sender_type & text_content
+    const { error: err1 } = await supabaseAdmin.from('messages').insert({
+      conversation_id,
+      tenant_id,
+      sender_type: role,
+      text_content: text,
+    });
+
+    if (!err1) return;
+
+    // Secondary fallback: sender_role & content
+    await supabaseAdmin.from('messages').insert({
+      conversation_id,
+      tenant_id,
+      sender_role: role,
+      content: text,
+    });
+  } catch (err: any) {
+    console.warn('[Twilio SMS] Message insert non-fatal warning:', err?.message);
+  }
 }
 
 export async function POST(request: NextRequest) {
@@ -45,66 +84,76 @@ export async function POST(request: NextRequest) {
   try {
     // 1. Parse Twilio form-encoded payload (application/x-www-form-urlencoded)
     const formData = await request.formData();
-    const fromNumber = formData.get('From')?.toString() || '';
-    const toNumber = formData.get('To')?.toString() || '';
-    const messageBody = formData.get('Body')?.toString() || '';
+    const fromNumber = (formData.get('From') as string) || '';
+    const toNumber = (formData.get('To') as string) || '';
+    const messageBody = (formData.get('Body') as string) || '';
 
     if (!fromNumber || !messageBody) {
+      console.warn('[Twilio SMS Webhook] Missing From or Body parameter');
       return twimlResponse('Thank you for reaching out. Please send a valid text message.');
     }
 
+    console.log(`[Twilio SMS Webhook] Inbound SMS from ${fromNumber} to ${toNumber}: "${messageBody}"`);
+
     const supabaseAdmin = getSupabaseAdmin();
 
-    // 2. Resolve target Chatbot and Tenant boundary
-    // Match To number against chatbots.sms_phone_number or tenant twilio numbers
+    // 2. Resolve target Tenant and Chatbot
+    // Clean raw digits for resilient matching
+    const digitsTo = toNumber.replace(/[^\d]/g, '');
+    let tenant: any = null;
     let chatbot: any = null;
 
-    if (toNumber) {
-      const { data: matchedBot } = await supabaseAdmin
-        .from('chatbots')
-        .select('*, tenant:tenants(*)')
-        .eq('sms_phone_number', toNumber)
-        .maybeSingle();
+    if (digitsTo) {
+      // Find matching tenant by twilio_mobile_number, twilio_shadow_number, or trading_address_phone
+      const { data: matchedTenants } = await supabaseAdmin
+        .from('tenants')
+        .select('*');
 
-      if (matchedBot) {
-        chatbot = matchedBot;
-      } else {
-        // Match against tenants table
-        const { data: matchedTenant } = await supabaseAdmin
-          .from('tenants')
-          .select('id')
-          .or(`twilio_shadow_number.eq.${toNumber},twilio_mobile_number.eq.${toNumber},trading_address_phone.eq.${toNumber}`)
-          .maybeSingle();
-
-        if (matchedTenant) {
-          const { data: tenantBot } = await supabaseAdmin
-            .from('chatbots')
-            .select('*, tenant:tenants(*)')
-            .eq('tenant_id', matchedTenant.id)
-            .limit(1)
-            .maybeSingle();
-
-          if (tenantBot) chatbot = tenantBot;
-        }
+      if (matchedTenants && matchedTenants.length > 0) {
+        tenant = matchedTenants.find((t: any) => {
+          const mob = (t.twilio_mobile_number || '').replace(/[^\d]/g, '');
+          const shad = (t.twilio_shadow_number || '').replace(/[^\d]/g, '');
+          const trad = (t.trading_address_phone || '').replace(/[^\d]/g, '');
+          return (mob && digitsTo.endsWith(mob)) || (shad && digitsTo.endsWith(shad)) || (trad && digitsTo.endsWith(trad)) || mob === digitsTo || shad === digitsTo;
+        });
       }
     }
 
-    // Fallback: Pick the first available active chatbot if exact number match fails
+    // If tenant found, load its active chatbot
+    if (tenant) {
+      const { data: tenantBot } = await supabaseAdmin
+        .from('chatbots')
+        .select('*')
+        .eq('tenant_id', tenant.id)
+        .neq('id', '00000000-0000-0000-0000-000000000000')
+        .limit(1)
+        .maybeSingle();
+
+      if (tenantBot) chatbot = tenantBot;
+    }
+
+    // Fallback: Pick primary active business chatbot if exact number matching didn't yield a result
     if (!chatbot) {
       const { data: fallbackBot } = await supabaseAdmin
         .from('chatbots')
         .select('*, tenant:tenants(*)')
+        .neq('id', '00000000-0000-0000-0000-000000000000')
         .limit(1)
-        .single();
+        .maybeSingle();
 
-      if (!fallbackBot) {
-        return twimlResponse('Hello! Our messaging service is currently initializing. Please try again shortly.');
+      if (fallbackBot) {
+        chatbot = fallbackBot;
+        if (!tenant) tenant = fallbackBot.tenant;
       }
-      chatbot = fallbackBot;
     }
 
-    const tenantId = chatbot.tenant_id;
+    if (!chatbot || !tenant) {
+      return twimlResponse('Thank you for contacting us. This number is currently initializing. Please try again shortly.');
+    }
+
+    const tenantId = tenant.id;
     const chatbotId = chatbot.id;
+    const botName = chatbot.name || tenant.company_name || 'StyleFlo Assistant';
     const sessionKey = `twilio_sms_${fromNumber.replace(/[^\d+]/g, '')}`;
 
     // 3. Resolve or Create Conversation session
@@ -132,11 +181,11 @@ export async function POST(request: NextRequest) {
     }
 
     // Save Customer's Incoming Message
-    await supabaseAdmin.from('messages').insert({
+    await insertMessage(supabaseAdmin, {
       conversation_id: conversation.id,
       tenant_id: tenantId,
-      sender_role: 'user',
-      content: messageBody,
+      role: 'user',
+      text: messageBody,
     });
 
     // 4. Semantic Vector RAG Search using Gemini Embedding
@@ -158,8 +207,8 @@ export async function POST(request: NextRequest) {
       if (chunks && chunks.length > 0) {
         contextText = chunks.map((c: any) => c.content).join('\n');
       }
-    } catch (embedErr) {
-      console.warn('[Twilio SMS Webhook] Embedding search fallback:', embedErr);
+    } catch (embedErr: any) {
+      console.warn('[Twilio SMS Webhook] RAG search fallback:', embedErr?.message || embedErr);
       const { data: fallbackChunks } = await supabaseAdmin
         .from('document_chunks')
         .select('content')
@@ -174,7 +223,7 @@ export async function POST(request: NextRequest) {
     // Load Last 10 conversation messages for historical context
     const { data: history } = await supabaseAdmin
       .from('messages')
-      .select('sender_role, content')
+      .select('*')
       .eq('conversation_id', conversation.id)
       .order('created_at', { ascending: false })
       .limit(10);
@@ -183,13 +232,17 @@ export async function POST(request: NextRequest) {
       ? history
           .slice()
           .reverse()
-          .map((h: any) => `${h.sender_role === 'user' ? 'Customer' : 'Assistant'}: ${h.content}`)
+          .map((h: any) => {
+            const role = (h.sender_type || h.sender_role) === 'user' ? 'Customer' : 'Assistant';
+            const text = h.text_content || h.content || '';
+            return `${role}: ${text}`;
+          })
           .join('\n')
       : '';
 
     // 5. Invoke Gemini LLM with plain text SMS constraints
     const systemInstruction = `
-You are the official AI Assistant for ${chatbot.name || 'our business'}.
+You are the official AI Assistant for ${botName}.
 You are responding via direct 2-way SMS text message to a customer (${fromNumber}).
 Assist customers with appointment scheduling, service questions, staff information, and booking support.
 
@@ -202,20 +255,28 @@ STRICT SMS FORMATTING RULES:
 5. If you do not know the answer based on the context, politely state that you cannot locate that information.
 `;
 
-    const { text: aiResponse } = await generateText({
-      model: google('gemini-3.6-flash'),
-      system: systemInstruction,
-      prompt: `Conversation History:\n${historyPrompt}\n\nCustomer SMS: ${messageBody}`,
-    });
+    let cleanAiResponse = `Hi! Thanks for contacting ${botName}. How can we help you today?`;
 
-    const cleanAiResponse = aiResponse.replace(/[*#`_-]/g, '').trim();
+    try {
+      const { text: aiResponse } = await generateText({
+        model: google('gemini-3.6-flash'),
+        system: systemInstruction,
+        prompt: `Conversation History:\n${historyPrompt}\n\nCustomer SMS: ${messageBody}`,
+      });
+
+      if (aiResponse) {
+        cleanAiResponse = aiResponse.replace(/[*#`_-]/g, '').trim();
+      }
+    } catch (llmErr: any) {
+      console.error('[Twilio SMS Webhook] Gemini generation error:', llmErr?.message || llmErr);
+    }
 
     // Log Assistant Response to Supabase DB
-    await supabaseAdmin.from('messages').insert({
+    await insertMessage(supabaseAdmin, {
       conversation_id: conversation.id,
       tenant_id: tenantId,
-      sender_role: 'assistant',
-      content: cleanAiResponse,
+      role: 'assistant',
+      text: cleanAiResponse,
     });
 
     // Send Consolidated Lead Email Notification if customer shared contact details
@@ -239,6 +300,6 @@ STRICT SMS FORMATTING RULES:
     return twimlResponse(cleanAiResponse);
   } catch (error: any) {
     console.error('Twilio SMS Webhook Error:', error);
-    return twimlResponse('Sorry, we encountered a temporary issue processing your message. Please try again shortly.');
+    return twimlResponse('Thank you for contacting us. We have received your message and will get back to you shortly.');
   }
 }
