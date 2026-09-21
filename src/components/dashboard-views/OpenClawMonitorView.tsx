@@ -363,9 +363,13 @@ export default function OpenClawMonitorView() {
                 </div>
 
                 <div>
-                  <label className="block text-[var(--awb-color7)] font-semibold mb-1">StyleFlo AI Gateway Callback Endpoint</label>
+                  <label className="block text-[var(--awb-color7)] font-semibold mb-1">StyleFlo AI Webhook Callback Endpoint</label>
                   <div className="bg-white border border-[var(--awb-color3)] rounded-lg p-2.5 font-mono text-xs text-[#198fd9] flex justify-between items-center shadow-sm">
-                    <span className="truncate">https://app.styleflo.ai/api/gateways/webhook</span>
+                    <span className="truncate">
+                      {activeConfigModal.name === 'SMS (Twilio)' 
+                        ? 'https://app.styleflo.ai/api/webhooks/twilio/sms' 
+                        : 'https://app.styleflo.ai/api/webhooks/meta'}
+                    </span>
                     <span className="text-[10px] text-emerald-800 bg-emerald-100 px-2 py-0.5 rounded font-bold shrink-0 ml-2">Verified Active</span>
                   </div>
                 </div>
@@ -381,43 +385,95 @@ export default function OpenClawMonitorView() {
               </div>
             </div>
 
-            <div className="flex justify-end gap-3 pt-3 border-t border-[var(--awb-color3)]">
-              <button
-                type="button"
-                onClick={() => setActiveConfigModal(null)}
-                className="px-4 py-2 rounded-xl text-xs font-semibold bg-[var(--awb-color2)] hover:bg-[var(--awb-color3)] text-[var(--awb-color8)] transition"
-              >
-                Close
-              </button>
-              <button
-                type="button"
-                onClick={async () => {
-                  setIsSavingChannelConfig(true);
-                  try {
-                    if (activeConfigModal.name === 'WhatsApp' || activeConfigModal.name === 'SMS (Twilio)') {
-                      await fetch('/api/tenants/settings', {
-                        method: 'PATCH',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({
-                          tenantId,
-                          tradingAddressPhone: activePhoneOrHandle
-                        })
-                      });
-                      useDashboardStore.setState({ tradingAddressPhone: activePhoneOrHandle });
+            <div className="flex justify-between items-center gap-3 pt-3 border-t border-[var(--awb-color3)]">
+              {activeConfigModal.status === 'connected' ? (
+                <button
+                  type="button"
+                  onClick={async () => {
+                    if (!confirm(`Are you sure you want to disconnect ${activeConfigModal.name}?`)) return;
+                    setIsSavingChannelConfig(true);
+                    try {
+                      if (activeConfigModal.name === 'SMS (Twilio)') {
+                        await fetch('/api/tenants/settings', {
+                          method: 'PATCH',
+                          headers: { 'Content-Type': 'application/json' },
+                          body: JSON.stringify({ tenantId, twilioShadowNumber: null })
+                        });
+                        useDashboardStore.setState({ twilioShadowNumber: null });
+                      } else if (activeConfigModal.name === 'WhatsApp') {
+                        await fetch('/api/tenants/settings', {
+                          method: 'PATCH',
+                          headers: { 'Content-Type': 'application/json' },
+                          body: JSON.stringify({ tenantId, tradingAddressPhone: null })
+                        });
+                        useDashboardStore.setState({ tradingAddressPhone: null });
+                      }
+                      setActivePhoneOrHandle('');
+                      alert(`${activeConfigModal.name} channel disconnected successfully.`);
+                      setActiveConfigModal(null);
+                    } catch (err: any) {
+                      alert('Error disconnecting channel: ' + err.message);
+                    } finally {
+                      setIsSavingChannelConfig(false);
                     }
-                    alert(`${activeConfigModal.name} settings updated successfully!`);
-                    setActiveConfigModal(null);
-                  } catch (err: any) {
-                    alert('Error saving settings: ' + err.message);
-                  } finally {
-                    setIsSavingChannelConfig(false);
-                  }
-                }}
-                disabled={isSavingChannelConfig}
-                className="bg-[#198fd9] hover:bg-[#157ab9] text-white text-xs font-semibold px-5 py-2 rounded-xl shadow-md transition disabled:opacity-50"
-              >
-                {isSavingChannelConfig ? 'Saving...' : 'Save Settings'}
-              </button>
+                  }}
+                  disabled={isSavingChannelConfig}
+                  className="px-3.5 py-2 rounded-xl text-xs font-bold text-rose-700 bg-rose-50 hover:bg-rose-100 border border-rose-200 transition disabled:opacity-50"
+                >
+                  Disconnect Channel
+                </button>
+              ) : <div />}
+
+              <div className="flex gap-2">
+                <button
+                  type="button"
+                  onClick={() => setActiveConfigModal(null)}
+                  className="px-4 py-2 rounded-xl text-xs font-semibold bg-[var(--awb-color2)] hover:bg-[var(--awb-color3)] text-[var(--awb-color8)] transition"
+                >
+                  Close
+                </button>
+                <button
+                  type="button"
+                  onClick={async () => {
+                    setIsSavingChannelConfig(true);
+                    try {
+                      if (activeConfigModal.name === 'SMS (Twilio)') {
+                        const newPhone = activePhoneOrHandle.trim() || null;
+                        await fetch('/api/tenants/settings', {
+                          method: 'PATCH',
+                          headers: { 'Content-Type': 'application/json' },
+                          body: JSON.stringify({
+                            tenantId,
+                            twilioShadowNumber: newPhone
+                          })
+                        });
+                        useDashboardStore.setState({ twilioShadowNumber: newPhone });
+                      } else if (activeConfigModal.name === 'WhatsApp') {
+                        const newPhone = activePhoneOrHandle.trim() || null;
+                        await fetch('/api/tenants/settings', {
+                          method: 'PATCH',
+                          headers: { 'Content-Type': 'application/json' },
+                          body: JSON.stringify({
+                            tenantId,
+                            tradingAddressPhone: newPhone
+                          })
+                        });
+                        useDashboardStore.setState({ tradingAddressPhone: newPhone });
+                      }
+                      alert(`${activeConfigModal.name} settings updated successfully!`);
+                      setActiveConfigModal(null);
+                    } catch (err: any) {
+                      alert('Error saving settings: ' + err.message);
+                    } finally {
+                      setIsSavingChannelConfig(false);
+                    }
+                  }}
+                  disabled={isSavingChannelConfig}
+                  className="bg-[#198fd9] hover:bg-[#157ab9] text-white text-xs font-semibold px-5 py-2 rounded-xl shadow-md transition disabled:opacity-50"
+                >
+                  {isSavingChannelConfig ? 'Saving...' : 'Save Settings'}
+                </button>
+              </div>
             </div>
           </div>
         </div>

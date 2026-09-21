@@ -1,4 +1,5 @@
 import { createClient } from '@supabase/supabase-js';
+import { sendDirectTwilioSms } from './twilio-sms';
 
 function getSupabaseAdmin() {
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.SUPABASE_URL || 'https://tkoasyjvrgaglofpzduq.supabase.co';
@@ -42,30 +43,19 @@ export async function sendOutboundAppointmentReminder(details: BookingNotificati
 
     const reminderMessage = `Hi ${customerName}, this is a confirmation for your appointment with ${stylistName} on ${appointmentTime}. We look forward to seeing you!`;
 
-    // 2. Direct-dispatch payload to your external OpenClaw server's Outbound SMS Route
-    const openClawHost = process.env.OPENCLAW_GATEWAY_URL || 'http://localhost:18789';
-    const openClawEndpoint = `${openClawHost}/api/channels/twilio_sms/send`;
-    const secretKey = process.env.OPENCLAW_BEARER_TOKEN || 'openclaw_secret_bearer_key_to_styleflo_api';
-
-    const response = await fetch(openClawEndpoint, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${secretKey}`
-      },
-      body: JSON.stringify({
-        from: chatbot.sms_phone_number,
-        to: phoneNumber,
-        message: reminderMessage
-      })
+    // 2. Direct-dispatch outbound SMS via Native Twilio SDK
+    const result = await sendDirectTwilioSms({
+      from: chatbot.sms_phone_number,
+      to: phoneNumber,
+      body: reminderMessage,
     });
 
-    if (!response.ok) {
-      throw new Error(`OpenClaw responded with status: ${response.status}`);
+    if (!result.success) {
+      throw new Error(`Direct Twilio SMS failed: ${result.error}`);
     }
 
-    console.log(`Successfully dispatched outbound SMS reminder to ${phoneNumber}`);
-    return { success: true };
+    console.log(`Successfully dispatched outbound SMS reminder directly via Twilio to ${phoneNumber}`);
+    return { success: true, messageSid: result.messageSid };
 
   } catch (err: any) {
     console.error('Outbound Reminder Execution Failed:', err);

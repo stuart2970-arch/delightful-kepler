@@ -62,6 +62,10 @@ export async function PATCH(req: NextRequest) {
       ...(bookingMode !== undefined && { booking_mode: bookingMode }),
       ...(bookingUrl !== undefined && { booking_url: bookingUrl }),
       ...(general_operating_hours !== undefined && { general_operating_hours }),
+      ...(body.twilio_shadow_number !== undefined && { twilio_shadow_number: body.twilio_shadow_number }),
+      ...(body.twilioShadowNumber !== undefined && { twilio_shadow_number: body.twilioShadowNumber }),
+      ...(body.twilio_mobile_number !== undefined && { twilio_mobile_number: body.twilio_mobile_number }),
+      ...(body.twilioMobileNumber !== undefined && { twilio_mobile_number: body.twilioMobileNumber }),
       ...(rwgConfig !== undefined && { 
         is_rwg_enabled: rwgConfig.is_rwg_enabled,
         rwg_business_name: rwgConfig.rwg_business_name,
