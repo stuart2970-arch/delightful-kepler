@@ -265,6 +265,18 @@ async function processMessageJourney(params: {
       if (bot) {
         chatbot = bot;
         tenant = bot.tenants;
+      } else {
+        const { data: jsonBot } = await supabaseAdmin
+          .from('chatbots')
+          .select('*, tenants(*)')
+          .eq('configuration_json->>whatsapp_phone_number_id', phoneNumberId)
+          .limit(1)
+          .maybeSingle();
+
+        if (jsonBot) {
+          chatbot = jsonBot;
+          tenant = jsonBot.tenants;
+        }
       }
     }
 
@@ -300,6 +312,17 @@ async function processMessageJourney(params: {
       if (bot) {
         chatbot = bot;
         tenant = bot.tenants;
+      } else {
+        const { data: jsonBot } = await supabaseAdmin
+          .from('chatbots')
+          .select('*, tenants(*)')
+          .eq('configuration_json->>instagram_account_id', recipientId)
+          .limit(1)
+          .maybeSingle();
+        if (jsonBot) {
+          chatbot = jsonBot;
+          tenant = jsonBot.tenants;
+        }
       }
     }
   } else if (channel === 'messenger') {
@@ -313,6 +336,17 @@ async function processMessageJourney(params: {
       if (bot) {
         chatbot = bot;
         tenant = bot.tenants;
+      } else {
+        const { data: jsonBot } = await supabaseAdmin
+          .from('chatbots')
+          .select('*, tenants(*)')
+          .eq('configuration_json->>messenger_page_id', recipientId)
+          .limit(1)
+          .maybeSingle();
+        if (jsonBot) {
+          chatbot = jsonBot;
+          tenant = jsonBot.tenants;
+        }
       }
     }
   }

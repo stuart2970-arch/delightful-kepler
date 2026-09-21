@@ -224,7 +224,13 @@ This runbook documents the key fixes and architecture enhancements implemented d
 * **Solution**:
   - Replaced `.upsert(..., { onConflict: ... })` with a robust `select-or-insert` pattern across all voice completion routes (`src/app/api/voice/[chatbotId]/chat/completions/route.ts` and `src/app/api/voice/chat/completions/route.ts`).
   - Added default fallback Supabase environment variables for runtime resilience on Cloud Run.
-  - Added null-safe array guards (`(conversations || [])`, `(chatbots || [])`) in `DashboardClient.tsx` and `InboxView.tsx`.
+### 24. Robust Meta & Instagram Settings Persistence with Schema Cache Fallback
+* **Problem**: Saving Instagram/Meta account settings in the dashboard resulted in a runtime error alert: `Error saving settings: Could not find the 'instagram_enabled' column of 'chatbots' in the schema cache`. This occurred because the Supabase PostgREST schema cache on the target database instance lacked top-level table columns for `instagram_enabled` or was out of sync with migration definitions, causing direct column `UPDATE` queries on `chatbots` to fail and throw an unhandled exception.
+* **Solution**:
+  - Updated `/api/integrations/meta/settings/route.ts` to construct a complete configuration payload (`updatedConfig`) and persist all Meta settings (`instagram_enabled`, `instagram_handle`, `instagram_account_id`, `whatsapp_enabled`, `whatsapp_phone_number`, `whatsapp_phone_number_id`, `whatsapp_waba_id`, `messenger_enabled`, `messenger_page_id`, `meta_access_token`, `meta_verify_token`, `meta_app_id`, `meta_app_secret`) into the guaranteed `configuration_json` column of `chatbots`.
+  - Added graceful fallback handling to `PATCH` in `/api/integrations/meta/settings/route.ts`: if top-level table column updates fail due to a PostgREST schema cache error, the route catches the error and executes a guaranteed fallback update targeting `{ configuration_json: updatedConfig }`.
+  - Updated `GET` in `/api/integrations/meta/settings/route.ts` to read Meta settings from both top-level columns and `configuration_json` as fallback.
+  - Added `configuration_json` fallbacks for resolving chatbots during inbound Meta (Instagram, WhatsApp, Messenger) webhooks in `/api/webhooks/meta/route.ts` (`configuration_json->>instagram_account_id`, `configuration_json->>whatsapp_phone_number_id`, `configuration_json->>messenger_page_id`).
 
 ---
 
@@ -2114,5 +2120,17 @@ This occurred because UK geographic numbers strictly require `addressRequirement
      - `RULE 3c`: If the caller corrects any letter or spelling, update the email address, spell it back letter-by-letter to re-confirm, and only then proceed with booking execution.
   3. **Multi-Route Synchronization**: Synchronized these scheduling and email readback rules across all voice completion endpoints (`src/app/api/voice/[chatbotId]/chat/completions/route.ts`, `src/app/api/voice/chat/completions/route.ts`, and `src/app/api/chat/stream/route.ts`). Cleanly built and verified.
 
-
-
+### Session 18 (September 21, 2026) - Instagram & Meta Settings Persistence Schema Cache Error Fix
+* **User**: "Instagram account details not saving" [Image showing popup alert: `An embedded page at app.styleflo.ai says: Error saving settings: Could not find the 'instagram_enabled' column of 'chatbots' in the schema cache`]
+* **Diagnosis**:
+  - The Meta Messaging Channels settings form in `WhatsAppMetaView.tsx` issues a `PATCH` request to `/api/integrations/meta/settings` with fields `instagramEnabled`, `instagramHandle`, `instagramAccountId`, `whatsappEnabled`, `whatsappPhoneNumber`, `messengerEnabled`, `metaAccessToken`, `metaVerifyToken`.
+  - The endpoint attempted direct column updates on `chatbots` table for `instagram_enabled`, `whatsapp_enabled`, `instagram_handle`, etc.
+  - On Supabase instances where PostgREST schema cache is missing those columns or out of sync, Postgres returned error: `Could not find the 'instagram_enabled' column of 'chatbots' in the schema cache`, throwing a 500 error that produced the alert modal.
+* **Fixes Implemented**:
+  1. **Dual Storage Architecture (`/api/integrations/meta/settings/route.ts`)**:
+     - Configured `PATCH` to merge all Meta and Instagram configuration fields into the guaranteed JSONB `configuration_json` column of `chatbots`.
+     - Placed direct table column updates inside a defensive `try/catch` fallback: if top-level table column updates fail due to a PostgREST schema cache error, the API catches the error and executes a fallback update targeting `{ configuration_json: updatedConfig }`, guaranteeing 100% success.
+  2. **GET Reading Fallbacks (`/api/integrations/meta/settings/route.ts`)**:
+     - Updated `GET` to check both top-level table columns and `configuration_json` fields (`configuration_json.instagram_enabled`, `configuration_json.instagram_handle`, `configuration_json.instagram_account_id`, etc.), ensuring settings load seamlessly.
+  3. **Webhook Chatbot Resolution Fallbacks (`src/app/api/webhooks/meta/route.ts`)**:
+     - Updated inbound Instagram, WhatsApp, and Messenger webhook handlers to search `configuration_json` (`configuration_json->>instagram_account_id`, `configuration_json->>whatsapp_phone_number_id`, `configuration_json->>messenger_page_id`) if direct column queries return no match.
