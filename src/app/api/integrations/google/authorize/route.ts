@@ -16,6 +16,25 @@ export async function GET(request: NextRequest) {
 
     const appUrl = process.env.NEXT_PUBLIC_APP_URL || process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000';
 
+    // Verify tenant has active Google Calendar bolt-on or entitlement
+    const { data: profile } = await supabase
+      .from('profiles')
+      .select('tenant_id, is_super_admin')
+      .eq('id', user.id)
+      .single();
+
+    if (profile?.tenant_id && !profile.is_super_admin) {
+      const { getTenantEffectiveLimit, getTenantChannelFlags } = await import('@/lib/entitlements');
+      const [channelFlags, effectiveLimit] = await Promise.all([
+        getTenantChannelFlags(profile.tenant_id),
+        getTenantEffectiveLimit(profile.tenant_id, 'google_calendar'),
+      ]);
+
+      if (!channelFlags.has_google_calendar && (!effectiveLimit || effectiveLimit <= 0)) {
+        return NextResponse.redirect(`${appUrl}/dashboard?tab=scheduling&error=google_calendar_addon_required`);
+      }
+    }
+
     const oauth2Client = new google.auth.OAuth2(
       process.env.GOOGLE_CLIENT_ID,
       process.env.GOOGLE_CLIENT_SECRET,

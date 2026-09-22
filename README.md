@@ -2147,3 +2147,46 @@ This occurred because UK geographic numbers strictly require `addressRequirement
   3. **OpenClaw Webhook (`src/app/api/openclaw/webhook/route.ts`)**: Updated incoming and assistant inserts and history queries to use `sender_type` and `text_content`.
   4. **Meta Test Journey API (`src/app/api/integrations/meta/test-journey/route.ts`)**: Corrected simulated user and assistant message inserts to match Supabase database schema.
   5. **Verification**: Built application, verified clean compilation, and pushed to `main`.
+
+### Session 42 — Google Calendar Integration Modular Bolt-on Architecture (2026-09-22)
+
+**Context**: User requested: *"On the use of google calendar it is currently being allowed with the basic £9.99 package, this needs to be added as a bolt on in both the dashboard and the suoeradmin page. The user should still be able to add services and staff rota times for the webpage"*.
+
+1. **Architecture & Implementation**:
+   - **Database Migration (`supabase/migrations/20260921230000_google_calendar_addon.sql`)**:
+     - Extended `addon_catalog_category_check` to include `'google_calendar'`.
+     - Seeded `google_calendar_addon` into `public.addon_catalog` (£4.99/mo, 499 pence, active, modular).
+     - Added `has_google_calendar BOOLEAN DEFAULT false` column to `public.tenants`.
+     - Updated trigger `public.sync_tenant_channel_flags` to sync `has_google_calendar` automatically from `tenant_active_addons`.
+     - Updated `public.tier_entitlements` to set base_tier `google_calendar` limit to `0` (requiring bolt-on purchase).
+     - Applied to production Supabase project `tkoasyjvrgaglofpzduq` and local Docker Supabase environment.
+   - **Backend Entitlements & API Routes**:
+     - `src/lib/entitlements.ts`: Added `has_google_calendar` to `ChannelFlags`, updated `getTenantChannelFlags` and `FEATURE_TO_UPGRADE_MAP`, and updated `getTenantEffectiveLimit` to resolve bolt-on limits.
+     - `src/app/api/webhooks/stripe/route.ts`: Added `'google_calendar'` mapping in `mapAddonCategoryToFeatureId`.
+     - `src/app/api/integrations/google/authorize/route.ts`: Added bolt-on gating to block unauthorized Google Calendar OAuth attempts.
+   - **Superadmin Pricing Matrix (`src/components/superadmin/PricingMatrixView.tsx`)**:
+     - Added dynamic management card for **📅 Google Calendar Integration** under "Fixed Channel Bolt-ons & Capacity Packs" allowing superadmins to view and adjust pricing live with audit logging.
+   - **Dashboard Integration (`SchedulingView.tsx` & `MyProfileView.tsx`)**:
+     - Added locked Google Calendar Integration card with `⚡ Add Google Calendar Bolt-on (£4.99/mo)` trigger opening `AddOnUpsellModal`.
+     - Confirmed and verified: **Services & Treatment Catalog** and **Staff Shift Rotas** remain 100% accessible, editable, and operational for website appointments without requiring the bolt-on.
+     - In `MyProfileView.tsx`, colleagues can only initiate individual Google Calendar OAuth sync if their tenant has activated the bolt-on.
+   - **Seed Configuration (`supabase/seed.sql`)**:
+     - Updated `public.profiles` upsert to `ON CONFLICT (id) DO UPDATE SET tenant_id = EXCLUDED.tenant_id, role = EXCLUDED.role;` so test users bind to `10000000-0000-0000-0000-000000000001` (Acme Corp) with add-on entitlements preserved.
+
+2. **Verification & Testing**:
+   - `npx playwright test tests/multi-colleague.spec.ts`: 7 passed, 1 skipped.
+   - `npx playwright test tests/scheduling-verification.spec.ts`: 5 passed (100%).
+   - `npx playwright test`: Full test suite passed (42 passed, 1 skipped).
+   - `npm run build`: Production Next.js 16.3.5 Turbopack and widget bundle compiled with 0 errors.
+
+## Session Chat History Log
+
+* **User**: "On the use of google calendar it is currently being allowed with the basic £9.99 package, this needs to be added as a bolt on in both the dashboard and the suoeradmin page. The user should still be able to add services and staff rota times for the webpage"
+  * **Answer & Action**:
+    1. Researched the entire billing, pricing matrix, scheduling, and multi-colleague architecture.
+    2. Created and applied migration `20260921230000_google_calendar_addon.sql` in Supabase, adding `google_calendar_addon` to `addon_catalog` at £4.99/mo and `has_google_calendar` to `tenants`.
+    3. Added dynamic bolt-on pricing card with audit logging to Superadmin's `PricingMatrixView.tsx`.
+    4. Gated Google Calendar sync in `SchedulingView.tsx` and `MyProfileView.tsx` behind an upgrade banner triggering `AddOnUpsellModal`, while preserving full, unrestricted access to Services, Staff profiles, and 4-week shift rotas for web bookings.
+    5. Gated `/api/integrations/google/authorize` and updated Stripe webhook mapping.
+    6. Verified all 42 tests in Playwright pass and production Next.js build succeeds with 0 errors.
+

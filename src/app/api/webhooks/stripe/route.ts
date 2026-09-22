@@ -38,6 +38,8 @@ function mapAddonCategoryToFeatureId(category: string): string {
       return 'sms_messages';
     case 'data_pack':
       return 'data_chunks_addon';
+    case 'google_calendar':
+      return 'google_calendar';
     default:
       return category;
   }

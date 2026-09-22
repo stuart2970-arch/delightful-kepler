@@ -3,6 +3,7 @@ import { createClient } from '@supabase/supabase-js';
 import { cookies } from 'next/headers';
 import DashboardClient from '@/components/DashboardClient';
 import { redirect } from 'next/navigation';
+import { getTenantChannelFlags } from '@/lib/entitlements';
 
 export const dynamic = 'force-dynamic';
 
@@ -107,10 +108,11 @@ export default async function DashboardPage(props: { searchParams?: Promise<{ [k
     entitlements: [],
     usage: { chunks: 0, messages: 0 },
     addons: [],
-    channelFlags: { has_landline: false, has_mobile: false, has_whatsapp: false },
+    channelFlags: { has_landline: false, has_mobile: false, has_whatsapp: false, has_google_calendar: false },
     rolloverUsage: { voice_minutes_allocated: 0, voice_minutes_consumed: 0, voice_minutes_remaining: 0, sms_allocated: 0, sms_consumed: 0, sms_remaining: 0 },
     thresholds: [],
   };
+  let initialHasGoogleCalendarAddon = false;
   let superadminData: any = null;
 
   try {
@@ -130,11 +132,14 @@ export default async function DashboardPage(props: { searchParams?: Promise<{ [k
       
       const { data: tenant } = await supabase
         .from('tenants')
-        .select('company_name, domain, business_address, postcode, plan_tier, is_rwg_enabled, rwg_business_name, rwg_street_address, rwg_city, rwg_postcode, rwg_phone, is_registered_business_address, booking_mode, booking_url, general_operating_hours, operating_hours_overrides, holiday_settings, twilio_shadow_number, twilio_mobile_number, trading_address_street, trading_address_city, trading_address_postcode, trading_address_phone, company_registration_number, registered_address_street, registered_address_city, registered_address_postcode, is_registered_company, registered_address_same_as_trading, rwg_address_same_as_trading')
+        .select('company_name, domain, business_address, postcode, plan_tier, is_rwg_enabled, rwg_business_name, rwg_street_address, rwg_city, rwg_postcode, rwg_phone, is_registered_business_address, booking_mode, booking_url, general_operating_hours, operating_hours_overrides, holiday_settings, twilio_shadow_number, twilio_mobile_number, trading_address_street, trading_address_city, trading_address_postcode, trading_address_phone, company_registration_number, registered_address_street, registered_address_city, registered_address_postcode, is_registered_company, registered_address_same_as_trading, rwg_address_same_as_trading, has_google_calendar')
         .eq('id', tenantId)
         .maybeSingle();
       
       if (tenant) {
+        if (tenant.has_google_calendar) {
+          initialHasGoogleCalendarAddon = true;
+        }
         tenantName = tenant.company_name;
         domain = tenant.domain || '';
         businessAddress = tenant.business_address || '';
@@ -303,14 +308,22 @@ export default async function DashboardPage(props: { searchParams?: Promise<{ [k
     billingData.usage.chunks = chunksCount || 0;
 
     if (tenantId) {
-      const { data: tenantData } = await queryClient.from('tenants').select('plan_tier, has_landline, has_mobile, has_whatsapp').eq('id', tenantId).maybeSingle();
+      try {
+        const flags = await getTenantChannelFlags(tenantId);
+        billingData.channelFlags = flags;
+        if (flags.has_google_calendar) {
+          initialHasGoogleCalendarAddon = true;
+        }
+      } catch (flagErr) {
+        console.warn('[Dashboard] Could not fetch channel flags:', flagErr);
+      }
+
+      const { data: tenantData } = await queryClient.from('tenants').select('plan_tier, has_landline, has_mobile, has_whatsapp, has_google_calendar').eq('id', tenantId).maybeSingle();
       if (tenantData) {
         billingData.planTier = tenantData.plan_tier;
-        billingData.channelFlags = {
-          has_landline: tenantData.has_landline ?? false,
-          has_mobile: tenantData.has_mobile ?? false,
-          has_whatsapp: tenantData.has_whatsapp ?? false,
-        };
+        if (tenantData.has_google_calendar) {
+          initialHasGoogleCalendarAddon = true;
+        }
         const { data: entitlements } = await queryClient
           .from('tier_entitlements')
           .select('feature_id, limit_value, features(name, is_metered)')
@@ -370,6 +383,9 @@ export default async function DashboardPage(props: { searchParams?: Promise<{ [k
           is_active: a.is_active,
           activated_at: a.activated_at,
         }));
+        if (billingData.addons.some((a: any) => a.category === 'google_calendar')) {
+          initialHasGoogleCalendarAddon = true;
+        }
       }
 
       // Fetch 3-month rolling usage for voice/SMS
@@ -566,6 +582,7 @@ export default async function DashboardPage(props: { searchParams?: Promise<{ [k
         initialHolidaySettings={holidaySettings}
         initialGoogleConnected={initialGoogleConnected}
         initialGoogleConnectedEmail={initialGoogleConnectedEmail}
+        initialHasGoogleCalendarAddon={initialHasGoogleCalendarAddon}
         initialGlobalVoiceDisclaimer={globalVoiceDisclaimer}
         billingData={billingData}
         superadminData={superadminData}

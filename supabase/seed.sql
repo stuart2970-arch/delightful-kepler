@@ -15,14 +15,15 @@ END;
 $$ LANGUAGE plpgsql;
 
 -- 2. Seed Tenants
-INSERT INTO public.tenants (id, tenant_id, company_name, slug, plan_tier)
+INSERT INTO public.tenants (id, tenant_id, company_name, slug, plan_tier, has_google_calendar)
 VALUES (
   '10000000-0000-0000-0000-000000000001',
   '10000000-0000-0000-0000-000000000001',
   'Acme Corp',
   'acme-corp',
-  'base_tier'
-) ON CONFLICT (id) DO NOTHING;
+  'base_tier',
+  true
+) ON CONFLICT (id) DO UPDATE SET has_google_calendar = true;
 
 INSERT INTO public.tenants (id, tenant_id, company_name, slug)
 VALUES (
@@ -100,7 +101,7 @@ VALUES (
   '20000000-0000-0000-0000-000000000002',
   '10000000-0000-0000-0000-000000000002',
   'admin'
-) ON CONFLICT (id) DO NOTHING;
+) ON CONFLICT (id) DO UPDATE SET tenant_id = EXCLUDED.tenant_id, role = EXCLUDED.role;
 
 -- 5. Seed Chatbots
 -- Acme Support Bot (Emerald Green theme)
@@ -229,7 +230,7 @@ VALUES (
   '20000000-0000-0000-0000-000000000003',
   '10000000-0000-0000-0000-000000000001',
   'member'
-) ON CONFLICT (id) DO NOTHING;
+) ON CONFLICT (id) DO UPDATE SET tenant_id = EXCLUDED.tenant_id, role = EXCLUDED.role;
 
 INSERT INTO public.staff (id, tenant_id, name, email)
 VALUES (
@@ -238,4 +239,10 @@ VALUES (
   'Acme Colleague',
   'colleague@acme.com'
 ) ON CONFLICT (id) DO NOTHING;
+
+-- Active Addons for Test Tenant
+INSERT INTO public.tenant_active_addons (tenant_id, addon_catalog_id, is_active)
+VALUES ('10000000-0000-0000-0000-000000000001', 'google_calendar_addon', true)
+ON CONFLICT DO NOTHING;
+
 

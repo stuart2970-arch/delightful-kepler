@@ -2,11 +2,13 @@ import React, { useState, useRef, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { useDashboardStore, DailySchedule, WeeklySchedule } from '../../lib/store';
 import ServiceEditor from '../ServiceEditor';
+import AddOnUpsellModal from '../AddOnUpsellModal';
 import { getMondayDate, formatMondayTabLabel, formatMondayFull, generateRollingSchedule, addDaysToDate } from '../../lib/dateUtils';
 
 
 export default function SchedulingView() {
   const [mounted, setMounted] = useState(false);
+  const [showCalendarUpsellModal, setShowCalendarUpsellModal] = useState(false);
   useEffect(() => {
     setMounted(true);
   }, []);
@@ -24,6 +26,7 @@ export default function SchedulingView() {
     setBookingUrl,
     isGoogleConnected,
     setIsGoogleConnected,
+    hasGoogleCalendarAddon,
     maxAdvanceWeeks,
     setMaxAdvanceWeeks,
     generalOperatingHours,
@@ -578,34 +581,58 @@ export default function SchedulingView() {
         {/* Google Calendar Authorization Banner */}
         <div className="bg-gradient-to-r from-slate-900 to-indigo-950 p-6 rounded-2xl text-white shadow-xl flex flex-col xl:flex-row items-start xl:items-center justify-between gap-5">
           <div className="space-y-2 flex-1">
-            <div className="flex items-center gap-2.5">
+            <div className="flex items-center gap-2.5 flex-wrap">
               <span className="text-2xl">📅</span>
               <h3 className="text-lg font-bold text-white tracking-tight">Google Calendar Integration</h3>
+              {!hasGoogleCalendarAddon && (
+                <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider bg-amber-500/20 text-amber-300 border border-amber-500/30">
+                  ⚡ Bolt-on Add-on
+                </span>
+              )}
             </div>
             <p className="text-xs text-slate-300 max-w-xl leading-relaxed">
-              Synchronize appointments two-way with Google Calendar in real-time. Prevents double-booking and updates staff rotas automatically.
+              {hasGoogleCalendarAddon
+                ? 'Synchronize appointments two-way with Google Calendar in real-time. Prevents double-booking and updates staff rotas automatically.'
+                : 'Connect Google Calendar to sync appointments two-way in real-time. (Note: Services, staff shift rotas, and webpage bookings work completely without this bolt-on!)'}
             </p>
-            {isGoogleConnected ? (
-              <div className="mt-2 inline-flex items-center gap-2 px-3 py-1 bg-emerald-500/20 text-emerald-300 rounded-full text-xs font-semibold border border-emerald-500/30">
-                <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
-                Connected to Google Calendar API
-              </div>
+            {hasGoogleCalendarAddon ? (
+              isGoogleConnected ? (
+                <div className="mt-2 inline-flex items-center gap-2 px-3 py-1 bg-emerald-500/20 text-emerald-300 rounded-full text-xs font-semibold border border-emerald-500/30">
+                  <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
+                  Connected to Google Calendar API
+                </div>
+              ) : (
+                <div className="mt-2 inline-flex items-center gap-2 px-3 py-1 bg-amber-500/20 text-amber-300 rounded-full text-xs font-semibold border border-amber-500/30">
+                  <span className="w-2 h-2 rounded-full bg-amber-400"></span>
+                  Not Connected to Google Calendar
+                </div>
+              )
             ) : (
-              <div className="mt-2 inline-flex items-center gap-2 px-3 py-1 bg-amber-500/20 text-amber-300 rounded-full text-xs font-semibold border border-amber-500/30">
-                <span className="w-2 h-2 rounded-full bg-amber-400"></span>
-                Not Connected to Google Calendar
+              <div className="mt-2 inline-flex items-center gap-2 px-3 py-1 bg-slate-800 text-slate-300 rounded-full text-xs font-semibold border border-slate-700">
+                <span className="text-amber-400">🔒</span>
+                Bolt-on inactive (£4.99/mo)
               </div>
             )}
           </div>
 
-          <a
-            href="/api/integrations/google/authorize"
-            target="_top"
-            rel="noopener noreferrer"
-            className="w-full sm:w-auto px-5 py-3 bg-indigo-600 hover:bg-indigo-500 text-white font-bold rounded-xl shadow-md transition-all flex items-center justify-center gap-2 text-sm whitespace-nowrap shrink-0 self-stretch sm:self-start xl:self-center"
-          >
-            <span>{isGoogleConnected ? '🔄 Re-authorize Google Calendar' : '🔗 Connect Google Calendar'}</span>
-          </a>
+          {hasGoogleCalendarAddon ? (
+            <a
+              href="/api/integrations/google/authorize"
+              target="_top"
+              rel="noopener noreferrer"
+              className="w-full sm:w-auto px-5 py-3 bg-indigo-600 hover:bg-indigo-500 text-white font-bold rounded-xl shadow-md transition-all flex items-center justify-center gap-2 text-sm whitespace-nowrap shrink-0 self-stretch sm:self-start xl:self-center"
+            >
+              <span>{isGoogleConnected ? '🔄 Re-authorize Google Calendar' : '🔗 Connect Google Calendar'}</span>
+            </a>
+          ) : (
+            <button
+              type="button"
+              onClick={() => setShowCalendarUpsellModal(true)}
+              className="w-full sm:w-auto px-5 py-3 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-slate-950 font-bold rounded-xl shadow-lg transition-all flex items-center justify-center gap-2 text-sm whitespace-nowrap shrink-0 self-stretch sm:self-start xl:self-center"
+            >
+              <span>⚡ Add Google Calendar Bolt-on (£4.99/mo)</span>
+            </button>
+          )}
         </div>
 
         {/* Services & Treatment Catalog */}
@@ -759,6 +786,24 @@ export default function SchedulingView() {
                 </label>
               ))}
             </div>
+
+            {(bookingMode === 'single_calendar' || bookingMode === 'multi_calendar') && !hasGoogleCalendarAddon && (
+              <div className="mb-4 p-3.5 bg-amber-500/10 border border-amber-500/30 rounded-xl flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 text-xs text-amber-900">
+                <div className="flex items-center gap-2">
+                  <span className="text-base shrink-0">⚡</span>
+                  <span>
+                    <strong>Google Calendar bolt-on required</strong> for two-way Google Calendar synchronization. Web page bookings will still check and book against your team's shift rotas without it.
+                  </span>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setShowCalendarUpsellModal(true)}
+                  className="px-3 py-1.5 bg-amber-600 hover:bg-amber-700 text-white font-bold rounded-lg text-xs shrink-0 shadow-sm"
+                >
+                  Add Bolt-on
+                </button>
+              </div>
+            )}
 
             {bookingMode === 'external_platform' && (
               <div className="mb-4 pl-1">
@@ -1192,6 +1237,11 @@ export default function SchedulingView() {
                       className="w-full h-11 px-4 bg-slate-50 border border-slate-200 rounded-xl text-xs font-mono font-medium text-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-600"
                     />
                     <p className="text-[10px] text-slate-400 mt-1">Leave empty to use primary default Google Calendar.</p>
+                    {!hasGoogleCalendarAddon && (
+                      <p className="text-[10px] text-amber-600 font-medium mt-1">
+                        ⚡ Requires Google Calendar bolt-on to sync. Staff rota and webpage booking operate normally without it.
+                      </p>
+                    )}
                   </div>
 
                   {/* Specialist Products / Services */}
@@ -1498,6 +1548,14 @@ export default function SchedulingView() {
             </div>
           </div>,
           document.body
+        )}
+        {mounted && (
+          <AddOnUpsellModal
+            isOpen={showCalendarUpsellModal}
+            onClose={() => setShowCalendarUpsellModal(false)}
+            category="google_calendar"
+            tenantId={tenantId}
+          />
         )}
       </div>
     </>

@@ -88,6 +88,7 @@ interface DashboardClientProps {
   superadminData?: Record<string, unknown>;
   isImpersonating?: boolean;
   initialGoogleConnected?: boolean;
+  initialHasGoogleCalendarAddon?: boolean;
   initialBusinessAddress?: string;
   initialPostcode?: string;
   initialGoogleConnectedEmail?: string | null;
@@ -133,6 +134,7 @@ export default function DashboardClient({
   initialHolidaySettings = {},
   initialGoogleConnected = false,
   initialGoogleConnectedEmail = null,
+  initialHasGoogleCalendarAddon = false,
   initialGlobalVoiceDisclaimer,
   initialServices = [],
   initialStaff = [],
@@ -188,6 +190,7 @@ export default function DashboardClient({
       holidaySettings: initialHolidaySettings || {},
       isGoogleConnected: initialGoogleConnected || false,
       googleConnectedEmail: initialGoogleConnectedEmail || null,
+      hasGoogleCalendarAddon: initialHasGoogleCalendarAddon || Boolean((billingData as any)?.channelFlags?.has_google_calendar) || Boolean(((billingData as any)?.addons || []).some((a: any) => a.category === 'google_calendar')),
       businessAddress: initialBusinessAddress || '',
       postcode: initialPostcode || '',
       twilioShadowNumber: initialTwilioShadowNumber || null,
@@ -228,6 +231,7 @@ export default function DashboardClient({
     initialHolidaySettings,
     initialGoogleConnected,
     initialGoogleConnectedEmail,
+    initialHasGoogleCalendarAddon,
     initialBusinessAddress,
     initialPostcode,
     initialTwilioShadowNumber,

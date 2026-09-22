@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 
-export type AddOnCategory = 'landline' | 'mobile' | 'whatsapp' | 'voice_pack' | 'sms_pack' | 'data_pack';
+export type AddOnCategory = 'landline' | 'mobile' | 'whatsapp' | 'voice_pack' | 'sms_pack' | 'data_pack' | 'google_calendar';
 
 interface AddOnUpsellModalProps {
   isOpen: boolean;
@@ -133,6 +133,7 @@ export default function AddOnUpsellModal({ isOpen, onClose, category, tenantId }
       case 'voice_pack': return 'Voice Minutes Bolt-on';
       case 'sms_pack': return 'SMS Messages Bolt-on';
       case 'data_pack': return 'Knowledge Base Capacity';
+      case 'google_calendar': return 'Google Calendar Integration Bolt-on';
       default: return 'Upgrade Feature';
     }
   };

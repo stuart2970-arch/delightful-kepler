@@ -26,6 +26,7 @@ export type ChannelFlags = {
   has_landline: boolean;
   has_mobile: boolean;
   has_whatsapp: boolean;
+  has_google_calendar: boolean;
 };
 
 export type ActiveAddon = {
@@ -69,6 +70,7 @@ const FEATURE_TO_UPGRADE_MAP: Record<string, { category: string; addonId: string
   sms_messages: { category: 'sms_pack', addonId: 'sms_pack_100', addonName: '100 SMS Pack', pricePence: 599 },
   knowledge_data_chunks: { category: 'data_pack', addonId: 'data_pack_500', addonName: '500 Knowledge Base Chunks', pricePence: 999 },
   whatsapp_messages: { category: 'whatsapp', addonId: 'whatsapp_addon', addonName: 'WhatsApp (Add-on)', pricePence: 999 },
+  google_calendar: { category: 'google_calendar', addonId: 'google_calendar_addon', addonName: 'Google Calendar Integration', pricePence: 499 },
 };
 
 // =========================================================================
@@ -78,7 +80,7 @@ export async function getTenantChannelFlags(tenantId: string): Promise<ChannelFl
   const supabase = createAdminClient();
   const { data: tenant } = await supabase
     .from('tenants')
-    .select('has_landline, has_mobile, has_whatsapp')
+    .select('has_landline, has_mobile, has_whatsapp, has_google_calendar')
     .eq('id', tenantId)
     .single();
 
@@ -86,6 +88,7 @@ export async function getTenantChannelFlags(tenantId: string): Promise<ChannelFl
     has_landline: tenant?.has_landline ?? false,
     has_mobile: tenant?.has_mobile ?? false,
     has_whatsapp: tenant?.has_whatsapp ?? false,
+    has_google_calendar: tenant?.has_google_calendar ?? false,
   };
 }
 
@@ -202,7 +205,7 @@ export async function getTenantEffectiveLimit(tenantId: string, featureId: strin
   // 2. Check active bolt-on add-ons from addon_catalog
   const { data: addons } = await supabase
     .from('tenant_active_addons')
-    .select('addon_catalog_id, addon_catalog(included_voice_minutes, included_sms, included_messages, included_data_chunks)')
+    .select('addon_catalog_id, addon_catalog(category, included_voice_minutes, included_sms, included_messages, included_data_chunks)')
     .eq('tenant_id', tenantId)
     .eq('is_active', true);
 
@@ -231,6 +234,12 @@ export async function getTenantEffectiveLimit(tenantId: string, featureId: strin
         case 'knowledge_data_chunks':
         case 'data_chunks_addon':
           addonBonus += catalog.included_data_chunks || 0;
+          break;
+        case 'google_calendar':
+        case 'calendar_booking':
+          if (catalog.category === 'google_calendar' || addon.addon_catalog_id === 'google_calendar_addon') {
+            addonBonus += 1;
+          }
           break;
       }
     }
