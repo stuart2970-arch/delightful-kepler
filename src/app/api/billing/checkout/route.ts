@@ -111,9 +111,11 @@ export async function POST(req: Request) {
         ? Math.round(Number(customPricePence))
         : addon.monthly_price_pence;
 
-      const finalVoiceMinutes = (customVoiceMinutes !== undefined && Number(customVoiceMinutes) >= 0)
-        ? Math.round(Number(customVoiceMinutes))
-        : (addon.included_voice_minutes || 0);
+      const finalVoiceMinutes = (addon.category === 'mobile' || addonCatalogId === 'mobile_addon')
+        ? 0
+        : (customVoiceMinutes !== undefined && Number(customVoiceMinutes) >= 0)
+          ? Math.round(Number(customVoiceMinutes))
+          : (addon.included_voice_minutes || 0);
 
       const finalSms = (customSms !== undefined && Number(customSms) >= 0)
         ? Math.round(Number(customSms))
@@ -133,12 +135,16 @@ export async function POST(req: Request) {
       } else {
         // Build descriptive line item title & description
         let lineDescription = addon.description || addon.name;
-        if (finalVoiceMinutes > 0 && finalSms > 0) {
+        if (addon.category === 'mobile' || addonCatalogId === 'mobile_addon') {
+          lineDescription = `Includes dedicated UK mobile number (07) for WhatsApp and ${finalSms} SMS messages`;
+        } else if (finalVoiceMinutes > 0 && finalSms > 0) {
           lineDescription = `Includes ${finalVoiceMinutes} shared voice mins + ${finalSms} SMS messages`;
         } else if (finalVoiceMinutes > 0) {
           lineDescription = `Includes dedicated number + ${finalVoiceMinutes} shared voice mins`;
         } else if (finalSms > 0) {
-          lineDescription = `One-off pack of ${finalSms} SMS messages (Valid for 3 months from purchase)`;
+          lineDescription = isOneOff
+            ? `One-off pack of ${finalSms} SMS messages (Valid for 3 months from purchase)`
+            : `Includes ${finalSms} SMS messages`;
         }
 
         const priceData: Stripe.Checkout.SessionCreateParams.LineItem.PriceData = {

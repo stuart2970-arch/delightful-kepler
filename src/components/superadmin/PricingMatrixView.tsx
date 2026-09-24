@@ -81,7 +81,7 @@ export default function PricingMatrixView() {
         } else if (item.category === 'mobile') {
           lowerAllow = String(item.included_sms || 50);
           upperAllow = String(item.max_sms || 250);
-          voiceBuffer = String(item.included_voice_minutes || 10);
+          voiceBuffer = '0';
         } else if (item.category === 'voice_pack') {
           lowerAllow = String(item.included_voice_minutes || 20);
           upperAllow = String(item.max_voice_minutes || 100);
@@ -169,8 +169,8 @@ export default function PricingMatrixView() {
     } else if (category === 'mobile') {
       updates.included_sms = lowerAllow;
       updates.max_sms = upperAllow;
-      updates.included_voice_minutes = parseInt(values.voiceMinsBuffer || '10', 10);
-      summary = `Updated Mobile bounds: £${values.lowerCostGBP} (${lowerAllow} SMS) -> £${values.upperCostGBP} (${upperAllow} SMS) + ${updates.included_voice_minutes}m buffer`;
+      updates.included_voice_minutes = 0;
+      summary = `Updated Mobile bounds: £${values.lowerCostGBP} (${lowerAllow} SMS) -> £${values.upperCostGBP} (${upperAllow} SMS) (WhatsApp & SMS only)`;
     } else if (category === 'voice_pack') {
       updates.included_voice_minutes = lowerAllow;
       updates.max_voice_minutes = upperAllow;
@@ -530,16 +530,10 @@ export default function PricingMatrixView() {
                 />
               </div>
 
-              {/* Voice Minute Buffer */}
-              <div className="col-span-2">
-                <label className="block text-[11px] font-semibold text-gray-400 mb-1">Included Voice Minutes Buffer (mins/mo)</label>
-                <input
-                  type="number"
-                  value={formState[mobileItem.id].voiceMinsBuffer}
-                  onChange={(e) => handleFieldChange(mobileItem.id, 'voiceMinsBuffer', e.target.value)}
-                  className="w-full bg-gray-950 border border-gray-700 rounded-xl px-3 py-2 text-sm text-white font-mono font-semibold focus:outline-none focus:border-indigo-500"
-                  placeholder="10"
-                />
+              {/* WhatsApp + SMS note (voice minutes removed) */}
+              <div className="col-span-2 p-3 bg-gray-950/60 rounded-xl border border-gray-800 text-[11px] text-gray-400 flex items-center gap-2">
+                <span>💬</span>
+                <span>Dedicated UK mobile number allocated strictly for WhatsApp and SMS messaging (shared voice minutes disabled).</span>
               </div>
             </div>
 

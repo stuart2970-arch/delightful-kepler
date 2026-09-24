@@ -161,7 +161,7 @@ export default function AddOnUpsellModal({ isOpen, onClose, category, tenantId }
   const mobileMaxPrice = mobileItem?.max_price_pence ?? 1499;
   const mobileMinSms = mobileItem?.included_sms ?? 50;
   const mobileMaxSms = mobileItem?.max_sms ?? 250;
-  const mobileVoiceMins = mobileItem?.included_voice_minutes ?? 10;
+  const mobileVoiceMins = 0;
   const mobileStepPence = mobileItem?.price_step_pence || 100;
   const mobileMaxSteps = Math.max(1, Math.round((mobileMaxPrice - mobileMinPrice) / mobileStepPence));
   const safeMobileStep = Math.min(mobileStep, mobileMaxSteps);
@@ -326,11 +326,11 @@ export default function AddOnUpsellModal({ isOpen, onClose, category, tenantId }
                       <div className="flex items-center gap-2">
                         <h4 className="text-[#260475] font-extrabold text-lg">Mobile Phone Number</h4>
                         <span className="bg-emerald-50 text-emerald-700 border border-emerald-200 text-[11px] font-bold px-2 py-0.5 rounded-full">
-                          SMS + Voice
+                          WhatsApp + SMS
                         </span>
                       </div>
                       <p className="text-[#434549] text-xs mt-1">
-                        Includes dedicated UK mobile number (07) + SMS messages + shared voice minutes.
+                        Includes dedicated UK mobile number (07) for WhatsApp and SMS messages.
                       </p>
                     </div>
 
@@ -380,13 +380,10 @@ export default function AddOnUpsellModal({ isOpen, onClose, category, tenantId }
                       <span className="bg-indigo-50 text-indigo-700 border border-indigo-200 text-xs font-semibold px-2 py-1 rounded">
                         ✉️ {mobileSmsCount} SMS
                       </span>
-                      <span className="bg-amber-50 text-amber-700 border border-amber-200 text-xs font-semibold px-2 py-1 rounded">
-                        🎙️ {mobileVoiceMins} voice mins
-                      </span>
                     </div>
 
                     <button
-                      onClick={() => handleSubscribe(mobileItem?.id || 'mobile_addon', mobilePricePence, mobileVoiceMins, mobileSmsCount)}
+                      onClick={() => handleSubscribe(mobileItem?.id || 'mobile_addon', mobilePricePence, 0, mobileSmsCount)}
                       disabled={isSubscribing !== null}
                       className="w-full sm:w-auto bg-[#198fd9] hover:bg-[#157ab9] disabled:bg-gray-400 text-white text-xs font-bold py-2.5 px-6 rounded-lg shadow-sm transition-all flex items-center justify-center gap-2 cursor-pointer"
                     >

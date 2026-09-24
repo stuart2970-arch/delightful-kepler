@@ -46,7 +46,7 @@ async function main() {
     // Mobile Addon
     {
       name: 'StyleFlo Mobile Number',
-      description: 'Dedicated mobile number with 50-250 SMS messages and shared voice minutes.',
+      description: 'Dedicated mobile number for WhatsApp and 50-250 SMS messages.',
       metadata: { type: 'addon', catalog_id: 'mobile_addon' },
       monthlyPricePence: 1099,
       annualPricePence: null,

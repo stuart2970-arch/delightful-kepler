@@ -2291,6 +2291,50 @@ If the user selects OK they are taken out of the agent builder to the package op
     4. Added an inline informational card under the toggle displaying the guidance persistently.
     5. Verified Next.js Turbopack build and complete Playwright E2E test suite pass with 100% success.
 
+### Session 45 — Dedicated Mobile Number: Removal of Shared Voice Minutes (WhatsApp & SMS Only) (2026-09-24)
+
+**Context**: User requested via screenshot (`media_1790257975381.jpg`):
+*"Mobile Number: Need to remove the shared minutes as this is for whatsapp and sms only"*
+Highlighted adjustments in the modal:
+1. Header badge next to "Mobile Phone Number": change from `SMS + Voice` to `WhatsApp + SMS`.
+2. Subtitle: remove `+ shared voice minutes`, updating to `Includes dedicated UK mobile number (07) for WhatsApp and SMS messages.`
+3. Bottom summary badges: remove the `🎙️ 10 voice mins` pill entirely.
+
+1. **Architecture & Implementation**:
+   - **Database Migration (`supabase/migrations/20260924160000_mobile_number_sms_only.sql`)**:
+     - Updated `public.addon_catalog` for `mobile_addon`: set `included_voice_minutes = 0` and updated description to reflect WhatsApp and SMS messaging only without voice minutes.
+     - Executed update on local Supabase container (`supabase_db_delightful-kepler`) and remote Supabase project (`tkoasyjvrgaglofpzduq`).
+   - **Add-on Upsell Modal (`src/components/AddOnUpsellModal.tsx`)**:
+     - Updated category header badge from `SMS + Voice` to `WhatsApp + SMS`.
+     - Updated description to: *"Includes dedicated UK mobile number (07) for WhatsApp and SMS messages."*
+     - Removed the `🎙️ {mobileVoiceMins} voice mins` badge from the feature summary.
+     - Set `mobileVoiceMins = 0` and updated `handleSubscribe` call to pass `0` voice minutes so checkout sessions do not bundle voice minutes.
+   - **Dashboard Subscriptions View (`src/components/DashboardClient.tsx`)**:
+     - Updated the Virtual Mobile Number catalog card description to: *"UK 07 virtual mobile number for WhatsApp and SMS messaging."* (removed reference to 10 shared voice minutes).
+   - **Superadmin Pricing Matrix (`src/components/superadmin/PricingMatrixView.tsx`)**:
+     - Set `voiceBuffer` to `'0'` and `updates.included_voice_minutes` to `0` when updating mobile sliding scales.
+     - Replaced the "Voice Minute Buffer" input with an informative notice indicating dedicated mobile numbers are allocated strictly for WhatsApp and SMS messaging with voice minutes disabled.
+   - **Stripe Checkout Mode (`src/app/api/billing/checkout/route.ts`)**:
+     - Guaranteed `finalVoiceMinutes = 0` for mobile category/catalog items.
+     - Updated line item description to `Includes dedicated UK mobile number (07) for WhatsApp and ${finalSms} SMS messages`.
+
+2. **Verification & Testing**:
+   - `npm run build`: Production Next.js Turbopack build and widget bundling passed with 0 errors.
+   - `npx playwright test tests/addons-sliding-scale.spec.ts`: 5 passed (100%).
+   - `npm run test:e2e`: Full E2E test suite passed (42 passed, 1 skipped).
+
+## Session Chat History Log
+
+* **User**: "Mobile Number: Need to remove the shared minutes as this is for whatsapp and sms only"
+  * **Answer & Action**:
+    1. Audited all references to mobile number bolt-ons across frontend modals, dashboard subscriptions, superadmin pricing matrix, checkout session generator, and database catalog.
+    2. Updated `AddOnUpsellModal.tsx`: changed `SMS + Voice` to `WhatsApp + SMS`, updated description to remove shared voice minutes, removed the `10 voice mins` pill, and set voice minutes to 0 in subscription handlers.
+    3. Updated `DashboardClient.tsx` Subscriptions tab to reflect WhatsApp and SMS messaging without voice minutes.
+    4. Updated `PricingMatrixView.tsx` to enforce 0 voice minutes on mobile and replaced voice buffer input with informational badge.
+    5. Updated `checkout/route.ts` line item descriptions and enforced 0 voice minutes.
+    6. Created and applied migration `20260924160000_mobile_number_sms_only.sql` to both local Docker and production Supabase databases.
+    7. Verified production build and full E2E test suite pass 100%.
+
 
 
 

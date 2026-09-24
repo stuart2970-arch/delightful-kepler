@@ -1124,7 +1124,7 @@ const globalBotId = '00000000-0000-0000-0000-000000000000';
                           <span className="text-[11px] font-bold text-[var(--awb-color5)]">From £10.99/mo</span>
                         </div>
                         <p className="text-[11px] text-[var(--awb-color6)] mb-3 leading-relaxed">
-                          UK 07 virtual mobile number with inbound/outbound SMS and 10 shared voice minutes.
+                          UK 07 virtual mobile number for WhatsApp and SMS messaging.
                         </p>
                       </div>
                       <button
