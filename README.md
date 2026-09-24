@@ -2333,7 +2333,58 @@ Highlighted adjustments in the modal:
     4. Updated `PricingMatrixView.tsx` to enforce 0 voice minutes on mobile and replaced voice buffer input with informational badge.
     5. Updated `checkout/route.ts` line item descriptions and enforced 0 voice minutes.
     6. Created and applied migration `20260924160000_mobile_number_sms_only.sql` to both local Docker and production Supabase databases.
-    7. Verified production build and full E2E test suite pass 100%.
+ 
+
+### Session 46 — Voice Minutes Bolt-on: One-off Pack Purchase & Auto Top-Up Option (2026-09-24)
+
+**Context**: User requested via annotated screenshot (`media_1790261181375.png`):
+*"This is a one off Purchase not a monthly subscription. we should ask the customer if they wish to auto top up if their balance falls below xx minutes credit"*
+Highlighted adjustments in the modal:
+1. Removed `/m` label next to voice price.
+2. Removed recurring clause: updated *"Unused voice minutes roll over for up to 3 months as long as subscription remains active."* to *"One-off payment. Purchased voice minutes remain active for 3 months from the date of purchase."*
+3. Removed `/mo` in slider scale indicator (`100 voice mins`).
+4. Replaced recurring CTA button (`Subscribe at £50.00/mo`) with dynamic one-off purchase button: `Purchase 100 Voice Minutes for £50.00`.
+5. Added Auto Top-up Question Card with interactive toggle and customizable low-balance threshold (5, 10, 15, 20, 30 minutes).
+
+1. **Architecture & Implementation**:
+   - **Database Migration (`supabase/migrations/20260924170000_voice_auto_topup.sql`)**:
+     - Added `voice_auto_topup`, `voice_auto_topup_threshold`, `voice_auto_topup_amount`, and `voice_auto_topup_price_pence` to `public.tenants`.
+     - Updated `addon_catalog` description for `voice_pack` from recurring monthly rollover to one-off pack with 3-month validity.
+     - Executed migration on local Supabase container and remote production Supabase project (`tkoasyjvrgaglofpzduq`).
+   - **Add-on Upsell Modal (`src/components/AddOnUpsellModal.tsx`)**:
+     - Stripped recurring subscription suffix (`/m`, `/mo`) from voice package header, sliding scale, and CTA button.
+     - Changed validity badge to `⏱️ 3-Month Validity` and scale subtitle to `One-off Pack (£1 steps)`.
+     - Added Auto Top-up Question Card with toggle: *"Auto Top-up when balance is low: Automatically repurchase {voiceMinutesCount} mins for £{voicePriceGBP} when remaining credit falls below: [5, 10, 15, 20, 30] minutes"*.
+     - Dynamic CTA button: `Purchase ${voiceMinutesCount} Voice Minutes for £${voicePriceGBP}`.
+     - Passed `autoTopup` and `autoTopupThreshold` to `handleSubscribe()`.
+   - **Dashboard Subscriptions View (`src/components/DashboardClient.tsx`)**:
+     - Updated Voice Minutes card price from `From £15.00/mo` to `From £15.00` and button to `Purchase Voice Minutes`.
+   - **Superadmin Pricing Matrix (`src/components/superadmin/PricingMatrixView.tsx`)**:
+     - Updated badge to `3-Mo Expiry (One-off)`.
+   - **Stripe Checkout (`src/app/api/billing/checkout/route.ts`)**:
+     - Added `voice_pack` to `isOneOff`, set checkout session `mode: 'payment'`, line description to `One-off pack of ${finalVoiceMinutes} voice minutes (Valid for 3 months from purchase)`.
+     - Passed auto top-up preference metadata and updated tenant columns.
+   - **Stripe Webhook (`src/app/api/webhooks/stripe/route.ts`)**:
+     - Excluded `voice_pack` from recurring `tenant_active_addons` renewals.
+     - Saved auto top-up settings and recorded custom audit log entries for voice pack purchases.
+   - **Tenant Settings API (`src/app/api/tenants/settings/route.ts`)**:
+     - Added support for updating `voice_auto_topup`, `voice_auto_topup_threshold`, `voice_auto_topup_amount`, and `voice_auto_topup_price_pence`.
+
+2. **Verification & Testing**:
+   - `npm run build`: Production Next.js Turbopack build and widget bundling passed with 0 errors.
+   - `npx playwright test tests/addons-sliding-scale.spec.ts`: 7 passed (100%).
+   - `npm run test:e2e`: Full E2E test suite passed.
+
+## Session Chat History Log
+
+* **User**: "This is a one off Purchase not a monthly subscription. we should ask the customer if they wish to auto top up if their balance falls below xx minutes credit"
+  * **Answer & Action**:
+    1. Audited voice minutes pack across modal UI, dashboard, checkout flow, stripe webhook, and database schema.
+    2. Converted Voice Minutes from recurring subscription to one-off pack: removed all `/m` and `/mo` labels and updated rollover text to 3-month validity from date of purchase.
+    3. Created auto top-up question card with threshold selector (5, 10, 15, 20, 30 minutes) and dynamic one-off purchase button.
+    4. Added database columns to `tenants` via migration `20260924170000_voice_auto_topup.sql` applied to local and production Supabase.
+    5. Handled `voice_pack` in Stripe Checkout (`mode: 'payment'`) and Stripe Webhook (`isOneOff`, auto top-up metadata persistence, audit logging).
+    6. Verified with `npm run build` and Playwright tests.
 
 
 

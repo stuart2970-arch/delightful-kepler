@@ -20,7 +20,7 @@ export async function POST(req: Request) {
     const supabase = createClient(supabaseUrl, supabaseKey);
 
     const body = await req.json();
-    const { priceId, addonPriceIds, addonCatalogId, tenantId, customerEmail, returnUrl, action, customPricePence, customVoiceMinutes, customSms } = body;
+    const { priceId, addonPriceIds, addonCatalogId, tenantId, customerEmail, returnUrl, action, customPricePence, customVoiceMinutes, customSms, autoTopup, autoTopupThreshold } = body;
 
     // Mode 3: Customer Portal
     if (action === 'portal') {
@@ -121,7 +121,11 @@ export async function POST(req: Request) {
         ? Math.round(Number(customSms))
         : (addon.included_sms || 0);
 
-      const isOneOff = addon.category === 'sms_pack' || addonCatalogId?.startsWith('sms_pack');
+      const isOneOff = 
+        addon.category === 'sms_pack' || 
+        addonCatalogId?.startsWith('sms_pack') ||
+        addon.category === 'voice_pack' || 
+        addonCatalogId?.startsWith('voice_pack');
 
       // Construct line item: use static price if available and no custom pricing was chosen;
       // otherwise, dynamically create a recurring price using price_data.
@@ -137,6 +141,8 @@ export async function POST(req: Request) {
         let lineDescription = addon.description || addon.name;
         if (addon.category === 'mobile' || addonCatalogId === 'mobile_addon') {
           lineDescription = `Includes dedicated UK mobile number (07) for WhatsApp and ${finalSms} SMS messages`;
+        } else if (addon.category === 'voice_pack' || addonCatalogId?.startsWith('voice_pack')) {
+          lineDescription = `One-off pack of ${finalVoiceMinutes} voice minutes (Valid for 3 months from purchase)`;
         } else if (finalVoiceMinutes > 0 && finalSms > 0) {
           lineDescription = `Includes ${finalVoiceMinutes} shared voice mins + ${finalSms} SMS messages`;
         } else if (finalVoiceMinutes > 0) {
@@ -172,7 +178,7 @@ export async function POST(req: Request) {
         };
       }
 
-      const metadataPayload = {
+      const metadataPayload: Record<string, string> = {
         tenant_id: tenantId,
         is_addon: 'true',
         is_one_off: isOneOff ? 'true' : 'false',
@@ -180,7 +186,21 @@ export async function POST(req: Request) {
         custom_price_pence: String(finalPricePence),
         custom_voice_minutes: String(finalVoiceMinutes),
         custom_sms: String(finalSms),
+        auto_topup: autoTopup ? 'true' : 'false',
+        auto_topup_threshold: String(autoTopupThreshold || 10),
       };
+
+      if (autoTopup && tenantId && (addon.category === 'voice_pack' || addonCatalogId?.startsWith('voice_pack'))) {
+        await supabase
+          .from('tenants')
+          .update({
+            voice_auto_topup: true,
+            voice_auto_topup_threshold: Number(autoTopupThreshold) || 10,
+            voice_auto_topup_amount: finalVoiceMinutes,
+            voice_auto_topup_price_pence: finalPricePence,
+          })
+          .eq('id', tenantId);
+      }
 
       const isLocal = process.env.NODE_ENV === 'development' || process.env.NEXT_PUBLIC_ENV === 'development';
       const wpAppUrl = isLocal ? 'https://styleflo.test/app' : 'https://styleflo.ai/app';

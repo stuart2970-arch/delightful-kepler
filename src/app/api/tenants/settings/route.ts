@@ -85,6 +85,12 @@ export async function PATCH(req: NextRequest) {
       ...((is_24_7 !== undefined || is247 !== undefined) && { is_24_7: is_24_7 ?? is247 }),
       ...((open_public_holidays !== undefined || openPublicHolidays !== undefined) && { open_public_holidays: open_public_holidays ?? openPublicHolidays }),
       ...((max_advance_weeks !== undefined || maxAdvanceWeeks !== undefined) && { max_advance_weeks: max_advance_weeks ?? maxAdvanceWeeks }),
+      ...(body.voice_auto_topup !== undefined && { voice_auto_topup: body.voice_auto_topup }),
+      ...(body.voiceAutoTopup !== undefined && { voice_auto_topup: body.voiceAutoTopup }),
+      ...(body.voice_auto_topup_threshold !== undefined && { voice_auto_topup_threshold: body.voice_auto_topup_threshold }),
+      ...(body.voiceAutoTopupThreshold !== undefined && { voice_auto_topup_threshold: body.voiceAutoTopupThreshold }),
+      ...(body.voice_auto_topup_amount !== undefined && { voice_auto_topup_amount: body.voice_auto_topup_amount }),
+      ...(body.voice_auto_topup_price_pence !== undefined && { voice_auto_topup_price_pence: body.voice_auto_topup_price_pence }),
     };
 
     // Tier 3: Extended Address Profile Fields

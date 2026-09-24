@@ -41,6 +41,8 @@ export default function AddOnUpsellModal({ isOpen, onClose, category, tenantId }
 
   // 3. Voice Pack: 0 to 35 steps (£15.00 to £50.00 in £1 multiples, 20 to 100 mins)
   const [voiceStep, setVoiceStep] = useState<number>(0);
+  const [voiceAutoTopup, setVoiceAutoTopup] = useState<boolean>(false);
+  const [voiceAutoTopupThreshold, setVoiceAutoTopupThreshold] = useState<number>(10);
 
   // 4. SMS Pack: 0 to 9 steps (£5.99 to £14.99 in £1 multiples, 100 to 500 SMS)
   const [smsStep, setSmsStep] = useState<number>(0);
@@ -82,7 +84,9 @@ export default function AddOnUpsellModal({ isOpen, onClose, category, tenantId }
     addonCatalogId: string,
     customPricePence?: number,
     customVoiceMinutes?: number,
-    customSms?: number
+    customSms?: number,
+    autoTopup?: boolean,
+    autoTopupThreshold?: number
   ) => {
     setIsSubscribing(addonCatalogId);
     setError(null);
@@ -99,6 +103,8 @@ export default function AddOnUpsellModal({ isOpen, onClose, category, tenantId }
           customPricePence,
           customVoiceMinutes,
           customSms,
+          autoTopup,
+          autoTopupThreshold,
           returnUrl: wpAppUrl,
         }),
       });
@@ -408,23 +414,22 @@ export default function AddOnUpsellModal({ isOpen, onClose, category, tenantId }
                   <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-4">
                     <div>
                       <div className="flex items-center gap-2">
-                        <h4 className="text-[#260475] font-extrabold text-lg">Sliding Voice Minutes Pack</h4>
+                        <h4 className="text-[#260475] font-extrabold text-lg">Voice Minutes Pack</h4>
                         <span className="bg-purple-50 text-purple-700 border border-purple-200 text-[11px] font-bold px-2 py-0.5 rounded-full">
-                          🔄 3-Month Roll-over
+                          ⏱️ 3-Month Validity
                         </span>
                       </div>
                       <p className="text-[#434549] text-xs mt-1">
-                        Unused voice minutes roll over for up to 3 months as long as subscription remains active.
+                        One-off payment. Purchased voice minutes remain active for 3 months from the date of purchase.
                       </p>
                     </div>
 
                     <div className="text-right shrink-0">
                       <div className="text-2xl font-black text-[#212326]">
                         £{voicePriceGBP}
-                        <span className="text-sm font-normal text-[#434549]"> /m</span>
                       </div>
                       <span className="text-[11px] text-emerald-600 font-semibold block mt-0.5">
-                        Sliding Scale (£1 steps)
+                        One-off Pack (£1 steps)
                       </span>
                     </div>
                   </div>
@@ -434,7 +439,7 @@ export default function AddOnUpsellModal({ isOpen, onClose, category, tenantId }
                     <div className="flex justify-between items-center text-xs">
                       <span className="font-bold text-[#260475]">Select Voice Minutes Pool:</span>
                       <span className="font-extrabold text-[#198fd9] text-sm bg-white px-2.5 py-0.5 rounded border border-[#198fd9]/30 shadow-xs">
-                        🎙️ {voiceMinutesCount} voice mins/mo
+                        🎙️ {voiceMinutesCount} voice mins
                       </span>
                     </div>
 
@@ -474,6 +479,49 @@ export default function AddOnUpsellModal({ isOpen, onClose, category, tenantId }
                     </div>
                   </div>
 
+                  {/* Auto Top-up Option */}
+                  <div className="mt-4 bg-indigo-50/70 border border-indigo-100 rounded-xl p-4 space-y-3">
+                    <div className="flex items-center justify-between gap-3">
+                      <div className="flex items-center gap-2.5">
+                        <span className="text-lg">⚡</span>
+                        <div>
+                          <span className="text-xs font-bold text-[#260475]">Auto Top-up when balance is low</span>
+                          <p className="text-[11px] text-[#434549]">Never run out of voice minutes during live customer calls.</p>
+                        </div>
+                      </div>
+                      <label className="relative inline-flex items-center cursor-pointer shrink-0">
+                        <input
+                          type="checkbox"
+                          checked={voiceAutoTopup}
+                          onChange={(e) => setVoiceAutoTopup(e.target.checked)}
+                          className="sr-only peer"
+                        />
+                        <div className="w-9 h-5 bg-gray-300 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-[#198fd9]"></div>
+                      </label>
+                    </div>
+
+                    {voiceAutoTopup && (
+                      <div className="pt-2.5 border-t border-indigo-100 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 text-xs">
+                        <div className="text-[#434549] leading-relaxed">
+                          Automatically repurchase <strong className="text-[#260475]">{voiceMinutesCount} mins for £{voicePriceGBP}</strong> when remaining credit falls below:
+                        </div>
+                        <div className="flex items-center gap-1.5 shrink-0">
+                          <select
+                            value={voiceAutoTopupThreshold}
+                            onChange={(e) => setVoiceAutoTopupThreshold(Number(e.target.value))}
+                            className="bg-white border border-indigo-200 rounded-lg px-2.5 py-1 text-xs font-bold text-[#260475] focus:outline-none focus:border-[#198fd9]"
+                          >
+                            <option value={5}>5 minutes</option>
+                            <option value={10}>10 minutes</option>
+                            <option value={15}>15 minutes</option>
+                            <option value={20}>20 minutes</option>
+                            <option value={30}>30 minutes</option>
+                          </select>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+
                   {/* Feature Badges & Subscribe */}
                   <div className="mt-4 pt-3 border-t border-[var(--awb-color3)] flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
                     <div className="flex flex-wrap gap-1.5">
@@ -481,12 +529,12 @@ export default function AddOnUpsellModal({ isOpen, onClose, category, tenantId }
                         🎙️ {voiceMinutesCount} voice mins
                       </span>
                       <span className="bg-purple-50 text-purple-700 border border-purple-200 text-xs font-semibold px-2 py-1 rounded">
-                        🔄 3-Month Rollover Protection
+                        ⏱️ Valid for 3 Months
                       </span>
                     </div>
 
                     <button
-                      onClick={() => handleSubscribe(voiceItem?.id || 'voice_pack_20', voicePricePence, voiceMinutesCount)}
+                      onClick={() => handleSubscribe(voiceItem?.id || 'voice_pack_20', voicePricePence, voiceMinutesCount, 0, voiceAutoTopup, voiceAutoTopupThreshold)}
                       disabled={isSubscribing !== null}
                       className="w-full sm:w-auto bg-[#198fd9] hover:bg-[#157ab9] disabled:bg-gray-400 text-white text-xs font-bold py-2.5 px-6 rounded-lg shadow-sm transition-all flex items-center justify-center gap-2 cursor-pointer"
                     >
@@ -496,7 +544,7 @@ export default function AddOnUpsellModal({ isOpen, onClose, category, tenantId }
                           Connecting to Stripe...
                         </>
                       ) : (
-                        `Subscribe at £${voicePriceGBP}/mo`
+                        `Purchase ${voiceMinutesCount} Voice Minutes for £${voicePriceGBP}`
                       )}
                     </button>
                   </div>

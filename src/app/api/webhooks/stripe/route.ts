@@ -196,9 +196,9 @@ export async function POST(req: Request) {
         if (activeAddons) {
           for (const addon of activeAddons) {
             const catalog = (addon as any).addon_catalog;
-            // One-off SMS packs are bought on-demand and valid for 3 months from purchase.
+            // One-off SMS and Voice packs are bought on-demand and valid for 3 months from purchase.
             // Do NOT re-allocate on monthly recurring base subscription renewals.
-            if (catalog?.category === 'sms_pack') continue;
+            if (catalog?.category === 'sms_pack' || catalog?.category === 'voice_pack') continue;
 
             if (catalog?.included_voice_minutes > 0) {
               await allocateRollingCredits(tenantId, 'voice_minutes', catalog.included_voice_minutes, addon.addon_catalog_id);
@@ -407,7 +407,7 @@ export async function POST(req: Request) {
             const smsCount = customSms !== null ? customSms : (addon.included_sms || 0);
             const messagesCount = addon.included_messages || 0;
 
-            const isOneOff = dataObject.metadata?.is_one_off === 'true' || addon.category === 'sms_pack';
+            const isOneOff = dataObject.metadata?.is_one_off === 'true' || addon.category === 'sms_pack' || addon.category === 'voice_pack';
 
             if (!isOneOff) {
               // Upsert tenant_active_addons only for recurring subscriptions
@@ -460,6 +460,19 @@ export async function POST(req: Request) {
             // Sync channel flags
             await syncChannelFlags(supabaseAdmin, targetTenantId);
 
+            // Update auto top-up preference if selected by customer
+            if (dataObject.metadata?.auto_topup === 'true') {
+              await supabaseAdmin
+                .from('tenants')
+                .update({
+                  voice_auto_topup: true,
+                  voice_auto_topup_threshold: parseInt(dataObject.metadata?.auto_topup_threshold || '10', 10),
+                  voice_auto_topup_amount: voiceMinutes,
+                  voice_auto_topup_price_pence: customPricePence || addon.monthly_price_pence,
+                })
+                .eq('id', targetTenantId);
+            }
+
             // Audit log
             await supabaseAdmin.from('addon_audit_log').insert({
               tenant_id: targetTenantId,
@@ -470,11 +483,15 @@ export async function POST(req: Request) {
                 custom_price_pence: customPricePence,
                 voice_minutes: voiceMinutes,
                 sms: smsCount,
+                auto_topup: dataObject.metadata?.auto_topup === 'true',
+                auto_topup_threshold: dataObject.metadata?.auto_topup_threshold || null,
                 stripe_subscription_id: dataObject.subscription || null,
                 stripe_session_id: dataObject.id,
               },
               summary: isOneOff
-                ? `Purchased one-off pack of ${smsCount} SMS messages for £${((customPricePence || addon.monthly_price_pence) / 100).toFixed(2)} (valid for 3 months).`
+                ? (addon.category === 'voice_pack'
+                    ? `Purchased one-off pack of ${voiceMinutes} voice minutes for £${((customPricePence || addon.monthly_price_pence) / 100).toFixed(2)} (valid for 3 months).`
+                    : `Purchased one-off pack of ${smsCount} SMS messages for £${((customPricePence || addon.monthly_price_pence) / 100).toFixed(2)} (valid for 3 months).`)
                 : `Activated ${addon.id} (${voiceMinutes} voice mins, ${smsCount} SMS) via Stripe checkout.`,
             });
 

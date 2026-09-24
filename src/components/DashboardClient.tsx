@@ -1165,17 +1165,17 @@ const globalBotId = '00000000-0000-0000-0000-000000000000';
                             <span className="text-xl">🎙️</span>
                             <h5 className="text-xs font-extrabold text-[var(--awb-color8)]">Voice Minutes Pack</h5>
                           </div>
-                          <span className="text-[11px] font-bold text-[#9333ea]">From £15.00/mo</span>
+                          <span className="text-[11px] font-bold text-[#9333ea]">From £15.00</span>
                         </div>
                         <p className="text-[11px] text-[var(--awb-color6)] mb-3 leading-relaxed">
-                          Sliding scale 20–100 shared voice minutes with 3-month rollover protection.
+                          One-off pack of 20–100 voice minutes valid for 3 months from purchase.
                         </p>
                       </div>
                       <button
                         onClick={() => setBillingUpsellCategory('voice_pack')}
                         className="w-full bg-[#9333ea] hover:bg-[#7e22ce] text-white text-xs font-bold py-2 px-3 rounded-[4px] shadow-sm transition-colors cursor-pointer flex items-center justify-center gap-1.5"
                       >
-                        <span>🎙️</span> Configure Voice Pack
+                        <span>🎙️</span> Purchase Voice Minutes
                       </button>
                     </div>
 
