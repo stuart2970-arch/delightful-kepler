@@ -2,7 +2,7 @@
 /**
  * Template Name: StyleFlo Landing Page - Fasthosts Spark Style
  * Post Type: page, post
- * Description: Ready-to-upload WordPress Page Template for StyleFlo AI Receptionist with 1 Month Free on ALL plans.
+ * Description: Ready-to-upload WordPress Page Template for StyleFlo AI Receptionist with £9.99/mo Basic Subscription and Modular Bolt-ons.
  */
 
 if (!defined('ABSPATH')) exit;
@@ -14,14 +14,14 @@ if (!defined('ABSPATH')) exit;
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   
   <!-- SEO & Metadata Schema -->
-  <title>StyleFlo.ai | 24/7 AI Receptionist UK — 1st Month Free on ALL Plans</title>
-  <meta name="description" content="Never miss a customer call or booking again. StyleFlo’s 24/7 AI Receptionist answers phone calls, website chats, WhatsApp, and Instagram DMs—booking clients directly onto your calendar. Get your 1st month FREE on ALL plans!">
+  <title>StyleFlo.ai | 24/7 AI Receptionist UK — Basic Plan £9.99/mo + Modular Bolt-ons</title>
+  <meta name="description" content="Never miss a customer call or booking again. StyleFlo’s 24/7 AI Receptionist answers phone calls and website inquiries—booking clients directly onto your calendar. Basic subscription for £9.99/mo with modular bolt-ons!">
   <meta name="keywords" content="AI receptionist UK, salon booking automation, 24/7 phone answering AI, automated booking system, Reserve with Google integration, voice receptionist B2B SaaS, hair salon software UK">
   <meta name="author" content="StyleFlo.ai">
   
   <!-- Open Graph (OG) Metadata -->
-  <meta property="og:title" content="StyleFlo AI Receptionist: Turn Missed Calls Into Booked Clients (1st Month FREE)">
-  <meta property="og:description" content="A premium AI booking & voice receptionist engine that connects directly to Google Calendar, Booksy, SalonIQ, and Shopify. Try any plan free for 30 days!">
+  <meta property="og:title" content="StyleFlo AI Receptionist: Turn Missed Calls Into Booked Clients (£9.99/mo Basic + Bolt-ons)">
+  <meta property="og:description" content="A premium AI booking & voice receptionist engine that connects directly to Google Calendar, Booksy, SalonIQ, and Shopify. Basic plan for £9.99/mo with modular bolt-ons!">
   <meta property="og:image" content="https://styleflo.ai/wp-content/uploads/2026/08/styleflo-og-share-card.jpg">
   <meta property="og:url" content="https://styleflo.ai">
   <meta property="og:type" content="website">
@@ -124,10 +124,10 @@ if (!defined('ABSPATH')) exit;
 <?php wp_body_open(); ?>
 
   <!-- TOP PROMOTION BANNER -->
-  <div class="bg-gradient-to-r from-[#260475] via-amethyst to-amethyst-dark text-white text-xs sm:text-sm py-2.5 px-4 text-center font-medium shadow-inner flex items-center justify-center gap-2 flex-wrap">
-    <span class="bg-amber-400 text-slate-body text-[11px] font-black uppercase tracking-wider px-2.5 py-0.5 rounded-full shadow-sm">SPECIAL OFFER</span>
-    <span>🎉 <strong>1ST MONTH FREE ON ALL PLANS</strong> — Try any StyleFlo AI Receptionist plan risk-free for 30 days!</span>
-    <a href="#pricing" class="underline underline-offset-2 hover:text-amethyst-soft transition-colors font-bold ml-1">Claim Offer Below →</a>
+  <div class="bg-gradient-to-r from-[#260475] via-amethyst to-amethyst-dark text-white text-xs sm:text-sm py-2.5 px-4 text-center font-medium shadow-inner flex items-center justify-center gap-2 flex-wrap" style="color: #FFFFFF !important;">
+    <span class="bg-amber-400 text-slate-900 text-[11px] font-black uppercase tracking-wider px-2.5 py-0.5 rounded-full shadow-sm">NEW PRICING</span>
+    <span style="color: #FFFFFF !important;">🚀 <strong>BASIC PLAN NOW ONLY £9.99/MO</strong> — 24/7 AI Receptionist Automation with Modular Bolt-ons!</span>
+    <a href="#pricing" class="underline underline-offset-4 hover:text-amber-200 transition-colors font-extrabold ml-1.5" style="color: #FCD34D !important;">View Pricing &amp; Bolt-ons &rarr;</a>
   </div>
 
   <!-- NAVIGATION HEADER -->
@@ -152,7 +152,7 @@ if (!defined('ABSPATH')) exit;
         <a href="#features" class="hover:text-amethyst transition-colors">Why StyleFlo</a>
         <a href="#playground" class="hover:text-amethyst transition-colors">Live Demo</a>
         <a href="#how-it-works" class="hover:text-amethyst transition-colors">How It Works</a>
-        <a href="#pricing" class="hover:text-amethyst transition-colors">Pricing & Plans</a>
+        <a href="#pricing" class="hover:text-amethyst transition-colors">Pricing & Bolt-ons</a>
         <a href="#faq" class="hover:text-amethyst transition-colors">FAQ</a>
       </nav>
 
@@ -161,8 +161,8 @@ if (!defined('ABSPATH')) exit;
         <a href="https://app.styleflo.ai/login" class="hidden sm:inline-flex text-sm font-semibold text-slate-body hover:text-amethyst transition-colors px-3 py-2">
           Sign In
         </a>
-        <a href="#pricing" class="inline-flex items-center justify-center text-xs sm:text-sm font-bold text-white bg-amethyst hover:bg-amethyst-dark rounded-full px-5 py-2.5 shadow-md shadow-amethyst/20 hover:shadow-lg hover:shadow-amethyst/30 transition-all duration-200 transform hover:-translate-y-0.5 uppercase tracking-wider">
-          Claim 1 Month Free
+        <a href="https://app.styleflo.ai/api/billing/checkout?plan=basic" onclick="startBasicCheckout(event)" class="inline-flex items-center justify-center text-xs sm:text-sm font-bold text-white bg-amethyst hover:bg-amethyst-dark rounded-full px-5 py-2.5 shadow-md shadow-amethyst/20 hover:shadow-lg hover:shadow-amethyst/30 transition-all duration-200 transform hover:-translate-y-0.5 uppercase tracking-wider">
+          Get Started £9.99
         </a>
       </div>
     </div>
@@ -180,7 +180,7 @@ if (!defined('ABSPATH')) exit;
             <!-- Promo Badge -->
             <div class="inline-flex items-center gap-2 bg-purple-50 border border-amethyst/30 text-amethyst-dark text-xs font-bold px-3.5 py-1.5 rounded-full shadow-sm">
               <span class="w-2.5 h-2.5 rounded-full bg-emerald-500 live-pulse"></span>
-              <span>🎉 1 Month FREE Trial on ALL Plans</span>
+              <span>⚡ Basic Plan from £9.99/mo + Modular Add-ons</span>
             </div>
 
             <!-- Main Headline -->
@@ -190,13 +190,13 @@ if (!defined('ABSPATH')) exit;
 
             <!-- Sub-Headline -->
             <p class="text-base sm:text-lg text-slate-muted font-normal leading-relaxed max-w-2xl">
-              Meet StyleFlo’s 24/7 AI Receptionist. It automatically answers phone calls, website inquiries, Instagram DMs, and WhatsApp messages—booking appointments straight into Google Calendar, Booksy, or SalonIQ in under a second.
+              Meet StyleFlo’s 24/7 AI Receptionist. It automatically answers phone calls and website inquiries—booking appointments straight into Google Calendar, Booksy, or SalonIQ in under a second.
             </p>
 
             <!-- Action Buttons -->
             <div class="flex flex-col sm:flex-row items-stretch sm:items-center gap-4 w-full sm:w-auto pt-2">
-              <a href="#pricing" class="inline-flex items-center justify-center text-base font-bold text-white bg-amethyst hover:bg-amethyst-dark rounded-full px-8 py-4 shadow-lg shadow-amethyst/30 hover:shadow-xl hover:shadow-amethyst/40 transition-all duration-200 transform hover:-translate-y-0.5 gap-2 group">
-                <span>Start Free Trial (1st Month Free)</span>
+              <a href="https://app.styleflo.ai/api/billing/checkout?plan=basic" onclick="startBasicCheckout(event)" class="inline-flex items-center justify-center text-base font-bold text-white bg-amethyst hover:bg-amethyst-dark rounded-full px-8 py-4 shadow-lg shadow-amethyst/30 hover:shadow-xl hover:shadow-amethyst/40 transition-all duration-200 transform hover:-translate-y-0.5 gap-2 group">
+                <span>Get Started for £9.99/mo</span>
                 <i data-lucide="arrow-right" class="w-5 h-5 group-hover:translate-x-1 transition-transform"></i>
               </a>
 
@@ -213,11 +213,15 @@ if (!defined('ABSPATH')) exit;
               <div class="flex flex-wrap items-center gap-y-3 gap-x-6 text-xs sm:text-sm font-semibold text-slate-body">
                 <div class="flex items-center gap-1.5">
                   <i data-lucide="check-circle-2" class="w-4.5 h-4.5 text-emerald-600"></i>
-                  <span>1 Month Free (All Plans)</span>
+                  <span>Basic Subscription £9.99/mo</span>
+                </div>
+                <div class="flex items-center gap-1.5">
+                  <i data-lucide="layers" class="w-4.5 h-4.5 text-amethyst"></i>
+                  <span>Modular Bolt-ons</span>
                 </div>
                 <div class="flex items-center gap-1.5">
                   <i data-lucide="shield-check" class="w-4.5 h-4.5 text-amethyst"></i>
-                  <span>UK GDPR Compliant (London GCP)</span>
+                  <span>No Lock-in Contracts</span>
                 </div>
                 <div class="flex items-center gap-1.5">
                   <i data-lucide="clock" class="w-4.5 h-4.5 text-amethyst"></i>
@@ -512,9 +516,9 @@ if (!defined('ABSPATH')) exit;
 
           <div class="bg-pearl p-8 rounded-2xl border border-slate-ash relative">
             <div class="w-10 h-10 rounded-xl bg-amethyst text-white font-black flex items-center justify-center mb-6 text-lg">3</div>
-            <h3 class="heading-poppins text-lg font-bold text-slate-body mb-2">Go Live & Claim Free Month</h3>
+            <h3 class="heading-poppins text-lg font-bold text-slate-body mb-2">Go Live with Basic + Modular Bolt-ons</h3>
             <p class="text-xs sm:text-sm text-slate-muted leading-relaxed">
-              Activate your dedicated UK phone line, website chat widget, or Instagram DM listening node. Enjoy your 1st Month FREE on all plans!
+              Activate your Basic plan for £9.99/mo. Customize anytime with modular bolt-ons (Voice Phone Line, Instagram DM, WhatsApp, extra messages & knowledge). Cancel anytime!
             </p>
           </div>
 
@@ -523,17 +527,17 @@ if (!defined('ABSPATH')) exit;
       </div>
     </section>
 
-    <!-- 5. PRICING SECTION (FASTHOSTS BENCHMARK + 1ST MONTH FREE PROMO) -->
+    <!-- 5. PRICING SECTION (BASIC £9.99/MO + MODULAR BOLT-ONS) -->
     <section id="pricing" class="py-16 md:py-24 bg-pearl border-b border-slate-ash">
       <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         
         <div class="text-center max-w-3xl mx-auto mb-12">
           <span class="text-xs font-bold tracking-widest text-amethyst uppercase bg-amethyst-soft px-3 py-1.5 rounded-full">Transparent SaaS Pricing</span>
           <h2 class="heading-poppins text-3xl sm:text-4xl font-bold text-slate-body mt-3">
-            Choose Your AI Receptionist Plan
+            Simple £9.99 Base Subscription + Modular Bolt-ons
           </h2>
           <p class="text-slate-muted mt-2 text-base">
-            🎁 <strong>Special Promotion:</strong> Get your <strong>1st Month FREE</strong> on ALL plans! (No commitment, cancel anytime).
+            Start with our core AI Receptionist for <strong>£9.99/mo</strong> and add modular power-ups tailored to your business needs. Cancel or change anytime.
           </p>
 
           <!-- Billing Toggle -->
@@ -552,29 +556,28 @@ if (!defined('ABSPATH')) exit;
         <!-- 4-Tier Pricing Grid -->
         <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-12">
           
-          <!-- Basic Tier (£5.99/mo | £59.90/yr) -->
-          <div class="bg-white rounded-2xl p-6 border-2 border-emerald-500/50 flex flex-col justify-between shadow-sm relative">
-            <span class="absolute -top-3 left-1/2 -translate-x-1/2 bg-emerald-600 text-white text-[10px] uppercase font-black tracking-wider px-3 py-0.5 rounded-full shadow-sm">
-              🎉 1ST MONTH FREE
+          <!-- Basic Tier (£9.99/mo | £99.90/yr) -->
+          <div class="bg-white rounded-2xl p-6 border-2 border-amethyst flex flex-col justify-between shadow-glow relative transform lg:-translate-y-2">
+            <span class="absolute -top-3 left-1/2 -translate-x-1/2 bg-gradient-to-r from-amethyst-dark to-amethyst text-white text-[10px] uppercase font-black tracking-wider px-3.5 py-0.5 rounded-full shadow-md">
+              🔥 POPULAR BASE PLAN
             </span>
             <div>
               <div class="flex items-center justify-between mb-2">
                 <h3 class="font-bold text-lg text-slate-body">Basic Tier</h3>
-                <span class="text-[10px] font-bold text-emerald-700 bg-emerald-100 px-2 py-0.5 rounded">Free Month</span>
+                <span class="text-[10px] font-bold text-purple-700 bg-purple-100 px-2 py-0.5 rounded">Core Plan</span>
               </div>
-              <p class="text-xs text-slate-muted min-h-[32px]">Solo Stylists & Starters</p>
+              <p class="text-xs text-slate-muted min-h-[32px]">Solo Stylists, Salons, Clinics & Small Businesses</p>
               
               <div class="my-5">
                 <div class="flex items-baseline gap-2">
-                  <span class="text-3xl font-bold text-emerald-600">£0</span>
-                  <span class="text-xs font-bold text-slate-muted line-through price-value" data-monthly="£5.99" data-annual="£59.90">£5.99</span>
-                  <span class="text-xs text-slate-muted price-unit">/ 1st month</span>
+                  <span class="text-3xl font-bold text-amethyst-dark price-value" data-monthly="£9.99" data-annual="£99.90">£9.99</span>
+                  <span class="text-xs text-slate-muted price-unit">/ month</span>
                 </div>
-                <p class="text-[10px] text-slate-accent mt-1 price-sub" data-monthly="Then £5.99/mo thereafter" data-annual="Then £59.90/yr thereafter (billed annually)">Then £5.99/mo thereafter</p>
+                <p class="text-[10px] text-slate-accent mt-1 price-sub" data-monthly="Billed monthly (£9.99/mo)" data-annual="Billed annually (£99.90/yr)">Billed monthly (£9.99/mo)</p>
               </div>
 
               <ul class="text-xs text-slate-body space-y-2.5 mb-6">
-                <li class="flex items-center gap-2"><i data-lucide="check" class="w-4 h-4 text-amethyst"></i> 1,000 messages / mo</li>
+                <li class="flex items-center gap-2"><i data-lucide="check" class="w-4 h-4 text-amethyst"></i> 1,000 messages / mo included</li>
                 <li class="flex items-center gap-2">
                   <i data-lucide="check" class="w-4 h-4 text-amethyst"></i> 
                   <span>50 
@@ -588,7 +591,7 @@ if (!defined('ABSPATH')) exit;
                     </span>
                   </span>
                 </li>
-                <li class="flex items-center gap-2"><i data-lucide="check" class="w-4 h-4 text-amethyst"></i> Web Chat Widget</li>
+                <li class="flex items-center gap-2"><i data-lucide="check" class="w-4 h-4 text-amethyst"></i> Full Web Chat AI Widget</li>
                 <li class="flex items-center gap-2">
                   <i data-lucide="check" class="w-4 h-4 text-amethyst"></i> 
                   <span class="relative group inline-block cursor-help font-semibold text-slate-body underline decoration-dotted decoration-emerald-500 underline-offset-2">
@@ -601,134 +604,87 @@ if (!defined('ABSPATH')) exit;
                   </span>
                 </li>
                 <li class="flex items-center gap-2"><i data-lucide="check" class="w-4 h-4 text-amethyst"></i> Self-Serve Ingestion</li>
-                <li class="flex items-center gap-2"><i data-lucide="check" class="w-4 h-4 text-amethyst"></i> Full visibility of all chats, inc. voice in our dashboard</li>
+                <li class="flex items-center gap-2"><i data-lucide="check" class="w-4 h-4 text-amethyst"></i> Calendar & Booking Tool Sync</li>
+                <li class="flex items-center gap-2"><i data-lucide="check" class="w-4 h-4 text-amethyst"></i> Full Dashboard Visibility</li>
               </ul>
             </div>
 
-            <a href="https://app.styleflo.ai/register?plan=basic&promo=1monthfree" class="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs py-3 rounded-xl text-center transition-colors shadow-sm">
-              Claim 1st Month Free
+            <a href="https://app.styleflo.ai/api/billing/checkout?plan=basic" onclick="startBasicCheckout(event)" class="w-full bg-gradient-to-r from-amethyst-dark to-amethyst hover:from-amethyst hover:to-amethyst-dark text-white font-black text-xs py-3.5 rounded-xl text-center transition-all shadow-md flex items-center justify-center gap-1.5">
+              <span>Get Started for £9.99</span>
             </a>
           </div>
 
           <!-- Starter / Standard Tier (£29/mo | £290/yr) -->
-          <div class="bg-white rounded-2xl p-6 border-2 border-amethyst/60 flex flex-col justify-between shadow-card relative">
-            <span class="absolute -top-3 left-1/2 -translate-x-1/2 bg-emerald-600 text-white text-[10px] uppercase font-black tracking-wider px-3 py-0.5 rounded-full shadow-sm">
-              🎉 1ST MONTH FREE
-            </span>
+          <div class="bg-white rounded-2xl p-6 border border-slate-ash flex flex-col justify-between shadow-sm relative">
             <div>
               <div class="flex items-center justify-between mb-2">
                 <h3 class="font-bold text-lg text-slate-body">Starter Tier</h3>
-                <span class="text-[10px] font-bold text-emerald-700 bg-emerald-100 px-2 py-0.5 rounded">Free Month</span>
+                <span class="text-[10px] font-bold text-slate-700 bg-slate-100 px-2 py-0.5 rounded">Expanded</span>
               </div>
               <p class="text-xs text-slate-muted min-h-[32px]">Growing Independent Salons</p>
               
               <div class="my-5">
                 <div class="flex items-baseline gap-2">
-                  <span class="text-3xl font-bold text-emerald-600">£0</span>
-                  <span class="text-xs font-bold text-slate-muted line-through price-value" data-monthly="£29" data-annual="£290">£29</span>
-                  <span class="text-xs text-slate-muted price-unit">/ 1st month</span>
+                  <span class="text-3xl font-bold text-slate-body price-value" data-monthly="£29" data-annual="£290">£29</span>
+                  <span class="text-xs text-slate-muted price-unit">/ month</span>
                 </div>
-                <p class="text-[10px] text-slate-accent mt-1 price-sub" data-monthly="Then £29/mo thereafter" data-annual="Then £290/yr thereafter (billed annually)">Then £29/mo thereafter</p>
+                <p class="text-[10px] text-slate-accent mt-1 price-sub" data-monthly="Billed monthly (£29/mo)" data-annual="Billed annually (£290/yr)">Billed monthly (£29/mo)</p>
               </div>
 
               <ul class="text-xs text-slate-body space-y-2.5 mb-6">
                 <li class="flex items-center gap-2"><i data-lucide="check" class="w-4 h-4 text-amethyst"></i> 5,000 messages / mo</li>
                 <li class="flex items-center gap-2">
                   <i data-lucide="check" class="w-4 h-4 text-amethyst"></i> 
-                  <span>1,000 
-                    <span class="relative group inline-block cursor-help font-semibold text-slate-body underline decoration-dotted decoration-amethyst underline-offset-2">
-                      Vector Chunks
-                      <span class="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 hidden group-hover:block w-64 bg-slate-body text-white text-[11px] rounded-xl p-3 shadow-2xl z-50 pointer-events-none leading-relaxed border border-slate-700 font-normal text-left">
-                        <strong class="text-amethyst-light font-bold block mb-1 text-xs">🧠 What are Vector Chunks?</strong>
-                        Vector Chunks are indexed fragments of your business rules, prices, and FAQs. They allow the AI to retrieve precise, 100% factual answers instantly.
-                        <span class="absolute top-full left-1/2 -translate-x-1/2 border-4 border-transparent border-t-slate-body"></span>
-                      </span>
-                    </span>
-                  </span>
+                  <span>1,000 Vector Chunks</span>
                 </li>
                 <li class="flex items-center gap-2"><i data-lucide="check" class="w-4 h-4 text-amethyst"></i> 1 Calendar Connection</li>
                 <li class="flex items-center gap-2"><i data-lucide="check" class="w-4 h-4 text-amethyst"></i> 3 Staff Rotas / Seats</li>
                 <li class="flex items-center gap-2"><i data-lucide="check" class="w-4 h-4 text-amethyst"></i> 15 Products / Services</li>
                 <li class="flex items-center gap-2"><i data-lucide="check" class="w-4 h-4 text-amethyst"></i> 4 British Voice Accents (30m)</li>
-                <li class="flex items-center gap-2">
-                  <i data-lucide="check" class="w-4 h-4 text-amethyst"></i> 
-                  <span class="relative group inline-block cursor-help font-semibold text-slate-body underline decoration-dotted decoration-emerald-500 underline-offset-2">
-                    Automated Lead Capture
-                    <span class="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 hidden group-hover:block w-64 bg-slate-body text-white text-[11px] rounded-xl p-3 shadow-2xl z-50 pointer-events-none leading-relaxed border border-slate-700 font-normal text-left">
-                      <strong class="text-emerald-400 font-bold block mb-1 text-xs">📩 Instant Lead Alerts</strong>
-                      You will receive an email with the user contact details and the nature of the enquiry.
-                      <span class="absolute top-full left-1/2 -translate-x-1/2 border-4 border-transparent border-t-slate-body"></span>
-                    </span>
-                  </span>
-                </li>
-                <li class="flex items-center gap-2"><i data-lucide="check" class="w-4 h-4 text-amethyst"></i> Full visibility of all chats, inc. voice in our dashboard</li>
+                <li class="flex items-center gap-2"><i data-lucide="check" class="w-4 h-4 text-amethyst"></i> Automated Lead Capture</li>
+                <li class="flex items-center gap-2"><i data-lucide="check" class="w-4 h-4 text-amethyst"></i> Full Dashboard Visibility</li>
               </ul>
             </div>
 
-            <a href="https://app.styleflo.ai/register?plan=starter&promo=1monthfree" class="w-full bg-amethyst hover:bg-amethyst-dark text-white font-bold text-xs py-3 rounded-xl text-center transition-colors shadow-md">
-              Claim 1st Month Free
+            <a href="https://styleflo.ai/app/?mode=register&plan=starter" class="w-full bg-slate-body hover:bg-slate-800 text-white font-bold text-xs py-3 rounded-xl text-center transition-colors shadow-sm">
+              Subscribe Starter
             </a>
           </div>
 
-          <!-- Premium Tier (£79/mo | £790/yr - FEATURED!) -->
-          <div class="bg-white rounded-2xl p-6 border-2 border-amethyst shadow-glow flex flex-col justify-between relative transform lg:-translate-y-2">
-            <span class="absolute -top-3 left-1/2 -translate-x-1/2 bg-gradient-to-r from-amethyst-dark to-amethyst text-white text-[10px] uppercase font-black tracking-wider px-3.5 py-0.5 rounded-full shadow-md">
-              🔥 MOST POPULAR — 1ST MONTH FREE
-            </span>
+          <!-- Premium Tier (£79/mo | £790/yr) -->
+          <div class="bg-white rounded-2xl p-6 border border-slate-ash flex flex-col justify-between shadow-sm relative">
             <div>
               <div class="flex items-center justify-between mb-2">
                 <h3 class="font-bold text-lg text-slate-body">Premium Tier</h3>
-                <span class="text-[10px] font-bold text-purple-700 bg-purple-100 px-2 py-0.5 rounded">Free Month</span>
+                <span class="text-[10px] font-bold text-slate-700 bg-slate-100 px-2 py-0.5 rounded">All-Inclusive</span>
               </div>
               <p class="text-xs text-slate-muted min-h-[32px]">High-Volume & Multi-Chair Salons</p>
               
               <div class="my-5">
                 <div class="flex items-baseline gap-2">
-                  <span class="text-3xl font-bold text-emerald-600">£0</span>
-                  <span class="text-xs font-bold text-slate-muted line-through price-value" data-monthly="£79" data-annual="£790">£79</span>
-                  <span class="text-xs text-slate-muted price-unit">/ 1st month</span>
+                  <span class="text-3xl font-bold text-slate-body price-value" data-monthly="£79" data-annual="£790">£79</span>
+                  <span class="text-xs text-slate-muted price-unit">/ month</span>
                 </div>
-                <p class="text-[10px] text-slate-accent mt-1 price-sub" data-monthly="Then £79/mo thereafter" data-annual="Then £790/yr thereafter (billed annually)">Then £79/mo thereafter</p>
+                <p class="text-[10px] text-slate-accent mt-1 price-sub" data-monthly="Billed monthly (£79/mo)" data-annual="Billed annually (£790/yr)">Billed monthly (£79/mo)</p>
               </div>
 
               <ul class="text-xs text-slate-body space-y-2.5 mb-6">
                 <li class="flex items-center gap-2"><i data-lucide="check" class="w-4 h-4 text-amethyst"></i> 15,000 messages / mo</li>
                 <li class="flex items-center gap-2">
                   <i data-lucide="check" class="w-4 h-4 text-amethyst"></i> 
-                  <span>5,000 
-                    <span class="relative group inline-block cursor-help font-semibold text-slate-body underline decoration-dotted decoration-amethyst underline-offset-2">
-                      Vector Chunks
-                      <span class="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 hidden group-hover:block w-64 bg-slate-body text-white text-[11px] rounded-xl p-3 shadow-2xl z-50 pointer-events-none leading-relaxed border border-slate-700 font-normal text-left">
-                        <strong class="text-amethyst-light font-bold block mb-1 text-xs">🧠 What are Vector Chunks?</strong>
-                        Vector Chunks are indexed fragments of your business rules, prices, and FAQs. They allow the AI to retrieve precise, 100% factual answers instantly.
-                        <span class="absolute top-full left-1/2 -translate-x-1/2 border-4 border-transparent border-t-slate-body"></span>
-                      </span>
-                    </span>
-                  </span>
+                  <span>5,000 Vector Chunks</span>
                 </li>
                 <li class="flex items-center gap-2"><i data-lucide="check" class="w-4 h-4 text-amethyst"></i> 6 Calendar Connections</li>
                 <li class="flex items-center gap-2"><i data-lucide="check" class="w-4 h-4 text-amethyst"></i> 6 Staff Rotas / Seats</li>
-                <li class="flex items-center gap-2"><i data-lucide="check" class="w-4 h-4 text-amethyst"></i> StyleFlo Chatbot Footer Removed</li>
+                <li class="flex items-center gap-2"><i data-lucide="check" class="w-4 h-4 text-amethyst"></i> Branding Footer Removed</li>
                 <li class="flex items-center gap-2"><i data-lucide="check" class="w-4 h-4 text-amethyst"></i> 50 Products / Services</li>
-                <li class="flex items-center gap-2"><i data-lucide="check" class="w-4 h-4 text-amethyst"></i> Dedicated Mobile Tel Number & WhatsApp</li>
+                <li class="flex items-center gap-2"><i data-lucide="check" class="w-4 h-4 text-amethyst"></i> Mobile Tel Number & WhatsApp</li>
                 <li class="flex items-center gap-2"><i data-lucide="check" class="w-4 h-4 text-amethyst"></i> 4 British Voice Accents (120m)</li>
-                <li class="flex items-center gap-2">
-                  <i data-lucide="check" class="w-4 h-4 text-amethyst"></i> 
-                  <span class="relative group inline-block cursor-help font-semibold text-slate-body underline decoration-dotted decoration-emerald-500 underline-offset-2">
-                    Automated Lead Capture
-                    <span class="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 hidden group-hover:block w-64 bg-slate-body text-white text-[11px] rounded-xl p-3 shadow-2xl z-50 pointer-events-none leading-relaxed border border-slate-700 font-normal text-left">
-                      <strong class="text-emerald-400 font-bold block mb-1 text-xs">📩 Instant Lead Alerts</strong>
-                      You will receive an email with the user contact details and the nature of the enquiry.
-                      <span class="absolute top-full left-1/2 -translate-x-1/2 border-4 border-transparent border-t-slate-body"></span>
-                    </span>
-                  </span>
-                </li>
-                <li class="flex items-center gap-2"><i data-lucide="check" class="w-4 h-4 text-amethyst"></i> Full visibility of all chats, inc. voice in our dashboard</li>
               </ul>
             </div>
 
-            <a href="https://app.styleflo.ai/register?plan=premium&promo=1monthfree" class="w-full bg-gradient-to-r from-amethyst-dark to-amethyst hover:from-amethyst hover:to-amethyst-dark text-white font-black text-xs py-3.5 rounded-xl text-center transition-all shadow-md">
-              Claim 1st Month Free
+            <a href="https://styleflo.ai/app/?mode=register&plan=premium" class="w-full bg-slate-body hover:bg-slate-800 text-white font-bold text-xs py-3 rounded-xl text-center transition-colors shadow-sm">
+              Subscribe Premium
             </a>
           </div>
 
@@ -748,28 +704,6 @@ if (!defined('ABSPATH')) exit;
 
               <ul class="text-xs text-slate-body space-y-2.5 mb-6">
                 <li class="flex items-center gap-2"><i data-lucide="check" class="w-4 h-4 text-amethyst"></i> Unlimited Message Quotas</li>
-                <li class="flex items-center gap-2">
-                  <i data-lucide="check" class="w-4 h-4 text-amethyst"></i> 
-                  <span>Unlimited 
-                    <span class="relative group inline-block cursor-help font-semibold text-slate-body underline decoration-dotted decoration-amethyst underline-offset-2">
-                      Vector Chunks
-                      <span class="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 hidden group-hover:block w-64 bg-slate-body text-white text-[11px] rounded-xl p-3 shadow-2xl z-50 pointer-events-none leading-relaxed border border-slate-700 font-normal text-left">
-                        <strong class="text-amethyst-light font-bold block mb-1 text-xs">🧠 What are Vector Chunks?</strong>
-                        Vector Chunks are indexed fragments of your business rules, prices, and FAQs. They allow the AI to retrieve precise, 100% factual answers instantly.
-                        <span class="absolute top-full left-1/2 -translate-x-1/2 border-4 border-transparent border-t-slate-body"></span>
-                      </span>
-                    </span>
-                  </span>
-                </li>
-                <li class="flex items-center gap-2"><i data-lucide="check" class="w-4 h-4 text-amethyst"></i> Unlimited Staff Rotas & Syncs</li>
-                <li class="flex items-center gap-2"><i data-lucide="check" class="w-4 h-4 text-amethyst"></i> FloVoice & FloDial Infrastructure</li>
-                <li class="flex items-center gap-2"><i data-lucide="check" class="w-4 h-4 text-amethyst"></i> WhatsApp & IG DM Omni-Channel</li>
-                <li class="flex items-center gap-2"><i data-lucide="check" class="w-4 h-4 text-amethyst"></i> Bespoke API Integration</li>
-                <li class="flex items-center gap-2">
-                  <i data-lucide="check" class="w-4 h-4 text-amethyst"></i> 
-                  <span class="relative group inline-block cursor-help font-semibold text-slate-body underline decoration-dotted decoration-emerald-500 underline-offset-2">
-                    Automated Lead Capture
-                    <span class="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 hidden group-hover:block w-64 bg-slate-body text-white text-[11px] rounded-xl p-3 shadow-2xl z-50 pointer-events-none leading-relaxed border border-slate-700 font-normal text-left">
                       <strong class="text-emerald-400 font-bold block mb-1 text-xs">📩 Instant Lead Alerts</strong>
                       You will receive an email with the user contact details and the nature of the enquiry.
                       <span class="absolute top-full left-1/2 -translate-x-1/2 border-4 border-transparent border-t-slate-body"></span>
@@ -806,11 +740,11 @@ if (!defined('ABSPATH')) exit;
           
           <div class="bg-pearl rounded-2xl border border-slate-ash overflow-hidden">
             <button onclick="toggleFaq(1)" class="w-full p-6 text-left font-bold text-slate-body text-base flex justify-between items-center hover:bg-slate-ash/20 transition-colors">
-              <span>How does the 1 Month Free trial work on all accounts?</span>
+              <span>How does the £9.99 Basic Subscription and bolt-ons work?</span>
               <i id="faq-icon-1" data-lucide="chevron-down" class="w-5 h-5 text-amethyst transition-transform"></i>
             </button>
             <div id="faq-content-1" class="hidden px-6 pb-6 text-sm text-slate-muted leading-relaxed">
-              When you sign up for any of our tiers, your first 30 days are 100% free with £0 charged upfront. You get full access to all features, staff calendar sync, and message quotas. After 30 days, your subscription transitions to standard billing unless canceled.
+              Our Basic Subscription gives you a full 24/7 web chat AI receptionist for just £9.99/mo with 1,000 messages and 50 knowledge vector chunks included. As your business grows, you can easily stack modular bolt-ons like a Voice AI Phone Agent (£19.99/mo), Instagram/WhatsApp Social Integration (£14.99/mo), or extra message packs anytime from your dashboard.
             </div>
           </div>
 
@@ -873,20 +807,48 @@ if (!defined('ABSPATH')) exit;
           <i data-lucide="mic" class="w-6 h-6"></i>
         </div>
         <h3 class="heading-poppins text-2xl font-bold text-slate-body">FloVoice Audio Agent</h3>
-        <p class="text-xs text-slate-muted">Low-latency UK voice receptionist (4 natural British voice accents to choose from & custom concierge naming).</p>
+        <p class="text-xs text-slate-muted">Low-latency UK voice receptionist (4 natural British voice accents to choose from &amp; custom concierge naming).</p>
       </div>
 
       <div class="bg-pearl p-6 rounded-2xl border border-slate-ash text-center space-y-4">
-        <div class="flex items-center justify-center gap-1.5 h-12">
-          <div class="w-1.5 bg-amethyst rounded-full animate-bounce h-6"></div>
-          <div class="w-1.5 bg-amethyst-dark rounded-full animate-bounce h-10" style="animation-delay: 0.1s"></div>
-          <div class="w-1.5 bg-amethyst rounded-full animate-bounce h-8" style="animation-delay: 0.2s"></div>
-          <div class="w-1.5 bg-amethyst-light rounded-full animate-bounce h-12" style="animation-delay: 0.3s"></div>
+        <!-- Interactive Animated Waveform Bars -->
+        <div id="voice-waveform" class="flex items-center justify-center gap-1.5 h-12">
+          <div class="waveform-bar w-1.5 bg-amethyst rounded-full h-4 transition-all duration-150"></div>
+          <div class="waveform-bar w-1.5 bg-amethyst-dark rounded-full h-8 transition-all duration-150"></div>
+          <div class="waveform-bar w-1.5 bg-amethyst rounded-full h-5 transition-all duration-150"></div>
+          <div class="waveform-bar w-1.5 bg-amethyst-light rounded-full h-11 transition-all duration-150"></div>
+          <div class="waveform-bar w-1.5 bg-amethyst rounded-full h-7 transition-all duration-150"></div>
+          <div class="waveform-bar w-1.5 bg-amethyst-dark rounded-full h-10 transition-all duration-150"></div>
+          <div class="waveform-bar w-1.5 bg-amethyst rounded-full h-4 transition-all duration-150"></div>
         </div>
-        <p class="text-xs font-mono text-amethyst font-semibold">"Good afternoon! How can FloVoice help you today?"</p>
+
+        <p class="text-xs font-mono text-amethyst font-semibold">
+          &ldquo;FloVoice AI Voice Agent Demo &mdash; UK Northern Accent&rdquo;
+        </p>
+
+        <!-- HTML5 Audio Element with fallback sources -->
+        <audio id="flovoice-audio-element" preload="auto">
+          <source src="<?php echo function_exists('get_stylesheet_directory_uri') ? get_stylesheet_directory_uri() . '/audio/UK%20Female%20-%20Northern_gen_sp100_s56_sb42_se12_m2.mp3' : './audio/UK%20Female%20-%20Northern_gen_sp100_s56_sb42_se12_m2.mp3'; ?>" type="audio/mpeg">
+          <source src="https://app.styleflo.ai/audio/UK%20Female%20-%20Northern_gen_sp100_s56_sb42_se12_m2.mp3" type="audio/mpeg">
+          <source src="/wp-content/themes/Avada-Child-Theme/audio/UK%20Female%20-%20Northern_gen_sp100_s56_sb42_se12_m2.mp3" type="audio/mpeg">
+        </audio>
+
+        <!-- Player Controls -->
+        <div class="flex items-center justify-center gap-3 pt-2">
+          <button id="voice-play-btn" onclick="toggleVoiceAudio()" class="inline-flex items-center gap-2 bg-amethyst hover:bg-amethyst-dark text-white text-xs font-bold px-4 py-2.5 rounded-full shadow-md transition-all transform hover:scale-105">
+            <i id="voice-play-icon" data-lucide="play" class="w-4 h-4 fill-current"></i>
+            <span id="voice-play-label">Play Sample</span>
+          </button>
+          <span id="voice-time-display" class="text-xs font-mono text-slate-accent">0:00 / 0:00</span>
+        </div>
+
+        <!-- Progress Scrubbing Bar -->
+        <div class="w-full bg-slate-ash rounded-full h-2 overflow-hidden cursor-pointer mt-2" onclick="seekVoiceAudio(event)" title="Click to seek">
+          <div id="voice-progress-bar" class="bg-amethyst h-full w-0 transition-all duration-100"></div>
+        </div>
       </div>
 
-      <button onclick="closeVoiceModal()" class="w-full bg-amethyst text-white font-bold text-sm py-3 rounded-xl hover:bg-amethyst-dark transition-colors">
+      <button onclick="closeVoiceModal()" class="w-full bg-slate-body hover:bg-slate-800 text-white font-bold text-sm py-3 rounded-xl transition-colors">
         Close Preview
       </button>
     </div>
@@ -895,6 +857,175 @@ if (!defined('ABSPATH')) exit;
   <!-- JAVASCRIPT LOGIC -->
   <script>
     lucide.createIcons();
+
+    // Direct Stripe Checkout Helper
+    async function startBasicCheckout(e) {
+      if (e) e.preventDefault();
+      const btn = e ? e.currentTarget : null;
+      if (btn) {
+        btn.innerHTML = '<span class="inline-flex items-center gap-2"><svg class="animate-spin h-4 w-4 text-white" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z"></path></svg>Connecting to Stripe...</span>';
+        btn.style.pointerEvents = 'none';
+      }
+
+      const isLocal = window.location.hostname.includes('test') || window.location.hostname === 'localhost';
+      const apiHost = isLocal ? 'http://localhost:3000' : 'https://app.styleflo.ai';
+      const wpAppUrl = isLocal ? 'https://styleflo.test/app' : 'https://styleflo.ai/app';
+
+      try {
+        const res = await fetch(`${apiHost}/api/billing/checkout`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            plan: 'basic',
+            planTier: 'base_tier',
+            returnUrl: wpAppUrl
+          })
+        });
+        const data = await res.json();
+        if (data?.url) {
+          window.location.href = data.url;
+          return;
+        }
+      } catch (err) {
+        console.error('Direct checkout error:', err);
+      }
+
+      // Fallback direct GET redirect
+      window.location.href = `${apiHost}/api/billing/checkout?plan=basic`;
+    }
+
+    // FloVoice Audio Demo Player
+    let waveformAnimInterval = null;
+
+    function formatTime(seconds) {
+      if (isNaN(seconds)) return '0:00';
+      const mins = Math.floor(seconds / 60);
+      const secs = Math.floor(seconds % 60);
+      return `${mins}:${secs < 10 ? '0' : ''}${secs}`;
+    }
+
+    function toggleVoiceAudio() {
+      const audio = document.getElementById('flovoice-audio-element');
+      const icon = document.getElementById('voice-play-icon');
+      const label = document.getElementById('voice-play-label');
+      if (!audio) return;
+
+      if (audio.paused) {
+        audio.play().then(() => {
+          if (icon) icon.setAttribute('data-lucide', 'pause');
+          if (label) label.textContent = 'Pause Sample';
+          lucide.createIcons();
+          startWaveformAnim();
+        }).catch(err => {
+          console.warn('Playback error or blocked by autoplay policy:', err);
+        });
+      } else {
+        audio.pause();
+        if (icon) icon.setAttribute('data-lucide', 'play');
+        if (label) label.textContent = 'Play Sample';
+        lucide.createIcons();
+        stopWaveformAnim();
+      }
+    }
+
+    function seekVoiceAudio(event) {
+      const audio = document.getElementById('flovoice-audio-element');
+      if (!audio || !audio.duration) return;
+      const rect = event.currentTarget.getBoundingClientRect();
+      const clickX = event.clientX - rect.left;
+      const pct = Math.max(0, Math.min(1, clickX / rect.width));
+      audio.currentTime = pct * audio.duration;
+    }
+
+    function startWaveformAnim() {
+      stopWaveformAnim();
+      const bars = document.querySelectorAll('.waveform-bar');
+      waveformAnimInterval = setInterval(() => {
+        bars.forEach(bar => {
+          const randH = Math.floor(Math.random() * 32) + 10;
+          bar.style.height = `${randH}px`;
+        });
+      }, 120);
+    }
+
+    function stopWaveformAnim() {
+      if (waveformAnimInterval) {
+        clearInterval(waveformAnimInterval);
+        waveformAnimInterval = null;
+      }
+      const bars = document.querySelectorAll('.waveform-bar');
+      bars.forEach(bar => {
+        bar.style.height = '16px';
+      });
+    }
+
+    function openVoiceModal() {
+      const modal = document.getElementById('voice-modal');
+      if (modal) modal.classList.remove('hidden');
+
+      const audio = document.getElementById('flovoice-audio-element');
+      if (audio) {
+        audio.currentTime = 0;
+        audio.play().then(() => {
+          const icon = document.getElementById('voice-play-icon');
+          const label = document.getElementById('voice-play-label');
+          if (icon) icon.setAttribute('data-lucide', 'pause');
+          if (label) label.textContent = 'Pause Sample';
+          lucide.createIcons();
+          startWaveformAnim();
+        }).catch(() => {
+          // Autoplay was prevented by browser policy; user can click Play Sample button
+        });
+      }
+    }
+
+    function closeVoiceModal() {
+      const modal = document.getElementById('voice-modal');
+      if (modal) modal.classList.add('hidden');
+
+      const audio = document.getElementById('flovoice-audio-element');
+      if (audio) {
+        audio.pause();
+        audio.currentTime = 0;
+      }
+      const icon = document.getElementById('voice-play-icon');
+      const label = document.getElementById('voice-play-label');
+      if (icon) icon.setAttribute('data-lucide', 'play');
+      if (label) label.textContent = 'Play Sample';
+      lucide.createIcons();
+      stopWaveformAnim();
+    }
+
+    // Attach audio time listeners
+    document.addEventListener('DOMContentLoaded', () => {
+      const audio = document.getElementById('flovoice-audio-element');
+      const progressBar = document.getElementById('voice-progress-bar');
+      const timeDisplay = document.getElementById('voice-time-display');
+
+      if (audio) {
+        audio.addEventListener('timeupdate', () => {
+          if (audio.duration) {
+            const pct = (audio.currentTime / audio.duration) * 100;
+            if (progressBar) progressBar.style.width = `${pct}%`;
+            if (timeDisplay) timeDisplay.textContent = `${formatTime(audio.currentTime)} / ${formatTime(audio.duration)}`;
+          }
+        });
+
+        audio.addEventListener('ended', () => {
+          const icon = document.getElementById('voice-play-icon');
+          const label = document.getElementById('voice-play-label');
+          if (icon) icon.setAttribute('data-lucide', 'play');
+          if (label) label.textContent = 'Play Sample';
+          lucide.createIcons();
+          stopWaveformAnim();
+          if (progressBar) progressBar.style.width = '0%';
+        });
+
+        audio.addEventListener('loadedmetadata', () => {
+          if (timeDisplay) timeDisplay.textContent = `0:00 / ${formatTime(audio.duration)}`;
+        });
+      }
+    });
 
     function toggleFaq(id) {
       const content = document.getElementById(`faq-content-${id}`);
@@ -941,13 +1072,6 @@ if (!defined('ABSPATH')) exit;
       units.forEach(el => {
         el.textContent = isAnnual ? '/ year' : '/ 1st month';
       });
-    }
-
-    function openVoiceModal() {
-      document.getElementById('voice-modal').classList.remove('hidden');
-    }
-    function closeVoiceModal() {
-      document.getElementById('voice-modal').classList.add('hidden');
     }
   </script>
 

@@ -4,11 +4,84 @@ import { createClient } from '@supabase/supabase-js';
 
 export const dynamic = 'force-dynamic';
 
+const corsHeaders = {
+  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
+  'Access-Control-Allow-Headers': 'Content-Type, Authorization',
+};
+
+export async function OPTIONS() {
+  return new NextResponse(null, { status: 204, headers: corsHeaders });
+}
+
+export async function GET(req: Request) {
+  try {
+    const apiKey = process.env.STRIPE_SECRET_KEY;
+    if (!apiKey) {
+      return NextResponse.json({ error: 'Stripe API key not configured on server' }, { status: 500, headers: corsHeaders });
+    }
+
+    const { searchParams } = new URL(req.url);
+    const plan = searchParams.get('plan') || 'basic';
+    const returnUrl = searchParams.get('return_url') || searchParams.get('returnUrl');
+
+    const stripe = new Stripe(apiKey, {
+      apiVersion: '2023-10-16',
+    });
+
+    const isLocal = process.env.NODE_ENV === 'development' || process.env.NEXT_PUBLIC_ENV === 'development';
+    const wpAppUrl = isLocal ? 'https://styleflo.test/app' : 'https://styleflo.ai/app';
+
+    const priceData: Stripe.Checkout.SessionCreateParams.LineItem.PriceData = {
+      currency: 'gbp',
+      product_data: {
+        name: 'StyleFlo Basic Plan (£9.99/mo)',
+        description: '24/7 AI Receptionist Automation with Web Chatbot, Knowledge Base & Modular Bolt-ons',
+        metadata: {
+          plan_tier: 'base_tier',
+          tier: 'base_tier',
+          type: 'subscription',
+        },
+      },
+      unit_amount: 999, // £9.99/mo
+      recurring: {
+        interval: 'month',
+      },
+    };
+
+    const session = await stripe.checkout.sessions.create({
+      mode: 'subscription',
+      payment_method_types: ['card'],
+      line_items: [
+        {
+          price_data: priceData,
+          quantity: 1,
+        },
+      ],
+      subscription_data: {
+        metadata: {
+          plan_tier: 'base_tier',
+        },
+      },
+      metadata: {
+        plan_tier: 'base_tier',
+      },
+      success_url: `${returnUrl || wpAppUrl}?checkout_status=success&session_id={CHECKOUT_SESSION_ID}`,
+      cancel_url: `${returnUrl || (isLocal ? 'https://styleflo.test/#pricing' : 'https://styleflo.ai/#pricing')}?checkout_status=cancelled`,
+    });
+
+    return NextResponse.redirect(session.url, 303);
+  } catch (err: any) {
+    console.error('Stripe Checkout GET Error:', err);
+    return NextResponse.json({ error: err.message || 'Failed to initiate checkout' }, { status: 500, headers: corsHeaders });
+  }
+}
+
 export async function POST(req: Request) {
   try {
     const apiKey = process.env.STRIPE_SECRET_KEY;
     if (!apiKey) {
-      return NextResponse.json({ error: 'Stripe API key not configured on server' }, { status: 500 });
+      return NextResponse.json({ error: 'Stripe API key not configured on server' }, { status: 500, headers: corsHeaders });
     }
 
     const stripe = new Stripe(apiKey, {
@@ -19,8 +92,8 @@ export async function POST(req: Request) {
     const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
     const supabase = createClient(supabaseUrl, supabaseKey);
 
-    const body = await req.json();
-    const { priceId, addonPriceIds, addonCatalogId, tenantId, customerEmail, returnUrl, action, customPricePence, customVoiceMinutes, customSms, autoTopup, autoTopupThreshold } = body;
+    const body = await req.json().catch(() => ({}));
+    const { plan, planTier, tier, priceId, addonPriceIds, addonCatalogId, tenantId, customerEmail, returnUrl, action, customPricePence, customVoiceMinutes, customSms, autoTopup, autoTopupThreshold } = body;
 
     // Mode 3: Customer Portal
     if (action === 'portal') {
@@ -86,7 +159,7 @@ export async function POST(req: Request) {
         return_url: returnUrl || defaultReturnUrl,
       });
 
-      return NextResponse.json({ url: session.url });
+      return NextResponse.json({ url: session.url }, { headers: corsHeaders });
     }
 
     // Mode 2: Add-on to existing subscription (Fixed or Sliding Scale)
@@ -246,17 +319,49 @@ export async function POST(req: Request) {
       }
 
       const session = await stripe.checkout.sessions.create(sessionConfig);
-      return NextResponse.json({ url: session.url, sessionId: session.id });
+      return NextResponse.json({ url: session.url, sessionId: session.id }, { headers: corsHeaders });
     }
 
     // Mode 1: New subscription checkout
-    if (priceId) {
-      const lineItems: Stripe.Checkout.SessionCreateParams.LineItem[] = [
-        {
+    const isBaseTierRequest =
+      plan === 'basic' ||
+      plan === 'base_tier' ||
+      planTier === 'base_tier' ||
+      tier === 'base_tier' ||
+      tier === 'basic' ||
+      priceId === 'basic' ||
+      priceId === 'base_tier';
+
+    if (isBaseTierRequest || priceId) {
+      let lineItems: Stripe.Checkout.SessionCreateParams.LineItem[] = [];
+
+      if (priceId && priceId !== 'basic' && priceId !== 'base_tier') {
+        lineItems.push({
           price: priceId,
           quantity: 1,
-        }
-      ];
+        });
+      } else {
+        const priceData: Stripe.Checkout.SessionCreateParams.LineItem.PriceData = {
+          currency: 'gbp',
+          product_data: {
+            name: 'StyleFlo Basic Plan (£9.99/mo)',
+            description: '24/7 AI Receptionist Automation with Web Chatbot, Knowledge Base & Modular Bolt-ons',
+            metadata: {
+              plan_tier: 'base_tier',
+              tier: 'base_tier',
+              type: 'subscription',
+            },
+          },
+          unit_amount: 999, // £9.99/mo
+          recurring: {
+            interval: 'month',
+          },
+        };
+        lineItems.push({
+          price_data: priceData,
+          quantity: 1,
+        });
+      }
 
       if (Array.isArray(addonPriceIds) && addonPriceIds.length > 0) {
         addonPriceIds.forEach(id => {
@@ -267,31 +372,35 @@ export async function POST(req: Request) {
         });
       }
 
+      const isLocal = process.env.NODE_ENV === 'development' || process.env.NEXT_PUBLIC_ENV === 'development';
+      const wpAppUrl = isLocal ? 'https://styleflo.test/app' : 'https://styleflo.ai/app';
+
       const session = await stripe.checkout.sessions.create({
         mode: 'subscription',
         payment_method_types: ['card'],
         customer_email: customerEmail || undefined,
         line_items: lineItems,
         subscription_data: {
-          trial_period_days: 30, // 🎁 1 MONTH FREE TRIAL (30 Days)
           metadata: {
             tenant_id: tenantId || '',
+            plan_tier: 'base_tier',
           },
         },
         metadata: {
           tenant_id: tenantId || '',
+          plan_tier: 'base_tier',
         },
-        success_url: `${returnUrl || (process.env.NODE_ENV === 'development' || process.env.NEXT_PUBLIC_ENV === 'development' ? 'https://styleflo.test/app' : 'https://styleflo.ai/app')}?checkout_status=success&session_id={CHECKOUT_SESSION_ID}`,
-        cancel_url: `${returnUrl || (process.env.NODE_ENV === 'development' || process.env.NEXT_PUBLIC_ENV === 'development' ? 'https://styleflo.test/#pricing' : 'https://styleflo.ai/#pricing')}?checkout_status=cancelled`,
+        success_url: `${returnUrl || wpAppUrl}?checkout_status=success&session_id={CHECKOUT_SESSION_ID}`,
+        cancel_url: `${returnUrl || (isLocal ? 'https://styleflo.test/#pricing' : 'https://styleflo.ai/#pricing')}?checkout_status=cancelled`,
       });
 
-      return NextResponse.json({ url: session.url, sessionId: session.id });
+      return NextResponse.json({ url: session.url, sessionId: session.id }, { headers: corsHeaders });
     }
 
-    return NextResponse.json({ error: 'Invalid request parameters' }, { status: 400 });
+    return NextResponse.json({ error: 'Invalid request parameters' }, { status: 400, headers: corsHeaders });
 
   } catch (err: any) {
     console.error('Stripe Checkout Error:', err);
-    return NextResponse.json({ error: err.message || 'Failed to process request' }, { status: 500 });
+    return NextResponse.json({ error: err.message || 'Failed to process request' }, { status: 500, headers: corsHeaders });
   }
 }

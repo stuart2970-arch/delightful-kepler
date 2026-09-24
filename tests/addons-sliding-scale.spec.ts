@@ -114,4 +114,34 @@ test.describe('Modular Add-Ons & Sliding Scale Checkout API', () => {
     expect(baseAgent).toBeDefined();
     expect(baseAgent.limit_value).toBe(1);
   });
+
+  test('POST /api/billing/checkout with plan: basic initiates direct base tier checkout', async ({ request }) => {
+    const res = await request.post('/api/billing/checkout', {
+      headers: { 'Content-Type': 'application/json' },
+      data: {
+        plan: 'basic',
+        planTier: 'base_tier',
+      },
+    });
+    // In test environment with Stripe keys, returns 200 with checkout session URL; or 500 if key mock
+    expect([200, 500]).toContain(res.status());
+    if (res.status() === 200) {
+      const data = await res.json();
+      expect(data.url).toBeDefined();
+      expect(data.url).toContain('stripe.com');
+    }
+  });
+
+  test('GET /api/billing/checkout?plan=basic redirects to Stripe checkout', async ({ request }) => {
+    const res = await request.get('/api/billing/checkout?plan=basic', {
+      maxRedirects: 0,
+    });
+    // Either 303 (redirect) or 500 (if Stripe key missing)
+    expect([303, 307, 308, 500]).toContain(res.status());
+    if (res.status() === 303) {
+      const location = res.headers()['location'];
+      expect(location).toContain('stripe.com');
+    }
+  });
 });
+

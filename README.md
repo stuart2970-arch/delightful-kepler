@@ -2420,6 +2420,39 @@ Highlighted adjustments in the modal:
    - `npx playwright test tests/addons-sliding-scale.spec.ts`: 9 passed (100%), including new tests for `GET /api/superadmin/features` and `PATCH /api/superadmin/entitlements`.
    - `npm run test:e2e`: Full E2E test suite passed.
 
+### Session 48 — Avada Child Theme Landing Page Overhaul: Direct Stripe Checkout, High-Contrast Top Bar, Voice AI Player & Copy Polish (2026-09-24)
+
+**Context**: User provided an annotated screenshot (`media_1790266266794.jpg`) with specific directives for the marketing website located in the Avada Child Theme inside `wp-theme` (`wp-theme\styleflo\app\public\wp-content\themes\Avada-Child-Theme\`):
+1. *"Top bar text is difficult to read - change colour"* (annotated circle around `View Pricing & Bolt-ons →`).
+2. *"Get started at £9.99 - anywhere there is a button to sign up, we must not put another click in the persons way, this must take the user to stripe to complete their purchase, unless the user is building a bundle"* (annotated circle around header button `GET STARTED £9.99`).
+3. *"Listen to voice demo must play the voice 'delightful-kepler\public\audio\UK Female - Northern_gen_sp100_s56_sb42_se12_m2.mp3'"*.
+4. Red markup striking out `Instagram DMs, and WhatsApp messages` from the hero paragraph, as these channels are modular bolt-ons rather than part of the base plan.
+
+1. **Architecture & Implementation**:
+   - **Direct Stripe Checkout for Basic Plan (`src/app/api/billing/checkout/route.ts`)**:
+     - Added CORS headers (`Access-Control-Allow-Origin: *`, `OPTIONS` preflight handling) to support cross-origin checkout requests initiated from WordPress.
+     - Added `GET /api/billing/checkout?plan=basic` endpoint returning a `303 See Other` redirect straight to the Stripe Checkout session URL.
+     - Enhanced `POST /api/billing/checkout` to support `plan: 'basic'` / `planTier: 'base_tier'` without requiring an existing `priceId` or tenant, dynamically generating a subscription line item for £9.99/mo (`unit_amount: 999`) with metadata `plan_tier: 'base_tier'` for immediate webhook provisioning.
+     - Added JavaScript client helper `startBasicCheckout(event)` with loading state feedback ("Connecting to Stripe..."), seamless `fetch` to create the checkout session, and fallback to direct GET redirect.
+   - **Top Bar Text Contrast & Inline Styling (`template-styleflo-landing.php` & `styleflo_landing_page.html`)**:
+     - Updated `View Pricing & Bolt-ons →` link to luminous amber (`#FCD34D`, `font-extrabold`, `hover:text-amber-200`) with explicit `style="color: #FCD34D !important;"` to prevent Avada theme CSS link colors from overriding it.
+     - Added `style="color: #FFFFFF !important;"` to banner text containers to guarantee high-contrast readability against the dark purple gradient.
+   - **Hero Copy Correction & Streamlined CTAs**:
+     - Updated hero paragraph to: *"Meet StyleFlo’s 24/7 AI Receptionist. It automatically answers phone calls and website inquiries—booking appointments straight into Google Calendar, Booksy, or SalonIQ in under a second."* (removing Instagram and WhatsApp references).
+     - Updated header CTA button (`Get Started £9.99`), hero CTA button (`Get Started for £9.99/mo`), and Basic Tier pricing card CTA (`Get Started for £9.99`) to link directly to Stripe checkout via `startBasicCheckout(event)` with 0 intermediate clicks.
+   - **FloVoice Audio Agent Interactive Player**:
+     - Deployed real audio file `UK Female - Northern_gen_sp100_s56_sb42_se12_m2.mp3` into `Avada-Child-Theme/audio/`.
+     - Replaced mock CSS bouncing dots in `voice-modal` with an HTML5 `<audio>` player with fallback paths (`get_stylesheet_directory_uri()`, CDN, relative).
+     - Implemented dynamic animated waveform visualizer, Play/Pause control button, time display (`0:00 / 0:13`), and interactive scrubbable progress bar.
+     - Wired up `openVoiceModal()` to autoplay or initialize the track and `closeVoiceModal()` to stop playback cleanly.
+   - **Multi-Location Template Synchronization**:
+     - Synchronized updates across `wp-theme/styleflo/app/public/wp-content/themes/Avada-Child-Theme/`, `delightful-kepler/public/`, `scratch/`, and `emdash-theme/public/`.
+
+2. **Verification & Testing**:
+   - `npx playwright test tests/addons-sliding-scale.spec.ts`: All 11 tests passed (100%), including new tests asserting direct POST and GET Stripe checkout routes for the basic plan.
+   - `npm run test:e2e`: Complete Playwright E2E suite passed: **48 passed, 1 skipped (55.7s)**.
+   - `npm run build`: Production Next.js Turbopack build and widget bundling passed with 0 errors across all 35 routes.
+
 ## Session Chat History Log
 
 * **User**: "While trying to ensure the basic model is up to date, i noted the agent was not selected as yes, so i tried to change it. it allowed me to select yes, but would not save"
@@ -2430,6 +2463,17 @@ Highlighted adjustments in the modal:
     4. Updated `SuperAdminEntitlementsView.tsx` with dynamic cell creation on change, saving feedback indicators ("Saving..." / "✓ Saved"), and an Auto-Save Active header badge.
     5. Added `GET /api/superadmin/features` and switched `oldEntitlement` lookup to `.maybeSingle()`.
     6. Verified with `npm run build` and Playwright tests.
+
+* **User**: "This is located in avada child theme insite wp-theme" [referencing screenshot media_1790266266794.jpg with 4 annotations: top bar text difficult to read, Get Started at £9.99 must take user directly to Stripe with no clicks in the way unless building a bundle, listen to voice demo must play the UK Female Northern audio file, and remove Instagram/WhatsApp from hero copy]
+  * **Answer & Action**:
+    1. Located the child theme at `wp-theme/styleflo/app/public/wp-content/themes/Avada-Child-Theme/`.
+    2. Styled the top announcement bar `View Pricing & Bolt-ons →` link in luminous gold (`#FCD34D !important`) and banner text in `#FFFFFF !important` for maximum contrast.
+    3. Removed `Instagram DMs, and WhatsApp messages` from the hero paragraph and meta description.
+    4. Enhanced `/api/billing/checkout` with CORS support, a `GET` direct 303 redirect endpoint, and `POST` base_tier handling. Updated all £9.99 sign-up buttons (header, hero, pricing card) to trigger direct Stripe checkout with zero intermediate clicks.
+    5. Implemented interactive HTML5 audio demo player in `voice-modal` playing `UK Female - Northern_gen_sp100_s56_sb42_se12_m2.mp3` with animated waveform, play/pause controls, time display, and progress bar.
+    6. Synchronized changes across WordPress theme, `delightful-kepler/public/`, and scratch mirrors.
+    7. Verified all 11 unit/integration tests and complete 49-test Playwright E2E test suite passed 100%. Verified production build succeeded with 0 errors.
+
 
 
 
