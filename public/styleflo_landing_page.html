@@ -342,20 +342,11 @@ if (!defined('ABSPATH')) exit;
           <!-- Feature 3 -->
           <div class="bg-pearl rounded-2xl p-8 border border-slate-ash shadow-card hover:shadow-soft-elevated transition-all">
             <div class="w-12 h-12 rounded-xl bg-emerald-100 text-emerald-700 flex items-center justify-center mb-6 font-bold">
-              <i data-lucide="message-square" class="w-6 h-6"></i>
+              <i data-lucide="sliders" class="w-6 h-6"></i>
             </div>
-            <h3 class="heading-poppins text-xl font-bold text-slate-body mb-3">Omnichannel Social Concierge</h3>
+            <h3 class="heading-poppins text-xl font-bold text-slate-body mb-3">No Contract PAYG</h3>
             <p class="text-slate-muted text-sm leading-relaxed">
-              Automatically reply to Instagram DMs, Story mentions, WhatsApp inquiries, and website chat widgets within sub-600ms streaming 
-              <span class="relative group inline-block cursor-help font-bold text-slate-body underline decoration-dotted decoration-amethyst underline-offset-2">
-                RAG
-                <span class="absolute bottom-full left-1/2 -translate-x-1/2 mb-2.5 hidden group-hover:block w-72 bg-slate-body text-white text-xs rounded-xl p-3.5 shadow-2xl z-50 pointer-events-none leading-relaxed border border-slate-700 font-normal text-left">
-                  <strong class="text-amethyst-light font-bold block mb-1 text-xs">💡 What is RAG?</strong>
-                  <strong class="font-bold">Retrieval-Augmented Generation (RAG)</strong> is a cutting-edge AI technique that searches your exact business documentation, pricing menus, and rules in real-time. It enables the AI to answer customer questions with 100% factual accuracy and zero hallucinations.
-                  <span class="absolute top-full left-1/2 -translate-x-1/2 border-4 border-transparent border-t-slate-body"></span>
-                </span>
-              </span> 
-              response times.
+              Stay in full control with zero lock-in contracts and complete pay-as-you-grow flexibility. Tailor your package with modular bolt-ons where you choose how many minutes or SMS messages you want, adding extra capacity or dedicated phone lines whenever your business needs them.
             </p>
           </div>
 
@@ -518,7 +509,7 @@ if (!defined('ABSPATH')) exit;
             <div class="w-10 h-10 rounded-xl bg-amethyst text-white font-black flex items-center justify-center mb-6 text-lg">3</div>
             <h3 class="heading-poppins text-lg font-bold text-slate-body mb-2">Go Live with Basic + Modular Bolt-ons</h3>
             <p class="text-xs sm:text-sm text-slate-muted leading-relaxed">
-              Activate your Basic plan for £9.99/mo. Customize anytime with modular bolt-ons (Voice Phone Line, Instagram DM, WhatsApp, extra messages & knowledge). Cancel anytime!
+              Activate your Basic plan for £9.99/mo. Customize anytime with modular bolt-ons (Voice Minutes, SMS Message Packs, Dedicated Numbers, Calendar sync, extra knowledge). Cancel anytime!
             </p>
           </div>
 
@@ -744,7 +735,7 @@ if (!defined('ABSPATH')) exit;
               <i id="faq-icon-1" data-lucide="chevron-down" class="w-5 h-5 text-amethyst transition-transform"></i>
             </button>
             <div id="faq-content-1" class="hidden px-6 pb-6 text-sm text-slate-muted leading-relaxed">
-              Our Basic Subscription gives you a full 24/7 web chat AI receptionist for just £9.99/mo with 1,000 messages and 50 knowledge vector chunks included. As your business grows, you can easily stack modular bolt-ons like a Voice AI Phone Agent (£19.99/mo), Instagram/WhatsApp Social Integration (£14.99/mo), or extra message packs anytime from your dashboard.
+              Our Basic Subscription gives you a full 24/7 web chat AI receptionist for just £9.99/mo with 1,000 messages and 50 knowledge vector chunks included. As your business grows, you can easily stack modular bolt-ons like a Voice AI Phone Agent, dedicated phone numbers, or extra message and knowledge packs anytime from your dashboard.
             </div>
           </div>
 
