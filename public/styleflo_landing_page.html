@@ -590,7 +590,7 @@ if (!defined('ABSPATH')) exit;
                   </div>
                   <div class="flex items-center gap-2">
                     <i data-lucide="check-circle-2" class="w-4 h-4 text-emerald-600 flex-shrink-0"></i>
-                    <span>Calendar & Booking Tool Sync</span>
+                    <span>Keep your existing booking tool</span>
                   </div>
                   <div class="flex items-center gap-2 sm:col-span-2">
                     <i data-lucide="check-circle-2" class="w-4 h-4 text-emerald-600 flex-shrink-0"></i>

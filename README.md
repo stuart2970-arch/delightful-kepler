@@ -2499,6 +2499,14 @@ Highlighted adjustments in the modal:
     7. Synchronized all templates across `wp-theme`, `delightful-kepler/public/`, and `scratch/`.
     8. Added test coverage in `tests/addons-sliding-scale.spec.ts` for multi-item modular checkout bundles (13/13 passed). Verified `npm run build` compiled cleanly in 3.5s.
 
+* **User**: [Image media_1790280883943.png circling "Calendar & Booking Tool Sync": "This should be 'keep your existing booking tool'"]
+  * **Answer & Action**:
+    1. Located the feature line in `wp-theme/styleflo/app/public/wp-content/themes/Avada-Child-Theme/template-styleflo-landing.php` and `styleflo_landing_page.html`.
+    2. Updated the feature copy from `Calendar & Booking Tool Sync` to `Keep your existing booking tool`.
+    3. Synchronized updates to mirrors in `delightful-kepler/public/` and `scratch/`.
+    4. Verified production compilation with `npm run build`.
+
+
 
 
 
