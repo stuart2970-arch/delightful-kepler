@@ -2230,4 +2230,13 @@ This occurred because UK geographic numbers strictly require `addressRequirement
     5. Updated `/api/webhooks/stripe` to write 3-month ledger allocations and skip one-off credits during recurring subscription renewals.
     6. Verified production build passes cleanly.
 
+* **User**: "why no verify" / "done"
+  * **Answer & Action**:
+    1. Explained the Windows WinNAT port collision that had blocked Supabase port `54322`, leading to test failures against local database services during pre-push hook execution.
+    2. Once the user restarted WinNAT, identified and stopped stale generic Supabase containers (`_Stuar`) conflicting with the project's local stack.
+    3. Started the project's local Supabase container (`_delightful-kepler`) with full migrations and seed data.
+    4. Terminated a rogue `next dev` process on port 3000 running `.env.local` and hardened `playwright.config.ts` to enforce `reuseExistingServer: false` so tests consistently execute against the isolated `.env.test` server.
+    5. Verified the entire Playwright E2E test suite (`npm run test:e2e`) passes 100% (42 passed, 1 skipped, 0 failed).
+
+
 
