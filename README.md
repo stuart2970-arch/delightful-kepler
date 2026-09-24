@@ -2254,6 +2254,43 @@ This occurred because UK geographic numbers strictly require `addressRequirement
        - Production Next.js & widget build (`npm run build`) passed with 0 errors.
        - Full Playwright E2E test suite (`npm run test:e2e`) passed 100% (42 passed, 1 skipped, 0 failed).
 
+### Session 44 — Agent Builder Stage 4 Voice Package Gating & Navigation Preservation (2026-09-24)
+
+**Context**: User requested via screenshot (`media_1790257287980.png`):
+*"Building an Agent: When the user gets to stage 4 of building a chat the user is asked to switch on voice if they have a voice package. If they do not have a voice package and they click on the greyed out button they see the following:
+localhost:3000 says: Please upgrade your plan or add a voice add-on to enable voice calling. [OK]
+If the user selects OK they are taken out of the agent builder to the package options. The user must be shown a message that tells them to continue with the agent build, then purchase the voice bolton and return to set it up"*
+
+1. **Architecture & Implementation**:
+   - **Prevent Premature Navigation (`src/components/dashboard-views/ChatbotManagerView.tsx`)**:
+     - Removed `setActiveTab('billing')` and browser `alert(...)` from the Stage 4 voice toggle onClick handler. Clicking the toggle while lacking voice minutes no longer kicks the user out of the agent builder wizard, preserving their in-progress agent setup.
+   - **Voice Package Required In-App Notice Modal**:
+     - Added `showVoiceNoticeModal` state to `ChatbotManagerView.tsx`.
+     - When clicking the voice toggle without voice minutes, displays a styled in-app dialog:
+       - Header: 🎙️ "Voice Package Required" (Stage 4: Voice Configuration).
+       - Message: *"Please continue with the agent build, then purchase the voice bolt-on and return to set it up."*
+       - Action Button: **"Continue Building Agent"** (closes modal and keeps user on Stage 4 so they can proceed to "Finish & Launch Chatbot").
+   - **Inline Stage 4 Advisory Card**:
+     - Added an inline advisory alert box directly below the voice toggle in Stage 4 whenever `!hasVoiceMinutes`:
+       `💡 Voice package required: Please continue with the agent build, then purchase the voice bolt-on and return to set it up.`
+   - **Accurate Voice Entitlement Evaluation**:
+     - Improved `hasVoiceMinutes` calculation in `ChatbotManagerView.tsx` to inspect `billingData.entitlements` (`vapi_voice_minutes` and `voice_minutes`), `billingData.addons` (`voice_pack`, `landline`, `mobile`), and `rolloverUsage` remaining/allocated voice minutes.
+
+2. **Verification & Testing**:
+   - `npm run build`: Production Next.js Turbopack build and widget compilation passed with 0 errors.
+   - `npx playwright test tests/chatbot.spec.ts`: Passed (100%).
+   - `npm run test:e2e`: Full E2E test suite passed (42 passed, 1 skipped).
+
+## Session Chat History Log
+
+* **User**: "Building an Agent: When the user gets to stage 4 of building a chat the user is asked to switch on voice if they have a voice package. If they do not have a voice package and they click on the greyed out button they see the following: Please upgrade your plan or add a voice add-on to enable voice calling. If the user selects OK they are taken out of the agent builder to the package options. The user must be shown a message that tells them to continue with the agent build, then purchase the voice bolton and return to set it up"
+  * **Answer & Action**:
+    1. Examined `src/components/dashboard-views/ChatbotManagerView.tsx` lines 610–625.
+    2. Removed `alert(...)` and `setActiveTab('billing')` so the user is never kicked out of the chatbot builder wizard.
+    3. Created a responsive "Voice Package Required" modal informing them to: *"Please continue with the agent build, then purchase the voice bolt-on and return to set it up."* with a "Continue Building Agent" button that dismisses the modal and keeps them on Stage 4.
+    4. Added an inline informational card under the toggle displaying the guidance persistently.
+    5. Verified Next.js Turbopack build and complete Playwright E2E test suite pass with 100% success.
+
 
 
 

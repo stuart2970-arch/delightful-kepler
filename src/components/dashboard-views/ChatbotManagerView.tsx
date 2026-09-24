@@ -33,6 +33,7 @@ export default function ChatbotManagerView() {
   const [isUploadingAvatar, setIsUploadingAvatar] = useState(false);
   const [showDeleteModal, setShowDeleteModal] = useState<string | null>(null);
   const [isDeletingBot, setIsDeletingBot] = useState(false);
+  const [showVoiceNoticeModal, setShowVoiceNoticeModal] = useState(false);
   
   const generatedAvatars = [
     '/avatars/robot_waiter_1.png',
@@ -377,8 +378,21 @@ export default function ChatbotManagerView() {
     }).length;
   };
 
-  const voiceEntitlement = billingData?.entitlements?.find((e: any) => e.feature_id === 'vapi_voice_minutes');
-  const hasVoiceMinutes = voiceEntitlement && (voiceEntitlement.limit_value > 0 || voiceEntitlement.limit_value === -1);
+  const voiceEntitlement = billingData?.entitlements?.find(
+    (e: any) => e.feature_id === 'vapi_voice_minutes' || e.feature_id === 'voice_minutes'
+  );
+  const voiceLimit = voiceEntitlement?.limit_value ?? 0;
+  const hasVoiceAddon = Boolean(
+    billingData?.addons?.some(
+      (a: any) => a.category === 'voice_pack' || a.category === 'landline' || a.category === 'mobile'
+    )
+  );
+  const hasVoiceMinutes = Boolean(
+    (voiceEntitlement && (voiceLimit > 0 || voiceLimit === -1)) ||
+    (billingData?.rolloverUsage?.voice_minutes_allocated ?? 0) > 0 ||
+    (billingData?.rolloverUsage?.voice_minutes_remaining ?? 0) > 0 ||
+    hasVoiceAddon
+  );
 
   return (
     <>
@@ -611,17 +625,26 @@ export default function ChatbotManagerView() {
                           type="button"
                           onClick={() => {
                             if (!hasVoiceMinutes) {
-                              alert('Please upgrade your plan or add a voice add-on to enable voice calling.');
-                              setActiveTab('billing');
+                              setShowVoiceNoticeModal(true);
                               return;
                             }
                             setNewVoiceEnabled(!newVoiceEnabled);
                           }}
-                          className={`relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out ${newVoiceEnabled ? 'bg-[#198fd9] text-white' : 'bg-[var(--awb-color3)]'} ${!hasVoiceMinutes ? 'opacity-50 cursor-not-allowed' : ''}`}
+                          className={`relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out ${newVoiceEnabled ? 'bg-[#198fd9] text-white' : 'bg-[var(--awb-color3)]'} ${!hasVoiceMinutes ? 'opacity-50' : ''}`}
                         >
                           <span className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${newVoiceEnabled ? 'translate-x-5' : 'translate-x-0'}`} />
                         </button>
                       </div>
+
+                      {!hasVoiceMinutes && (
+                        <div className="p-3.5 bg-amber-500/10 border border-amber-500/30 rounded-xl flex items-start gap-3 text-xs text-[var(--awb-color8)]">
+                          <span className="text-base shrink-0 leading-none">💡</span>
+                          <div>
+                            <strong className="font-semibold text-amber-500 block mb-0.5">Voice package required</strong>
+                            <span>Please continue with the agent build, then purchase the voice bolt-on and return to set it up.</span>
+                          </div>
+                        </div>
+                      )}
 
                       {newVoiceEnabled && (
                         <div className="mt-4 space-y-4">
@@ -945,6 +968,38 @@ export default function ChatbotManagerView() {
                       className="px-5 py-2 rounded-xl text-sm font-semibold bg-red-600 hover:bg-red-700 text-[var(--awb-color8)] shadow-md transition-all disabled:opacity-50 flex items-center gap-2"
                     >
                       {isDeletingBot ? 'Deleting...' : 'Yes, Delete Chatbot'}
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Voice Bolt-on Notice Modal */}
+            {showVoiceNoticeModal && (
+              <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm animate-in fade-in duration-200">
+                <div className="bg-[var(--awb-color1)] border border-[var(--awb-color3)] rounded-2xl p-6 max-w-md w-full shadow-2xl relative overflow-hidden">
+                  <div className="absolute top-0 left-0 w-full h-1.5 bg-[#198fd9]"></div>
+                  <div className="flex items-center gap-3 mb-4">
+                    <div className="w-10 h-10 rounded-xl bg-[#198fd9]/10 text-[#198fd9] flex items-center justify-center text-xl shrink-0">
+                      🎙️
+                    </div>
+                    <div>
+                      <h3 className="text-base font-bold text-[var(--awb-color8)]">Voice Package Required</h3>
+                      <p className="text-xs text-[var(--awb-color6)]">Stage 4: Voice Configuration</p>
+                    </div>
+                  </div>
+                  <div className="bg-[var(--awb-color2)] border border-[var(--awb-color3)] rounded-xl p-4 mb-6">
+                    <p className="text-sm text-[var(--awb-color8)] font-medium leading-relaxed">
+                      Please continue with the agent build, then purchase the voice bolt-on and return to set it up.
+                    </p>
+                  </div>
+                  <div className="flex justify-end">
+                    <button
+                      type="button"
+                      onClick={() => setShowVoiceNoticeModal(false)}
+                      className="w-full sm:w-auto px-6 py-2.5 rounded-xl text-sm font-bold bg-[#198fd9] hover:bg-[#157dc0] text-white shadow-md transition-all flex items-center justify-center gap-2"
+                    >
+                      Continue Building Agent
                     </button>
                   </div>
                 </div>
