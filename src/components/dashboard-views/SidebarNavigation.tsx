@@ -48,7 +48,7 @@ export default function SidebarNavigation() {
         { id: 'chatbots', label: '🤖 Agent', count: chatbots.filter(b => b.id !== globalBotId).length, locked: false },
         { id: 'conversations', label: '💬 Web Chat & Voice', count: conversations.filter(c => !c.is_phone_call).length, locked: false },
         { id: 'telephony', label: '📞 Phone Calls', count: conversations.filter(c => c.is_phone_call || (c.is_voice_call && c.user_session_id?.startsWith('phone_'))).length, locked: !channelFlags.has_landline && !channelFlags.has_mobile },
-        { id: 'whatsapp', label: '📱 WhatsApp & Meta', locked: false },
+        { id: 'whatsapp', label: '📱 WhatsApp & Meta', locked: true, disabled: true },
         { id: 'crawler', label: '📚 Knowledge Base', locked: false },
         { id: 'integrations', label: '🔌 Integrations', locked: false },
         { id: 'openclaw-monitor', label: '⚡ Gateways', locked: false },
@@ -90,7 +90,9 @@ export default function SidebarNavigation() {
               {navItems.map(tab => (
                  <button 
                    key={tab.id} 
+                   disabled={Boolean((tab as any).disabled)}
                    onClick={() => { 
+                     if ((tab as any).disabled) return;
                      if (tab.locked) {
                        setUpsellCategory(tab.id === 'telephony' ? 'landline' : tab.id === 'whatsapp' ? 'whatsapp' : null);
                      } else {
@@ -98,16 +100,28 @@ export default function SidebarNavigation() {
                        setIsMobileMenuOpen(false); 
                      }
                    }} 
-                   className={`w-full flex items-center justify-between px-3.5 py-3 rounded-xl text-sm font-semibold transition-all duration-200 border ${tab.locked ? 'opacity-40 cursor-not-allowed' : ''} ${activeTab === tab.id ? 'bg-[var(--awb-color1)] text-[var(--awb-color8)] border-[var(--awb-color3)] shadow-sm' : 'text-[var(--awb-color6)] hover:text-[var(--awb-color7)] hover:bg-[var(--awb-color1)]/60 border-transparent'}`}
+                   className={`w-full flex items-center justify-between px-3.5 py-3 rounded-xl text-sm font-semibold transition-all duration-200 border ${
+                     (tab as any).disabled
+                       ? 'opacity-40 filter grayscale cursor-not-allowed pointer-events-none select-none border-transparent text-[var(--awb-color6)]'
+                       : tab.locked 
+                         ? 'opacity-40 cursor-not-allowed' 
+                         : activeTab === tab.id 
+                           ? 'bg-[var(--awb-color1)] text-[var(--awb-color8)] border-[var(--awb-color3)] shadow-sm' 
+                           : 'text-[var(--awb-color6)] hover:text-[var(--awb-color7)] hover:bg-[var(--awb-color1)]/60 border-transparent'
+                   }`}
                  >
                     <div className="flex items-center gap-3 truncate">
                        <span>{tab.label}</span>
                     </div>
-                    {tab.count !== undefined && (
+                    {(tab as any).disabled ? (
+                      <span className="text-[9px] uppercase tracking-wider font-bold px-1.5 py-0.5 rounded bg-gray-200 text-gray-600">
+                        Unavailable
+                      </span>
+                    ) : tab.count !== undefined ? (
                       <span className={`text-[10px] px-2 py-0.5 rounded-full font-mono font-bold ${activeTab === tab.id ? 'bg-[#198fd9] text-white' : 'bg-[var(--awb-color3)] text-[var(--awb-color6)]'}`}>
                         {tab.count}
                       </span>
-                    )}
+                    ) : null}
                  </button>
               ))}
             </nav>

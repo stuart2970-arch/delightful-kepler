@@ -129,7 +129,7 @@ export default function AddOnUpsellModal({ isOpen, onClose, category, tenantId }
     switch (category) {
       case 'landline': return 'Add a Landline Number';
       case 'mobile': return 'Add a Mobile Number';
-      case 'whatsapp': return 'Enable WhatsApp Business';
+      case 'whatsapp': return 'WhatsApp Integration (Unavailable)';
       case 'voice_pack': return 'Voice Minutes Bolt-on';
       case 'sms_pack': return 'SMS Messages Bolt-on';
       case 'data_pack': return 'Knowledge Base Capacity';
@@ -613,50 +613,81 @@ export default function AddOnUpsellModal({ isOpen, onClose, category, tenantId }
               {/* ========================================================= */}
               {category !== 'landline' && category !== 'mobile' && category !== 'voice_pack' && category !== 'sms_pack' && (
                 <div className="grid grid-cols-1 gap-4">
-                  {addOns.map((addon) => (
-                    <div key={addon.id} className="bg-[var(--awb-color1)] border border-[var(--awb-color3)] rounded-xl p-5 hover:border-[#198fd9] transition-colors flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 shadow-sm">
-                      <div className="flex-1">
-                        <h4 className="text-[#260475] font-bold text-lg">{addon.name}</h4>
-                        <p className="text-[#434549] text-sm mt-1">{addon.description}</p>
-                        {(addon.included_voice_minutes > 0 || addon.included_sms > 0 || addon.included_messages > 0 || addon.included_data_chunks > 0) && (
-                          <div className="mt-2 flex flex-wrap gap-1.5">
-                            {addon.included_voice_minutes > 0 && (
-                              <span className="inline-block bg-[var(--awb-color3)] text-[#212326] text-xs font-semibold px-2 py-1 rounded">🎙️ {addon.included_voice_minutes} voice mins</span>
-                            )}
-                            {addon.included_sms > 0 && (
-                              <span className="inline-block bg-[var(--awb-color3)] text-[#212326] text-xs font-semibold px-2 py-1 rounded">✉️ {addon.included_sms} SMS</span>
-                            )}
-                            {addon.included_messages > 0 && (
-                              <span className="inline-block bg-[var(--awb-color3)] text-[#212326] text-xs font-semibold px-2 py-1 rounded">💬 {addon.included_messages} messages</span>
-                            )}
-                            {addon.included_data_chunks > 0 && (
-                              <span className="inline-block bg-[var(--awb-color3)] text-[#212326] text-xs font-semibold px-2 py-1 rounded">📦 {addon.included_data_chunks} data chunks</span>
+                  {category === 'whatsapp' && (
+                    <div className="p-3 bg-amber-50 border border-amber-200 text-amber-900 rounded-xl text-xs font-semibold flex items-center gap-2">
+                      <span>⚠️</span>
+                      <span>WhatsApp, Instagram, and Messenger integrations are currently unavailable.</span>
+                    </div>
+                  )}
+                  {addOns
+                    .filter((addon) => addon.id !== 'whatsapp_primary')
+                    .map((addon) => {
+                      const isWhatsapp = addon.category === 'whatsapp' || addon.id.includes('whatsapp');
+                      return (
+                        <div 
+                          key={addon.id} 
+                          className={`bg-[var(--awb-color1)] border border-[var(--awb-color3)] rounded-xl p-5 transition-colors flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 shadow-sm ${
+                            isWhatsapp 
+                              ? 'opacity-40 filter grayscale pointer-events-none cursor-not-allowed select-none' 
+                              : 'hover:border-[#198fd9]'
+                          }`}
+                        >
+                          <div className="flex-1">
+                            <div className="flex items-center gap-2">
+                              <h4 className="text-[#260475] font-bold text-lg">{addon.name}</h4>
+                              {isWhatsapp && (
+                                <span className="text-[10px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded bg-gray-200 text-gray-700">
+                                  Unavailable
+                                </span>
+                              )}
+                            </div>
+                            <p className="text-[#434549] text-sm mt-1">{addon.description}</p>
+                            {(addon.included_voice_minutes > 0 || addon.included_sms > 0 || addon.included_messages > 0 || addon.included_data_chunks > 0) && (
+                              <div className="mt-2 flex flex-wrap gap-1.5">
+                                {addon.included_voice_minutes > 0 && (
+                                  <span className="inline-block bg-[var(--awb-color3)] text-[#212326] text-xs font-semibold px-2 py-1 rounded">🎙️ {addon.included_voice_minutes} voice mins</span>
+                                )}
+                                {addon.included_sms > 0 && (
+                                  <span className="inline-block bg-[var(--awb-color3)] text-[#212326] text-xs font-semibold px-2 py-1 rounded">✉️ {addon.included_sms} SMS</span>
+                                )}
+                                {addon.included_messages > 0 && (
+                                  <span className="inline-block bg-[var(--awb-color3)] text-[#212326] text-xs font-semibold px-2 py-1 rounded">💬 {addon.included_messages} messages</span>
+                                )}
+                                {addon.included_data_chunks > 0 && (
+                                  <span className="inline-block bg-[var(--awb-color3)] text-[#212326] text-xs font-semibold px-2 py-1 rounded">📦 {addon.included_data_chunks} data chunks</span>
+                                )}
+                              </div>
                             )}
                           </div>
-                        )}
-                      </div>
-                      <div className="flex flex-col items-end gap-3 w-full sm:w-auto">
-                        <div className="text-xl font-extrabold text-[#212326]">
-                          £{(addon.monthly_price_pence / 100).toFixed(2)}
-                          <span className="text-sm font-normal text-[#434549]"> /m</span>
+                          <div className="flex flex-col items-end gap-3 w-full sm:w-auto">
+                            <div className="text-xl font-extrabold text-[#212326]">
+                              £{(addon.monthly_price_pence / 100).toFixed(2)}
+                              <span className="text-sm font-normal text-[#434549]"> /m</span>
+                            </div>
+                            <button
+                              onClick={() => !isWhatsapp && handleSubscribe(addon.id, addon.monthly_price_pence, addon.included_voice_minutes, addon.included_sms)}
+                              disabled={isSubscribing !== null || isWhatsapp}
+                              className={`w-full sm:w-auto text-white text-xs font-bold py-2.5 px-6 rounded-[4px] shadow-sm transition-colors flex items-center justify-center gap-2 ${
+                                isWhatsapp 
+                                  ? 'bg-gray-400 cursor-not-allowed' 
+                                  : 'bg-[#198fd9] hover:bg-[#157ab9] disabled:bg-gray-400 cursor-pointer'
+                              }`}
+                            >
+                              {isWhatsapp ? (
+                                'Unavailable'
+                              ) : isSubscribing === addon.id ? (
+                                <>
+                                  <div className="w-3 h-3 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                                  Processing...
+                                </>
+                              ) : (
+                                'Subscribe'
+                              )}
+                            </button>
+                          </div>
                         </div>
-                        <button
-                          onClick={() => handleSubscribe(addon.id, addon.monthly_price_pence, addon.included_voice_minutes, addon.included_sms)}
-                          disabled={isSubscribing !== null}
-                          className="w-full sm:w-auto bg-[#198fd9] hover:bg-[#157ab9] disabled:bg-gray-400 text-white text-xs font-bold py-2.5 px-6 rounded-[4px] shadow-sm transition-colors flex items-center justify-center gap-2 cursor-pointer"
-                        >
-                          {isSubscribing === addon.id ? (
-                            <>
-                              <div className="w-3 h-3 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
-                              Processing...
-                            </>
-                          ) : (
-                            'Subscribe'
-                          )}
-                        </button>
-                      </div>
-                    </div>
-                  ))}
+                      );
+                    })}
                 </div>
               )}
 

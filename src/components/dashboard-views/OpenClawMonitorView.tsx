@@ -164,101 +164,105 @@ export default function OpenClawMonitorView() {
               🔌 Active Messaging Channels
             </h3>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {channels.map((channel) => (
-                <div 
-                  key={channel.id} 
-                  className={`p-4 rounded-xl border bg-[var(--awb-color2)]/60 transition duration-200 hover:border-[#198fd9]/40 ${
-                    channel.status === 'connected' 
-                      ? 'border-[var(--awb-color3)]' 
-                      : channel.status === 'reconnecting' 
-                      ? 'border-amber-300 bg-amber-50/50' 
-                      : 'border-rose-300 bg-rose-50/50'
-                  }`}
-                >
-                  <div className="flex justify-between items-start mb-3">
-                    <div>
-                      <h4 className="font-bold text-sm text-[var(--awb-color8)]">{channel.name}</h4>
-                      <span className="text-[11px] text-[var(--awb-color6)] font-mono block">{channel.type}</span>
-                    </div>
-                    <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider ${
-                      channel.status === 'connected' 
-                        ? 'bg-emerald-100 text-emerald-800 border border-emerald-200' 
+              {channels.map((channel) => {
+                const isMetaChannel = channel.name === 'WhatsApp' || channel.name === 'Instagram';
+                return (
+                  <div 
+                    key={channel.id} 
+                    className={`p-4 rounded-xl border bg-[var(--awb-color2)]/60 transition duration-200 ${
+                      isMetaChannel
+                        ? 'opacity-40 filter grayscale pointer-events-none cursor-not-allowed select-none border-gray-300'
+                        : channel.status === 'connected' 
+                        ? 'border-[var(--awb-color3)] hover:border-[#198fd9]/40' 
                         : channel.status === 'reconnecting' 
-                        ? 'bg-amber-100 text-amber-800 border border-amber-200 animate-pulse' 
-                        : 'bg-rose-100 text-rose-800 border border-rose-200'
-                    }`}>
-                      {channel.status}
-                    </span>
-                  </div>
+                        ? 'border-amber-300 bg-amber-50/50 hover:border-[#198fd9]/40' 
+                        : 'border-rose-300 bg-rose-50/50 hover:border-[#198fd9]/40'
+                    }`}
+                  >
+                    <div className="flex justify-between items-start mb-3">
+                      <div>
+                        <h4 className="font-bold text-sm text-[var(--awb-color8)]">{channel.name}</h4>
+                        <span className="text-[11px] text-[var(--awb-color6)] font-mono block">{channel.type}</span>
+                      </div>
+                      <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider ${
+                        isMetaChannel
+                          ? 'bg-gray-100 text-gray-600 border border-gray-200'
+                          : channel.status === 'connected' 
+                          ? 'bg-emerald-100 text-emerald-800 border border-emerald-200' 
+                          : channel.status === 'reconnecting' 
+                          ? 'bg-amber-100 text-amber-800 border border-amber-200 animate-pulse' 
+                          : 'bg-rose-100 text-rose-800 border border-rose-200'
+                      }`}>
+                        {isMetaChannel ? 'Unavailable' : channel.status}
+                      </span>
+                    </div>
 
-                  <div className="grid grid-cols-2 gap-2 text-xs pt-3 border-t border-[var(--awb-color3)]">
-                    <div>
-                      <span className="text-[10px] text-[var(--awb-color6)] block font-semibold">Active Workspaces</span>
-                      <span className="font-bold text-[var(--awb-color7)]">{channel.activeTenants} active</span>
+                    <div className="grid grid-cols-2 gap-2 text-xs pt-3 border-t border-[var(--awb-color3)]">
+                      <div>
+                        <span className="text-[10px] text-[var(--awb-color6)] block font-semibold">Active Workspaces</span>
+                        <span className="font-bold text-[var(--awb-color7)]">{isMetaChannel ? '0 active' : `${channel.activeTenants} active`}</span>
+                      </div>
+                      <div>
+                        <span className="text-[10px] text-[var(--awb-color6)] block font-semibold">Channel Uptime</span>
+                        <span className="font-bold text-[var(--awb-color7)]">{isMetaChannel ? '0m' : channel.uptime}</span>
+                      </div>
                     </div>
-                    <div>
-                      <span className="text-[10px] text-[var(--awb-color6)] block font-semibold">Channel Uptime</span>
-                      <span className="font-bold text-[var(--awb-color7)]">{channel.uptime}</span>
-                    </div>
-                  </div>
 
-                  <div className="mt-3 flex justify-between items-center text-xs text-[var(--awb-color6)] pt-2 border-t border-[var(--awb-color3)]">
-                    <span className="text-[11px]">Last msg: <strong className="text-[var(--awb-color8)]">{channel.lastMessageAt}</strong></span>
-                    <div className="flex items-center gap-2">
-                      {channel.status === 'connected' && (channel.name === 'SMS (Twilio)' || channel.name === 'WhatsApp') && (
-                        <button
-                          type="button"
-                          onClick={async (e) => {
-                            e.stopPropagation();
-                            if (!confirm(`Are you sure you want to disconnect ${channel.name}?`)) return;
-                            try {
-                              if (channel.name === 'SMS (Twilio)') {
-                                await fetch('/api/tenants/settings', {
-                                  method: 'PATCH',
-                                  headers: { 'Content-Type': 'application/json' },
-                                  body: JSON.stringify({ tenantId, twilioShadowNumber: null, twilioMobileNumber: null })
-                                });
-                                useDashboardStore.setState({ twilioShadowNumber: null, twilioMobileNumber: null });
-                              } else if (channel.name === 'WhatsApp') {
-                                await fetch('/api/tenants/settings', {
-                                  method: 'PATCH',
-                                  headers: { 'Content-Type': 'application/json' },
-                                  body: JSON.stringify({ tenantId, tradingAddressPhone: null })
-                                });
-                                useDashboardStore.setState({ tradingAddressPhone: null });
-                              }
-                              alert(`${channel.name} channel disconnected successfully.`);
-                            } catch (err: any) {
-                              alert('Error disconnecting: ' + err.message);
-                            }
-                          }}
-                          className="text-xs text-rose-600 hover:text-rose-800 font-bold hover:underline transition cursor-pointer"
-                        >
-                          Disconnect
-                        </button>
-                      )}
-                      <button 
-                        type="button"
-                        onClick={() => {
-                          if (channel.name === 'WhatsApp' || channel.name === 'Instagram') {
-                            setActiveTab('whatsapp');
-                          } else {
-                            setActiveConfigModal(channel);
-                            if (channel.name === 'Telegram') {
-                              setActivePhoneOrHandle('@StyleFloBot');
-                            } else {
-                              setActivePhoneOrHandle(tradingAddressPhone || twilioShadowNumber || twilioMobileNumber || '');
-                            }
-                          }
-                        }}
-                        className="text-[#198fd9] hover:text-[#157ab9] font-bold text-xs hover:underline transition cursor-pointer"
-                      >
-                        {channel.name === 'WhatsApp' || channel.name === 'Instagram' ? 'Configure Meta →' : 'Settings →'}
-                      </button>
+                    <div className="mt-3 flex justify-between items-center text-xs text-[var(--awb-color6)] pt-2 border-t border-[var(--awb-color3)]">
+                      <span className="text-[11px]">Last msg: <strong className="text-[var(--awb-color8)]">{isMetaChannel ? 'Disabled' : channel.lastMessageAt}</strong></span>
+                      <div className="flex items-center gap-2">
+                        {isMetaChannel ? (
+                          <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded bg-gray-200 text-gray-600">
+                            Unavailable
+                          </span>
+                        ) : (
+                          <>
+                            {channel.status === 'connected' && (channel.name === 'SMS (Twilio)' || channel.name === 'WhatsApp') && (
+                              <button
+                                type="button"
+                                onClick={async (e) => {
+                                  e.stopPropagation();
+                                  if (!confirm(`Are you sure you want to disconnect ${channel.name}?`)) return;
+                                  try {
+                                    if (channel.name === 'SMS (Twilio)') {
+                                      await fetch('/api/tenants/settings', {
+                                        method: 'PATCH',
+                                        headers: { 'Content-Type': 'application/json' },
+                                        body: JSON.stringify({ tenantId, twilioShadowNumber: null, twilioMobileNumber: null })
+                                      });
+                                      useDashboardStore.setState({ twilioShadowNumber: null, twilioMobileNumber: null });
+                                    }
+                                    alert(`${channel.name} channel disconnected successfully.`);
+                                  } catch (err: any) {
+                                    alert('Error disconnecting: ' + err.message);
+                                  }
+                                }}
+                                className="text-xs text-rose-600 hover:text-rose-800 font-bold hover:underline transition cursor-pointer"
+                              >
+                                Disconnect
+                              </button>
+                            )}
+                            <button 
+                              type="button"
+                              onClick={() => {
+                                setActiveConfigModal(channel);
+                                if (channel.name === 'Telegram') {
+                                  setActivePhoneOrHandle('@StyleFloBot');
+                                } else {
+                                  setActivePhoneOrHandle(tradingAddressPhone || twilioShadowNumber || twilioMobileNumber || '');
+                                }
+                              }}
+                              className="text-[#198fd9] hover:text-[#157ab9] font-bold text-xs hover:underline transition cursor-pointer"
+                            >
+                              Settings →
+                            </button>
+                          </>
+                        )}
+                      </div>
                     </div>
                   </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           </div>
 
@@ -275,11 +279,11 @@ export default function OpenClawMonitorView() {
                 <span className="text-[#198fd9] font-bold">HTTPS Webhook:</span> https://app.styleflo.ai/api/webhooks/meta
               </div>
               <button
+                disabled
                 type="button"
-                onClick={() => setActiveTab('whatsapp')}
-                className="px-2.5 py-1 rounded bg-emerald-100 hover:bg-emerald-200 text-emerald-800 text-[10px] font-bold transition cursor-pointer"
+                className="px-2.5 py-1 rounded bg-gray-200 text-gray-500 text-[10px] font-bold cursor-not-allowed"
               >
-                Manage Meta Channels →
+                Channels Unavailable
               </button>
             </div>
           </div>

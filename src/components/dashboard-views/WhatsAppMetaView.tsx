@@ -6,7 +6,7 @@ import { useDashboardStore } from '../../lib/store';
 export default function WhatsAppMetaView() {
   const { tenantId, tenantName, twilioMobileNumber, chatbots } = useDashboardStore();
 
-  const [activeSubTab, setActiveSubTab] = useState<'whatsapp' | 'instagram' | 'messenger' | 'webhook' | 'simulator'>('whatsapp');
+  const [activeSubTab, setActiveSubTab] = useState<'whatsapp' | 'instagram' | 'messenger' | 'webhook' | 'simulator'>('webhook');
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [saveSuccessMsg, setSaveSuccessMsg] = useState<string | null>(null);
@@ -253,27 +253,27 @@ export default function WhatsAppMetaView() {
           </p>
         </div>
 
-        {/* Channel Status Pills */}
-        <div className="flex flex-wrap gap-2">
-          <div className={`px-3 py-1.5 rounded-xl border text-xs font-bold flex items-center gap-1.5 ${
-            whatsappEnabled ? 'bg-emerald-50 border-emerald-200 text-emerald-800' : 'bg-gray-100 border-gray-200 text-gray-500'
-          }`}>
+        {/* Channel Status Pills (Unavailable) */}
+        <div className="flex flex-wrap gap-2 opacity-50 filter grayscale pointer-events-none select-none">
+          <div className="px-3 py-1.5 rounded-xl border border-gray-200 bg-gray-100 text-gray-500 text-xs font-bold flex items-center gap-1.5">
             <span>💬 WhatsApp</span>
-            <span className={`w-2 h-2 rounded-full ${whatsappEnabled ? 'bg-emerald-500' : 'bg-gray-400'}`}></span>
+            <span className="text-[9px] uppercase tracking-wider font-bold px-1.5 py-0.5 rounded bg-gray-200 text-gray-600">Unavailable</span>
           </div>
-          <div className={`px-3 py-1.5 rounded-xl border text-xs font-bold flex items-center gap-1.5 ${
-            instagramEnabled ? 'bg-pink-50 border-pink-200 text-pink-800' : 'bg-gray-100 border-gray-200 text-gray-500'
-          }`}>
+          <div className="px-3 py-1.5 rounded-xl border border-gray-200 bg-gray-100 text-gray-500 text-xs font-bold flex items-center gap-1.5">
             <span>📸 Instagram</span>
-            <span className={`w-2 h-2 rounded-full ${instagramEnabled ? 'bg-pink-500' : 'bg-gray-400'}`}></span>
+            <span className="text-[9px] uppercase tracking-wider font-bold px-1.5 py-0.5 rounded bg-gray-200 text-gray-600">Unavailable</span>
           </div>
-          <div className={`px-3 py-1.5 rounded-xl border text-xs font-bold flex items-center gap-1.5 ${
-            messengerEnabled ? 'bg-blue-50 border-blue-200 text-[#198fd9]' : 'bg-gray-100 border-gray-200 text-gray-500'
-          }`}>
+          <div className="px-3 py-1.5 rounded-xl border border-gray-200 bg-gray-100 text-gray-500 text-xs font-bold flex items-center gap-1.5">
             <span>⚡ Messenger</span>
-            <span className={`w-2 h-2 rounded-full ${messengerEnabled ? 'bg-[#198fd9]' : 'bg-gray-400'}`}></span>
+            <span className="text-[9px] uppercase tracking-wider font-bold px-1.5 py-0.5 rounded bg-gray-200 text-gray-600">Unavailable</span>
           </div>
         </div>
+      </div>
+
+      {/* Advisory Notice */}
+      <div className="p-4 bg-amber-50 border border-amber-200 text-amber-900 rounded-xl text-xs font-semibold flex items-center gap-2.5">
+        <span className="text-base">⚠️</span>
+        <span>Meta messaging channels (WhatsApp, Instagram, and Messenger) are currently unavailable and unclickable for the foreseeable future.</span>
       </div>
 
       {saveSuccessMsg && (
@@ -286,39 +286,33 @@ export default function WhatsAppMetaView() {
       {/* NAVIGATION SUB-TABS */}
       <div className="flex border-b border-[var(--awb-color3)] gap-2 overflow-x-auto pb-1">
         <button
-          onClick={() => setActiveSubTab('whatsapp')}
-          className={`px-4 py-2.5 rounded-xl text-xs font-bold transition-all duration-200 flex items-center gap-2 shrink-0 ${
-            activeSubTab === 'whatsapp'
-              ? 'bg-[#198fd9] text-white shadow-md'
-              : 'text-[var(--awb-color6)] hover:text-[var(--awb-color8)] hover:bg-[var(--awb-color1)]'
-          }`}
+          disabled
+          type="button"
+          className="px-4 py-2.5 rounded-xl text-xs font-bold flex items-center gap-2 shrink-0 opacity-40 filter grayscale pointer-events-none cursor-not-allowed select-none bg-gray-100 text-gray-400 border border-transparent"
         >
           <span>💬</span>
           <span>WhatsApp Setup</span>
+          <span className="text-[9px] uppercase tracking-wider font-bold px-1 py-0.5 rounded bg-gray-200 text-gray-600">Unavailable</span>
         </button>
 
         <button
-          onClick={() => setActiveSubTab('instagram')}
-          className={`px-4 py-2.5 rounded-xl text-xs font-bold transition-all duration-200 flex items-center gap-2 shrink-0 ${
-            activeSubTab === 'instagram'
-              ? 'bg-[#198fd9] text-white shadow-md'
-              : 'text-[var(--awb-color6)] hover:text-[var(--awb-color8)] hover:bg-[var(--awb-color1)]'
-          }`}
+          disabled
+          type="button"
+          className="px-4 py-2.5 rounded-xl text-xs font-bold flex items-center gap-2 shrink-0 opacity-40 filter grayscale pointer-events-none cursor-not-allowed select-none bg-gray-100 text-gray-400 border border-transparent"
         >
           <span>📸</span>
           <span>Instagram Setup</span>
+          <span className="text-[9px] uppercase tracking-wider font-bold px-1 py-0.5 rounded bg-gray-200 text-gray-600">Unavailable</span>
         </button>
 
         <button
-          onClick={() => setActiveSubTab('messenger')}
-          className={`px-4 py-2.5 rounded-xl text-xs font-bold transition-all duration-200 flex items-center gap-2 shrink-0 ${
-            activeSubTab === 'messenger'
-              ? 'bg-[#198fd9] text-white shadow-md'
-              : 'text-[var(--awb-color6)] hover:text-[var(--awb-color8)] hover:bg-[var(--awb-color1)]'
-          }`}
+          disabled
+          type="button"
+          className="px-4 py-2.5 rounded-xl text-xs font-bold flex items-center gap-2 shrink-0 opacity-40 filter grayscale pointer-events-none cursor-not-allowed select-none bg-gray-100 text-gray-400 border border-transparent"
         >
           <span>⚡</span>
           <span>Messenger Setup</span>
+          <span className="text-[9px] uppercase tracking-wider font-bold px-1 py-0.5 rounded bg-gray-200 text-gray-600">Unavailable</span>
         </button>
 
         <button
@@ -738,19 +732,15 @@ export default function WhatsAppMetaView() {
                 Test the complete customer journey for WhatsApp, Instagram, or Messenger with live Gemini AI responses and RAG knowledge retrieval.
               </p>
             </div>
-            <div className="flex gap-2 bg-[#f9f9fb] p-1 rounded-xl border border-[#f2f3f5]">
+            <div className="flex gap-2 bg-[#f9f9fb] p-1 rounded-xl border border-[#f2f3f5] opacity-40 filter grayscale pointer-events-none select-none">
               {(['whatsapp', 'instagram', 'messenger'] as const).map((ch) => (
                 <button
+                  disabled
                   key={ch}
                   type="button"
-                  onClick={() => setSimChannel(ch)}
-                  className={`px-3 py-1.5 rounded-lg text-xs font-bold capitalize transition ${
-                    simChannel === ch
-                      ? 'bg-[#198fd9] text-white shadow-sm'
-                      : 'text-gray-500 hover:text-gray-900'
-                  }`}
+                  className="px-3 py-1.5 rounded-lg text-xs font-bold capitalize transition bg-gray-200 text-gray-500 cursor-not-allowed"
                 >
-                  {ch}
+                  {ch} (Unavailable)
                 </button>
               ))}
             </div>

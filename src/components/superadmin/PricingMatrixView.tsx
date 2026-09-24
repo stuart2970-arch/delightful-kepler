@@ -295,7 +295,6 @@ export default function PricingMatrixView() {
   const mobileItem = addons.find((a) => a.id === 'mobile_addon' || a.category === 'mobile');
   const voicePackItem = addons.find((a) => a.id === 'voice_pack_20' || a.category === 'voice_pack');
   const smsPackItem = addons.find((a) => a.id === 'sms_pack_100' || a.category === 'sms_pack');
-  const whatsappPrimary = addons.find((a) => a.id === 'whatsapp_primary');
   const whatsappAddon = addons.find((a) => a.id === 'whatsapp_addon');
   const dataPack = addons.find((a) => a.id === 'data_pack_500' || a.category === 'data_pack');
   const googleCalendarItem = addons.find((a) => a.id === 'google_calendar_addon' || a.category === 'google_calendar');
@@ -796,80 +795,40 @@ export default function PricingMatrixView() {
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4 pt-2">
-          {/* WhatsApp Primary */}
-          {whatsappPrimary && formState[whatsappPrimary.id] && (
-            <div className="bg-gray-950 border border-gray-800 p-4 rounded-xl space-y-3">
-              <div className="flex justify-between items-center">
-                <span className="text-xs font-bold text-white">💬 WhatsApp Primary</span>
-                <span className="text-[10px] text-gray-400 font-mono">whatsapp_primary</span>
-              </div>
-              <div>
-                <label className="block text-[10px] text-gray-400 mb-1">Monthly Price (£)</label>
-                <div className="relative">
-                  <span className="absolute left-2.5 top-1.5 text-gray-400 text-xs">£</span>
-                  <input
-                    type="number"
-                    step="0.01"
-                    value={formState[whatsappPrimary.id].lowerCostGBP}
-                    onChange={(e) => handleFieldChange(whatsappPrimary.id, 'lowerCostGBP', e.target.value)}
-                    className="w-full bg-gray-900 border border-gray-700 rounded-lg pl-6 pr-2 py-1 text-xs text-white font-mono"
-                  />
-                </div>
-              </div>
-              <div>
-                <label className="block text-[10px] text-gray-400 mb-1">Included Messages</label>
-                <input
-                  type="number"
-                  value={formState[whatsappPrimary.id].lowerAllowance}
-                  onChange={(e) => handleFieldChange(whatsappPrimary.id, 'lowerAllowance', e.target.value)}
-                  className="w-full bg-gray-900 border border-gray-700 rounded-lg px-2.5 py-1 text-xs text-white font-mono"
-                />
-              </div>
-              <button
-                onClick={() => handleSaveFixedAddon(whatsappPrimary.id, 'WhatsApp Primary', formState[whatsappPrimary.id].lowerCostGBP, formState[whatsappPrimary.id].lowerAllowance, 'included_messages')}
-                disabled={savingId === whatsappPrimary.id}
-                className="w-full py-1.5 bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 text-white text-[11px] font-bold rounded-lg transition-colors cursor-pointer"
-              >
-                {savingId === whatsappPrimary.id ? 'Saving...' : 'Save WhatsApp Primary'}
-              </button>
-            </div>
-          )}
-
-          {/* WhatsApp Addon */}
+          {/* WhatsApp Addon (Disabled / Foreseeable) */}
           {whatsappAddon && formState[whatsappAddon.id] && (
-            <div className="bg-gray-950 border border-gray-800 p-4 rounded-xl space-y-3">
+            <div className="bg-gray-950 border border-gray-800 p-4 rounded-xl space-y-3 opacity-40 filter grayscale pointer-events-none cursor-not-allowed select-none">
               <div className="flex justify-between items-center">
                 <span className="text-xs font-bold text-white">💬 WhatsApp Add-on</span>
-                <span className="text-[10px] text-gray-400 font-mono">whatsapp_addon</span>
+                <span className="text-[9px] uppercase tracking-wider font-bold px-1.5 py-0.5 rounded bg-amber-500/20 text-amber-300">Disabled</span>
               </div>
               <div>
                 <label className="block text-[10px] text-gray-400 mb-1">Monthly Price (£)</label>
                 <div className="relative">
                   <span className="absolute left-2.5 top-1.5 text-gray-400 text-xs">£</span>
                   <input
+                    disabled
                     type="number"
                     step="0.01"
                     value={formState[whatsappAddon.id].lowerCostGBP}
-                    onChange={(e) => handleFieldChange(whatsappAddon.id, 'lowerCostGBP', e.target.value)}
-                    className="w-full bg-gray-900 border border-gray-700 rounded-lg pl-6 pr-2 py-1 text-xs text-white font-mono"
+                    className="w-full bg-gray-900 border border-gray-700 rounded-lg pl-6 pr-2 py-1 text-xs text-white font-mono cursor-not-allowed"
                   />
                 </div>
               </div>
               <div>
                 <label className="block text-[10px] text-gray-400 mb-1">Included Messages</label>
                 <input
+                  disabled
                   type="number"
                   value={formState[whatsappAddon.id].lowerAllowance}
-                  onChange={(e) => handleFieldChange(whatsappAddon.id, 'lowerAllowance', e.target.value)}
-                  className="w-full bg-gray-900 border border-gray-700 rounded-lg px-2.5 py-1 text-xs text-white font-mono"
+                  className="w-full bg-gray-900 border border-gray-700 rounded-lg px-2.5 py-1 text-xs text-white font-mono cursor-not-allowed"
                 />
               </div>
               <button
-                onClick={() => handleSaveFixedAddon(whatsappAddon.id, 'WhatsApp Add-on', formState[whatsappAddon.id].lowerCostGBP, formState[whatsappAddon.id].lowerAllowance, 'included_messages')}
-                disabled={savingId === whatsappAddon.id}
-                className="w-full py-1.5 bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 text-white text-[11px] font-bold rounded-lg transition-colors cursor-pointer"
+                disabled
+                className="w-full py-1.5 bg-gray-800 text-gray-500 text-[11px] font-bold rounded-lg cursor-not-allowed"
               >
-                {savingId === whatsappAddon.id ? 'Saving...' : 'Save WhatsApp Add-on'}
+                Channel Unavailable
               </button>
             </div>
           )}

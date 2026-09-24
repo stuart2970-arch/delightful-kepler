@@ -15,6 +15,7 @@ export async function GET(req: Request) {
     let query = supabase
       .from('addon_catalog')
       .select('*')
+      .neq('id', 'whatsapp_primary')
       .eq('is_active', true)
       .order('display_order', { ascending: true });
 

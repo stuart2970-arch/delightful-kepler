@@ -199,8 +199,8 @@ export default function InboxView() {
                   <option value="chat">Web Chat ({chatCount})</option>
                   <option value="sms">SMS ({smsCount})</option>
                   <option value="web_voice">Web Voice ({webVoiceCount})</option>
-                  <option value="instagram">Instagram ({igCount})</option>
-                  <option value="whatsapp">WhatsApp ({waCount})</option>
+                  <option value="instagram" disabled className="text-gray-400">Instagram (Unavailable)</option>
+                  <option value="whatsapp" disabled className="text-gray-400">WhatsApp (Unavailable)</option>
                 </select>
 
                 <div className="flex gap-1 shrink-0">

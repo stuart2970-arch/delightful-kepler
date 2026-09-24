@@ -1135,25 +1135,25 @@ const globalBotId = '00000000-0000-0000-0000-000000000000';
                       </button>
                     </div>
 
-                    {/* 3. WhatsApp */}
-                    <div className="bg-[var(--awb-color2)] border border-[var(--awb-color3)] hover:border-[#198fd9] rounded-xl p-4 flex flex-col justify-between transition-colors shadow-sm">
+                    {/* 3. WhatsApp (Greyed out & unclickable) */}
+                    <div className="bg-[var(--awb-color2)] border border-[var(--awb-color3)] rounded-xl p-4 flex flex-col justify-between shadow-sm opacity-40 filter grayscale pointer-events-none cursor-not-allowed select-none">
                       <div>
                         <div className="flex items-center justify-between mb-2">
                           <div className="flex items-center gap-2">
                             <span className="text-xl">💬</span>
                             <h5 className="text-xs font-extrabold text-[var(--awb-color8)]">WhatsApp Business</h5>
                           </div>
-                          <span className="text-[11px] font-bold text-[var(--awb-color5)]">From £9.99/mo</span>
+                          <span className="text-[10px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded bg-gray-200 text-gray-700">Unavailable</span>
                         </div>
                         <p className="text-[11px] text-[var(--awb-color6)] mb-3 leading-relaxed">
                           Official Meta WhatsApp Cloud API integration with automated AI responses and booking.
                         </p>
                       </div>
                       <button
-                        onClick={() => setBillingUpsellCategory('whatsapp')}
-                        className="w-full bg-[#10b981] hover:bg-[#059669] text-white text-xs font-bold py-2 px-3 rounded-[4px] shadow-sm transition-colors cursor-pointer flex items-center justify-center gap-1.5"
+                        disabled
+                        className="w-full bg-gray-300 text-gray-500 text-xs font-bold py-2 px-3 rounded-[4px] cursor-not-allowed flex items-center justify-center gap-1.5"
                       >
-                        <span>💬</span> Enable WhatsApp Bolt-on
+                        <span>💬</span> WhatsApp Unavailable
                       </button>
                     </div>
 

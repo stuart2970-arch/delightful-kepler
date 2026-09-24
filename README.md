@@ -2236,7 +2236,24 @@ This occurred because UK geographic numbers strictly require `addressRequirement
     2. Once the user restarted WinNAT, identified and stopped stale generic Supabase containers (`_Stuar`) conflicting with the project's local stack.
     3. Started the project's local Supabase container (`_delightful-kepler`) with full migrations and seed data.
     4. Terminated a rogue `next dev` process on port 3000 running `.env.local` and hardened `playwright.config.ts` to enforce `reuseExistingServer: false` so tests consistently execute against the isolated `.env.test` server.
-    5. Verified the entire Playwright E2E test suite (`npm run test:e2e`) passes 100% (42 passed, 1 skipped, 0 failed).
+* **User**: "WhatsApp: I am unsure what this means, are we allowing users to manage their whatapp account with us without having an agent, i dont want this so the primary bit can be deleted. Any reference to whatsapp, messenger or instagram to be greyed out and unclickable for the foreseeable"
+  * **Answer & Action**:
+    1. **Deleted WhatsApp Primary**:
+       - Created migration `supabase/migrations/20260924150000_disable_whatsapp_primary.sql` deactivating `whatsapp_primary` in `addon_catalog`.
+       - Excluded `whatsapp_primary` from `/api/billing/addons` API and filtered it out of `AddOnUpsellModal.tsx`.
+       - Removed the `WhatsApp Primary` configuration card completely from `PricingMatrixView.tsx` in Superadmin.
+    2. **Greyed Out & Unclickable (WhatsApp, Instagram, Messenger)**:
+       - **Sidebar Navigation (`SidebarNavigation.tsx`)**: Disabled `📱 WhatsApp & Meta` item with `opacity-40 filter grayscale pointer-events-none cursor-not-allowed select-none` and rendered an "Unavailable" badge.
+       - **Subscriptions Tab (`DashboardClient.tsx`)**: Greyed out the `WhatsApp Business` card in "Available Modular Bolt-ons", set button to disabled reading `WhatsApp Unavailable`.
+       - **Add-on Upsell Modal (`AddOnUpsellModal.tsx`)**: Added advisory warning banner, greyed out WhatsApp add-on cards and replaced subscribe button with disabled `Unavailable`.
+       - **Gateways (`OpenClawMonitorView.tsx`)**: Greyed out `WhatsApp` and `Instagram` active messaging channels with "Unavailable" badges, and disabled the `Manage Meta Channels` button.
+       - **Inbox Explorer (`InboxView.tsx`)**: Disabled `WhatsApp (Unavailable)` and `Instagram (Unavailable)` channel filter options.
+       - **Meta Messaging Channels View (`WhatsAppMetaView.tsx`)**: Added top advisory banner, defaulted active subtab to Webhooks, disabled channel status pills, disabled setup sub-tabs for WhatsApp, Instagram, and Messenger, and disabled simulator channel buttons.
+       - **Superadmin Pricing Matrix (`PricingMatrixView.tsx`)**: Disabled and greyed out the `WhatsApp Add-on` card with "Disabled" badge.
+    3. **Build & Automated Verification**:
+       - Production Next.js & widget build (`npm run build`) passed with 0 errors.
+       - Full Playwright E2E test suite (`npm run test:e2e`) passed 100% (42 passed, 1 skipped, 0 failed).
+
 
 
 
