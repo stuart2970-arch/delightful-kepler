@@ -119,11 +119,13 @@ export async function POST(req: Request) {
         ? Math.round(Number(customSms))
         : (addon.included_sms || 0);
 
+      const isOneOff = addon.category === 'sms_pack' || addonCatalogId?.startsWith('sms_pack');
+
       // Construct line item: use static price if available and no custom pricing was chosen;
       // otherwise, dynamically create a recurring price using price_data.
       let lineItem: Stripe.Checkout.SessionCreateParams.LineItem;
 
-      if (addon.stripe_price_id && !customPricePence) {
+      if (addon.stripe_price_id && !customPricePence && !isOneOff) {
         lineItem = {
           price: addon.stripe_price_id,
           quantity: 1,
@@ -136,25 +138,30 @@ export async function POST(req: Request) {
         } else if (finalVoiceMinutes > 0) {
           lineDescription = `Includes dedicated number + ${finalVoiceMinutes} shared voice mins`;
         } else if (finalSms > 0) {
-          lineDescription = `Includes ${finalSms} SMS messages`;
+          lineDescription = `One-off pack of ${finalSms} SMS messages (Valid for 3 months from purchase)`;
+        }
+
+        const priceData: Stripe.Checkout.SessionCreateParams.LineItem.PriceData = {
+          currency: 'gbp',
+          product_data: {
+            name: `${addon.name}${customPricePence ? ` (£${(finalPricePence / 100).toFixed(2)}${isOneOff ? '' : '/mo'})` : ''}`,
+            description: lineDescription,
+            metadata: {
+              addon_catalog_id: addonCatalogId,
+              tenant_id: tenantId,
+            },
+          },
+          unit_amount: finalPricePence,
+        };
+
+        if (!isOneOff) {
+          priceData.recurring = {
+            interval: 'month',
+          };
         }
 
         lineItem = {
-          price_data: {
-            currency: 'gbp',
-            product_data: {
-              name: `${addon.name}${customPricePence ? ` (£${(finalPricePence / 100).toFixed(2)}/mo)` : ''}`,
-              description: lineDescription,
-              metadata: {
-                addon_catalog_id: addonCatalogId,
-                tenant_id: tenantId,
-              },
-            },
-            unit_amount: finalPricePence,
-            recurring: {
-              interval: 'month',
-            },
-          },
+          price_data: priceData,
           quantity: 1,
         };
       }
@@ -162,6 +169,7 @@ export async function POST(req: Request) {
       const metadataPayload = {
         tenant_id: tenantId,
         is_addon: 'true',
+        is_one_off: isOneOff ? 'true' : 'false',
         addon_catalog_id: addonCatalogId,
         custom_price_pence: String(finalPricePence),
         custom_voice_minutes: String(finalVoiceMinutes),
@@ -172,13 +180,13 @@ export async function POST(req: Request) {
       const wpAppUrl = isLocal ? 'https://styleflo.test/app' : 'https://styleflo.ai/app';
 
       const sessionConfig: Stripe.Checkout.SessionCreateParams = {
-        mode: 'subscription',
+        mode: isOneOff ? 'payment' : 'subscription',
         payment_method_types: ['card'],
         line_items: [lineItem],
         metadata: metadataPayload,
-        subscription_data: {
-          metadata: metadataPayload,
-        },
+        ...(isOneOff
+          ? { invoice_creation: { enabled: true } }
+          : { subscription_data: { metadata: metadataPayload } }),
         success_url: `${returnUrl || wpAppUrl}?checkout_status=success&session_id={CHECKOUT_SESSION_ID}`,
         cancel_url: `${returnUrl || wpAppUrl}?checkout_status=cancelled`,
       };
@@ -205,6 +213,9 @@ export async function POST(req: Request) {
         }
         if (resolvedEmail) {
           sessionConfig.customer_email = resolvedEmail;
+        }
+        if (isOneOff) {
+          sessionConfig.customer_creation = 'always';
         }
       }
 

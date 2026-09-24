@@ -1185,19 +1185,19 @@ const globalBotId = '00000000-0000-0000-0000-000000000000';
                         <div className="flex items-center justify-between mb-2">
                           <div className="flex items-center gap-2">
                             <span className="text-xl">✉️</span>
-                            <h5 className="text-xs font-extrabold text-[var(--awb-color8)]">SMS Messages Pack</h5>
+                            <h5 className="text-xs font-extrabold text-[var(--awb-color8)]">SMS Message Credits</h5>
                           </div>
-                          <span className="text-[11px] font-bold text-[var(--awb-color5)]">From £5.99/mo</span>
+                          <span className="text-[11px] font-bold text-[var(--awb-color5)]">From £5.99</span>
                         </div>
                         <p className="text-[11px] text-[var(--awb-color6)] mb-3 leading-relaxed">
-                          Sliding scale 100–500 SMS text messages with 3-month rollover protection.
+                          One-off pack of 100–500 SMS text message credits valid for 3 months from purchase.
                         </p>
                       </div>
                       <button
                         onClick={() => setBillingUpsellCategory('sms_pack')}
                         className="w-full bg-[#198fd9] hover:bg-[#157ab9] text-white text-xs font-bold py-2 px-3 rounded-[4px] shadow-sm transition-colors cursor-pointer flex items-center justify-center gap-1.5"
                       >
-                        <span>✉️</span> Configure SMS Pack
+                        <span>✉️</span> Purchase SMS Credits
                       </button>
                     </div>
 

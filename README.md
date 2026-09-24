@@ -2190,3 +2190,44 @@ This occurred because UK geographic numbers strictly require `addressRequirement
     5. Gated `/api/integrations/google/authorize` and updated Stripe webhook mapping.
     6. Verified all 42 tests in Playwright pass and production Next.js build succeeds with 0 errors.
 
+### Session 43 — One-Off SMS Message Credits Architecture (2026-09-24)
+
+**Context**: User requested: *"When a user purchases sms credits it is a one off payment, for the amount of messages they are purchasing, these message credits expire after 3 months. So in the above image the £5.99 would be a one off payment for 100 sms messages, the messages would remain active for 3 months from the date of purchase. The button should read Purchase 100 messages for £5.99."*
+
+1. **Architecture & Implementation**:
+   - **Modal UI & Terminology (`src/components/AddOnUpsellModal.tsx`)**:
+     - Renamed pack header from "Sliding SMS Pack" to "SMS Credit Pack" with "⏱️ 3-Month Validity".
+     - Updated explanation text: *"One-off payment. Purchased SMS credits remain active for 3 months from the date of purchase."*
+     - Removed `/m` from the main price display (`£5.99` instead of `£5.99 /m`).
+     - Removed `/mo` from the capacity selector tag (`✉️ 100 SMS` instead of `✉️ 100 SMS /mo`).
+     - Renamed slider title to "Select SMS Capacity:".
+     - Updated button text to dynamic one-off format: `Purchase ${smsMessagesCount} messages for £${smsPriceGBP}` (e.g., **"Purchase 100 messages for £5.99"**).
+   - **Dashboard Subscriptions & Add-ons (`src/components/DashboardClient.tsx`)**:
+     - Updated catalog card title to "SMS Message Credits" at "From £5.99" (removed `/mo`).
+     - Updated description to: *"One-off pack of 100–500 SMS text message credits valid for 3 months from purchase."*
+     - Updated CTA button to "Purchase SMS Credits".
+   - **Superadmin Pricing Matrix (`src/components/superadmin/PricingMatrixView.tsx`)**:
+     - Clarified card as "SMS Credit Pack" with "3-Mo Expiry (One-off)" badge.
+   - **Stripe Checkout Mode (`src/app/api/billing/checkout/route.ts`)**:
+     - Detected `isOneOff` for SMS packs (`addon.category === 'sms_pack'`).
+     - Configured Stripe Checkout Session in `mode: 'payment'` (one-time charge) rather than `mode: 'subscription'`, with `invoice_creation: { enabled: true }`.
+     - Omitted recurring interval parameters from `price_data`.
+   - **Stripe Webhook Processing (`src/app/api/webhooks/stripe/route.ts`)**:
+     - In `checkout.session.completed`, one-off SMS packs allocate 3-month rolling credits directly into `usage_ledger` via `allocateRollingCredits()` without inserting a monthly recurring item into `tenant_active_addons`.
+     - In `invoice.payment_succeeded`, protected against accidental re-granting of SMS credits during base tier monthly renewals.
+
+2. **Verification & Testing**:
+   - Production Next.js Turbopack build and widget compilation (`npm run build`) passed with 0 errors.
+
+## Session Chat History Log
+
+* **User**: "Purchasing SMS Credits: When a user purchases sms credits it is a one off payment, for the amount of messages they are purchasing, these message credits expire after 3 months. So in the above image the £5.99 would be a one off payment for 100 sms messages, the messages would remain active for 3 months from the date of purchase. The button should read Purchase 100 messages for £5.99."
+  * **Answer & Action**:
+    1. Audited the checkout route, modal, dashboard, and webhook handling for SMS credits.
+    2. Updated `AddOnUpsellModal.tsx`: Removed all `/m` and `/mo` labels, clarified one-off payment and 3-month validity, and set the dynamic action button to `Purchase ${smsMessagesCount} messages for £${smsPriceGBP}` (showing "Purchase 100 messages for £5.99").
+    3. Updated `DashboardClient.tsx` Subscriptions tab and `PricingMatrixView.tsx` to reflect one-off SMS credits.
+    4. Refactored `/api/billing/checkout` to create one-off Stripe `mode: 'payment'` checkout sessions without recurring subscription items.
+    5. Updated `/api/webhooks/stripe` to write 3-month ledger allocations and skip one-off credits during recurring subscription renewals.
+    6. Verified production build passes cleanly.
+
+

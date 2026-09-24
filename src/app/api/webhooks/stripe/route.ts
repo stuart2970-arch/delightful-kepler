@@ -189,13 +189,17 @@ export async function POST(req: Request) {
         // Re-allocate rolling credits for all active add-ons on renewal
         const { data: activeAddons } = await supabaseAdmin
           .from('tenant_active_addons')
-          .select('addon_catalog_id, addon_catalog(included_voice_minutes, included_sms, included_messages)')
+          .select('addon_catalog_id, addon_catalog(category, included_voice_minutes, included_sms, included_messages)')
           .eq('tenant_id', tenantId)
           .eq('is_active', true);
 
         if (activeAddons) {
           for (const addon of activeAddons) {
             const catalog = (addon as any).addon_catalog;
+            // One-off SMS packs are bought on-demand and valid for 3 months from purchase.
+            // Do NOT re-allocate on monthly recurring base subscription renewals.
+            if (catalog?.category === 'sms_pack') continue;
+
             if (catalog?.included_voice_minutes > 0) {
               await allocateRollingCredits(tenantId, 'voice_minutes', catalog.included_voice_minutes, addon.addon_catalog_id);
             }
@@ -403,42 +407,46 @@ export async function POST(req: Request) {
             const smsCount = customSms !== null ? customSms : (addon.included_sms || 0);
             const messagesCount = addon.included_messages || 0;
 
-            // Upsert tenant_active_addons
-            const featureId = mapAddonCategoryToFeatureId(addon.category);
-            const { data: existing } = await supabaseAdmin
-              .from('tenant_active_addons')
-              .select('id')
-              .eq('tenant_id', targetTenantId)
-              .eq('addon_catalog_id', addon.id)
-              .maybeSingle();
+            const isOneOff = dataObject.metadata?.is_one_off === 'true' || addon.category === 'sms_pack';
 
-            if (existing) {
-              const { error: updateErr } = await supabaseAdmin
+            if (!isOneOff) {
+              // Upsert tenant_active_addons only for recurring subscriptions
+              const featureId = mapAddonCategoryToFeatureId(addon.category);
+              const { data: existing } = await supabaseAdmin
                 .from('tenant_active_addons')
-                .update({
-                  is_active: true,
-                  activated_at: new Date().toISOString(),
-                  deactivated_at: null,
-                  stripe_subscription_item_id: dataObject.subscription || null,
-                })
-                .eq('id', existing.id);
-              if (updateErr) console.error('[Stripe Webhook] Error updating active addon:', updateErr);
-            } else {
-              const { error: insertErr } = await supabaseAdmin
-                .from('tenant_active_addons')
-                .insert({
-                  tenant_id: targetTenantId,
-                  addon_catalog_id: addon.id,
-                  feature_id: featureId,
-                  quantity: 1,
-                  is_active: true,
-                  activated_at: new Date().toISOString(),
-                  stripe_subscription_item_id: dataObject.subscription || null,
-                });
-              if (insertErr) console.error('[Stripe Webhook] Error inserting active addon:', insertErr);
+                .select('id')
+                .eq('tenant_id', targetTenantId)
+                .eq('addon_catalog_id', addon.id)
+                .maybeSingle();
+
+              if (existing) {
+                const { error: updateErr } = await supabaseAdmin
+                  .from('tenant_active_addons')
+                  .update({
+                    is_active: true,
+                    activated_at: new Date().toISOString(),
+                    deactivated_at: null,
+                    stripe_subscription_item_id: dataObject.subscription || null,
+                  })
+                  .eq('id', existing.id);
+                if (updateErr) console.error('[Stripe Webhook] Error updating active addon:', updateErr);
+              } else {
+                const { error: insertErr } = await supabaseAdmin
+                  .from('tenant_active_addons')
+                  .insert({
+                    tenant_id: targetTenantId,
+                    addon_catalog_id: addon.id,
+                    feature_id: featureId,
+                    quantity: 1,
+                    is_active: true,
+                    activated_at: new Date().toISOString(),
+                    stripe_subscription_item_id: dataObject.subscription || null,
+                  });
+                if (insertErr) console.error('[Stripe Webhook] Error inserting active addon:', insertErr);
+              }
             }
 
-            // Allocate rolling credits
+            // Allocate rolling credits (valid for 3 months from purchase date)
             if (voiceMinutes > 0) {
               await allocateRollingCredits(targetTenantId, 'voice_minutes', voiceMinutes, addon.id);
             }
@@ -456,20 +464,24 @@ export async function POST(req: Request) {
             await supabaseAdmin.from('addon_audit_log').insert({
               tenant_id: targetTenantId,
               addon_catalog_id: addon.id,
-              action: 'addon_activated',
+              action: isOneOff ? 'one_off_addon_purchased' : 'addon_activated',
               new_value: {
+                is_one_off: isOneOff,
                 custom_price_pence: customPricePence,
                 voice_minutes: voiceMinutes,
                 sms: smsCount,
-                stripe_subscription_id: dataObject.subscription,
+                stripe_subscription_id: dataObject.subscription || null,
+                stripe_session_id: dataObject.id,
               },
-              summary: `Activated ${addon.id} (${voiceMinutes} voice mins, ${smsCount} SMS) via Stripe checkout.`,
+              summary: isOneOff
+                ? `Purchased one-off pack of ${smsCount} SMS messages for £${((customPricePence || addon.monthly_price_pence) / 100).toFixed(2)} (valid for 3 months).`
+                : `Activated ${addon.id} (${voiceMinutes} voice mins, ${smsCount} SMS) via Stripe checkout.`,
             });
 
-            console.log(`[Stripe Webhook] Add-on ${addon.id} activated for tenant ${targetTenantId}`);
+            console.log(`[Stripe Webhook] Add-on ${addon.id} processed for tenant ${targetTenantId} (oneOff: ${isOneOff})`);
             return NextResponse.json({
               success: true,
-              message: `Add-on ${addon.id} activated for tenant ${targetTenantId}`,
+              message: `Add-on ${addon.id} processed for tenant ${targetTenantId}`,
               tenant_id: targetTenantId,
             });
           }

@@ -685,9 +685,9 @@ export default function PricingMatrixView() {
               <div>
                 <div className="flex items-center gap-2">
                   <span className="text-xl">✉️</span>
-                  <h3 className="text-base font-bold text-white">SMS Messages Pack</h3>
+                  <h3 className="text-base font-bold text-white">SMS Credit Pack</h3>
                   <span className="bg-purple-500/10 text-purple-400 border border-purple-500/30 text-[10px] font-semibold px-2 py-0.5 rounded-full">
-                    3-Mo Rollover
+                    3-Mo Expiry (One-off)
                   </span>
                 </div>
                 <p className="text-xs text-gray-400 mt-1 font-mono">{smsPackItem.id}</p>

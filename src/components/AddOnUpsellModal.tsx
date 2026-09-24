@@ -514,23 +514,22 @@ export default function AddOnUpsellModal({ isOpen, onClose, category, tenantId }
                   <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-4">
                     <div>
                       <div className="flex items-center gap-2">
-                        <h4 className="text-[#260475] font-extrabold text-lg">Sliding SMS Pack</h4>
+                        <h4 className="text-[#260475] font-extrabold text-lg">SMS Credit Pack</h4>
                         <span className="bg-purple-50 text-purple-700 border border-purple-200 text-[11px] font-bold px-2 py-0.5 rounded-full">
-                          🔄 3-Month Roll-over
+                          ⏱️ 3-Month Validity
                         </span>
                       </div>
                       <p className="text-[#434549] text-xs mt-1">
-                        Unused SMS credits roll over for up to 3 months as long as subscription remains active.
+                        One-off payment. Purchased SMS credits remain active for 3 months from the date of purchase.
                       </p>
                     </div>
 
                     <div className="text-right shrink-0">
                       <div className="text-2xl font-black text-[#212326]">
                         £{smsPriceGBP}
-                        <span className="text-sm font-normal text-[#434549]"> /m</span>
                       </div>
                       <span className="text-[11px] text-emerald-600 font-semibold block mt-0.5">
-                        Sliding Scale (£1 steps)
+                        One-off Pack (£1 steps)
                       </span>
                     </div>
                   </div>
@@ -538,9 +537,9 @@ export default function AddOnUpsellModal({ isOpen, onClose, category, tenantId }
                   {/* Slider Control */}
                   <div className="bg-[var(--awb-color2)]/50 border border-[var(--awb-color3)] rounded-xl p-4 space-y-3">
                     <div className="flex justify-between items-center text-xs">
-                      <span className="font-bold text-[#260475]">Select Monthly SMS Capacity:</span>
+                      <span className="font-bold text-[#260475]">Select SMS Capacity:</span>
                       <span className="font-extrabold text-[#198fd9] text-sm bg-white px-2.5 py-0.5 rounded border border-[#198fd9]/30 shadow-xs">
-                        ✉️ {smsMessagesCount} SMS /mo
+                        ✉️ {smsMessagesCount} SMS
                       </span>
                     </div>
 
@@ -580,14 +579,14 @@ export default function AddOnUpsellModal({ isOpen, onClose, category, tenantId }
                     </div>
                   </div>
 
-                  {/* Feature Badges & Subscribe */}
+                  {/* Feature Badges & Purchase Button */}
                   <div className="mt-4 pt-3 border-t border-[var(--awb-color3)] flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
                     <div className="flex flex-wrap gap-1.5">
                       <span className="bg-indigo-50 text-indigo-700 border border-indigo-200 text-xs font-semibold px-2 py-1 rounded">
                         ✉️ {smsMessagesCount} SMS
                       </span>
                       <span className="bg-purple-50 text-purple-700 border border-purple-200 text-xs font-semibold px-2 py-1 rounded">
-                        🔄 3-Month Rollover Protection
+                        ⏱️ Valid for 3 Months
                       </span>
                     </div>
 
@@ -602,7 +601,7 @@ export default function AddOnUpsellModal({ isOpen, onClose, category, tenantId }
                           Connecting to Stripe...
                         </>
                       ) : (
-                        `Subscribe at £${smsPriceGBP}/mo`
+                        `Purchase ${smsMessagesCount} messages for £${smsPriceGBP}`
                       )}
                     </button>
                   </div>
