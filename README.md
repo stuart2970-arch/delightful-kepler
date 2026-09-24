@@ -2384,6 +2384,51 @@ Highlighted adjustments in the modal:
     3. Created auto top-up question card with threshold selector (5, 10, 15, 20, 30 minutes) and dynamic one-off purchase button.
     4. Added database columns to `tenants` via migration `20260924170000_voice_auto_topup.sql` applied to local and production Supabase.
     5. Handled `voice_pack` in Stripe Checkout (`mode: 'payment'`) and Stripe Webhook (`isOneOff`, auto top-up metadata persistence, audit logging).
+
+
+### Session 47 — Superadmin Dynamic Entitlements: AI Agent Save Fix & Real-time Auto-Save Indicators (2026-09-24)
+
+**Context**: User reported that in the SuperAdmin "Dynamic Tier Entitlements" matrix under Base Subscription:
+*"While trying to ensure the basic model is up to date, i noted the agent was not selected as yes, so i tried to change it. it allowed me to select yes, but would not save"*
+*"Includes an agent but cannot change and save"*
+
+1. **Root Cause Analysis**:
+   - `ai_agent` was originally missing from the `public.features` database migration and local Docker schema, and lacked a default enabled entitlement (`limit_value = 1`) on the `base_tier`.
+   - In `SuperAdminEntitlementsView.tsx`, `handleLimitChange` was using `prev.map(...)` on the `entitlements` state. If a feature did not already have an explicit record in `tier_entitlements` for that tier, `prev.map(...)` left the array unchanged.
+   - Because `<select value={...}>` was a controlled React component, when the state did not update, React instantly forced the dropdown back to `0 (No / Disabled)`, making it appear as though the change could not save.
+   - Furthermore, there was no visual feedback or save status indicator (no "Saving...", no "✓ Saved"), leaving administrators unsure if selections had persisted.
+   - In `src/app/api/superadmin/entitlements/route.ts`, `.single()` was used when querying `oldEntitlement`, throwing `PGRST116` on unseeded cells instead of returning `null` cleanly via `.maybeSingle()`.
+
+2. **Architecture & Implementation**:
+   - **Database Migration (`supabase/migrations/20260924180000_ensure_ai_agent_feature.sql`)**:
+     - Added `value_type` and `display_order` columns to `public.features` if not already present.
+     - Inserted `ai_agent` into `public.features` (`value_type: 'boolean'`, `category_id: 'core_ai'`, `name: 'AI Agent'`).
+     - Seeded `ai_agent = 1` (Yes / Enabled) across `base_tier`, `basic`, `starter`, `premium`, and `ultimate` in `public.tier_entitlements`.
+     - Applied to local Docker container and remote production Supabase.
+   - **Superadmin Entitlements View (`src/components/superadmin/SuperAdminEntitlementsView.tsx`)**:
+     - Fixed `handleLimitChange` to detect non-existent cells and dynamically append new entitlement items to the state, preventing React controlled input reverts.
+     - Added `savingCellKey` and `savedCellKey` states with responsive "Saving..." pulse and emerald "✓ Saved" indicators directly inside each table cell.
+     - Added an `Auto-Save Active` badge in the header to clearly indicate that selections are persisted in real-time.
+     - Updated feature listing to query `/api/superadmin/features` directly with fallback merging.
+   - **Superadmin Features API (`src/app/api/superadmin/features/route.ts`)**:
+     - Added `GET` endpoint returning all features ordered by `display_order`.
+   - **Superadmin Entitlements API (`src/app/api/superadmin/entitlements/route.ts`)**:
+     - Replaced `.single()` with `.maybeSingle()` for reliable old entitlement detection.
+
+3. **Verification & Testing**:
+   - `npm run build`: Production Next.js Turbopack build and widget bundling passed with 0 errors.
+   - `npx playwright test tests/addons-sliding-scale.spec.ts`: 9 passed (100%), including new tests for `GET /api/superadmin/features` and `PATCH /api/superadmin/entitlements`.
+   - `npm run test:e2e`: Full E2E test suite passed.
+
+## Session Chat History Log
+
+* **User**: "While trying to ensure the basic model is up to date, i noted the agent was not selected as yes, so i tried to change it. it allowed me to select yes, but would not save"
+  * **Answer & Action**:
+    1. Identified that `ai_agent` was missing from local migrations and lacked a default enabled entitlement (`limit_value = 1`) on `base_tier`.
+    2. Diagnosed that `handleLimitChange` in `SuperAdminEntitlementsView.tsx` failed to add unseeded cells into React state, causing the controlled `<select>` to snap back to 0.
+    3. Created migration `20260924180000_ensure_ai_agent_feature.sql` to add `ai_agent` to `features` and seed `limit_value = 1` for `base_tier` and all tiers on both local and production Supabase.
+    4. Updated `SuperAdminEntitlementsView.tsx` with dynamic cell creation on change, saving feedback indicators ("Saving..." / "✓ Saved"), and an Auto-Save Active header badge.
+    5. Added `GET /api/superadmin/features` and switched `oldEntitlement` lookup to `.maybeSingle()`.
     6. Verified with `npm run build` and Playwright tests.
 
 

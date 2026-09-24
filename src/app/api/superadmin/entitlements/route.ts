@@ -42,7 +42,7 @@ export async function PATCH(request: NextRequest) {
       .select('limit_value')
       .eq('tier_id', tier_id)
       .eq('feature_id', feature_id)
-      .single();
+      .maybeSingle();
 
     const oldLimit = oldEntitlement?.limit_value === undefined ? 0 : oldEntitlement.limit_value;
     

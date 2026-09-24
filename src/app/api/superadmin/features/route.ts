@@ -8,6 +8,20 @@ function createAdminClient() {
   return createClient(supabaseUrl, serviceRoleKey);
 }
 
+export async function GET() {
+  try {
+    const supabase = createAdminClient();
+    const { data, error } = await supabase
+      .from('features')
+      .select('*')
+      .order('display_order', { ascending: true, nullsFirst: false });
+    if (error) throw error;
+    return NextResponse.json({ data: data || [] });
+  } catch (err: any) {
+    return NextResponse.json({ error: err.message }, { status: 500 });
+  }
+}
+
 export async function POST(req: NextRequest) {
   try {
     const supabase = createAdminClient();

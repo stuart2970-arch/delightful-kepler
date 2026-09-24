@@ -44,24 +44,34 @@ export default function SuperAdminEntitlementsView() {
   const [editForm, setEditForm] = useState<{ name: string; value_type: 'numeric' | 'boolean' }>({ name: '', value_type: 'numeric' });
   const [isSavingEdit, setIsSavingEdit] = useState(false);
 
-  useEffect(() => {
+  // Real-time cell save indicators
+  const [savingCellKey, setSavingCellKey] = useState<string | null>(null);
+  const [savedCellKey, setSavedCellKey] = useState<string | null>(null);
+
+  const fetchData = () => {
+    setLoading(true);
     Promise.all([
       fetch('/api/superadmin/entitlements').then(res => res.json()).catch(() => ({ data: [] })),
-      fetch('/api/superadmin/tiers').then(res => res.json()).catch(() => ({ data: [] }))
-    ]).then(([entRes, tiersRes]) => {
+      fetch('/api/superadmin/tiers').then(res => res.json()).catch(() => ({ data: [] })),
+      fetch('/api/superadmin/features').then(res => res.json()).catch(() => ({ data: [] }))
+    ]).then(([entRes, tiersRes, featRes]) => {
       const data = (entRes && Array.isArray(entRes.data)) ? entRes.data : [];
       setEntitlements(data);
       setTiers((tiersRes && Array.isArray(tiersRes.data)) ? tiersRes.data : []);
       
-      const uniqueMap = new Map<string, Feature>();
+      const featuresList: Feature[] = (featRes && Array.isArray(featRes.data)) ? featRes.data : [];
+      const featMap = new Map<string, Feature>();
+      featuresList.forEach(f => {
+        if (f && f.id) featMap.set(f.id, f);
+      });
       data.forEach((e: Entitlement) => {
-        if (e && e.features && e.feature_id && !uniqueMap.has(e.feature_id)) {
-          uniqueMap.set(e.feature_id, e.features);
+        if (e && e.features && e.feature_id && !featMap.has(e.feature_id)) {
+          featMap.set(e.feature_id, e.features);
         }
       });
 
-      const unique = Array.from(uniqueMap.values()) as Feature[];
-      unique.sort((a, b) => ((a?.display_order) || 0) - ((b?.display_order) || 0));
+      const unique = Array.from(featMap.values());
+      unique.sort((a, b) => ((a?.display_order) ?? 0) - ((b?.display_order) ?? 0));
       setOrderedFeatures(unique);
       
       setLoading(false);
@@ -69,28 +79,64 @@ export default function SuperAdminEntitlementsView() {
       console.error('[SuperAdminEntitlementsView] Load error:', err);
       setLoading(false);
     });
+  };
+
+  useEffect(() => {
+    fetchData();
   }, []);
 
   const handleLimitChange = async (tier_id: string, feature_id: string, newLimit: string) => {
     const limit_value = newLimit === 'UNLIMITED' || newLimit === '' ? null : parseInt(newLimit, 10);
+    const cellKey = `${tier_id}:${feature_id}`;
     
-    // Optimistic UI update
-    setEntitlements((prev) =>
-      prev.map((item) =>
-        item.tier_id === tier_id && item.feature_id === feature_id
-          ? { ...item, limit_value }
-          : item
-      )
-    );
-
-    const res = await fetch('/api/superadmin/entitlements', {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ tier_id, feature_id, limit_value }),
+    // Optimistic UI update: handle both existing and newly created tier entitlement cells
+    setEntitlements((prev) => {
+      const exists = prev.some(item => item.tier_id === tier_id && item.feature_id === feature_id);
+      if (exists) {
+        return prev.map((item) =>
+          item.tier_id === tier_id && item.feature_id === feature_id
+            ? { ...item, limit_value }
+            : item
+        );
+      }
+      return [
+        ...prev,
+        {
+          tier_id,
+          feature_id,
+          limit_value,
+          features: (orderedFeatures.find(f => f.id === feature_id) || {
+            id: feature_id,
+            name: feature_id,
+            is_metered: false,
+            category_id: 'core_ai'
+          }) as Feature
+        }
+      ];
     });
-    
-    if (!res.ok) {
-      alert("Failed to update limit");
+
+    setSavingCellKey(cellKey);
+    try {
+      const res = await fetch('/api/superadmin/entitlements', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ tier_id, feature_id, limit_value }),
+      });
+      
+      const resData = await res.json();
+      if (!res.ok || resData.error) {
+        throw new Error(resData.error || res.statusText || 'Failed to update limit');
+      }
+
+      setSavedCellKey(cellKey);
+      setTimeout(() => {
+        setSavedCellKey((curr) => (curr === cellKey ? null : curr));
+      }, 2500);
+    } catch (err: any) {
+      alert("Failed to update limit: " + err.message);
+      fetchData();
+    } finally {
+      setSavingCellKey((curr) => (curr === cellKey ? null : curr));
     }
   };
 
@@ -98,14 +144,25 @@ export default function SuperAdminEntitlementsView() {
     const numValue = value === '' ? 0 : parseFloat(value);
     setTiers(prev => prev.map(t => t.id === tierId ? { ...t, [field]: numValue } : t));
     
+    const cellKey = `price:${tierId}:${field}`;
+    setSavingCellKey(cellKey);
     try {
-      await fetch('/api/superadmin/tiers', {
+      const res = await fetch('/api/superadmin/tiers', {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ id: tierId, [field]: numValue })
       });
-    } catch (err) {
+      if (!res.ok) throw new Error('Failed to update pricing');
+      setSavedCellKey(cellKey);
+      setTimeout(() => {
+        setSavedCellKey((curr) => (curr === cellKey ? null : curr));
+      }, 2500);
+    } catch (err: any) {
       console.error("Failed to update tier pricing", err);
+      alert("Failed to update tier pricing: " + err.message);
+      fetchData();
+    } finally {
+      setSavingCellKey((curr) => (curr === cellKey ? null : curr));
     }
   };
 
@@ -248,8 +305,14 @@ export default function SuperAdminEntitlementsView() {
     <div className="bg-gray-900 border border-gray-800 rounded-2xl overflow-hidden mt-8">
       <div className="p-4 border-b border-gray-800 flex justify-between items-center">
         <div>
-          <h2 className="text-lg font-bold text-white">Dynamic Tier Entitlements</h2>
-          <p className="text-sm text-gray-400 mt-1">Modify feature limits per tier in real-time. Features can be edited, deleted, or assigned Numeric vs Boolean (1=Yes / 0=No) types.</p>
+          <div className="flex items-center gap-3">
+            <h2 className="text-lg font-bold text-white">Dynamic Tier Entitlements</h2>
+            <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-emerald-500/10 text-emerald-400 border border-emerald-500/30">
+              <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
+              Auto-Save Active
+            </span>
+          </div>
+          <p className="text-sm text-gray-400 mt-1">Modify feature limits per tier in real-time. Changes are automatically saved to the database immediately upon selection.</p>
         </div>
       </div>
       
@@ -393,36 +456,67 @@ export default function SuperAdminEntitlementsView() {
                     return (
                       <td key={tier.id} className="px-6 py-4 text-center border-l border-gray-800/50">
                         {isBoolean ? (
-                          <select
-                            value={rawVal === null || rawVal > 0 ? '1' : '0'}
-                            onChange={(e) => handleLimitChange(tier.id, feature.id, e.target.value)}
-                            className={`w-full max-w-[120px] mx-auto border rounded px-2.5 py-1 text-center text-xs font-semibold outline-none transition-all cursor-pointer ${
-                              rawVal === null || rawVal > 0
-                                ? 'bg-emerald-950/60 text-emerald-400 border-emerald-500/40 focus:border-emerald-400'
-                                : 'bg-gray-950 text-gray-400 border-gray-700 focus:border-gray-500'
-                            }`}
-                          >
-                            <option value="1">1 (Yes / Enabled)</option>
-                            <option value="0">0 (No / Disabled)</option>
-                          </select>
+                          <div className="flex flex-col items-center gap-1">
+                            <select
+                              value={rawVal === null || rawVal > 0 ? '1' : '0'}
+                              onChange={(e) => handleLimitChange(tier.id, feature.id, e.target.value)}
+                              className={`w-full max-w-[130px] mx-auto border rounded px-2.5 py-1 text-center text-xs font-semibold outline-none transition-all cursor-pointer ${
+                                rawVal === null || rawVal > 0
+                                  ? 'bg-emerald-950/60 text-emerald-400 border-emerald-500/40 focus:border-emerald-400'
+                                  : 'bg-gray-950 text-gray-400 border-gray-700 focus:border-gray-500'
+                              }`}
+                            >
+                              <option value="1">1 (Yes / Enabled)</option>
+                              <option value="0">0 (No / Disabled)</option>
+                            </select>
+                            {savingCellKey === `${tier.id}:${feature.id}` && (
+                              <span className="text-[10px] text-amber-400 animate-pulse font-medium">Saving...</span>
+                            )}
+                            {savedCellKey === `${tier.id}:${feature.id}` && (
+                              <span className="text-[10px] text-emerald-400 font-semibold">✓ Saved</span>
+                            )}
+                          </div>
                         ) : (
-                          <input
-                            type="text"
-                            value={val}
-                            onChange={(e) => {
-                               setEntitlements(prev => prev.map(item => 
-                                 item.tier_id === tier.id && item.feature_id === feature.id
-                                   ? { ...item, limit_value: e.target.value === 'UNLIMITED' || e.target.value === '' ? null : parseInt(e.target.value) || 0 }
-                                   : item
-                               ));
-                            }}
-                            onBlur={(e) => handleLimitChange(tier.id, feature.id, e.target.value)}
-                            onKeyDown={(e) => {
-                              if (e.key === 'Enter') handleLimitChange(tier.id, feature.id, e.currentTarget.value);
-                            }}
-                            className="w-full max-w-[120px] mx-auto bg-gray-950 border border-gray-700 rounded px-2 py-1 text-center text-sm text-gray-200 focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 outline-none transition-all"
-                            placeholder="UNLIMITED or number"
-                          />
+                          <div className="flex flex-col items-center gap-1">
+                            <input
+                              type="text"
+                              value={val}
+                              onChange={(e) => {
+                                 setEntitlements(prev => {
+                                   const exists = prev.some(item => item.tier_id === tier.id && item.feature_id === feature.id);
+                                   const parsedVal = e.target.value === 'UNLIMITED' || e.target.value === '' ? null : parseInt(e.target.value) || 0;
+                                   if (exists) {
+                                     return prev.map(item => 
+                                       item.tier_id === tier.id && item.feature_id === feature.id
+                                         ? { ...item, limit_value: parsedVal }
+                                         : item
+                                     );
+                                   }
+                                   return [
+                                     ...prev,
+                                     {
+                                       tier_id: tier.id,
+                                       feature_id: feature.id,
+                                       limit_value: parsedVal,
+                                       features: feature
+                                     }
+                                   ];
+                                 });
+                              }}
+                              onBlur={(e) => handleLimitChange(tier.id, feature.id, e.target.value)}
+                              onKeyDown={(e) => {
+                                if (e.key === 'Enter') handleLimitChange(tier.id, feature.id, e.currentTarget.value);
+                              }}
+                              className="w-full max-w-[120px] mx-auto bg-gray-950 border border-gray-700 rounded px-2 py-1 text-center text-sm text-gray-200 focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 outline-none transition-all"
+                              placeholder="UNLIMITED or number"
+                            />
+                            {savingCellKey === `${tier.id}:${feature.id}` && (
+                              <span className="text-[10px] text-amber-400 animate-pulse font-medium">Saving...</span>
+                            )}
+                            {savedCellKey === `${tier.id}:${feature.id}` && (
+                              <span className="text-[10px] text-emerald-400 font-semibold">✓ Saved</span>
+                            )}
+                          </div>
                         )}
                       </td>
                     );

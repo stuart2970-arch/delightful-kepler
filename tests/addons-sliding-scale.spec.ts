@@ -80,4 +80,38 @@ test.describe('Modular Add-Ons & Sliding Scale Checkout API', () => {
     expect(data.tenant.voice_auto_topup).toBe(true);
     expect(data.tenant.voice_auto_topup_threshold).toBe(15);
   });
+
+  test('GET /api/superadmin/features returns features list including ai_agent', async ({ request }) => {
+    const res = await request.get('/api/superadmin/features');
+    expect(res.status()).toBe(200);
+    const data = await res.json();
+    const features = Array.isArray(data.data) ? data.data : [];
+    expect(features.length).toBeGreaterThan(0);
+    const aiAgent = features.find((f: any) => f.id === 'ai_agent');
+    expect(aiAgent).toBeDefined();
+    expect(aiAgent.value_type).toBe('boolean');
+  });
+
+  test('PATCH /api/superadmin/entitlements successfully updates and saves ai_agent on base_tier', async ({ request }) => {
+    const res = await request.patch('/api/superadmin/entitlements', {
+      headers: { 'Content-Type': 'application/json' },
+      data: {
+        tier_id: 'base_tier',
+        feature_id: 'ai_agent',
+        limit_value: 1,
+      },
+    });
+    expect(res.status()).toBe(200);
+    const json = await res.json();
+    expect(json.success).toBe(true);
+
+    // Verify GET reflects the saved entitlement
+    const getRes = await request.get('/api/superadmin/entitlements');
+    expect(getRes.status()).toBe(200);
+    const getData = await getRes.json();
+    const entList = Array.isArray(getData.data) ? getData.data : [];
+    const baseAgent = entList.find((e: any) => e.tier_id === 'base_tier' && e.feature_id === 'ai_agent');
+    expect(baseAgent).toBeDefined();
+    expect(baseAgent.limit_value).toBe(1);
+  });
 });
