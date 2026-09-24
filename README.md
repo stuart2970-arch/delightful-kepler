@@ -2484,6 +2484,22 @@ Highlighted adjustments in the modal:
     6. Synchronized changes across `wp-theme` and mirrors in `delightful-kepler/public/` and `scratch/`.
     7. Verified `npm run build` and Playwright tests passed (11/11, 100%).
 
+* **User**: [Image media_1790279873858.png showing pricing section: "This needs to change quite a bit, we only have the base plan, the remainder should be the monthly bolt-on components that must be selectable to make up one single monthly payment | Google Calendar Integration, Knowledgebase additional storage, Local Landline, Mobile number"]
+  * **Answer & Action**:
+    1. Replaced the legacy 4-tier grid (`Basic`, `Starter`, `Premium`, `Ultimate`) on the marketing landing page with an interactive modular package builder in `wp-theme/styleflo/app/public/wp-content/themes/Avada-Child-Theme/template-styleflo-landing.php` and `styleflo_landing_page.html`.
+    2. Presented the **Core Base Plan (£9.99/mo)** as the foundation plan (always included).
+    3. Added 4 selectable monthly bolt-ons with checkboxes, icons, and transparent prices:
+       - **Google Calendar Integration** (`+£4.99/mo`)
+       - **Knowledgebase Additional Storage** (500 Chunks, `+£9.99/mo`)
+       - **Local Landline Number** (01/02 geographic number + 10 voice mins, `+£8.99/mo`)
+       - **Mobile Number** (07 number + WhatsApp inquiries & 50 SMS, `+£10.99/mo`)
+    4. Built a sticky live package summary card recalculating the combined single monthly payment in real-time (`£9.99/mo` up to `£44.95/mo`) with itemized breakdown.
+    5. Enhanced `POST /api/billing/checkout` and `GET /api/billing/checkout` to parse `addons` / `addonCatalogIds` for the base tier, dynamically building recurring subscription line items for the base plan plus selected bolt-ons.
+    6. Enhanced `src/app/api/webhooks/stripe/route.ts` to inspect `metadata.selected_addons` upon checkout completion, activate all selected bolt-ons in `tenant_active_addons`, allocate credits, and sync channel flags.
+    7. Synchronized all templates across `wp-theme`, `delightful-kepler/public/`, and `scratch/`.
+    8. Added test coverage in `tests/addons-sliding-scale.spec.ts` for multi-item modular checkout bundles (13/13 passed). Verified `npm run build` compiled cleanly in 3.5s.
+
+
 
 
 

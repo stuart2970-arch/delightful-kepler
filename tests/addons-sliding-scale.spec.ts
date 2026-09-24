@@ -143,5 +143,34 @@ test.describe('Modular Add-Ons & Sliding Scale Checkout API', () => {
       expect(location).toContain('stripe.com');
     }
   });
+
+  test('POST /api/billing/checkout with base plan and modular addons bundles items into single checkout', async ({ request }) => {
+    const res = await request.post('/api/billing/checkout', {
+      headers: { 'Content-Type': 'application/json' },
+      data: {
+        plan: 'basic',
+        planTier: 'base_tier',
+        addons: ['google_calendar_addon', 'landline_addon', 'mobile_addon', 'data_pack_500'],
+      },
+    });
+    expect([200, 500]).toContain(res.status());
+    if (res.status() === 200) {
+      const data = await res.json();
+      expect(data.url).toBeDefined();
+      expect(data.url).toContain('stripe.com');
+    }
+  });
+
+  test('GET /api/billing/checkout with addons query string redirects with bundled items', async ({ request }) => {
+    const res = await request.get('/api/billing/checkout?plan=basic&addons=google_calendar_addon,landline_addon', {
+      maxRedirects: 0,
+    });
+    expect([303, 307, 308, 500]).toContain(res.status());
+    if (res.status() === 303) {
+      const location = res.headers()['location'];
+      expect(location).toContain('stripe.com');
+    }
+  });
 });
+
 

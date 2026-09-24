@@ -529,6 +529,69 @@ export async function POST(req: Request) {
         await processAddonLineItems(supabaseAdmin, targetTenantId, dataObject.line_items.data, 'activate');
       }
 
+      // Process any selected_addons bundled in checkout session metadata
+      const selectedAddonsStr = dataObject.metadata?.selected_addons;
+      if (selectedAddonsStr && targetTenantId) {
+        const addonIds = selectedAddonsStr.split(',').map((s: string) => s.trim()).filter(Boolean);
+        for (const addonId of addonIds) {
+          const { data: addon } = await supabaseAdmin
+            .from('addon_catalog')
+            .select('*')
+            .eq('id', addonId)
+            .maybeSingle();
+
+          if (addon) {
+            const featureId = mapAddonCategoryToFeatureId(addon.category);
+            const { data: existing } = await supabaseAdmin
+              .from('tenant_active_addons')
+              .select('id')
+              .eq('tenant_id', targetTenantId)
+              .eq('addon_catalog_id', addon.id)
+              .maybeSingle();
+
+            if (existing) {
+              await supabaseAdmin
+                .from('tenant_active_addons')
+                .update({
+                  is_active: true,
+                  activated_at: new Date().toISOString(),
+                  deactivated_at: null,
+                })
+                .eq('id', existing.id);
+            } else {
+              await supabaseAdmin
+                .from('tenant_active_addons')
+                .insert({
+                  tenant_id: targetTenantId,
+                  addon_catalog_id: addon.id,
+                  feature_id: featureId,
+                  quantity: 1,
+                  is_active: true,
+                  activated_at: new Date().toISOString(),
+                });
+            }
+
+            if (addon.included_voice_minutes > 0) {
+              await allocateRollingCredits(targetTenantId, 'voice_minutes', addon.included_voice_minutes, addon.id);
+            }
+            if (addon.included_sms > 0) {
+              await allocateRollingCredits(targetTenantId, 'sms_messages', addon.included_sms, addon.id);
+            }
+            if (addon.included_messages > 0) {
+              await allocateRollingCredits(targetTenantId, 'whatsapp_messages', addon.included_messages, addon.id);
+            }
+
+            await supabaseAdmin.from('addon_audit_log').insert({
+              tenant_id: targetTenantId,
+              addon_catalog_id: addon.id,
+              action: 'addon_activated',
+              summary: `Activated ${addon.id} bundled with initial base subscription.`,
+            });
+          }
+        }
+        await syncChannelFlags(supabaseAdmin, targetTenantId);
+      }
+
       // Allocate base tier voice minutes (10 mins)
       await allocateRollingCredits(targetTenantId, 'voice_minutes', 10);
 

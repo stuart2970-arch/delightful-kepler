@@ -10,6 +10,42 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'Content-Type, Authorization',
 };
 
+const MODULAR_ADDON_DEFINITIONS: Record<string, { name: string; description: string; unit_amount: number; category: string }> = {
+  google_calendar_addon: {
+    name: 'Google Calendar Integration (£4.99/mo)',
+    description: 'Two-way real-time calendar synchronization to prevent double-booking',
+    unit_amount: 499,
+    category: 'google_calendar',
+  },
+  data_pack_500: {
+    name: 'Knowledgebase Storage - 500 Chunks (£9.99/mo)',
+    description: '500 additional knowledge vector chunks for rich business rules and menus',
+    unit_amount: 999,
+    category: 'data_pack',
+  },
+  landline_addon: {
+    name: 'Local Landline Number (£8.99/mo)',
+    description: 'Dedicated UK local landline number (01/02) with 10 shared voice minutes',
+    unit_amount: 899,
+    category: 'landline',
+  },
+  mobile_addon: {
+    name: 'Mobile Number (£10.99/mo)',
+    description: 'Dedicated UK mobile number (07) for WhatsApp inquiries and 50 SMS messages',
+    unit_amount: 1099,
+    category: 'mobile',
+  },
+};
+
+function parseSelectedAddons(input: any): string[] {
+  if (!input) return [];
+  if (Array.isArray(input)) return input.filter(id => Boolean(MODULAR_ADDON_DEFINITIONS[id]));
+  if (typeof input === 'string') {
+    return input.split(',').map(s => s.trim()).filter(id => Boolean(MODULAR_ADDON_DEFINITIONS[id]));
+  }
+  return [];
+}
+
 export async function OPTIONS() {
   return new NextResponse(null, { status: 204, headers: corsHeaders });
 }
@@ -24,6 +60,8 @@ export async function GET(req: Request) {
     const { searchParams } = new URL(req.url);
     const plan = searchParams.get('plan') || 'basic';
     const returnUrl = searchParams.get('return_url') || searchParams.get('returnUrl');
+    const rawAddons = searchParams.get('addons') || searchParams.get('addonCatalogIds');
+    const selectedAddonIds = parseSelectedAddons(rawAddons);
 
     const stripe = new Stripe(apiKey, {
       apiVersion: '2023-10-16',
@@ -49,23 +87,53 @@ export async function GET(req: Request) {
       },
     };
 
+    const lineItems: Stripe.Checkout.SessionCreateParams.LineItem[] = [
+      {
+        price_data: priceData,
+        quantity: 1,
+      },
+    ];
+
+    selectedAddonIds.forEach(addonId => {
+      const def = MODULAR_ADDON_DEFINITIONS[addonId];
+      if (def) {
+        lineItems.push({
+          price_data: {
+            currency: 'gbp',
+            product_data: {
+              name: def.name,
+              description: def.description,
+              metadata: {
+                addon_catalog_id: addonId,
+                category: def.category,
+                type: 'addon',
+              },
+            },
+            unit_amount: def.unit_amount,
+            recurring: {
+              interval: 'month',
+            },
+          },
+          quantity: 1,
+        });
+      }
+    });
+
+    const sessionMetadata: Record<string, string> = {
+      plan_tier: 'base_tier',
+    };
+    if (selectedAddonIds.length > 0) {
+      sessionMetadata.selected_addons = selectedAddonIds.join(',');
+    }
+
     const session = await stripe.checkout.sessions.create({
       mode: 'subscription',
       payment_method_types: ['card'],
-      line_items: [
-        {
-          price_data: priceData,
-          quantity: 1,
-        },
-      ],
+      line_items: lineItems,
       subscription_data: {
-        metadata: {
-          plan_tier: 'base_tier',
-        },
+        metadata: sessionMetadata,
       },
-      metadata: {
-        plan_tier: 'base_tier',
-      },
+      metadata: sessionMetadata,
       success_url: `${returnUrl || wpAppUrl}?checkout_status=success&session_id={CHECKOUT_SESSION_ID}`,
       cancel_url: `${returnUrl || (isLocal ? 'https://styleflo.test/#pricing' : 'https://styleflo.ai/#pricing')}?checkout_status=cancelled`,
     });
@@ -372,8 +440,45 @@ export async function POST(req: Request) {
         });
       }
 
+      // Also support modular addon IDs (google_calendar_addon, data_pack_500, landline_addon, mobile_addon)
+      const rawAddons = body.addons || body.addonCatalogIds;
+      const selectedAddonIds = parseSelectedAddons(rawAddons);
+
+      selectedAddonIds.forEach(addonId => {
+        const def = MODULAR_ADDON_DEFINITIONS[addonId];
+        if (def) {
+          lineItems.push({
+            price_data: {
+              currency: 'gbp',
+              product_data: {
+                name: def.name,
+                description: def.description,
+                metadata: {
+                  addon_catalog_id: addonId,
+                  category: def.category,
+                  type: 'addon',
+                },
+              },
+              unit_amount: def.unit_amount,
+              recurring: {
+                interval: 'month',
+              },
+            },
+            quantity: 1,
+          });
+        }
+      });
+
       const isLocal = process.env.NODE_ENV === 'development' || process.env.NEXT_PUBLIC_ENV === 'development';
       const wpAppUrl = isLocal ? 'https://styleflo.test/app' : 'https://styleflo.ai/app';
+
+      const sessionMetadata: Record<string, string> = {
+        tenant_id: tenantId || '',
+        plan_tier: 'base_tier',
+      };
+      if (selectedAddonIds.length > 0) {
+        sessionMetadata.selected_addons = selectedAddonIds.join(',');
+      }
 
       const session = await stripe.checkout.sessions.create({
         mode: 'subscription',
@@ -381,15 +486,9 @@ export async function POST(req: Request) {
         customer_email: customerEmail || undefined,
         line_items: lineItems,
         subscription_data: {
-          metadata: {
-            tenant_id: tenantId || '',
-            plan_tier: 'base_tier',
-          },
+          metadata: sessionMetadata,
         },
-        metadata: {
-          tenant_id: tenantId || '',
-          plan_tier: 'base_tier',
-        },
+        metadata: sessionMetadata,
         success_url: `${returnUrl || wpAppUrl}?checkout_status=success&session_id={CHECKOUT_SESSION_ID}`,
         cancel_url: `${returnUrl || (isLocal ? 'https://styleflo.test/#pricing' : 'https://styleflo.ai/#pricing')}?checkout_status=cancelled`,
       });

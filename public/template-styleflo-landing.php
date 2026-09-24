@@ -522,193 +522,271 @@ if (!defined('ABSPATH')) exit;
     <section id="pricing" class="py-16 md:py-24 bg-pearl border-b border-slate-ash">
       <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         
-        <div class="text-center max-w-3xl mx-auto mb-12">
-          <span class="text-xs font-bold tracking-widest text-amethyst uppercase bg-amethyst-soft px-3 py-1.5 rounded-full">Transparent SaaS Pricing</span>
-          <h2 class="heading-poppins text-3xl sm:text-4xl font-bold text-slate-body mt-3">
+        <div class="text-center max-w-3xl mx-auto mb-14">
+          <span class="text-xs font-bold tracking-widest text-amethyst uppercase bg-amethyst-soft px-3.5 py-1.5 rounded-full">Transparent Modular Pricing</span>
+          <h2 class="heading-poppins text-3xl sm:text-4xl font-bold text-slate-body mt-4">
             Simple £9.99 Base Subscription + Modular Bolt-ons
           </h2>
-          <p class="text-slate-muted mt-2 text-base">
-            Start with our core AI Receptionist for <strong>£9.99/mo</strong> and add modular power-ups tailored to your business needs. Cancel or change anytime.
+          <p class="text-slate-muted mt-3 text-base leading-relaxed">
+            Start with our core AI Receptionist for <strong>£9.99/mo</strong> and select the modular power-ups you need. Build your custom package into one single monthly payment. No contracts—cancel or adjust anytime.
           </p>
-
-          <!-- Billing Toggle -->
-          <div class="flex items-center justify-center gap-4 mt-8">
-            <span id="billing-monthly-label" class="text-sm font-bold text-slate-body">Monthly Billing</span>
-            <button id="billing-toggle" onclick="toggleBillingPeriod()" class="w-14 h-8 bg-amethyst rounded-full p-1 transition-colors relative focus:outline-none">
-              <div id="billing-toggle-dot" class="w-6 h-6 bg-white rounded-full shadow-md transform transition-transform duration-200"></div>
-            </button>
-            <div class="flex items-center gap-1.5">
-              <span id="billing-annual-label" class="text-sm font-medium text-slate-muted">Annual Billing</span>
-              <span class="text-[10px] font-bold text-emerald-700 bg-emerald-100 px-2 py-0.5 rounded-full">Save 20%</span>
-            </div>
-          </div>
         </div>
 
-        <!-- 4-Tier Pricing Grid -->
-        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-12">
+        <!-- Modular Package Builder Layout -->
+        <div class="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start mb-12">
           
-          <!-- Basic Tier (£9.99/mo | £99.90/yr) -->
-          <div class="bg-white rounded-2xl p-6 border-2 border-amethyst flex flex-col justify-between shadow-glow relative transform lg:-translate-y-2">
-            <span class="absolute -top-3 left-1/2 -translate-x-1/2 bg-gradient-to-r from-amethyst-dark to-amethyst text-white text-[10px] uppercase font-black tracking-wider px-3.5 py-0.5 rounded-full shadow-md">
-              🔥 POPULAR BASE PLAN
-            </span>
-            <div>
-              <div class="flex items-center justify-between mb-2">
-                <h3 class="font-bold text-lg text-slate-body">Basic Tier</h3>
-                <span class="text-[10px] font-bold text-purple-700 bg-purple-100 px-2 py-0.5 rounded">Core Plan</span>
-              </div>
-              <p class="text-xs text-slate-muted min-h-[32px]">Solo Stylists, Salons, Clinics & Small Businesses</p>
+          <!-- LEFT COLUMN: Base Foundation + Selectable Bolt-ons (8 cols) -->
+          <div class="lg:col-span-7 xl:col-span-8 space-y-6">
+
+            <!-- Card 1: Core Base Plan (Included Foundation) -->
+            <div class="bg-white rounded-2xl p-6 sm:p-8 border-2 border-amethyst shadow-glow relative">
+              <span class="absolute -top-3 left-6 sm:left-8 bg-gradient-to-r from-amethyst-dark to-amethyst text-white text-[10px] uppercase font-black tracking-wider px-3.5 py-0.5 rounded-full shadow-md">
+                🔥 FOUNDATION PLAN • ALWAYS INCLUDED
+              </span>
               
-              <div class="my-5">
-                <div class="flex items-baseline gap-2">
-                  <span class="text-3xl font-bold text-amethyst-dark price-value" data-monthly="£9.99" data-annual="£99.90">£9.99</span>
-                  <span class="text-xs text-slate-muted price-unit">/ month</span>
+              <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mt-2 mb-6">
+                <div>
+                  <div class="flex items-center gap-2 mb-1">
+                    <h3 class="font-bold text-xl text-slate-body">Core Base Plan</h3>
+                    <span class="text-[10px] font-bold text-emerald-700 bg-emerald-100 px-2.5 py-0.5 rounded-full flex items-center gap-1">
+                      <i data-lucide="check" class="w-3 h-3"></i> Included by Default
+                    </span>
+                  </div>
+                  <p class="text-xs text-slate-muted">Solo Stylists, Salons, Clinics & Small Businesses</p>
                 </div>
-                <p class="text-[10px] text-slate-accent mt-1 price-sub" data-monthly="Billed monthly (£9.99/mo)" data-annual="Billed annually (£99.90/yr)">Billed monthly (£9.99/mo)</p>
+                
+                <div class="text-left sm:text-right">
+                  <div class="flex items-baseline sm:justify-end gap-1.5">
+                    <span class="text-3xl font-bold text-amethyst-dark">£9.99</span>
+                    <span class="text-xs text-slate-muted">/ month</span>
+                  </div>
+                  <p class="text-[10px] text-slate-accent mt-0.5">Billed monthly (£9.99/mo) • Zero lock-in</p>
+                </div>
               </div>
 
-              <ul class="text-xs text-slate-body space-y-2.5 mb-6">
-                <li class="flex items-center gap-2"><i data-lucide="check" class="w-4 h-4 text-amethyst"></i> 1,000 messages / mo included</li>
-                <li class="flex items-center gap-2">
-                  <i data-lucide="check" class="w-4 h-4 text-amethyst"></i> 
-                  <span>50 
-                    <span class="relative group inline-block cursor-help font-semibold text-slate-body underline decoration-dotted decoration-amethyst underline-offset-2">
-                      Vector Chunks
-                      <span class="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 hidden group-hover:block w-64 bg-slate-body text-white text-[11px] rounded-xl p-3 shadow-2xl z-50 pointer-events-none leading-relaxed border border-slate-700 font-normal text-left">
-                        <strong class="text-amethyst-light font-bold block mb-1 text-xs">🧠 What are Vector Chunks?</strong>
-                        Vector Chunks are indexed fragments of your business rules, prices, and FAQs. They allow the AI to retrieve precise, 100% factual answers instantly.
-                        <span class="absolute top-full left-1/2 -translate-x-1/2 border-4 border-transparent border-t-slate-body"></span>
-                      </span>
-                    </span>
-                  </span>
-                </li>
-                <li class="flex items-center gap-2"><i data-lucide="check" class="w-4 h-4 text-amethyst"></i> Full Web Chat AI Widget</li>
-                <li class="flex items-center gap-2">
-                  <i data-lucide="check" class="w-4 h-4 text-amethyst"></i> 
-                  <span class="relative group inline-block cursor-help font-semibold text-slate-body underline decoration-dotted decoration-emerald-500 underline-offset-2">
-                    Automated Lead Capture
-                    <span class="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 hidden group-hover:block w-64 bg-slate-body text-white text-[11px] rounded-xl p-3 shadow-2xl z-50 pointer-events-none leading-relaxed border border-slate-700 font-normal text-left">
-                      <strong class="text-emerald-400 font-bold block mb-1 text-xs">📩 Instant Lead Alerts</strong>
-                      You will receive an email with the user contact details and the nature of the enquiry.
-                      <span class="absolute top-full left-1/2 -translate-x-1/2 border-4 border-transparent border-t-slate-body"></span>
-                    </span>
-                  </span>
-                </li>
-                <li class="flex items-center gap-2"><i data-lucide="check" class="w-4 h-4 text-amethyst"></i> Self-Serve Ingestion</li>
-                <li class="flex items-center gap-2"><i data-lucide="check" class="w-4 h-4 text-amethyst"></i> Calendar & Booking Tool Sync</li>
-                <li class="flex items-center gap-2"><i data-lucide="check" class="w-4 h-4 text-amethyst"></i> Full Dashboard Visibility</li>
-              </ul>
+              <!-- Included Features Grid -->
+              <div class="pt-5 border-t border-slate-ash/60">
+                <p class="text-xs font-bold text-slate-body uppercase tracking-wider mb-3">Included in Every Base Plan:</p>
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-2.5 text-xs text-slate-body">
+                  <div class="flex items-center gap-2">
+                    <i data-lucide="check-circle-2" class="w-4 h-4 text-emerald-600 flex-shrink-0"></i>
+                    <span><strong>1,000</strong> messages / mo included</span>
+                  </div>
+                  <div class="flex items-center gap-2">
+                    <i data-lucide="check-circle-2" class="w-4 h-4 text-emerald-600 flex-shrink-0"></i>
+                    <span><strong>50</strong> Knowledge Vector Chunks</span>
+                  </div>
+                  <div class="flex items-center gap-2">
+                    <i data-lucide="check-circle-2" class="w-4 h-4 text-emerald-600 flex-shrink-0"></i>
+                    <span>Full 24/7 Web Chat AI Widget</span>
+                  </div>
+                  <div class="flex items-center gap-2">
+                    <i data-lucide="check-circle-2" class="w-4 h-4 text-emerald-600 flex-shrink-0"></i>
+                    <span>Instant Lead Capture & Email Alerts</span>
+                  </div>
+                  <div class="flex items-center gap-2">
+                    <i data-lucide="check-circle-2" class="w-4 h-4 text-emerald-600 flex-shrink-0"></i>
+                    <span>Self-Serve Ingestion (Web, Text, PDFs)</span>
+                  </div>
+                  <div class="flex items-center gap-2">
+                    <i data-lucide="check-circle-2" class="w-4 h-4 text-emerald-600 flex-shrink-0"></i>
+                    <span>Calendar & Booking Tool Sync</span>
+                  </div>
+                  <div class="flex items-center gap-2 sm:col-span-2">
+                    <i data-lucide="check-circle-2" class="w-4 h-4 text-emerald-600 flex-shrink-0"></i>
+                    <span>Full Visibility in Management Dashboard</span>
+                  </div>
+                </div>
+              </div>
             </div>
 
-            <a href="https://app.styleflo.ai/api/billing/checkout?plan=basic" onclick="startBasicCheckout(event)" class="w-full bg-gradient-to-r from-amethyst-dark to-amethyst hover:from-amethyst hover:to-amethyst-dark text-white font-black text-xs py-3.5 rounded-xl text-center transition-all shadow-md flex items-center justify-center gap-1.5">
-              <span>Get Started for £9.99</span>
-            </a>
+            <!-- Card 2: Selectable Modular Bolt-ons -->
+            <div class="bg-white rounded-2xl p-6 sm:p-8 border border-slate-ash shadow-card">
+              <div class="mb-6">
+                <div class="flex items-center justify-between mb-1">
+                  <h3 class="heading-poppins text-lg sm:text-xl font-bold text-slate-body">
+                    Select Your Monthly Bolt-ons
+                  </h3>
+                  <span class="text-xs font-semibold text-amethyst bg-amethyst-soft px-3 py-1 rounded-full">
+                    Modular Flexibility
+                  </span>
+                </div>
+                <p class="text-xs sm:text-sm text-slate-muted leading-relaxed">
+                  Select any components below to customize your receptionist. Each bolt-on adds automatically into your single monthly total.
+                </p>
+              </div>
+
+              <!-- 4 Bolt-ons Grid -->
+              <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                
+                <!-- Bolt-on 1: Google Calendar Integration -->
+                <label class="addon-card group flex flex-col justify-between p-5 rounded-xl border border-slate-ash bg-white hover:border-amethyst hover:shadow-sm cursor-pointer transition-all relative select-none">
+                  <div>
+                    <div class="flex items-start justify-between gap-3 mb-3">
+                      <div class="w-10 h-10 rounded-lg bg-blue-100 text-blue-700 flex items-center justify-center font-bold flex-shrink-0">
+                        <i data-lucide="calendar" class="w-5 h-5"></i>
+                      </div>
+                      <input type="checkbox" id="addon-google-calendar" value="google_calendar_addon" data-price="4.99" data-name="Google Calendar Integration" onchange="updatePackageTotal()" class="addon-checkbox w-5 h-5 rounded border-slate-300 text-amethyst focus:ring-amethyst cursor-pointer mt-1">
+                    </div>
+                    <h4 class="font-bold text-sm text-slate-body group-hover:text-amethyst transition-colors mb-1">
+                      Google Calendar Integration
+                    </h4>
+                    <p class="text-xs text-slate-muted leading-relaxed mb-4">
+                      Real-time two-way synchronization with Google Calendar. Prevents double-booking and writes bookings straight to staff rotas.
+                    </p>
+                  </div>
+                  <div class="pt-3 border-t border-slate-ash/60 flex items-center justify-between">
+                    <span class="text-xs text-slate-muted">Monthly Add-on</span>
+                    <span class="text-sm font-bold text-amethyst-dark">+£4.99 <span class="text-[10px] text-slate-muted font-normal">/ mo</span></span>
+                  </div>
+                </label>
+
+                <!-- Bolt-on 2: Knowledgebase Additional Storage -->
+                <label class="addon-card group flex flex-col justify-between p-5 rounded-xl border border-slate-ash bg-white hover:border-amethyst hover:shadow-sm cursor-pointer transition-all relative select-none">
+                  <div>
+                    <div class="flex items-start justify-between gap-3 mb-3">
+                      <div class="w-10 h-10 rounded-lg bg-purple-100 text-amethyst flex items-center justify-center font-bold flex-shrink-0">
+                        <i data-lucide="database" class="w-5 h-5"></i>
+                      </div>
+                      <input type="checkbox" id="addon-knowledge-storage" value="data_pack_500" data-price="9.99" data-name="Knowledgebase Storage (500 Chunks)" onchange="updatePackageTotal()" class="addon-checkbox w-5 h-5 rounded border-slate-300 text-amethyst focus:ring-amethyst cursor-pointer mt-1">
+                    </div>
+                    <h4 class="font-bold text-sm text-slate-body group-hover:text-amethyst transition-colors mb-1">
+                      Knowledgebase Additional Storage
+                    </h4>
+                    <p class="text-xs text-slate-muted leading-relaxed mb-4">
+                      500 additional knowledge vector chunks for rich product catalogs, complex multi-tier service menus, and detailed business rules.
+                    </p>
+                  </div>
+                  <div class="pt-3 border-t border-slate-ash/60 flex items-center justify-between">
+                    <span class="text-xs text-slate-muted">Monthly Add-on</span>
+                    <span class="text-sm font-bold text-amethyst-dark">+£9.99 <span class="text-[10px] text-slate-muted font-normal">/ mo</span></span>
+                  </div>
+                </label>
+
+                <!-- Bolt-on 3: Local Landline -->
+                <label class="addon-card group flex flex-col justify-between p-5 rounded-xl border border-slate-ash bg-white hover:border-amethyst hover:shadow-sm cursor-pointer transition-all relative select-none">
+                  <div>
+                    <div class="flex items-start justify-between gap-3 mb-3">
+                      <div class="w-10 h-10 rounded-lg bg-emerald-100 text-emerald-700 flex items-center justify-center font-bold flex-shrink-0">
+                        <i data-lucide="phone" class="w-5 h-5"></i>
+                      </div>
+                      <input type="checkbox" id="addon-local-landline" value="landline_addon" data-price="8.99" data-name="Local Landline Number" onchange="updatePackageTotal()" class="addon-checkbox w-5 h-5 rounded border-slate-300 text-amethyst focus:ring-amethyst cursor-pointer mt-1">
+                    </div>
+                    <h4 class="font-bold text-sm text-slate-body group-hover:text-amethyst transition-colors mb-1">
+                      Local Landline Number
+                    </h4>
+                    <p class="text-xs text-slate-muted leading-relaxed mb-4">
+                      Dedicated UK local geographic number (01 or 02) with 10 shared voice minutes for automated inbound AI phone answering.
+                    </p>
+                  </div>
+                  <div class="pt-3 border-t border-slate-ash/60 flex items-center justify-between">
+                    <span class="text-xs text-slate-muted">Monthly Add-on</span>
+                    <span class="text-sm font-bold text-amethyst-dark">+£8.99 <span class="text-[10px] text-slate-muted font-normal">/ mo</span></span>
+                  </div>
+                </label>
+
+                <!-- Bolt-on 4: Mobile Number -->
+                <label class="addon-card group flex flex-col justify-between p-5 rounded-xl border border-slate-ash bg-white hover:border-amethyst hover:shadow-sm cursor-pointer transition-all relative select-none">
+                  <div>
+                    <div class="flex items-start justify-between gap-3 mb-3">
+                      <div class="w-10 h-10 rounded-lg bg-amber-100 text-amber-700 flex items-center justify-center font-bold flex-shrink-0">
+                        <i data-lucide="smartphone" class="w-5 h-5"></i>
+                      </div>
+                      <input type="checkbox" id="addon-mobile-number" value="mobile_addon" data-price="10.99" data-name="Mobile Number (07 + WhatsApp/SMS)" onchange="updatePackageTotal()" class="addon-checkbox w-5 h-5 rounded border-slate-300 text-amethyst focus:ring-amethyst cursor-pointer mt-1">
+                    </div>
+                    <h4 class="font-bold text-sm text-slate-body group-hover:text-amethyst transition-colors mb-1">
+                      Mobile Number
+                    </h4>
+                    <p class="text-xs text-slate-muted leading-relaxed mb-4">
+                      Dedicated UK mobile number (07) for WhatsApp inquiries and 50 included SMS messages and notifications.
+                    </p>
+                  </div>
+                  <div class="pt-3 border-t border-slate-ash/60 flex items-center justify-between">
+                    <span class="text-xs text-slate-muted">Monthly Add-on</span>
+                    <span class="text-sm font-bold text-amethyst-dark">+£10.99 <span class="text-[10px] text-slate-muted font-normal">/ mo</span></span>
+                  </div>
+                </label>
+
+              </div>
+            </div>
+
           </div>
 
-          <!-- Starter / Standard Tier (£29/mo | £290/yr) -->
-          <div class="bg-white rounded-2xl p-6 border border-slate-ash flex flex-col justify-between shadow-sm relative">
-            <div>
-              <div class="flex items-center justify-between mb-2">
-                <h3 class="font-bold text-lg text-slate-body">Starter Tier</h3>
-                <span class="text-[10px] font-bold text-slate-700 bg-slate-100 px-2 py-0.5 rounded">Expanded</span>
-              </div>
-              <p class="text-xs text-slate-muted min-h-[32px]">Growing Independent Salons</p>
+          <!-- RIGHT COLUMN: Sticky Summary & Instant Stripe Checkout (4/5 cols) -->
+          <div class="lg:col-span-5 xl:col-span-4">
+            <div class="bg-white rounded-2xl p-6 sm:p-8 border-2 border-slate-ash shadow-soft-elevated sticky top-24">
               
-              <div class="my-5">
-                <div class="flex items-baseline gap-2">
-                  <span class="text-3xl font-bold text-slate-body price-value" data-monthly="£29" data-annual="£290">£29</span>
-                  <span class="text-xs text-slate-muted price-unit">/ month</span>
+              <div class="flex items-center justify-between mb-4">
+                <span class="text-[10px] uppercase font-bold tracking-wider text-amethyst bg-amethyst-soft px-2.5 py-0.5 rounded-full">
+                  Live Package Summary
+                </span>
+                <span class="text-xs text-emerald-700 font-semibold flex items-center gap-1">
+                  <span class="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
+                  Single Payment
+                </span>
+              </div>
+
+              <h3 class="heading-poppins text-xl font-bold text-slate-body mb-2">
+                Your Monthly Package
+              </h3>
+              <p class="text-xs text-slate-muted mb-6">
+                All selected components are bundled into one single recurring monthly invoice.
+              </p>
+
+              <!-- Itemized Breakdown -->
+              <div class="space-y-2 mb-6">
+                <!-- Foundation -->
+                <div class="flex items-center justify-between text-xs py-2 border-b border-slate-ash">
+                  <div class="flex items-center gap-2">
+                    <i data-lucide="check" class="w-3.5 h-3.5 text-emerald-600"></i>
+                    <span class="font-bold text-slate-body">Core Base Plan</span>
+                  </div>
+                  <span class="font-bold text-slate-body">£9.99/mo</span>
                 </div>
-                <p class="text-[10px] text-slate-accent mt-1 price-sub" data-monthly="Billed monthly (£29/mo)" data-annual="Billed annually (£290/yr)">Billed monthly (£29/mo)</p>
-              </div>
 
-              <ul class="text-xs text-slate-body space-y-2.5 mb-6">
-                <li class="flex items-center gap-2"><i data-lucide="check" class="w-4 h-4 text-amethyst"></i> 5,000 messages / mo</li>
-                <li class="flex items-center gap-2">
-                  <i data-lucide="check" class="w-4 h-4 text-amethyst"></i> 
-                  <span>1,000 Vector Chunks</span>
-                </li>
-                <li class="flex items-center gap-2"><i data-lucide="check" class="w-4 h-4 text-amethyst"></i> 1 Calendar Connection</li>
-                <li class="flex items-center gap-2"><i data-lucide="check" class="w-4 h-4 text-amethyst"></i> 3 Staff Rotas / Seats</li>
-                <li class="flex items-center gap-2"><i data-lucide="check" class="w-4 h-4 text-amethyst"></i> 15 Products / Services</li>
-                <li class="flex items-center gap-2"><i data-lucide="check" class="w-4 h-4 text-amethyst"></i> 4 British Voice Accents (30m)</li>
-                <li class="flex items-center gap-2"><i data-lucide="check" class="w-4 h-4 text-amethyst"></i> Automated Lead Capture</li>
-                <li class="flex items-center gap-2"><i data-lucide="check" class="w-4 h-4 text-amethyst"></i> Full Dashboard Visibility</li>
-              </ul>
-            </div>
-
-            <a href="https://styleflo.ai/app/?mode=register&plan=starter" class="w-full bg-slate-body hover:bg-slate-800 text-white font-bold text-xs py-3 rounded-xl text-center transition-colors shadow-sm">
-              Subscribe Starter
-            </a>
-          </div>
-
-          <!-- Premium Tier (£79/mo | £790/yr) -->
-          <div class="bg-white rounded-2xl p-6 border border-slate-ash flex flex-col justify-between shadow-sm relative">
-            <div>
-              <div class="flex items-center justify-between mb-2">
-                <h3 class="font-bold text-lg text-slate-body">Premium Tier</h3>
-                <span class="text-[10px] font-bold text-slate-700 bg-slate-100 px-2 py-0.5 rounded">All-Inclusive</span>
-              </div>
-              <p class="text-xs text-slate-muted min-h-[32px]">High-Volume & Multi-Chair Salons</p>
-              
-              <div class="my-5">
-                <div class="flex items-baseline gap-2">
-                  <span class="text-3xl font-bold text-slate-body price-value" data-monthly="£79" data-annual="£790">£79</span>
-                  <span class="text-xs text-slate-muted price-unit">/ month</span>
+                <!-- Dynamic Selected Bolt-ons List -->
+                <div id="selected-addons-list" class="space-y-1">
+                  <p class="text-xs text-slate-muted italic py-1">No extra bolt-ons selected yet. Pick any from the left to customize your receptionist.</p>
                 </div>
-                <p class="text-[10px] text-slate-accent mt-1 price-sub" data-monthly="Billed monthly (£79/mo)" data-annual="Billed annually (£790/yr)">Billed monthly (£79/mo)</p>
               </div>
 
-              <ul class="text-xs text-slate-body space-y-2.5 mb-6">
-                <li class="flex items-center gap-2"><i data-lucide="check" class="w-4 h-4 text-amethyst"></i> 15,000 messages / mo</li>
-                <li class="flex items-center gap-2">
-                  <i data-lucide="check" class="w-4 h-4 text-amethyst"></i> 
-                  <span>5,000 Vector Chunks</span>
-                </li>
-                <li class="flex items-center gap-2"><i data-lucide="check" class="w-4 h-4 text-amethyst"></i> 6 Calendar Connections</li>
-                <li class="flex items-center gap-2"><i data-lucide="check" class="w-4 h-4 text-amethyst"></i> 6 Staff Rotas / Seats</li>
-                <li class="flex items-center gap-2"><i data-lucide="check" class="w-4 h-4 text-amethyst"></i> Branding Footer Removed</li>
-                <li class="flex items-center gap-2"><i data-lucide="check" class="w-4 h-4 text-amethyst"></i> 50 Products / Services</li>
-                <li class="flex items-center gap-2"><i data-lucide="check" class="w-4 h-4 text-amethyst"></i> Mobile Tel Number & WhatsApp</li>
-                <li class="flex items-center gap-2"><i data-lucide="check" class="w-4 h-4 text-amethyst"></i> 4 British Voice Accents (120m)</li>
-              </ul>
+              <!-- Total Monthly Payment Box -->
+              <div class="bg-pearl rounded-xl p-5 border border-slate-ash mb-6">
+                <div class="flex items-baseline justify-between mb-1">
+                  <span class="text-xs font-bold uppercase tracking-wider text-slate-muted">Total Monthly Payment</span>
+                  <div class="flex items-baseline gap-1">
+                    <span id="package-total-price" class="text-3xl font-black text-amethyst-dark">£9.99</span>
+                    <span class="text-xs text-slate-muted">/ mo</span>
+                  </div>
+                </div>
+                <p class="text-[11px] text-slate-accent">
+                  Billed monthly via Stripe. No contracts • Cancel anytime.
+                </p>
+              </div>
+
+              <!-- Checkout CTA Button -->
+              <button id="package-checkout-btn" onclick="startModularCheckout(event)" class="w-full bg-gradient-to-r from-amethyst-dark to-amethyst hover:from-amethyst hover:to-amethyst-dark text-white font-black text-sm py-4 rounded-xl text-center transition-all shadow-md hover:shadow-lg flex items-center justify-center gap-2 cursor-pointer">
+                <span id="package-checkout-btn-text">Get Started — £9.99/mo</span>
+                <i data-lucide="arrow-right" class="w-4 h-4"></i>
+              </button>
+
+              <!-- Trust & Security Badges -->
+              <div class="mt-6 pt-5 border-t border-slate-ash/60 space-y-2.5 text-[11px] text-slate-muted">
+                <div class="flex items-center gap-2">
+                  <i data-lucide="shield-check" class="w-4 h-4 text-emerald-600 flex-shrink-0"></i>
+                  <span>256-Bit SSL Encrypted Checkout via Stripe</span>
+                </div>
+                <div class="flex items-center gap-2">
+                  <i data-lucide="zap" class="w-4 h-4 text-amber-500 flex-shrink-0"></i>
+                  <span>Instant automated account provisioning</span>
+                </div>
+                <div class="flex items-center gap-2">
+                  <i data-lucide="refresh-cw" class="w-4 h-4 text-blue-500 flex-shrink-0"></i>
+                  <span>Add, modify, or remove bolt-ons at any time</span>
+                </div>
+              </div>
+
             </div>
-
-            <a href="https://styleflo.ai/app/?mode=register&plan=premium" class="w-full bg-slate-body hover:bg-slate-800 text-white font-bold text-xs py-3 rounded-xl text-center transition-colors shadow-sm">
-              Subscribe Premium
-            </a>
-          </div>
-
-          <!-- Ultimate Tier (POA) -->
-          <div class="bg-white rounded-2xl p-6 border border-slate-ash flex flex-col justify-between shadow-sm">
-            <div>
-              <div class="flex items-center justify-between mb-2">
-                <h3 class="font-bold text-lg text-slate-body">Ultimate Tier</h3>
-                <span class="text-[10px] font-bold text-slate-700 bg-slate-100 px-2 py-0.5 rounded">Enterprise</span>
-              </div>
-              <p class="text-xs text-slate-muted min-h-[32px]">Enterprise & Franchise Groups</p>
-              
-              <div class="my-5">
-                <span class="text-3xl font-bold text-slate-body price-value" data-monthly="POA" data-annual="POA">POA</span>
-                <p class="text-[10px] text-slate-accent mt-1 price-sub" data-monthly="Price On Application" data-annual="Bespoke Enterprise Billing">Price On Application</p>
-              </div>
-
-              <ul class="text-xs text-slate-body space-y-2.5 mb-6">
-                <li class="flex items-center gap-2"><i data-lucide="check" class="w-4 h-4 text-amethyst"></i> Unlimited Message Quotas</li>
-                      <strong class="text-emerald-400 font-bold block mb-1 text-xs">📩 Instant Lead Alerts</strong>
-                      You will receive an email with the user contact details and the nature of the enquiry.
-                      <span class="absolute top-full left-1/2 -translate-x-1/2 border-4 border-transparent border-t-slate-body"></span>
-                    </span>
-                  </span>
-                </li>
-                <li class="flex items-center gap-2"><i data-lucide="check" class="w-4 h-4 text-amethyst"></i> Full visibility of all chats, inc. voice in our dashboard</li>
-                <li class="flex items-center gap-2"><i data-lucide="check" class="w-4 h-4 text-amethyst"></i> Dedicated Account Manager</li>
-              </ul>
-            </div>
-
-            <a href="mailto:sales@styleflo.ai?subject=Ultimate%20Tier%20POA%20Inquiry" class="w-full bg-slate-body hover:bg-slate-800 text-white font-bold text-xs py-3 rounded-xl text-center transition-colors">
-              Contact Sales (POA)
-            </a>
           </div>
 
         </div>
@@ -1030,40 +1108,101 @@ if (!defined('ABSPATH')) exit;
       }
     }
 
-    let isAnnual = false;
-    function toggleBillingPeriod() {
-      isAnnual = !isAnnual;
-      const dot = document.getElementById('billing-toggle-dot');
-      const monthlyLabel = document.getElementById('billing-monthly-label');
-      const annualLabel = document.getElementById('billing-annual-label');
-      const prices = document.querySelectorAll('.price-value');
-      const subs = document.querySelectorAll('.price-sub');
+    // Modular Package Builder Logic
+    function updatePackageTotal() {
+      const BASE_PRICE = 9.99;
+      let total = BASE_PRICE;
+      const selectedItems = [];
 
-      if (isAnnual) {
-        dot.style.transform = 'translateX(24px)';
-        monthlyLabel.classList.replace('font-bold', 'font-medium');
-        annualLabel.classList.replace('font-medium', 'font-bold');
-      } else {
-        dot.style.transform = 'translateX(0px)';
-        annualLabel.classList.replace('font-bold', 'font-medium');
-        monthlyLabel.classList.replace('font-medium', 'font-bold');
+      document.querySelectorAll('.addon-checkbox').forEach(cb => {
+        const card = cb.closest('.addon-card');
+        const price = parseFloat(cb.getAttribute('data-price') || '0');
+        const name = cb.getAttribute('data-name') || '';
+
+        if (cb.checked) {
+          total += price;
+          selectedItems.push({ id: cb.value, name, price });
+          if (card) {
+            card.classList.add('border-amethyst', 'bg-amethyst/5', 'shadow-md');
+            card.classList.remove('border-slate-ash', 'bg-white');
+          }
+        } else {
+          if (card) {
+            card.classList.remove('border-amethyst', 'bg-amethyst/5', 'shadow-md');
+            card.classList.add('border-slate-ash', 'bg-white');
+          }
+        }
+      });
+
+      const totalStr = `£${total.toFixed(2)}`;
+      const priceDisplay = document.getElementById('package-total-price');
+      if (priceDisplay) priceDisplay.textContent = totalStr;
+
+      const checkoutBtnText = document.getElementById('package-checkout-btn-text');
+      if (checkoutBtnText) checkoutBtnText.textContent = `Get Started — ${totalStr}/mo`;
+
+      const listContainer = document.getElementById('selected-addons-list');
+      if (listContainer) {
+        if (selectedItems.length === 0) {
+          listContainer.innerHTML = '<p class="text-xs text-slate-muted italic py-1">No extra bolt-ons selected yet. Pick any from the left to customize your receptionist.</p>';
+        } else {
+          listContainer.innerHTML = selectedItems.map(item => `
+            <div class="flex items-center justify-between text-xs text-slate-body py-1.5 border-b border-slate-ash/40">
+              <span class="font-medium">${item.name}</span>
+              <span class="font-bold text-amethyst">+£${item.price.toFixed(2)}/mo</span>
+            </div>
+          `).join('');
+        }
+      }
+    }
+
+    async function startModularCheckout(e) {
+      if (e) e.preventDefault();
+      const btn = document.getElementById('package-checkout-btn');
+      if (btn) {
+        btn.innerHTML = '<span class="inline-flex items-center gap-2"><svg class="animate-spin h-4 w-4 text-white" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z"></path></svg>Connecting to Stripe...</span>';
+        btn.style.pointerEvents = 'none';
       }
 
-      prices.forEach(el => {
-        const val = isAnnual ? el.getAttribute('data-annual') : el.getAttribute('data-monthly');
-        if (val) el.textContent = val;
+      const isLocal = window.location.hostname.includes('test') || window.location.hostname === 'localhost';
+      const apiHost = isLocal ? 'http://localhost:3000' : 'https://app.styleflo.ai';
+      const wpAppUrl = isLocal ? 'https://styleflo.test/app' : 'https://styleflo.ai/app';
+
+      // Collect selected addons
+      const selectedAddons = [];
+      document.querySelectorAll('.addon-checkbox:checked').forEach(cb => {
+        selectedAddons.push(cb.value);
       });
 
-      subs.forEach(el => {
-        const val = isAnnual ? el.getAttribute('data-annual') : el.getAttribute('data-monthly');
-        if (val) el.textContent = val;
-      });
+      try {
+        const res = await fetch(`${apiHost}/api/billing/checkout`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            plan: 'basic',
+            planTier: 'base_tier',
+            addons: selectedAddons,
+            returnUrl: wpAppUrl
+          })
+        });
+        const data = await res.json();
+        if (data?.url) {
+          window.location.href = data.url;
+          return;
+        }
+      } catch (err) {
+        console.error('Modular checkout error:', err);
+      }
 
-      const units = document.querySelectorAll('.price-unit');
-      units.forEach(el => {
-        el.textContent = isAnnual ? '/ year' : '/ 1st month';
-      });
+      // Fallback direct GET redirect with addons query param
+      const addonsQuery = selectedAddons.length > 0 ? `&addons=${encodeURIComponent(selectedAddons.join(','))}` : '';
+      window.location.href = `${apiHost}/api/billing/checkout?plan=basic${addonsQuery}`;
     }
+
+    // Initialize package total on page load
+    document.addEventListener('DOMContentLoaded', () => {
+      updatePackageTotal();
+    });
   </script>
 
   <!-- FLOATING STYLEFLO CHATBOT EMBED WIDGET (BOTTOM-RIGHT) -->
