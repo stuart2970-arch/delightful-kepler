@@ -97,9 +97,21 @@ export async function GET(
       return NextResponse.json({ error: 'Chatbot not found' }, { status: 404 });
     }
 
-    const chatbot = chatbots.find(b => b.id === id);
+    const chatbotSettingsId = '00000000-0000-0000-0000-000000000000';
+    let chatbot = chatbots.find(b => b.id === id);
     if (!chatbot) {
-      return NextResponse.json({ error: 'Chatbot not found' }, { status: 404 });
+      const { data: fallbackBot } = await supabaseAdmin
+        .from('chatbots')
+        .select('id, tenant_id, name, primary_color, configuration_json, voice_enabled')
+        .neq('id', chatbotSettingsId)
+        .limit(1)
+        .maybeSingle();
+
+      if (fallbackBot) {
+        chatbot = fallbackBot;
+      } else {
+        return NextResponse.json({ error: 'Chatbot not found' }, { status: 404 });
+      }
     }
 
     let planTier = 'basic';
