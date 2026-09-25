@@ -161,7 +161,6 @@ export async function POST(request: Request) {
       };
     }
 
-    // 3. Build the full assistant object dynamically
     const rawBgSound = config.background_sound || 'office';
     const ambientPresets = ['office', 'salon', 'barber', 'coffee-shop', 'restaurant', 'diner'];
     let resolvedBgSound = 'off';
@@ -171,7 +170,10 @@ export async function POST(request: Request) {
       resolvedBgSound = rawBgSound;
     } else if (rawBgSound && typeof rawBgSound === 'string') {
       const cleanSound = rawBgSound.replace(/-new$/, '');
-      if (ambientPresets.includes(cleanSound)) {
+      const isLocalOrNgrok = appUrl.includes('ngrok') || appUrl.includes('localhost') || appUrl.includes('127.0.0.1');
+      if (isLocalOrNgrok) {
+        resolvedBgSound = cleanSound === 'diner' ? 'diner' : 'office';
+      } else if (ambientPresets.includes(cleanSound)) {
         resolvedBgSound = `${appUrl}/audio/ambient/${cleanSound}.wav`;
       } else if (cleanSound.includes('resaurant')) {
         resolvedBgSound = `${appUrl}/audio/ambient/restaurant.wav`;
@@ -179,7 +181,7 @@ export async function POST(request: Request) {
         resolvedBgSound = `${appUrl}/audio/ambient/office.wav`;
       }
     } else {
-      resolvedBgSound = `${appUrl}/audio/ambient/office.wav`;
+      resolvedBgSound = 'office';
     }
 
     const overrides: any = {
@@ -187,16 +189,27 @@ export async function POST(request: Request) {
       firstMessage: config.welcome_message || 'Hello, how can I help you today?',
       backgroundSound: resolvedBgSound,
       backchannelingEnabled: true,
+      startSpeakingPlan: {
+        waitSeconds: 0.3,
+        smartEndpointingEnabled: true,
+        transcriberEndpointingPlan: {
+          onPunctuationSeconds: 0.1,
+          onNoPunctuationSeconds: 0.3,
+          onNumberSeconds: 0.3
+        }
+      },
       transcriber: {
         provider: 'deepgram',
         model: 'nova-2',
-        language: 'en-US'
+        language: 'en-US',
+        endpointing: 250
       },
       model: modelOverrides,
       voice: {
         provider: '11labs',
         voiceId: resolvedVoiceId,
         model: 'eleven_turbo_v2_5',
+        optimizeStreamingLatency: 3,
         enableSsmlParsing: true
       },
       // variableValues is NOT allowed in the root assistant schema, use metadata!

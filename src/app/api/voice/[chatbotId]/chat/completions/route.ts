@@ -92,11 +92,17 @@ export async function POST(
       configData = (chatbot.configuration_json || {}) as Record<string, any>;
     }
 
-    const { data: tenantRes } = await supabaseAdmin
-      .from('tenants')
-      .select('id, company_name, rwg_business_name, booking_mode, booking_url, currency, timezone')
-      .eq('id', tenantId)
-      .single();
+    const [tenantResRes, servicesResRes, staffResRes, globalBotRes] = await Promise.all([
+      supabaseAdmin.from('tenants').select('id, company_name, rwg_business_name, booking_mode, booking_url, currency, timezone').eq('id', tenantId).single(),
+      supabaseAdmin.from('services').select('id, name, base_price, duration_minutes, buffer_minutes, description').eq('tenant_id', tenantId).eq('chatbot_id', chatbotId),
+      supabaseAdmin.from('staff').select('id, name, role, google_calendar_id, working_days, staff_services(service_id, custom_price, custom_duration)').eq('tenant_id', tenantId).eq('chatbot_id', chatbotId),
+      supabaseAdmin.from('chatbots').select('configuration_json').eq('id', '00000000-0000-0000-0000-000000000000').single(),
+    ]);
+
+    const tenantRes = tenantResRes.data;
+    const servicesRes = servicesResRes.data;
+    const staffRes = staffResRes.data;
+    const globalBot = globalBotRes.data;
 
     const bookingMode = tenantRes?.booking_mode || 'single_calendar';
     const bookingUrl = tenantRes?.booking_url || '';
@@ -107,28 +113,10 @@ export async function POST(
     const agentName = ((configData.agent_name as string) || chatbotName || 'AI Assistant').trim();
     const businessName = (configData.businessName as string)?.trim() || tenantCompany || chatbotName || agentName || 'our business';
 
-    const { data: servicesRes } = await supabaseAdmin
-      .from('services')
-      .select('id, name, base_price, duration_minutes, buffer_minutes, description')
-      .eq('tenant_id', tenantId)
-      .eq('chatbot_id', chatbotId);
-
-    const { data: staffRes } = await supabaseAdmin
-      .from('staff')
-      .select('id, name, role, google_calendar_id, working_days, staff_services(service_id, custom_price, custom_duration)')
-      .eq('tenant_id', tenantId)
-      .eq('chatbot_id', chatbotId);
-
     const servicesContext = servicesRes ? JSON.stringify(servicesRes, null, 2) : '[]';
     const staffContext = staffRes ? JSON.stringify(staffRes, null, 2) : '[]';
 
     let globalDisclaimer = '';
-    const { data: globalBot } = await supabaseAdmin
-      .from('chatbots')
-      .select('configuration_json')
-      .eq('id', '00000000-0000-0000-0000-000000000000')
-      .single();
-    
     if (globalBot?.configuration_json) {
       globalDisclaimer = (globalBot.configuration_json as any).global_voice_disclaimer || '';
     }
@@ -198,7 +186,10 @@ export async function POST(
       });
     }
 
-    if (queryText && apiKey) {
+    const trimmedQuery = queryText.trim();
+    const isShortConversational = !trimmedQuery || trimmedQuery.length < 15 || /^(hello|hi|hey|yes|no|yeah|nope|okay|ok|sure|thanks|thank you|who is this|who are you)\b/i.test(trimmedQuery);
+
+    if (queryText && apiKey && !isShortConversational) {
       try {
         const fetchEmbed = async () => {
           const embeddingRes = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/text-embedding-004:embedContent?key=${apiKey}`, {
@@ -231,10 +222,10 @@ export async function POST(
           return '';
         };
 
-        // Race RAG embedding fetch with a 1.2s timeout so voice streams never delay
+        // Race RAG embedding fetch with a 500ms timeout so voice responses are instant
         ragContext = await Promise.race([
           fetchEmbed(),
-          new Promise<string>((resolve) => setTimeout(() => resolve(''), 1200))
+          new Promise<string>((resolve) => setTimeout(() => resolve(''), 500))
         ]);
       } catch (e) {
         console.error('[Vapi Custom LLM] RAG embedding/match error:', e);

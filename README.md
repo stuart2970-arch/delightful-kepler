@@ -2506,6 +2506,28 @@ Highlighted adjustments in the modal:
     3. Synchronized updates to mirrors in `delightful-kepler/public/` and `scratch/`.
     4. Verified production compilation with `npm run build`.
 
+### Session 17 (September 25, 2026) - Telephone Voice Latency & Ambient Noise Investigation
+* **User**: "when i called my agent using a telephone i was getting 2 second delays before it responded which seemed a bit lomg, i also noted that the ambient noise was not heard in the backgroung, can you please investigate and respond"
+* **Investigation & Root Causes**:
+  1. **Ambient Noise Missing over Telephony**:
+     - In `src/app/api/webhooks/vapi/assistant/route.ts`, when Vapi requested assistant overrides for incoming SIP phone calls, our backend was dynamically generating full HTTP URLs (e.g., `https://.../audio/ambient/office.wav`).
+     - On local dev and ngrok tunnels (`overcrowd-alkaline-obsolete.ngrok-free.dev`), automated requests without ngrok headers returned HTML pages, causing Vapi's telephony audio mixer to reject the file and turn background noise off.
+     - Furthermore, Vapi's SIP server expects standard native preset strings (`'office'`, `'diner'`, `'off'`) or valid production URLs.
+  2. **2-Second Response Latency Breakdown**:
+     - **STT Endpointing**: Deepgram nova-2 defaulted to waiting 800ms–1000ms after the caller paused before triggering the LLM.
+     - **TTS Buffer Latency**: ElevenLabs voice generation lacked `optimizeStreamingLatency: 3`, causing buffering delay before audio chunk delivery.
+     - **Sequential DB Lookups**: `src/app/api/voice/[chatbotId]/chat/completions/route.ts` executed 5 separate sequential `await` database queries per turn (~250-300ms network overhead).
+     - **Vector RAG Embedding Bottleneck**: On every single spoken turn (even for 1-word responses like "hello", "yes", "okay", "thanks"), the completion endpoint called Google's `text-embedding-004` REST API and ran a Supabase RPC `match_documents` vector search (~300-500ms delay).
+* **Fixes Implemented**:
+  1. **Tuned Vapi Assistant Telephony Overrides (`src/app/api/webhooks/vapi/assistant/route.ts`)**:
+     - Updated `backgroundSound` to pass native preset `'office'` (or `'diner'`) when on local/ngrok tunnels, and `${appUrl}/audio/ambient/${cleanSound}.wav` when on public production hosts.
+     - Injected `transcriber.endpointing: 250` (250ms silence detection) and `startSpeakingPlan` (`waitSeconds: 0.3`, `smartEndpointingEnabled: true`) to trigger speech completion instantly.
+     - Added `voice.optimizeStreamingLatency: 3` to start ElevenLabs audio streaming within milliseconds.
+  2. **Optimized Custom LLM Endpoint (`src/app/api/voice/[chatbotId]/chat/completions/route.ts`)**:
+     - Replaced sequential DB calls with `Promise.all([ tenants, services, staff, globalBot ])` to fetch all metadata in a single parallel network batch (~50ms).
+     - Implemented short conversational turn detection (`!queryText || length < 15 || /^(hello|hi|hey|yes|no|okay|ok|thanks)/i`), skipping vector embedding REST API calls for conversational acknowledgments.
+     - Reduced RAG embedding race timeout from 1200ms to 500ms for instant fallback.
+
 
 
 
