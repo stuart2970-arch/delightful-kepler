@@ -166,8 +166,7 @@ test.describe.serial('Multi-Colleague Dashboard & RBAC Rota Systems', () => {
         await expect(page.locator('text=Professional Bio & Specialisms')).toBeVisible();
 
         // Check if name is prepopulated
-        const nameInput = page.locator('input[type="text"]').first();
-        await expect(nameInput).toHaveValue('Sarah Miller');
+        await expect(page.locator('form input[type="text"]').first()).toHaveValue('Sarah Miller', { timeout: 10000 });
 
         // Update bio and shift patterns (local rota)
         await page.fill('textarea[placeholder*="Describe your qualifications"]', 'Senior stylist specializing in cuts and dynamic coloring.');

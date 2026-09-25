@@ -9,13 +9,29 @@ export async function GET(request: NextRequest) {
     if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
     // Fetch the logged-in colleague's profile and linked staff data in a single request
-    const { data, error } = await supabase
+    let { data, error } = await supabase
       .from('staff')
       .select('*, tenant:tenants(company_name)')
       .eq('user_id', user.id)
-      .single();
+      .maybeSingle();
 
-    if (error || !data) {
+    if (!data && user.email) {
+      const { data: emailData } = await supabase
+        .from('staff')
+        .select('*, tenant:tenants(company_name)')
+        .eq('email', user.email)
+        .maybeSingle();
+
+      if (emailData) {
+        data = emailData;
+        await supabase
+          .from('staff')
+          .update({ user_id: user.id })
+          .eq('id', emailData.id);
+      }
+    }
+
+    if (!data) {
       return NextResponse.json({ error: 'Colleague record not found' }, { status: 404 });
     }
 

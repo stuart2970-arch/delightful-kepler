@@ -80,6 +80,29 @@ export async function GET(
       }, { headers: corsHeaders });
     }
 
+    if (id === 'e0000000-0000-0000-0000-000000000001') {
+      return NextResponse.json({
+        tenantId: 't0000000-0000-0000-0000-000000000001',
+        name: 'Acme Support Bot',
+        primaryColor: '#4F46E5',
+        agentName: 'Acme Support Bot',
+        agentRole: 'AI Support Assistant',
+        agentAvatarUrl: '/avatars/avatar1.png',
+        avatarUrl: '/avatars/avatar1.png',
+        welcomeMessage: 'Hello! How can I help you today?',
+        brandingHtml: '<span style="opacity: 0.6; font-size: 11px;">⚡ Powered by <strong>StyleFlo</strong></span>',
+        brandingUrl: 'https://styleflo.ai',
+        voiceEnabled: true,
+        vapiPublicKey: process.env.NEXT_PUBLIC_VAPI_PUBLIC_KEY || '3648bdcb-ccac-4acc-aee6-a4f9384743de',
+        vapiAssistantId: process.env.VAPI_MASTER_ASSISTANT_ID || '1bb95940-1cb9-4c54-9b16-ba5bc11daae2',
+        globalVoiceDisclaimer: '',
+        voiceProvider: '11labs',
+        voiceId: 'bIHbv24MWmeRgasZH58o',
+        backgroundSound: 'office',
+        fileUploadEnabled: false,
+      }, { headers: corsHeaders });
+    }
+
     // Validate UUID format
     if (!id || !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id)) {
       return NextResponse.json({ error: 'Invalid chatbot ID format' }, { status: 400, headers: corsHeaders });

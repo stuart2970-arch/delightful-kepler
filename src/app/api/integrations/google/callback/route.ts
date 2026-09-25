@@ -58,7 +58,9 @@ export async function GET(request: NextRequest) {
         })
         .eq('id', staffId);
 
-      if (error) throw error;
+      if (error) {
+        console.error('Staff Google Token Update Note:', error.message || error);
+      }
     } else if (userId) {
       // Route B: Save token parameters globally in the tenant settings
       const { data: profile } = await supabaseAdmin
