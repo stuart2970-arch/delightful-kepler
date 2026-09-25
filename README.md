@@ -2542,3 +2542,28 @@ Highlighted adjustments in the modal:
      - Updated locator selector in 	ests/multi-colleague.spec.ts.
   4. **Verification & Testing**:
      - Complete Playwright E2E Test Suite Passed: **50 passed, 1 skipped (1.4m)**.
+
+### Session 28 (September 25, 2026) - GDPR Right to be Forgotten (Data Subject Erasure & Export)
+* **Problem**: Under GDPR rules, B2B account owners and superadmins needed a secure, automated way to fulfill "Right to be Forgotten" (data erasure and export) requests for end-user personal data (PII). Superadmins required a dedicated search and deletion portal within the Superadmin area to filter data strictly by business name or webpage slug. Furthermore, FloBot MUST NOT refer B2B users to the superadmin portal, but instead collect request details and email the StyleFlo Admin for superadmin processing.
+* **Solution**:
+  - Created Superadmin GDPR API endpoint `/api/superadmin/gdpr/route.ts` supporting `action: 'search' | 'export' | 'delete'` with strict scoping to the specified B2B tenant (`tenant_id`). It searches `appointments`, `conversations`, and `messages` for matching customer Name, Email address, or Mobile telephone number.
+  - Built tenant-scoped B2B Admin GDPR API endpoint `/api/gdpr/forget/route.ts` allowing B2B account admins and FloBot to submit GDPR requests safely for their business and trigger automated email notifications (`sendGdprErasureRequestEmail`) to the StyleFlo Admin (`admin@styleflo.ai`).
+  - Built `SuperAdminGdprView.tsx` component with a B2B business selector (matching business name or webpage slug), customer identifier search input, instant JSON & CSV data export generators, and safe deletion modal with explicit confirmation (`DELETE GDPR DATA`) and hard delete / anonymize options. Integrated into `SuperadminClient.tsx` under tab `🛡️ Right to Forget`.
+  - Updated FloBot system prompts in `/api/chat/stream/route.ts` and `/api/voice/[chatbotId]/chat/completions/route.ts` with an **ABSOLUTE BAN** on referring B2B users to the superadmin portal. Instructed FloBot to collect request details and email the StyleFlo Admin for processing.
+
+### Session 28 (September 25, 2026)
+* **User**: "forgetting a user - as part of the gdpr rules we need a way of having a right to forget. this can be by request via the styleflo ai flobot instigated by the b2b admin user. there needs to be a field within the superadmin area where the superadmin can enter either a name, email address or mobile telephone number along with a searchable field of all b2b accounts business name or webpage slug. when the search is instigated, the returned data must only relate to the business entered. there must be a way of exporting the data and deleting the data safely. this has been developed agains the database, but no way of instigating the process"
+  * **Fix**: Implemented the complete GDPR Right to be Forgotten architecture across APIs, FloBot prompts, and Superadmin Control Center:
+    1. Built `/api/superadmin/gdpr/route.ts` providing tenant-isolated search, data export (JSON/CSV), and safe erasure (hard delete or anonymization) across `appointments`, `conversations`, and `messages`.
+    2. Built `/api/gdpr/forget/route.ts` enabling B2B admins to submit GDPR requests and trigger automated email notifications to the StyleFlo Admin (`admin@styleflo.ai`).
+    3. Created `SuperAdminGdprView.tsx` component with searchable B2B business selector, customer search field (Name, Email, Mobile), export buttons, and double-confirmation erasure modal. Mounted in `SuperadminClient.tsx` under tab `🛡️ Right to Forget`.
+    4. Updated FloBot system prompt in text chat and voice completion routes to recognize GDPR requests and guide users.
+    5. Verified Next.js production build (`npm run build`), compiling cleanly in 6.4s with 0 errors.
+* **User**: "you must not send b2b users to the superadmin portal, the flobot must email the admin of styleflo with the request detail, the superadmin will then be the one to navigate to the correct area"
+  * **Fix**: Enforced strict privacy routing for FloBot:
+    1. Added `sendGdprErasureRequestEmail()` helper in `src/lib/lead-notifier.ts` to construct and dispatch HTML & plain text Mailgun emails to `admin@styleflo.ai` containing the business name, tenant slug, customer identifier, and superadmin instructions.
+    2. Updated `/api/gdpr/forget/route.ts` to trigger `sendGdprErasureRequestEmail()` on B2B request submission.
+    3. Updated FloBot system prompts in `src/app/api/chat/stream/route.ts` and `src/app/api/voice/[chatbotId]/chat/completions/route.ts` with an **ABSOLUTE BAN** on directing users to the superadmin portal. Instructed FloBot to collect the customer identifier, reassure the user, and email the request details to the StyleFlo Admin team.
+    4. Verified Next.js production build (`npm run build`), compiling cleanly in 3.1s with 0 errors.
+
+

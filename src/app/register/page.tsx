@@ -10,8 +10,11 @@ function RegisterContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
 
-  const planParam = searchParams.get('plan') || 'starter';
-  const promoParam = searchParams.get('promo') || '1monthfree';
+  const planParam = searchParams.get('plan') || 'basic';
+  const promoParam = searchParams.get('promo') || '';
+  const addonsParam = searchParams.get('addons') || searchParams.get('addon') || '';
+  const addonsList = addonsParam ? addonsParam.split(',').filter(Boolean) : [];
+  const hasAddons = addonsList.length > 0;
 
   useEffect(() => {
     trackVisitorNotSignedUp('register_page', { plan: planParam });
@@ -85,16 +88,13 @@ function RegisterContent() {
   }, [companyName, customSlug]);
 
   const getPlanBadge = () => {
-    switch (planParam.toLowerCase()) {
-      case 'basic':
-        return { name: 'Basic Tier', price: '£5.99/mo', tag: '1st Month Free' };
-      case 'premium':
-        return { name: 'Premium Tier', price: '£79/mo', tag: '1st Month Free (Most Popular)' };
-      case 'ultimate':
-        return { name: 'Ultimate Tier', price: 'POA', tag: 'Enterprise Support' };
-      default:
-        return { name: 'Starter Tier', price: '£29/mo', tag: '1st Month Free' };
-    }
+    return {
+      name: 'Basic Subscription',
+      price: '£9.99/mo',
+      tag: hasAddons
+        ? `Basic £9.99/mo + ${addonsList.length} Bolt-on${addonsList.length > 1 ? 's' : ''}`
+        : 'No setup fee • Cancel anytime'
+    };
   };
 
   const planInfo = getPlanBadge();
@@ -118,9 +118,10 @@ function RegisterContent() {
         window.location.hostname === 'localhost' || 
         window.location.hostname === '127.0.0.1'
       );
+      const checkoutNext = `/api/billing/checkout?plan=${planParam || 'basic'}${addonsParam ? `&addons=${encodeURIComponent(addonsParam)}` : ''}`;
       const redirectUrl = isLocal 
-        ? `${window.location.origin}/dashboard`
-        : 'https://app.styleflo.ai/dashboard';
+        ? `${window.location.origin}/auth/callback?next=${encodeURIComponent(checkoutNext)}`
+        : `https://app.styleflo.ai/auth/callback?next=${encodeURIComponent(checkoutNext)}`;
 
       trackSignUp('google', planParam);
       const { error } = await supabase.auth.signInWithOAuth({
@@ -238,9 +239,31 @@ function RegisterContent() {
       trackSignUp('email', planParam);
 
       if (data?.session === null) {
-        setSuccessMessage("Account created successfully! Please check your email to verify your account and claim your 1st month free.");
+        setSuccessMessage("Account created successfully! Please check your email to verify your account, then sign in to complete your subscription.");
       } else {
-        router.push(`/dashboard?plan=${planParam}&promo=${promoParam}`);
+        // Trigger Stripe Checkout with plan and bolt-ons in basket
+        const wpAppUrl = isLocal ? 'https://styleflo.test/app' : 'https://styleflo.ai/app';
+        const checkoutRes = await fetch('/api/billing/checkout', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            plan: planParam || 'basic',
+            planTier: 'base_tier',
+            customerEmail: email,
+            addons: addonsList,
+            returnUrl: wpAppUrl,
+          }),
+        });
+        const checkoutData = await checkoutRes.json();
+        if (checkoutData?.url) {
+          if (typeof window !== 'undefined' && window.top) {
+            window.top.location.href = checkoutData.url;
+          } else if (typeof window !== 'undefined') {
+            window.location.href = checkoutData.url;
+          }
+          return;
+        }
+        router.push(`/dashboard?plan=${planParam}`);
       }
     } catch (err: any) {
       console.error("Signup error:", err);
@@ -267,10 +290,10 @@ function RegisterContent() {
         {/* Selected Plan Banner */}
         <div className="bg-gradient-to-r from-[#260475]/60 to-[#7E5FBB]/40 border border-purple-500/30 rounded-2xl p-4 mb-6 text-center space-y-1 shadow-inner">
           <span className="text-[10px] uppercase tracking-wider font-extrabold text-purple-200 bg-purple-500/30 px-2.5 py-0.5 rounded-full border border-purple-400/30">
-            🎉 {planInfo.tag}
+            ⚡ {planInfo.tag}
           </span>
-          <h2 className="text-base font-bold text-white mt-1">{planInfo.name} Subscription</h2>
-          <p className="text-xs text-purple-200/90">Try 30 days risk-free. Cancel anytime.</p>
+          <h2 className="text-base font-bold text-white mt-1">{planInfo.name} ({planInfo.price})</h2>
+          <p className="text-xs text-purple-200/90">24/7 AI Receptionist & Web Chatbot • Cancel anytime</p>
         </div>
 
         {error && (
@@ -477,7 +500,7 @@ function RegisterContent() {
             disabled={loading || !termsAccepted}
             className="w-full h-12 bg-gradient-to-r from-[#260475] via-[#7E5FBB] to-[#9678D3] hover:from-[#1f0360] hover:to-[#7E5FBB] text-white font-bold text-sm rounded-xl shadow-lg shadow-purple-950/50 active:scale-[0.99] transition-all disabled:opacity-50 mt-2"
           >
-            {loading ? 'Creating Account & Claiming Free Month...' : `Claim 1st Month Free on ${planInfo.name}`}
+            {loading ? 'Creating Account & Opening Checkout...' : `Continue to Checkout (£9.99/mo)`}
           </button>
         </form>
 

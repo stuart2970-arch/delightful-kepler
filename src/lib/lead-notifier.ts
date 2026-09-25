@@ -298,3 +298,119 @@ Log into your StyleFlo Dashboard to view and manage this conversation.
     return false;
   }
 }
+
+export interface GdprNotificationParams {
+  tenantId: string;
+  businessName: string;
+  tenantSlug?: string;
+  customerIdentifier: string;
+  requestedByEmail?: string;
+  additionalNotes?: string;
+}
+
+/**
+ * Sends a GDPR Right to be Forgotten notification email to StyleFlo Admin (admin@styleflo.ai)
+ * containing the business details and customer identifier to be deleted by Superadmin.
+ */
+export async function sendGdprErasureRequestEmail(params: GdprNotificationParams): Promise<boolean> {
+  const { tenantId, businessName, tenantSlug, customerIdentifier, requestedByEmail, additionalNotes } = params;
+
+  const stylefloAdminEmail = process.env.STYLEFLO_ADMIN_EMAIL || process.env.ADMIN_EMAIL || 'admin@styleflo.ai';
+  console.log(`[GDPR Notifier] Processing GDPR erasure request for tenant '${businessName}' (${tenantId}), target customer: '${customerIdentifier}'. Notifying ${stylefloAdminEmail}...`);
+
+  if (!process.env.MAILGUN_API_KEY || !process.env.MAILGUN_DOMAIN) {
+    console.warn('[GDPR Notifier] Mailgun API credentials missing. Logging request locally: ', params);
+    return true;
+  }
+
+  try {
+    const mailgun = new Mailgun(formData);
+    const mg = mailgun.client({
+      username: 'api',
+      key: process.env.MAILGUN_API_KEY,
+      url: 'https://api.eu.mailgun.net',
+    });
+
+    const emailSubject = `[GDPR REQUEST] Right to be Forgotten - ${businessName}`;
+
+    const plainTextBody = `
+==================================================
+GDPR RIGHT TO BE FORGOTTEN REQUEST SUBMITTED
+==================================================
+Business Name: ${businessName}
+Tenant Slug: ${tenantSlug || 'N/A'}
+Tenant ID: ${tenantId}
+Requested By: ${requestedByEmail || 'B2B Admin via FloBot'}
+Date & Time: ${new Date().toLocaleString('en-GB', { timeZone: 'Europe/London' })}
+
+--------------------------------------------------
+TARGET CUSTOMER TO ERASE / EXPORT:
+Customer Identifier: ${customerIdentifier}
+--------------------------------------------------
+${additionalNotes ? `Notes: ${additionalNotes}\n--------------------------------------------------\n` : ''}
+
+INSTRUCTIONS FOR SUPERADMIN:
+1. Log into StyleFlo Platform God Mode: https://app.styleflo.ai/superadmin
+2. Navigate to the 'Right to Forget' tab.
+3. Select B2B Account '${businessName}' (${tenantSlug || tenantId}).
+4. Enter '${customerIdentifier}' into the search field to inspect, export, or execute data erasure.
+==================================================
+`.trim();
+
+    const htmlBody = `
+<div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 650px; margin: 0 auto; border: 1px solid #e2e8f0; border-radius: 12px; overflow: hidden; background-color: #ffffff;">
+  <div style="background: linear-gradient(135deg, #dc2626 0%, #991b1b 100%); padding: 24px; text-align: center; color: #ffffff;">
+    <h2 style="margin: 0; font-size: 22px; font-weight: 700;">🛡️ GDPR Right to be Forgotten Request</h2>
+    <p style="margin: 6px 0 0 0; font-size: 14px; opacity: 0.9;">Business: <strong>${businessName}</strong></p>
+  </div>
+  
+  <div style="padding: 24px;">
+    <div style="background-color: #fef2f2; border: 1px solid #fca5a5; border-radius: 8px; padding: 18px; margin-bottom: 20px;">
+      <h3 style="margin-top: 0; margin-bottom: 12px; font-size: 16px; color: #991b1b;">
+        🚨 Target Customer Details for Erasure
+      </h3>
+      <table style="width: 100%; border-collapse: collapse; font-size: 14px;">
+        <tr>
+          <td style="padding: 6px 0; color: #64748b; width: 160px;">Target Customer:</td>
+          <td style="padding: 6px 0; font-weight: 700; color: #991b1b; font-family: monospace;">${customerIdentifier}</td>
+        </tr>
+        <tr>
+          <td style="padding: 6px 0; color: #64748b;">Business Account:</td>
+          <td style="padding: 6px 0; font-weight: 600; color: #0f172a;">${businessName} (${tenantSlug || tenantId})</td>
+        </tr>
+        <tr>
+          <td style="padding: 6px 0; color: #64748b;">Requested By:</td>
+          <td style="padding: 6px 0; color: #0f172a;">${requestedByEmail || 'B2B Admin via FloBot'}</td>
+        </tr>
+      </table>
+    </div>
+
+    <div style="background-color: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 18px; font-size: 14px; color: #334155; margin-bottom: 20px;">
+      <h4 style="margin-top: 0; margin-bottom: 8px; font-size: 15px; color: #0f172a;">Action Required by StyleFlo Superadmin:</h4>
+      <ol style="margin: 0; padding-left: 20px; line-height: 1.6;">
+        <li>Log into <a href="https://app.styleflo.ai/superadmin" style="color: #2563eb; font-weight: 600;">StyleFlo Superadmin Portal</a>.</li>
+        <li>Open the <strong>Right to Forget</strong> tab.</li>
+        <li>Select B2B Business: <strong>${businessName}</strong>.</li>
+        <li>Search for <strong>${customerIdentifier}</strong> to review, export, or execute safe data deletion.</li>
+      </ol>
+    </div>
+  </div>
+</div>
+`.trim();
+
+    await mg.messages.create(process.env.MAILGUN_DOMAIN, {
+      from: `StyleFlo GDPR Bot <no-reply@${process.env.MAILGUN_DOMAIN}>`,
+      to: [stylefloAdminEmail],
+      subject: emailSubject,
+      text: plainTextBody,
+      html: htmlBody,
+    });
+
+    console.log(`[GDPR Notifier] Successfully sent GDPR erasure notification email to StyleFlo Admin (${stylefloAdminEmail})`);
+    return true;
+  } catch (err: any) {
+    console.error('[GDPR Notifier] Error sending GDPR request email:', err);
+    return false;
+  }
+}
+

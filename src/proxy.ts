@@ -27,7 +27,7 @@ export async function proxy(request: NextRequest) {
   // 1. FRONT-DOOR BOT PROTECTION: Turnstile verification for unauthenticated signup & widget init
   if (PUBLIC_TURNSTILE_ROUTES.some((route) => pathname.startsWith(route))) {
     const turnstileToken = request.headers.get('x-turnstile-token');
-    const clientIp = request.headers.get('x-forwarded-for') || request.ip || '127.0.0.1';
+    const clientIp = request.headers.get('x-forwarded-for') || (request as any).ip || '127.0.0.1';
     const isDevSecret = process.env.CLOUDFLARE_TURNSTILE_SECRET_KEY === '1x0000000000000000000000000000000AA';
 
     if (!turnstileToken) {
@@ -192,6 +192,11 @@ export async function proxy(request: NextRequest) {
   };
 
   if (request.nextUrl.pathname === '/') {
+    if (request.nextUrl.searchParams.get('mode') === 'register') {
+      const registerUrl = request.nextUrl.clone();
+      registerUrl.pathname = '/register';
+      return redirectWithCookies(registerUrl);
+    }
     const dashboardUrl = request.nextUrl.clone();
     dashboardUrl.pathname = '/dashboard';
     return redirectWithCookies(dashboardUrl);

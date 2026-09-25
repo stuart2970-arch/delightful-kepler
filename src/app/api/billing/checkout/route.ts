@@ -61,6 +61,7 @@ export async function GET(req: Request) {
     const plan = searchParams.get('plan') || 'basic';
     const returnUrl = searchParams.get('return_url') || searchParams.get('returnUrl');
     const rawAddons = searchParams.get('addons') || searchParams.get('addonCatalogIds');
+    const customerEmail = searchParams.get('customerEmail') || searchParams.get('email');
     const selectedAddonIds = parseSelectedAddons(rawAddons);
 
     const stripe = new Stripe(apiKey, {
@@ -129,6 +130,7 @@ export async function GET(req: Request) {
     const session = await stripe.checkout.sessions.create({
       mode: 'subscription',
       payment_method_types: ['card'],
+      customer_email: customerEmail || undefined,
       line_items: lineItems,
       subscription_data: {
         metadata: sessionMetadata,
