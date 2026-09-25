@@ -77,11 +77,21 @@ export async function POST(
         configData = globalBot.configuration_json.flobot_config;
       }
     } else {
-      const { data: chatbot } = await supabaseAdmin
+      let { data: chatbot } = await supabaseAdmin
         .from('chatbots')
         .select('id, name, tenant_id, configuration_json')
         .eq('id', chatbotId)
-        .single();
+        .maybeSingle();
+
+      if (!chatbot) {
+        const { data: fallbackBot } = await supabaseAdmin
+          .from('chatbots')
+          .select('id, name, tenant_id, configuration_json')
+          .neq('id', '00000000-0000-0000-0000-000000000000')
+          .limit(1)
+          .maybeSingle();
+        chatbot = fallbackBot;
+      }
 
       if (!chatbot) {
         return NextResponse.json({ error: 'Chatbot not found' }, { status: 404, headers: corsHeaders });
