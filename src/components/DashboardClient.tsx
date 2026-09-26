@@ -298,11 +298,30 @@ export default function DashboardClient({
     if (typeof window !== 'undefined') {
       const params = new URLSearchParams(window.location.search);
       const checkoutStatus = params.get('checkout_status');
+      const addon = params.get('addon') || params.get('addonCatalogId');
+      const tabParam = params.get('tab');
+
       if (checkoutStatus === 'success') {
-        setActiveTab('telephony');
+        let targetTab: any = 'telephony';
+        let notificationMessage = '🎉 Subscription & Add-on payment successful! Your workspace features have been updated.';
+
+        if (addon === 'google_calendar_addon' || tabParam === 'scheduling') {
+          targetTab = 'scheduling';
+          notificationMessage = '🎉 Google Calendar Integration payment successful! Two-way real-time calendar synchronization is now active.';
+        } else if (addon === 'data_pack_500' || tabParam === 'knowledge') {
+          targetTab = 'knowledge';
+          notificationMessage = '🎉 Knowledge Base Capacity payment successful! Additional vector storage chunks have been added to your workspace.';
+        } else if (addon === 'landline_addon' || addon === 'mobile_addon' || addon === 'sms_pack_100' || addon === 'voice_pack_20' || tabParam === 'telephony') {
+          targetTab = 'telephony';
+          notificationMessage = '🎉 Subscription & Add-on payment successful! Your telephone channel is active. Search and select your preferred number below.';
+        } else if (tabParam) {
+          targetTab = tabParam;
+        }
+
+        setActiveTab(targetTab);
         setCheckoutNotification({
           type: 'success',
-          message: '🎉 Subscription & Add-on payment successful! Your telephone channel is active. Search and select your preferred number below.',
+          message: notificationMessage,
         });
         window.history.replaceState({}, document.title, window.location.pathname);
       } else if (checkoutStatus === 'cancelled') {

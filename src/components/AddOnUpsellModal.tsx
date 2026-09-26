@@ -92,7 +92,16 @@ export default function AddOnUpsellModal({ isOpen, onClose, category, tenantId }
     setError(null);
     try {
       const isLocal = typeof window !== 'undefined' && (window.location.hostname.includes('localhost') || window.location.hostname.includes('.test'));
-      const wpAppUrl = isLocal ? 'https://styleflo.test/app' : 'https://styleflo.ai/app';
+      const baseUrl = isLocal ? 'https://styleflo.test/app' : 'https://styleflo.ai/app';
+
+      let targetTab = 'telephony';
+      if (category === 'google_calendar' || addonCatalogId === 'google_calendar_addon') {
+        targetTab = 'scheduling';
+      } else if (category === 'data_pack' || addonCatalogId === 'data_pack_500') {
+        targetTab = 'knowledge';
+      }
+
+      const returnUrl = `${baseUrl}?tab=${targetTab}&addon=${addonCatalogId}`;
 
       const response = await fetch('/api/billing/checkout', {
         method: 'POST',
@@ -105,7 +114,7 @@ export default function AddOnUpsellModal({ isOpen, onClose, category, tenantId }
           customSms,
           autoTopup,
           autoTopupThreshold,
-          returnUrl: wpAppUrl,
+          returnUrl,
         }),
       });
 

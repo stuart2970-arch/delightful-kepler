@@ -37,6 +37,11 @@ const MODULAR_ADDON_DEFINITIONS: Record<string, { name: string; description: str
   },
 };
 
+function appendQueryParams(baseUrl: string, queryParams: string): string {
+  const separator = baseUrl.includes('?') ? '&' : '?';
+  return `${baseUrl}${separator}${queryParams}`;
+}
+
 function parseSelectedAddons(input: any): string[] {
   if (!input) return [];
   if (Array.isArray(input)) return input.filter(id => Boolean(MODULAR_ADDON_DEFINITIONS[id]));
@@ -136,8 +141,8 @@ export async function GET(req: Request) {
         metadata: sessionMetadata,
       },
       metadata: sessionMetadata,
-      success_url: `${returnUrl || wpAppUrl}?checkout_status=success&session_id={CHECKOUT_SESSION_ID}`,
-      cancel_url: `${returnUrl || (isLocal ? 'https://styleflo.test/#pricing' : 'https://styleflo.ai/#pricing')}?checkout_status=cancelled`,
+      success_url: appendQueryParams(returnUrl || wpAppUrl, 'checkout_status=success&session_id={CHECKOUT_SESSION_ID}'),
+      cancel_url: appendQueryParams(returnUrl || (isLocal ? 'https://styleflo.test/#pricing' : 'https://styleflo.ai/#pricing'), 'checkout_status=cancelled'),
     });
 
     return NextResponse.redirect(session.url, 303);
@@ -356,8 +361,8 @@ export async function POST(req: Request) {
         ...(isOneOff
           ? { invoice_creation: { enabled: true } }
           : { subscription_data: { metadata: metadataPayload } }),
-        success_url: `${returnUrl || wpAppUrl}?checkout_status=success&session_id={CHECKOUT_SESSION_ID}`,
-        cancel_url: `${returnUrl || wpAppUrl}?checkout_status=cancelled`,
+        success_url: appendQueryParams(returnUrl || wpAppUrl, 'checkout_status=success&session_id={CHECKOUT_SESSION_ID}'),
+        cancel_url: appendQueryParams(returnUrl || wpAppUrl, 'checkout_status=cancelled'),
       };
 
       if (tenant?.stripe_customer_id) {
@@ -491,8 +496,8 @@ export async function POST(req: Request) {
           metadata: sessionMetadata,
         },
         metadata: sessionMetadata,
-        success_url: `${returnUrl || wpAppUrl}?checkout_status=success&session_id={CHECKOUT_SESSION_ID}`,
-        cancel_url: `${returnUrl || (isLocal ? 'https://styleflo.test/#pricing' : 'https://styleflo.ai/#pricing')}?checkout_status=cancelled`,
+        success_url: appendQueryParams(returnUrl || wpAppUrl, 'checkout_status=success&session_id={CHECKOUT_SESSION_ID}'),
+        cancel_url: appendQueryParams(returnUrl || (isLocal ? 'https://styleflo.test/#pricing' : 'https://styleflo.ai/#pricing'), 'checkout_status=cancelled'),
       });
 
       return NextResponse.json({ url: session.url, sessionId: session.id }, { headers: corsHeaders });
