@@ -2551,6 +2551,17 @@ Highlighted adjustments in the modal:
   - Built `SuperAdminGdprView.tsx` component with a B2B business selector (matching business name or webpage slug), customer identifier search input, instant JSON & CSV data export generators, and safe deletion modal with explicit confirmation (`DELETE GDPR DATA`) and hard delete / anonymize options. Integrated into `SuperadminClient.tsx` under tab `🛡️ Right to Forget`.
   - Updated FloBot system prompts in `/api/chat/stream/route.ts` and `/api/voice/[chatbotId]/chat/completions/route.ts` with an **ABSOLUTE BAN** on referring B2B users to the superadmin portal. Instructed FloBot to collect request details and email the StyleFlo Admin for processing.
 
+### 29. All-Accounts Isolation to Superadmin & Tier Data Accuracy Fix
+* **Problem**: 
+  1. Viewing all tenant accounts in the system was accessible in two locations: (a) in the admin area under Subscriptions & Add-ons (`DashboardClient.tsx` / `BillingView.tsx`), and (b) in `/superadmin` under Tenants & Usage (`SuperadminClient.tsx`).
+  2. The two views displayed contradictory data for the exact same accounts. For example, accounts on `base_tier` displayed as "BASE_TIER" in the admin dashboard, but rendered as "Ultimate" in `/superadmin`. This occurred because the `<select>` dropdown for editing plan tiers in `SuperadminClient.tsx` lacked an `<option value="base_tier">Base Tier</option>`, causing HTML `<select>` to fail to match `base_tier` and default to rendering the first option in the list ("Ultimate").
+* **Solution**:
+  - Removed the all-tenants list / Superadmin Control Center table and impersonate modal from the admin area under Subscriptions & Add-ons (`DashboardClient.tsx` and `BillingView.tsx`). The admin dashboard billing view now strictly displays the logged-in tenant's own plan, usage metrics, active add-ons, and available bolt-ons.
+  - Added `<option value="base_tier">Base Tier</option>` and complete plan tier options (`base_tier`, `basic`, `starter`, `premium`, `ultimate`, `trial`, `free`) to the tenant plan `<select>` in `SuperadminClient.tsx` with default fallback `tenant.plan_tier || 'base_tier'`.
+  - Updated `src/app/superadmin/page.tsx` tenant stat mapper to default fallback missing plan tiers to `'base_tier'`.
+
+---
+
 ### Session 28 (September 25, 2026)
 * **User**: "forgetting a user - as part of the gdpr rules we need a way of having a right to forget. this can be by request via the styleflo ai flobot instigated by the b2b admin user. there needs to be a field within the superadmin area where the superadmin can enter either a name, email address or mobile telephone number along with a searchable field of all b2b accounts business name or webpage slug. when the search is instigated, the returned data must only relate to the business entered. there must be a way of exporting the data and deleting the data safely. this has been developed agains the database, but no way of instigating the process"
   * **Fix**: Implemented the complete GDPR Right to be Forgotten architecture across APIs, FloBot prompts, and Superadmin Control Center:
@@ -2565,5 +2576,13 @@ Highlighted adjustments in the modal:
     2. Updated `/api/gdpr/forget/route.ts` to trigger `sendGdprErasureRequestEmail()` on B2B request submission.
     3. Updated FloBot system prompts in `src/app/api/chat/stream/route.ts` and `src/app/api/voice/[chatbotId]/chat/completions/route.ts` with an **ABSOLUTE BAN** on directing users to the superadmin portal. Instructed FloBot to collect the customer identifier, reassure the user, and email the request details to the StyleFlo Admin team.
     4. Verified Next.js production build (`npm run build`), compiling cleanly in 3.1s with 0 errors.
+
+### Session 29 (September 26, 2026)
+* **User**: "I have 2 ways of viewing all the accounts in the system, one in the admin area under subscriptions and add ons, and in /superadmin under tennants and usage. these are displaying different data, so ensure the data is acurate. plus, this data must only be availab;e in the /superadmin area"
+  * **Fix**: Restricted all-accounts management strictly to `/superadmin` and fixed tenant plan tier rendering accuracy:
+    1. Removed the Superadmin Control Center tenant list and impersonate overrides from `src/components/DashboardClient.tsx` and `src/components/dashboard-views/BillingView.tsx` under Subscriptions & Add-ons.
+    2. Fixed the plan tier `<select>` in `src/components/superadmin/SuperadminClient.tsx` by adding `<option value="base_tier">Base Tier</option>` and aligning default fallbacks to `'base_tier'`. This resolved the data discrepancy where `base_tier` accounts rendered as "Ultimate" in `/superadmin`.
+    3. Verified Next.js production build (`npx next build`), compiling cleanly in 4.9s with 0 errors.
+
 
 

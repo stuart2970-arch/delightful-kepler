@@ -766,16 +766,18 @@ export default function SuperadminClient({
                     </td>
                     <td className="px-6 py-4">
                       <select
-                        value={tenant.plan_tier || 'basic'}
+                        value={tenant.plan_tier || 'base_tier'}
                         onChange={(e) => handleUpdateTenantTier(tenant.id, e.target.value)}
                         disabled={updatingTenantId === tenant.id}
                         className="bg-gray-950 border border-gray-700 rounded-lg px-2.5 py-1 text-xs font-semibold text-white focus:outline-none focus:ring-1 focus:ring-indigo-500 capitalize disabled:opacity-50"
                       >
-                        <option value="ultimate">Ultimate</option>
-                        <option value="premium">Premium</option>
-                        <option value="starter">Starter</option>
-                        <option value="basic">Basic</option>
+                        <option value="base_tier">Base Tier</option>
+                        <option value="basic">Basic (Legacy)</option>
+                        <option value="starter">Starter (Legacy)</option>
+                        <option value="premium">Premium (Legacy)</option>
+                        <option value="ultimate">Ultimate (Legacy)</option>
                         <option value="trial">Trial</option>
+                        <option value="free">Free</option>
                       </select>
                     </td>
                     <td className="px-6 py-4">

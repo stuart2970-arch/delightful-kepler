@@ -141,7 +141,7 @@ export default async function SuperadminPage() {
     return {
       id: t.id || '',
       company_name: t.company_name || 'Unnamed Business',
-      plan_tier: t.plan_tier || 'free',
+      plan_tier: t.plan_tier || 'base_tier',
       is_active: t.is_active !== false,
       subscription_status: t.subscription_status || 'active',
       created_at: t.created_at || new Date().toISOString(),
