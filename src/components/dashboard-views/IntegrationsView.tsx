@@ -38,9 +38,47 @@ export default function IntegrationsView() {
   const [rwgPhone, setRwgPhone] = useState(rwgAddressSameAsTrading ? (tradingAddressPhone || twilioShadowNumber || '') : (rwgConfig?.rwg_phone || rwgConfig?.telephone || tradingAddressPhone || twilioShadowNumber || ''));
   const [isRegisteredBusinessAddress, setIsRegisteredBusinessAddress] = useState(rwgConfig?.is_registered_business_address || false);
 
+  const [businessNameInput, setBusinessNameInput] = useState(tenantName || '');
+  const [isPublishingPage, setIsPublishingPage] = useState(false);
+  const [publishedPageUrl, setPublishedPageUrl] = useState('');
+  const [publishPageError, setPublishPageError] = useState('');
+
+  const handlePublishBusinessPage = async () => {
+    if (!businessNameInput || !businessNameInput.trim()) {
+      alert('Please enter your official business name first.');
+      return;
+    }
+    setIsPublishingPage(true);
+    setPublishPageError('');
+    try {
+      const res = await fetch('/api/tenants/publish-page', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          tenantId,
+          businessName: businessNameInput
+        })
+      });
+      const data = await res.json();
+      if (!res.ok || !data.success) {
+        throw new Error(data.error || 'Failed to publish business page.');
+      }
+      setPublishedPageUrl(data.pageUrl);
+      useDashboardStore.setState({ tenantName: data.company_name });
+      alert(`Business page published successfully!\nURL: ${data.pageUrl}`);
+    } catch (err: any) {
+      console.error(err);
+      setPublishPageError(err.message || 'Failed to publish business page.');
+      alert('Error publishing page: ' + (err.message || 'Failed to publish page'));
+    } finally {
+      setIsPublishingPage(false);
+    }
+  };
+
   useEffect(() => {
     setIsRwgEnabled(rwgConfig?.is_rwg_enabled || false);
     setRwgBusinessName(rwgConfig?.rwg_business_name || rwgConfig?.business_name || tenantName || '');
+    setBusinessNameInput(tenantName || '');
     setRwgStreetAddress(rwgAddressSameAsTrading ? (tradingAddressStreet || businessAddress || '') : (rwgConfig?.rwg_street_address || rwgConfig?.street_address || tradingAddressStreet || businessAddress || ''));
     setRwgCity(rwgAddressSameAsTrading ? (tradingAddressCity || '') : (rwgConfig?.rwg_city || rwgConfig?.city || tradingAddressCity || ''));
     setRwgPostcode(rwgAddressSameAsTrading ? (tradingAddressPostcode || postcode || '') : (rwgConfig?.rwg_postcode || rwgConfig?.postcode || tradingAddressPostcode || postcode || ''));
@@ -223,24 +261,94 @@ export default function IntegrationsView() {
 
 
   return (
-    <>
-          {true && (
-            <div className="bg-white border border-[#f2f3f5] p-6 rounded-2xl shadow-sm space-y-6">
-              {/* Reserve with Google Integration */}
-              <div>
-                <div className="flex items-center justify-between mb-4">
+    <div className="space-y-6">
+              {/* Manual Business Page Setup & Publishing */}
+              <div className="bg-white border border-[#f2f3f5] p-6 rounded-2xl shadow-sm space-y-4">
+                <div className="flex items-center justify-between">
                   <div>
-                    <h3 className="text-lg font-bold text-[#260475]">Reserve with Google (Actions Center)</h3>
-                    <p className="text-xs text-[#434549] mt-0.5">Enable native "Book Online" functionality directly on your Google Maps and Search profile.</p>
+                    <h3 className="text-lg font-bold text-[#260475]">Public Business Page Setup</h3>
+                    <p className="text-xs text-[#434549] mt-0.5">
+                      Enter your official business name to overwrite registration placeholders and publish your live page to <code>styleflo.ai/business/[slug]</code>.
+                    </p>
                   </div>
-                  <div className={`px-3.5 py-1.5 rounded-full text-xs font-bold border shadow-sm ${
-                    rwgStatus === 'Active on Google' ? 'bg-emerald-50 border-emerald-300 text-emerald-800' :
-                    rwgStatus === 'Pending Verification' ? 'bg-amber-50 border-amber-300 text-amber-900' :
-                    'bg-[#f9f9fb] border-[#f2f3f5] text-[#434549]'
-                  }`}>
-                    Status: {rwgStatus}
+                  {publishedPageUrl && (
+                    <span className="px-3.5 py-1.5 rounded-full text-xs font-bold border shadow-sm bg-emerald-50 border-emerald-300 text-emerald-800">
+                      ● Page Published
+                    </span>
+                  )}
+                </div>
+
+                <div className="flex flex-col md:flex-row gap-3 pt-2">
+                  <div className="flex-1">
+                    <label className="block text-xs font-semibold text-[#212326] mb-1.5">Official Business Name</label>
+                    <input
+                      type="text"
+                      value={businessNameInput}
+                      onChange={(e) => setBusinessNameInput(e.target.value)}
+                      placeholder="e.g. Styleflo Salon & Spa"
+                      className="w-full h-[50px] bg-white border border-[#f2f3f5] rounded-[6px] px-3.5 py-2 text-sm text-[#212326] focus:outline-none focus:border-[#65bd7d] placeholder-gray-400 font-medium"
+                    />
+                  </div>
+
+                  <div className="flex items-end pb-[1px]">
+                    <button
+                      type="button"
+                      disabled={isPublishingPage || !businessNameInput.trim()}
+                      onClick={handlePublishBusinessPage}
+                      className="awb-btn w-full min-h-[50px] flex items-center justify-center gap-2 shadow-sm disabled:opacity-50 text-xs sm:text-sm px-5"
+                    >
+                      {isPublishingPage ? (
+                        <>
+                          <span className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                          Publishing Page...
+                        </>
+                      ) : (
+                        '🚀 Publish Business Page'
+                      )}
+                    </button>
                   </div>
                 </div>
+
+                {publishedPageUrl && (
+                  <div className="bg-emerald-50 border border-emerald-200 p-4 rounded-xl text-xs text-emerald-900 flex flex-col sm:flex-row sm:items-center justify-between gap-3 mt-2">
+                    <div>
+                      <p className="font-bold text-emerald-950">Your business page is live!</p>
+                      <p className="text-[11px] text-emerald-800 font-mono mt-0.5">{publishedPageUrl}</p>
+                    </div>
+                    <a
+                      href={publishedPageUrl}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs px-4 py-2 rounded-lg transition-colors text-center shrink-0 shadow-sm"
+                    >
+                      View Live Page ↗
+                    </a>
+                  </div>
+                )}
+
+                {publishPageError && (
+                  <div className="bg-rose-50 border border-rose-200 p-3.5 rounded-xl text-xs text-rose-800 font-medium">
+                    ⚠️ {publishPageError}
+                  </div>
+                )}
+              </div>
+
+              <div className="bg-white border border-[#f2f3f5] p-6 rounded-2xl shadow-sm space-y-6">
+                {/* Reserve with Google Integration */}
+                <div>
+                  <div className="flex items-center justify-between mb-4">
+                    <div>
+                      <h3 className="text-lg font-bold text-[#260475]">Reserve with Google (Actions Center)</h3>
+                      <p className="text-xs text-[#434549] mt-0.5">Enable native "Book Online" functionality directly on your Google Maps and Search profile.</p>
+                    </div>
+                    <div className={`px-3.5 py-1.5 rounded-full text-xs font-bold border shadow-sm ${
+                      rwgStatus === 'Active on Google' ? 'bg-emerald-50 border-emerald-300 text-emerald-800' :
+                      rwgStatus === 'Pending Verification' ? 'bg-amber-50 border-amber-300 text-amber-900' :
+                      'bg-[#f9f9fb] border-[#f2f3f5] text-[#434549]'
+                    }`}>
+                      Status: {rwgStatus}
+                    </div>
+                  </div>
 
                 <div className="bg-[#f9f9fb] border border-[#f2f3f5] p-5 rounded-xl space-y-4">
                   <div className="flex items-center gap-3 bg-white border border-[#f2f3f5] p-4 rounded-xl shadow-sm">
@@ -441,9 +549,7 @@ export default function IntegrationsView() {
                   )}
                 </div>
               </div>
-
             </div>
-          )}
-    </>
+          </div>
   );
 }

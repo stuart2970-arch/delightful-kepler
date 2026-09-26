@@ -79,8 +79,7 @@ async function fetchGoogleReviews(tenant: any, apiKey: string): Promise<{ rating
       headers: {
         'Content-Type': 'application/json',
         'X-Goog-Api-Key': apiKey,
-        'X-Goog-FieldMask': 'places.id,places.displayName,places.rating,places.userRatingCount,places.reviews,places.regularOpeningHours,places.photos',
-        'Referer': 'https://app.styleflo.ai/'
+        'X-Goog-FieldMask': 'places.id,places.displayName,places.rating,places.userRatingCount,places.reviews,places.regularOpeningHours,places.photos,places.photos.authorAttributions'
       },
       body: JSON.stringify({
         textQuery: query
@@ -123,9 +122,7 @@ async function fetchGoogleReviews(tenant: any, apiKey: string): Promise<{ rating
 
       const photoPromises = combinedPhotos.map(async (photo: any) => {
         try {
-          const mediaRes = await fetch(`https://places.googleapis.com/v1/${photo.name}/media?key=${apiKey}&maxWidthPx=1920&skipHttpRedirect=true`, {
-            headers: { 'Referer': 'https://app.styleflo.ai/' }
-          });
+          const mediaRes = await fetch(`https://places.googleapis.com/v1/${photo.name}/media?key=${apiKey}&maxWidthPx=1920&skipHttpRedirect=true`);
           if (mediaRes.ok) {
             const mediaData = await mediaRes.json();
             return mediaData.photoUri || null;
