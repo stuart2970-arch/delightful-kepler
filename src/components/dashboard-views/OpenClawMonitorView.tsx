@@ -477,16 +477,23 @@ export default function OpenClawMonitorView() {
                     try {
                       if (activeConfigModal.name === 'SMS (Twilio)') {
                         const newPhone = activePhoneOrHandle.trim() || null;
+                        const isMob = newPhone ? /^(?:\+447|07|447|00447)/.test(newPhone.replace(/[^\d+]/g, '')) : false;
+
+                        const payload = isMob 
+                          ? { tenantId, twilioMobileNumber: newPhone }
+                          : { tenantId, twilioShadowNumber: newPhone };
+
                         await fetch('/api/tenants/settings', {
                           method: 'PATCH',
                           headers: { 'Content-Type': 'application/json' },
-                          body: JSON.stringify({
-                            tenantId,
-                            twilioShadowNumber: newPhone,
-                            twilioMobileNumber: newPhone
-                          })
+                          body: JSON.stringify(payload)
                         });
-                        useDashboardStore.setState({ twilioShadowNumber: newPhone, twilioMobileNumber: newPhone });
+
+                        if (isMob) {
+                          useDashboardStore.setState({ twilioMobileNumber: newPhone });
+                        } else {
+                          useDashboardStore.setState({ twilioShadowNumber: newPhone });
+                        }
                       } else if (activeConfigModal.name === 'WhatsApp') {
                         const newPhone = activePhoneOrHandle.trim() || null;
                         await fetch('/api/tenants/settings', {

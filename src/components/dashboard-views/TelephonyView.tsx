@@ -172,6 +172,31 @@ export default function TelephonyView() {
     }
   };
 
+  const isMobileNumber = (num?: string | null): boolean => {
+    if (!num) return false;
+    const clean = num.replace(/[^\d+]/g, '');
+    return /^(?:\+447|07|447|00447)/.test(clean);
+  };
+
+  // Auto-heal: If twilioShadowNumber is a mobile number, move it to twilioMobileNumber in store and DB
+  useEffect(() => {
+    if (twilioShadowNumber && isMobileNumber(twilioShadowNumber)) {
+      const mob = twilioShadowNumber;
+      setTwilioMobileNumber(mob);
+      setTwilioShadowNumber(null);
+      getAuthHeaders({ 'Content-Type': 'application/json' }).then(headers => {
+        fetch('/api/tenants/settings', {
+          method: 'PATCH',
+          headers,
+          body: JSON.stringify({ tenantId, twilioShadowNumber: null, twilioMobileNumber: mob })
+        }).catch(console.error);
+      });
+    }
+  }, [twilioShadowNumber, tenantId]);
+
+  const effectiveLandline = twilioShadowNumber && !isMobileNumber(twilioShadowNumber) ? twilioShadowNumber : null;
+  const effectiveMobile = twilioMobileNumber || (twilioShadowNumber && isMobileNumber(twilioShadowNumber) ? twilioShadowNumber : null);
+
   const copyToClipboard = (text: string) => {
     navigator.clipboard.writeText(text);
     setCopyFeedback(text);
@@ -179,7 +204,7 @@ export default function TelephonyView() {
   };
 
   // Determine active number for currently selected channel
-  const currentActiveNumber = activeChannelTab === 'mobile' ? twilioMobileNumber : twilioShadowNumber;
+  const currentActiveNumber = activeChannelTab === 'mobile' ? effectiveMobile : effectiveLandline;
   const isChannelUnlocked = activeChannelTab === 'mobile' ? channelFlags.has_mobile : channelFlags.has_landline;
 
   // Phone calls strictly reflect calls routed via the dedicated phone numbers linked to the account
@@ -199,7 +224,7 @@ export default function TelephonyView() {
       </div>
 
       {/* BOLT-ON GATING: Require landline or mobile add-on */}
-      {!hasPhoneAddon && !twilioShadowNumber && !twilioMobileNumber ? (
+      {!hasPhoneAddon && !effectiveLandline && !effectiveMobile ? (
         <div className="bg-[var(--awb-color1)] border border-[var(--awb-color3)] p-6 md:p-8 rounded-2xl shadow-xl">
           <div className="flex flex-col items-center justify-center text-center space-y-5 py-8">
             <div className="w-16 h-16 bg-amber-50 border border-amber-200 text-amber-600 rounded-2xl flex items-center justify-center shadow-sm text-2xl">
@@ -238,7 +263,7 @@ export default function TelephonyView() {
           }`}
         >
           <span>📞 Local Landline Number</span>
-          {twilioShadowNumber ? (
+          {effectiveLandline ? (
             <span className="bg-emerald-500/10 text-emerald-600 text-[10px] px-2 py-0.5 rounded-full font-mono font-semibold">
               ✓ Active
             </span>
@@ -262,7 +287,7 @@ export default function TelephonyView() {
           }`}
         >
           <span>📱 Mobile Number</span>
-          {twilioMobileNumber ? (
+          {effectiveMobile ? (
             <span className="bg-emerald-500/10 text-emerald-600 text-[10px] px-2 py-0.5 rounded-full font-mono font-semibold">
               ✓ Active
             </span>

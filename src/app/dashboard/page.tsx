@@ -169,8 +169,18 @@ export default async function DashboardPage(props: { searchParams?: Promise<{ [k
         generalOperatingHours = tenant.general_operating_hours || {};
         operatingHoursOverrides = tenant.operating_hours_overrides || [];
         holidaySettings = tenant.holiday_settings || {};
-        initialTwilioShadowNumber = tenant.twilio_shadow_number || null;
-        initialTwilioMobileNumber = tenant.twilio_mobile_number || null;
+        
+        const rawShadow = tenant.twilio_shadow_number || null;
+        const rawMobile = tenant.twilio_mobile_number || null;
+        const isShadowMobile = rawShadow ? /^(?:\+447|07|447|00447)/.test(rawShadow.replace(/[^\d+]/g, '')) : false;
+
+        if (isShadowMobile) {
+          initialTwilioMobileNumber = rawMobile || rawShadow;
+          initialTwilioShadowNumber = null;
+        } else {
+          initialTwilioShadowNumber = rawShadow;
+          initialTwilioMobileNumber = rawMobile;
+        }
       }
 
       // Check Google Connection Status
@@ -238,8 +248,18 @@ export default async function DashboardPage(props: { searchParams?: Promise<{ [k
         generalOperatingHours = impTenant.general_operating_hours || {};
         operatingHoursOverrides = impTenant.operating_hours_overrides || [];
         holidaySettings = impTenant.holiday_settings || {};
-        initialTwilioShadowNumber = impTenant.twilio_shadow_number || null;
-        initialTwilioMobileNumber = impTenant.twilio_mobile_number || null;
+
+        const rawImpShadow = impTenant.twilio_shadow_number || null;
+        const rawImpMobile = impTenant.twilio_mobile_number || null;
+        const isImpShadowMobile = rawImpShadow ? /^(?:\+447|07|447|00447)/.test(rawImpShadow.replace(/[^\d+]/g, '')) : false;
+
+        if (isImpShadowMobile) {
+          initialTwilioMobileNumber = rawImpMobile || rawImpShadow;
+          initialTwilioShadowNumber = null;
+        } else {
+          initialTwilioShadowNumber = rawImpShadow;
+          initialTwilioMobileNumber = rawImpMobile;
+        }
       }
 
       // Check Google Connection Status for Impersonated Tenant

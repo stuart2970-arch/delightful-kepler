@@ -153,7 +153,10 @@ export async function POST(request: Request) {
     }
 
     // 4. Reset number column in Supabase
-    const clearPayload = isMobile ? { twilio_mobile_number: null } : { twilio_shadow_number: null };
+    const isSame = tenant.twilio_shadow_number && tenant.twilio_mobile_number && tenant.twilio_shadow_number === tenant.twilio_mobile_number;
+    const clearPayload = isSame
+      ? { twilio_shadow_number: null, twilio_mobile_number: null }
+      : isMobile ? { twilio_mobile_number: null } : { twilio_shadow_number: null };
     const { error: clearError } = await adminSupabase
       .from('tenants')
       .update(clearPayload)

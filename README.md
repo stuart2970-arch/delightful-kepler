@@ -2616,9 +2616,28 @@ Highlighted adjustments in the modal:
     3. Fixed a foreign key constraint violation (`23503`) in voice completion routes by ensuring `conversations` inserts pass the resolved `targetBotUuid` (`chatbotRecord.id`), enabling web voice sessions to save and display in `InboxView.tsx`.
     4. Verified production build (`npm run build`), compiling cleanly with 0 errors.
 
-### Session 31 (September 28, 2026)
-* **User**: "when a user selects a product and is taken to the registration page, the page is the dark version, this should be the same as the remainder of the site"
-  * **Fix**: Updated `src/app/register/page.tsx` styling from dark purple (`bg-[#0B091A]`, `bg-[#130F26]`) to light pearl theme (`bg-[#FAF9FC]`, `bg-white`), matching `login/page.tsx` and the rest of the application. Verified clean build (`npm run build`).
+### 32. Dedicated Landline vs. Mobile Phone Number Auto-Classification & Auto-Healing
+* **Problem**: Under **Phone Calls & AI Receptionist** (`TelephonyView.tsx`), selecting the **Local Landline Number** tab displayed a dedicated mobile phone number (`+447446900875`) under `ACTIVE DEDICATED LANDLINE NUMBER`. This occurred because:
+  1. Saving channel configurations in `OpenClawMonitorView.tsx` (SMS Twilio modal) updated both `twilioShadowNumber` (landline) and `twilioMobileNumber` (mobile) with the configured phone number, saving mobile numbers into the landline column (`twilio_shadow_number`).
+  2. `src/app/dashboard/page.tsx` directly loaded `tenant.twilio_shadow_number` into `initialTwilioShadowNumber` without checking if the number prefix was a UK mobile number (`+447...`, `07...`).
+  3. `TelephonyView.tsx` rendered `twilioShadowNumber` under the Landline tab without verifying whether it was actually a landline or a mobile number.
+* **Solution**:
+  - Implemented UK Mobile vs. Landline prefix classification (`isUkMobileNumber` regex `/^(?:\+447|07|447|00447)/`) across `src/app/dashboard/page.tsx`, `TelephonyView.tsx`, `OpenClawMonitorView.tsx`, and `/api/telephony/provision/route.ts`.
+  - Added auto-healing logic in `src/app/dashboard/page.tsx` and `TelephonyView.tsx`: if `twilio_shadow_number` contains a mobile number (`+447...`), it automatically routes the number to `twilioMobileNumber` / `twilio_mobile_number` and clears `twilioShadowNumber` / `twilio_shadow_number`.
+  - Updated `OpenClawMonitorView.tsx` SMS save handler to selectively update `twilioMobileNumber` for mobile numbers and `twilioShadowNumber` for landlines.
+  - Updated `/api/telephony/deprovision/route.ts` to clear both shadow and mobile columns if both held identical values.
+  - Verified production build (`npm run build && npm run build:widget`), compiling with 0 errors.
+
+---
+
+### Session 32 (September 28, 2026)
+* **User**: "the field for local phone number is showing the mobile number"
+  * **Fix**: Fixed misclassification of UK mobile numbers (`+447446900875`) as landline numbers:
+    1. Added `isUkMobileNumber` detection (`+447...`, `07...`) in `src/app/dashboard/page.tsx` server data loader and `src/components/dashboard-views/TelephonyView.tsx`.
+    2. Implemented client-side and server-side auto-healing: mobile numbers stored in `twilio_shadow_number` automatically migrate to `twilio_mobile_number`, clearing `twilio_shadow_number`.
+    3. Fixed `OpenClawMonitorView.tsx` SMS saving to prevent overwriting `twilioShadowNumber` when entering mobile numbers.
+    4. Verified production build (`npm run build`), compiling cleanly in 5.5s with 0 errors.
+
 
 
 
