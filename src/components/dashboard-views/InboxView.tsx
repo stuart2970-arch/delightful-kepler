@@ -334,7 +334,7 @@ export default function InboxView() {
                               ? 'bg-[#198fd9] text-white font-semibold rounded-tr-none'
                               : 'bg-gray-100 text-gray-800 rounded-tl-none border border-gray-200'
                           }`}>
-                            {msg.text_content}
+                            {msg.text_content || (msg as any).content || (msg as any).text || ''}
                           </div>
                         </div>
                       ))}
