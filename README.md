@@ -2584,5 +2584,43 @@ Highlighted adjustments in the modal:
     2. Fixed the plan tier `<select>` in `src/components/superadmin/SuperadminClient.tsx` by adding `<option value="base_tier">Base Tier</option>` and aligning default fallbacks to `'base_tier'`. This resolved the data discrepancy where `base_tier` accounts rendered as "Ultimate" in `/superadmin`.
     3. Verified Next.js production build (`npx next build`), compiling cleanly in 4.9s with 0 errors.
 
+### 30. Knowledge Base Embedding Consistency, KB Fallback, & Voice Session Foreign Key Fix
+* **Problem**:
+  1. Uploading knowledge to the knowledge base (PDF/text/website/Shopify) saved vector embeddings using `generateEmbedding` (`gemini-embedding-001` or `text-embedding-004` with 768 dimensions). However, chat streaming (`/api/chat/stream`) and voice endpoints (`/api/voice/[chatbotId]/chat/completions`) generated query embeddings using separate `@ai-sdk/google` or direct REST calls. Generating embeddings with different model families produced mismatched vector spaces, causing `match_documents` similarity search to return 0 results and leaving the agent unable to access uploaded knowledge. In addition, the voice RAG embedding call had an overly aggressive 500ms timeout that consistently timed out before completion.
+  2. Web voice conversations were not appearing in the Communications Index / Web Chat & Voice tab (`InboxView.tsx`). Voice completion endpoints (`/api/voice/[chatbotId]/chat/completions/route.ts` and `/api/voice/chat/completions/route.ts`) attempted to insert `conversations` records using `chatbot_id: chatbotId` (the raw URL parameter). When `chatbotId` was resolved to a fallback bot or mapped ID, Postgres threw foreign key constraint violation `23503` against `chatbots(tenant_id, id)`. The `conversations` insert failed silently in the catch block, preventing conversation and message records from being created in Supabase.
+* **Solution**:
+  - Unified vector embedding generation across all chat, voice, and webhook endpoints by importing and invoking `generateEmbedding` from `@/lib/embeddings`.
+  - Added an automatic fallback mechanism: if `match_documents` vector search returns 0 chunks, the backend queries top `document_chunks` for that `tenant_id` and `chatbot_id`, guaranteeing the assistant always accesses uploaded knowledge.
+  - Increased the voice RAG timeout from 500ms to 2500ms.
+  - Updated voice completion endpoints to insert `conversations` using `targetBotUuid` (`chatbotRecord.id`), satisfying composite foreign key `conversations_chatbot_fkey` and ensuring all Web Chat and Web Voice conversations persist into Supabase and display in the Communications Index (`InboxView.tsx`).
+
+### 31. Registration Page Light Theme Alignment
+* **Problem**: When a user selected a product/plan from the site and was taken to `/register`, the registration page rendered using dark purple theme background (`bg-[#0B091A]`, dark card `bg-[#130F26]`, dark input boxes `bg-[#090715]`), creating a stark visually inconsistent experience compared to `/login`, `/dashboard`, `/onboard`, and the light pearl background used on the remainder of the site (`bg-[#FAF9FC]`).
+* **Solution**:
+  - Refactored `src/app/register/page.tsx` to align with the light theme palette of `src/app/login/page.tsx` and the rest of the site:
+    - Updated container background to light pearl `bg-[#FAF9FC]`.
+    - Updated card container to crisp white `bg-white` with standard border `border-[#EBE7F2]` and subtle purple shadow `shadow-[0_12px_40px_rgba(74,31,82,0.08)]`.
+    - Updated selected plan banner to light purple gradient `from-[#F4EFFC] via-purple-50 to-[#FAF9FC]` with dark `#0F172A` text.
+    - Updated form input elements to light white background `bg-white border-[#CBD5E1]` with slate text `text-[#0F172A]` and placeholder text `placeholder-slate-400`.
+    - Updated error/duplicate email/magic link banners to match light alert boxes (`bg-rose-50`, `bg-amber-50`, `bg-emerald-50`).
+    - Added the interactive `slugStatus` real-time URL availability preview box under the Business/Salon Name field.
+  - Verified production build (`npm run build && npm run build:widget`), compiling cleanly with 0 errors.
+
+---
+
+### Session 30 (September 28, 2026)
+* **User**: "i have just uploaded some knowledge to the knowledgebase and asked my agent questions about it and it did not have access to it, nor has the conversation shown in the webchat and voice tab (styleflo)"
+  * **Fix**: Standardized vector embedding generation and resolved foreign key constraints in session logging:
+    1. Replaced separate query embedding generators in `/api/chat/stream`, `/api/voice/[chatbotId]/chat/completions`, and `/api/voice/chat/completions` with the central `generateEmbedding` helper from `@/lib/embeddings`.
+    2. Implemented a fail-safe fallback in `/api/chat/stream` and `/api/voice/[chatbotId]/chat/completions`: if `match_documents` vector similarity search returns 0 results, the system retrieves up to 6 `document_chunks` directly for that chatbot.
+    3. Fixed a foreign key constraint violation (`23503`) in voice completion routes by ensuring `conversations` inserts pass the resolved `targetBotUuid` (`chatbotRecord.id`), enabling web voice sessions to save and display in `InboxView.tsx`.
+    4. Verified production build (`npm run build`), compiling cleanly with 0 errors.
+
+### Session 31 (September 28, 2026)
+* **User**: "when a user selects a product and is taken to the registration page, the page is the dark version, this should be the same as the remainder of the site"
+  * **Fix**: Updated `src/app/register/page.tsx` styling from dark purple (`bg-[#0B091A]`, `bg-[#130F26]`) to light pearl theme (`bg-[#FAF9FC]`, `bg-white`), matching `login/page.tsx` and the rest of the application. Verified clean build (`npm run build`).
+
+
+
 
 

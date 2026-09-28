@@ -5,6 +5,7 @@ import { createGoogleGenerativeAI } from '@ai-sdk/google';
 import { checkAvailability, bookMeeting } from '@/app/api/chat/stream/calendar';
 
 import { getActiveGeminiModel } from '@/lib/gemini-config';
+import { generateEmbedding } from '@/lib/embeddings';
 
 export const maxDuration = 300;
 
@@ -102,10 +103,12 @@ export async function POST(
       configData = (chatbot.configuration_json || {}) as Record<string, any>;
     }
 
+    const targetBotUuid = chatbotRecord?.id || chatbotId;
+
     const [tenantResRes, servicesResRes, staffResRes, globalBotRes] = await Promise.all([
       supabaseAdmin.from('tenants').select('id, company_name, rwg_business_name, booking_mode, booking_url, currency, timezone').eq('id', tenantId).single(),
-      supabaseAdmin.from('services').select('id, name, base_price, duration_minutes, buffer_minutes, description').eq('tenant_id', tenantId).eq('chatbot_id', chatbotId),
-      supabaseAdmin.from('staff').select('id, name, role, google_calendar_id, working_days, staff_services(service_id, custom_price, custom_duration)').eq('tenant_id', tenantId).eq('chatbot_id', chatbotId),
+      supabaseAdmin.from('services').select('id, name, base_price, duration_minutes, buffer_minutes, description').eq('tenant_id', tenantId).eq('chatbot_id', targetBotUuid),
+      supabaseAdmin.from('staff').select('id, name, role, google_calendar_id, working_days, staff_services(service_id, custom_price, custom_duration)').eq('tenant_id', tenantId).eq('chatbot_id', targetBotUuid),
       supabaseAdmin.from('chatbots').select('configuration_json').eq('id', '00000000-0000-0000-0000-000000000000').single(),
     ]);
 
@@ -202,40 +205,41 @@ export async function POST(
     if (queryText && apiKey && !isShortConversational) {
       try {
         const fetchEmbed = async () => {
-          const embeddingRes = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/text-embedding-004:embedContent?key=${apiKey}`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              model: 'models/text-embedding-004',
-              content: { parts: [{ text: queryText }] }
-            })
-          });
+          const embedding = await generateEmbedding(queryText, apiKey);
 
-          if (embeddingRes.ok) {
-            const embedData = await embeddingRes.json();
-            const embedding = embedData.embedding?.values;
+          if (embedding && embedding.length > 0) {
+            const { data: matchedChunks, error: matchError } = await supabaseAdmin.rpc('match_documents', {
+              query_embedding: embedding,
+              match_threshold: 0.15,
+              match_count: 5,
+              targeting_tenant_id: tenantId,
+              targeting_chatbot_id: targetBotUuid
+            });
 
-            if (embedding) {
-              const { data: matchedChunks, error: matchError } = await supabaseAdmin.rpc('match_documents', {
-                query_embedding: embedding,
-                match_threshold: 0.2,
-                match_count: 5,
-                targeting_tenant_id: tenantId,
-                targeting_chatbot_id: chatbotId
-              });
-
-              if (!matchError && matchedChunks && matchedChunks.length > 0) {
-                return matchedChunks.map((chunk: any) => chunk.content).join('\n\n');
-              }
+            if (!matchError && matchedChunks && matchedChunks.length > 0) {
+              return matchedChunks.map((chunk: any) => chunk.content).join('\n\n');
             }
           }
+
+          // Fallback: If vector match returns 0 documents, fetch knowledge chunks directly
+          const { data: fallbackChunks } = await supabaseAdmin
+            .from('document_chunks')
+            .select('content')
+            .eq('tenant_id', tenantId)
+            .eq('chatbot_id', targetBotUuid)
+            .limit(5);
+
+          if (fallbackChunks && fallbackChunks.length > 0) {
+            return fallbackChunks.map((c: any) => c.content).join('\n\n');
+          }
+
           return '';
         };
 
-        // Race RAG embedding fetch with a 500ms timeout so voice responses are instant
+        // Race RAG embedding fetch with a 2500ms timeout for voice completion
         ragContext = await Promise.race([
           fetchEmbed(),
-          new Promise<string>((resolve) => setTimeout(() => resolve(''), 500))
+          new Promise<string>((resolve) => setTimeout(() => resolve(''), 2500))
         ]);
       } catch (e) {
         console.error('[Vapi Custom LLM] RAG embedding/match error:', e);
@@ -556,7 +560,7 @@ ${globalDisclaimer}`;
                 .from('conversations')
                 .insert({
                   tenant_id: tenantId,
-                  chatbot_id: chatbotId,
+                  chatbot_id: targetBotUuid,
                   user_session_id: sessionId,
                   is_voice_call: true
                 })

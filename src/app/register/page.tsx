@@ -280,38 +280,38 @@ function RegisterContent() {
   };
 
   return (
-    <main className="min-h-screen flex items-center justify-center bg-[#0B091A] p-4 font-sans relative overflow-hidden">
-      {/* StyleFlo Ambient Glow Decor */}
-      <div className="absolute top-[-10%] left-[-10%] w-[500px] h-[500px] bg-[#260475]/35 rounded-full blur-[120px] pointer-events-none"></div>
-      <div className="absolute bottom-[-10%] right-[-10%] w-[500px] h-[500px] bg-[#7E5FBB]/25 rounded-full blur-[120px] pointer-events-none"></div>
+    <main className="min-h-screen flex items-center justify-center bg-[#FAF9FC] p-4 font-sans relative overflow-hidden">
+      {/* StyleFlo Pearl Ambient Glow Decor */}
+      <div className="absolute top-[-10%] left-[-10%] w-[500px] h-[500px] bg-[#7E5FBB]/10 rounded-full blur-[120px] pointer-events-none"></div>
+      <div className="absolute bottom-[-10%] right-[-10%] w-[500px] h-[500px] bg-[#260475]/10 rounded-full blur-[120px] pointer-events-none"></div>
 
-      <div className="w-full max-w-md bg-[#130F26]/90 border border-purple-900/40 rounded-3xl p-8 md:p-10 shadow-[0_20px_50px_rgba(38,4,117,0.35)] relative z-10 backdrop-blur-2xl">
+      <div className="w-full max-w-md bg-white border border-[#EBE7F2] rounded-3xl p-8 md:p-10 shadow-[0_12px_40px_rgba(74,31,82,0.08)] relative z-10 backdrop-blur-xl">
 
         {/* Selected Plan Banner */}
-        <div className="bg-gradient-to-r from-[#260475]/60 to-[#7E5FBB]/40 border border-purple-500/30 rounded-2xl p-4 mb-6 text-center space-y-1 shadow-inner">
-          <span className="text-[10px] uppercase tracking-wider font-extrabold text-purple-200 bg-purple-500/30 px-2.5 py-0.5 rounded-full border border-purple-400/30">
+        <div className="bg-gradient-to-r from-[#F4EFFC] via-purple-50 to-[#FAF9FC] border border-[#7E5FBB]/30 rounded-2xl p-4 mb-6 text-center space-y-1 shadow-xs">
+          <span className="text-[10px] uppercase tracking-wider font-extrabold text-[#260475] bg-[#7E5FBB]/15 px-2.5 py-0.5 rounded-full border border-[#7E5FBB]/30">
             ⚡ {planInfo.tag}
           </span>
-          <h2 className="text-base font-bold text-white mt-1">{planInfo.name} ({planInfo.price})</h2>
-          <p className="text-xs text-purple-200/90">24/7 AI Receptionist & Web Chatbot • Cancel anytime</p>
+          <h2 className="text-base font-bold text-[#0F172A] mt-1">{planInfo.name} ({planInfo.price})</h2>
+          <p className="text-xs text-slate-600 font-medium">24/7 AI Receptionist & Web Chatbot • Cancel anytime</p>
         </div>
 
         {error && (
-          <div className="bg-rose-950/50 border border-rose-800 text-rose-300 text-xs p-3.5 rounded-xl mb-5 font-medium leading-relaxed">
+          <div className="mb-6 p-4 bg-rose-50 border border-rose-200 text-rose-800 rounded-xl text-xs font-medium leading-relaxed">
             {error}
           </div>
         )}
 
         {duplicateEmailDetected && (
-          <div className="bg-amber-950/70 border border-amber-500/50 rounded-2xl p-5 mb-6 text-left space-y-3 shadow-lg animate-in fade-in duration-300">
-            <div className="flex items-center gap-2 text-amber-300 font-bold text-sm">
+          <div className="bg-amber-50 border border-amber-200 rounded-2xl p-5 mb-6 text-left space-y-3 shadow-xs animate-in fade-in duration-300">
+            <div className="flex items-center gap-2 text-amber-900 font-bold text-sm">
               <span className="text-xl">⚠️</span>
               <span>Email Already Registered</span>
             </div>
-            <p className="text-xs text-amber-200/90 leading-relaxed">
-              The email <strong className="text-white underline">{email}</strong> is already registered to an existing StyleFlo account. Master emails cannot be linked to more than one account.
+            <p className="text-xs text-amber-800 leading-relaxed">
+              The email <strong className="text-amber-950 underline">{email}</strong> is already registered to an existing StyleFlo account. Master emails cannot be linked to more than one account.
             </p>
-            <p className="text-xs text-amber-100 font-semibold">
+            <p className="text-xs text-amber-900 font-semibold">
               Would you like us to send a magic login link to log into your account?
             </p>
             <div className="flex flex-col sm:flex-row gap-2 pt-1">
@@ -319,14 +319,14 @@ function RegisterContent() {
                 type="button"
                 onClick={handleSendMagicLink}
                 disabled={sendingMagicLink}
-                className="bg-amber-500 hover:bg-amber-400 text-gray-950 font-bold text-xs px-4 py-2.5 rounded-xl transition-all flex items-center justify-center gap-2 shadow-md disabled:opacity-50"
+                className="bg-[#260475] hover:bg-[#1d0359] text-white font-bold text-xs px-4 py-2.5 rounded-xl transition-all flex items-center justify-center gap-2 shadow-md disabled:opacity-50"
               >
                 {sendingMagicLink ? 'Sending Link...' : '📩 Send Magic Login Link'}
               </button>
               <button
                 type="button"
                 onClick={() => router.push(`/login?email=${encodeURIComponent(email)}`)}
-                className="bg-gray-800 hover:bg-gray-700 text-white font-semibold text-xs px-4 py-2.5 rounded-xl border border-gray-700 transition-all text-center"
+                className="bg-white hover:bg-slate-50 text-[#0F172A] font-semibold text-xs px-4 py-2.5 rounded-xl border border-slate-300 transition-all text-center"
               >
                 🔑 Sign In with Password
               </button>
@@ -335,19 +335,19 @@ function RegisterContent() {
         )}
 
         {magicLinkSent && (
-          <div className="bg-emerald-950/70 border border-emerald-500/50 rounded-2xl p-5 mb-6 text-left space-y-2 shadow-lg animate-in fade-in duration-300">
-            <div className="flex items-center gap-2 text-emerald-300 font-bold text-sm">
+          <div className="bg-emerald-50 border border-emerald-200 rounded-2xl p-5 mb-6 text-left space-y-2 shadow-xs animate-in fade-in duration-300">
+            <div className="flex items-center gap-2 text-emerald-900 font-bold text-sm">
               <span className="text-xl">✨</span>
               <span>Magic Login Link Sent!</span>
             </div>
-            <p className="text-xs text-emerald-200/90 leading-relaxed">
-              We've sent a magic login link to <strong className="text-white underline">{email}</strong>. Please check your inbox (and spam folder) to sign in directly.
+            <p className="text-xs text-emerald-800 leading-relaxed">
+              We've sent a magic login link to <strong className="text-emerald-950 underline">{email}</strong>. Please check your inbox (and spam folder) to sign in directly.
             </p>
           </div>
         )}
 
         {successMessage && (
-          <div className="bg-emerald-950/50 border border-emerald-800 text-emerald-300 text-xs p-4 rounded-xl mb-5 font-medium leading-relaxed">
+          <div className="mb-6 p-4 bg-emerald-50 border border-emerald-200 text-emerald-800 rounded-xl text-xs font-medium leading-relaxed">
             {successMessage}
           </div>
         )}
@@ -414,43 +414,91 @@ function RegisterContent() {
 
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
-            <label className="block text-xs font-bold text-purple-200/90 mb-1.5 uppercase tracking-wider">Business / Salon Name</label>
+            <label className="block text-xs font-bold text-[#1E293B] mb-1.5 uppercase tracking-wider">Business / Salon Name</label>
             <input
               type="text"
               required
               value={companyName}
-              onChange={(e) => setCompanyName(e.target.value)}
+              onChange={(e) => {
+                setCompanyName(e.target.value);
+                setCustomSlug('');
+              }}
               placeholder="e.g. StyleFlo Beauty Lounge"
-              className="w-full h-11 bg-[#090715]/90 border border-purple-900/50 rounded-xl px-4 text-sm text-white focus:outline-none focus:border-[#9678D3] focus:ring-2 focus:ring-[#7E5FBB]/40 transition-colors placeholder-purple-300/30"
+              className="w-full bg-white border border-[#CBD5E1] text-[#0F172A] rounded-xl px-4 py-3 focus:outline-none focus:border-[#7E5FBB] focus:ring-2 focus:ring-[#7E5FBB]/20 transition-all text-sm placeholder-slate-400 font-medium"
             />
+
+            {/* Real-time URL preview & Availability indicator */}
+            {slugStatus && slugStatus.slug && (
+              <div className={`mt-2.5 p-3 rounded-xl border text-xs transition-all ${
+                slugStatus.checking
+                  ? 'bg-slate-50 border-slate-200 text-slate-500'
+                  : slugStatus.available
+                  ? 'bg-emerald-50 border-emerald-200 text-emerald-800'
+                  : 'bg-rose-50 border-rose-200 text-rose-800'
+              }`}>
+                <div className="flex items-center justify-between font-mono font-medium">
+                  <span className="truncate max-w-[260px]">{slugStatus.url}</span>
+                  {slugStatus.checking ? (
+                    <span className="text-[10px] text-slate-400 animate-pulse">Checking availability...</span>
+                  ) : slugStatus.available ? (
+                    <span className="inline-flex items-center gap-1 text-[10px] bg-emerald-100 text-emerald-800 px-2 py-0.5 rounded-full font-sans font-bold">
+                      ✓ Available
+                    </span>
+                  ) : (
+                    <span className="inline-flex items-center gap-1 text-[10px] bg-rose-100 text-rose-800 px-2 py-0.5 rounded-full font-sans font-bold">
+                      ✕ Already Taken
+                    </span>
+                  )}
+                </div>
+
+                {/* Suggestions list when URL is taken */}
+                {!slugStatus.checking && !slugStatus.available && slugStatus.suggestions.length > 0 && (
+                  <div className="mt-2.5 pt-2 border-t border-rose-200 font-sans">
+                    <p className="text-[11px] text-slate-700 font-semibold mb-1.5">Suggested available URLs:</p>
+                    <div className="flex flex-wrap gap-1.5">
+                      {slugStatus.suggestions.map((suggestion) => (
+                        <button
+                          key={suggestion}
+                          type="button"
+                          onClick={() => setCustomSlug(suggestion)}
+                          className="px-2.5 py-1 bg-purple-50 hover:bg-purple-100 text-[#7E5FBB] border border-purple-200 rounded-lg text-xs font-mono font-semibold transition-all hover:scale-105 active:scale-95"
+                        >
+                          {suggestion}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
           </div>
 
           <div>
-            <label className="block text-xs font-bold text-purple-200/90 mb-1.5 uppercase tracking-wider">Your Full Name</label>
+            <label className="block text-xs font-bold text-[#1E293B] mb-1.5 uppercase tracking-wider">Your Full Name</label>
             <input
               type="text"
               required
               value={fullName}
               onChange={(e) => setFullName(e.target.value)}
               placeholder="e.g. Sarah Jenkins"
-              className="w-full h-11 bg-[#090715]/90 border border-purple-900/50 rounded-xl px-4 text-sm text-white focus:outline-none focus:border-[#9678D3] focus:ring-2 focus:ring-[#7E5FBB]/40 transition-colors placeholder-purple-300/30"
+              className="w-full bg-white border border-[#CBD5E1] text-[#0F172A] rounded-xl px-4 py-3 focus:outline-none focus:border-[#7E5FBB] focus:ring-2 focus:ring-[#7E5FBB]/20 transition-all text-sm placeholder-slate-400 font-medium"
             />
           </div>
 
           <div>
-            <label className="block text-xs font-bold text-purple-200/90 mb-1.5 uppercase tracking-wider">Work Email Address</label>
+            <label className="block text-xs font-bold text-[#1E293B] mb-1.5 uppercase tracking-wider">Work Email Address</label>
             <input
               type="email"
               required
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               placeholder="sarah@salon.com"
-              className="w-full h-11 bg-[#090715]/90 border border-purple-900/50 rounded-xl px-4 text-sm text-white focus:outline-none focus:border-[#9678D3] focus:ring-2 focus:ring-[#7E5FBB]/40 transition-colors placeholder-purple-300/30"
+              className="w-full bg-white border border-[#CBD5E1] text-[#0F172A] rounded-xl px-4 py-3 focus:outline-none focus:border-[#7E5FBB] focus:ring-2 focus:ring-[#7E5FBB]/20 transition-all text-sm placeholder-slate-400 font-medium"
             />
           </div>
 
           <div>
-            <label className="block text-xs font-bold text-purple-200/90 mb-1.5 uppercase tracking-wider">Password</label>
+            <label className="block text-xs font-bold text-[#1E293B] mb-1.5 uppercase tracking-wider">Password</label>
             <input
               type="password"
               required
@@ -458,12 +506,9 @@ function RegisterContent() {
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               placeholder="••••••••••••"
-              className="w-full h-11 bg-[#090715]/90 border border-purple-900/50 rounded-xl px-4 text-sm text-white focus:outline-none focus:border-[#9678D3] focus:ring-2 focus:ring-[#7E5FBB]/40 transition-colors placeholder-purple-300/30"
+              className="w-full bg-white border border-[#CBD5E1] text-[#0F172A] rounded-xl px-4 py-3 focus:outline-none focus:border-[#7E5FBB] focus:ring-2 focus:ring-[#7E5FBB]/20 transition-all text-sm placeholder-slate-400 font-medium"
             />
           </div>
-
-
-          {/* Tier selection removed — all users start on base_tier */}
 
           {/* REQUIRED TERMS CHECKBOX */}
           <div className="flex items-start gap-2.5 pt-2">
@@ -473,14 +518,14 @@ function RegisterContent() {
               required
               checked={termsAccepted}
               onChange={(e) => setTermsAccepted(e.target.checked)}
-              className="w-4 h-4 mt-0.5 rounded border-purple-900 bg-[#090715] text-[#7E5FBB] focus:ring-[#7E5FBB]"
+              className="w-4 h-4 mt-0.5 rounded border-slate-300 bg-white text-[#7E5FBB] focus:ring-[#7E5FBB]"
             />
-            <label htmlFor="termsAccepted" className="text-xs text-purple-200/90 leading-snug">
+            <label htmlFor="termsAccepted" className="text-xs text-slate-600 leading-snug">
               I agree to StyleFlo's{' '}
               <button
                 type="button"
                 onClick={() => openLegalModal('Terms & Conditions', 'https://styleflo.ai/terms-conditions/')}
-                className="text-[#9678D3] underline hover:text-purple-200 font-bold"
+                className="text-[#7E5FBB] underline hover:text-[#4A1F52] font-bold"
               >
                 Terms of Service
               </button>{' '}
@@ -488,7 +533,7 @@ function RegisterContent() {
               <button
                 type="button"
                 onClick={() => openLegalModal('Privacy Policy', 'https://styleflo.ai/privacy/')}
-                className="text-[#9678D3] underline hover:text-purple-200 font-bold"
+                className="text-[#7E5FBB] underline hover:text-[#4A1F52] font-bold"
               >
                 Privacy Policy
               </button>.
@@ -498,15 +543,15 @@ function RegisterContent() {
           <button
             type="submit"
             disabled={loading || !termsAccepted}
-            className="w-full h-12 bg-gradient-to-r from-[#260475] via-[#7E5FBB] to-[#9678D3] hover:from-[#1f0360] hover:to-[#7E5FBB] text-white font-bold text-sm rounded-xl shadow-lg shadow-purple-950/50 active:scale-[0.99] transition-all disabled:opacity-50 mt-2"
+            className="w-full bg-gradient-to-r from-[#260475] to-[#7E5FBB] hover:from-[#1d0359] hover:to-[#6a4ca2] text-white font-bold rounded-xl px-4 py-3 shadow-md shadow-[#7E5FBB]/25 transition-all focus:ring-2 focus:ring-[#7E5FBB] focus:ring-offset-2 mt-2 disabled:opacity-50 disabled:cursor-not-allowed"
           >
             {loading ? 'Creating Account & Opening Checkout...' : `Continue to Checkout (£9.99/mo)`}
           </button>
         </form>
 
-        <div className="mt-6 text-center text-xs text-purple-300/70 border-t border-purple-900/60 pt-4">
+        <div className="mt-6 text-center text-xs text-slate-600 border-t border-slate-200 pt-4">
           Already have an account?{' '}
-          <a href="/login" className="text-[#9678D3] font-bold hover:underline">
+          <a href="/login" className="text-[#7E5FBB] font-bold hover:underline">
             Sign In
           </a>
         </div>
@@ -526,8 +571,8 @@ function RegisterContent() {
 export default function RegisterPage() {
   return (
     <Suspense fallback={
-      <div className="min-h-screen bg-gray-950 text-white flex items-center justify-center">
-        <div className="animate-spin w-8 h-8 border-4 border-indigo-500 border-t-transparent rounded-full"></div>
+      <div className="min-h-screen bg-[#FAF9FC] text-slate-800 flex items-center justify-center">
+        <div className="animate-spin w-8 h-8 border-4 border-[#7E5FBB] border-t-transparent rounded-full"></div>
       </div>
     }>
       <RegisterContent />

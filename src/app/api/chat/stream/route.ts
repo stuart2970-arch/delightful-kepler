@@ -10,6 +10,7 @@ import { checkAvailability, bookMeeting, lookupAppointments } from './calendar';
 import { sendConsolidatedLeadEmail } from '@/lib/lead-notifier';
 
 import { getActiveGeminiModel } from '@/lib/gemini-config';
+import { generateEmbedding } from '@/lib/embeddings';
 
 async function scrapeWebsiteContent(targetUrl: string): Promise<string> {
   try {
@@ -316,47 +317,23 @@ Help them specify:
 
     console.log(`[Chat Stream][${requestId}] Resolved Tenant ID: ${tenantId}, TZ: ${timezone}, Rules count: ${chatbotRules.length}`);
 
-    // 4. Generate user message embedding (Gemini text-embedding-004) if required for RAG
+    // 4. Generate user message embedding using central generateEmbedding helper
     let queryEmbedding: number[] = [];
     if (chatbotId !== 'styleflo-onboarding-flobot') {
       console.log(`[Chat Stream][${requestId}] Creating user message embedding...`);
       try {
-        const { embedding } = await embed({
-          model: google.textEmbeddingModel('text-embedding-004'),
-          value: message,
-          providerOptions: {
-            google: {
-              outputDimensionality: 768,
-            },
-          },
-        });
-        queryEmbedding = embedding;
+        queryEmbedding = await generateEmbedding(message, geminiApiKey);
       } catch (embeddingErr: unknown) {
-        console.warn(`[Chat Stream][${requestId}] Gemini embedding creation warning, attempting REST fallback:`, embeddingErr);
-        try {
-          const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/text-embedding-004:embedContent?key=${geminiApiKey}`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ content: { parts: [{ text: message }] } }),
-          });
-          if (res.ok) {
-            const data = await res.json();
-            if (Array.isArray(data.embedding?.values)) {
-              queryEmbedding = data.embedding.values;
-            }
-          }
-        } catch (restErr) {
-          console.warn(`[Chat Stream][${requestId}] REST embedding fallback warning:`, restErr);
-        }
+        console.warn(`[Chat Stream][${requestId}] Embedding generation warning:`, embeddingErr);
       }
     }
 
     const targetBotUuid = chatbotId === 'styleflo-onboarding-flobot' 
       ? '00000000-0000-0000-0000-000000000000' 
-      : chatbotId;
+      : (chatbotRecord?.id || chatbotId);
 
     // 5. Query matching documents using the match_documents RPC (strictly filtered by tenant_id & chatbot_id)
-    console.log(`[Chat Stream][${requestId}] Searching similarity index...`);
+    console.log(`[Chat Stream][${requestId}] Searching similarity index for chatbot ${targetBotUuid}...`);
     let matchedDocuments: any[] = [];
     
     if (chatbotId !== 'styleflo-onboarding-flobot' && queryEmbedding.length > 0) {
@@ -372,6 +349,22 @@ Help them specify:
         console.warn(`[Chat Stream][${requestId}] match_documents RPC warning:`, rpcError);
       } else {
         matchedDocuments = docs || [];
+      }
+    }
+
+    // Fallback: If vector match returns 0 documents, fetch knowledge chunks directly for this chatbot
+    if (chatbotId !== 'styleflo-onboarding-flobot' && matchedDocuments.length === 0) {
+      console.log(`[Chat Stream][${requestId}] match_documents returned 0 chunks, executing fallback KB query...`);
+      const { data: fallbackDocs } = await supabaseAdmin
+        .from('document_chunks')
+        .select('content')
+        .eq('tenant_id', tenantId)
+        .eq('chatbot_id', targetBotUuid)
+        .limit(6);
+      
+      if (fallbackDocs && fallbackDocs.length > 0) {
+        matchedDocuments = fallbackDocs;
+        console.log(`[Chat Stream][${requestId}] Fallback KB query retrieved ${fallbackDocs.length} chunks.`);
       }
     }
 

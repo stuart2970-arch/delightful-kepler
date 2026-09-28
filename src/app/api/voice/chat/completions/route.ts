@@ -5,6 +5,7 @@ import { createGoogleGenerativeAI } from '@ai-sdk/google';
 import { checkAvailability, bookMeeting } from '@/app/api/chat/stream/calendar';
 
 import { getActiveGeminiModel } from '@/lib/gemini-config';
+import { generateEmbedding } from '@/lib/embeddings';
 
 export const maxDuration = 300;
 
@@ -65,6 +66,7 @@ export async function POST(req: Request) {
     }
 
     const tenantId = chatbot.tenant_id;
+    const targetBotUuid = chatbot.id;
     const configData = (chatbot.configuration_json || {}) as Record<string, any>;
 
     const { data: tenantRes } = await supabaseAdmin
@@ -86,13 +88,13 @@ export async function POST(req: Request) {
       .from('services')
       .select('id, name, base_price, duration_minutes, buffer_minutes, description')
       .eq('tenant_id', tenantId)
-      .eq('chatbot_id', chatbotId);
+      .eq('chatbot_id', targetBotUuid);
 
     const { data: staffRes } = await supabaseAdmin
       .from('staff')
       .select('id, name, role, google_calendar_id, working_days, staff_services(service_id, custom_price, custom_duration)')
       .eq('tenant_id', tenantId)
-      .eq('chatbot_id', chatbotId);
+      .eq('chatbot_id', targetBotUuid);
 
     const servicesContext = servicesRes ? JSON.stringify(servicesRes, null, 2) : '[]';
     const staffContext = staffRes ? JSON.stringify(staffRes, null, 2) : '[]';
@@ -116,29 +118,32 @@ export async function POST(req: Request) {
     if (latestUserMessage && typeof latestUserMessage.content === 'string') {
       queryText = latestUserMessage.content;
       try {
-        const embeddingRes = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/text-embedding-004:embedContent?key=${apiKey}`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            model: 'models/text-embedding-004',
-            content: { parts: [{ text: queryText }] }
-          })
-        });
+        const embedding = await generateEmbedding(queryText, apiKey);
 
-        const embedData = await embeddingRes.json();
-        const embedding = embedData.embedding?.values;
-
-        if (embedding) {
+        if (embedding && embedding.length > 0) {
           const { data: matchedChunks, error: matchError } = await supabaseAdmin.rpc('match_documents', {
             query_embedding: embedding,
-            match_threshold: 0.2,
+            match_threshold: 0.15,
             match_count: 5,
             targeting_tenant_id: tenantId,
-            targeting_chatbot_id: chatbotId
+            targeting_chatbot_id: targetBotUuid
           });
 
           if (!matchError && matchedChunks && matchedChunks.length > 0) {
             ragContext = matchedChunks.map((chunk: any) => chunk.content).join('\n\n');
+          }
+        }
+
+        if (!ragContext) {
+          const { data: fallbackChunks } = await supabaseAdmin
+            .from('document_chunks')
+            .select('content')
+            .eq('tenant_id', tenantId)
+            .eq('chatbot_id', targetBotUuid)
+            .limit(5);
+
+          if (fallbackChunks && fallbackChunks.length > 0) {
+            ragContext = fallbackChunks.map((c: any) => c.content).join('\n\n');
           }
         }
       } catch (e) {
@@ -315,7 +320,7 @@ ${globalDisclaimer}`;
                 .from('conversations')
                 .insert({
                   tenant_id: tenantId,
-                  chatbot_id: chatbotId,
+                  chatbot_id: targetBotUuid,
                   user_session_id: sessionId,
                   is_voice_call: true
                 })
