@@ -283,9 +283,9 @@ export async function GET(req: NextRequest) {
       const orgObj = Array.isArray(data) ? data[0] : data;
       
       const balance = orgObj?.creditBalance ?? orgObj?.balance ?? null;
-      const balanceNum = balance !== null ? parseFloat(String(balance)) : null;
+      const balanceNum = balance !== null && balance !== undefined ? parseFloat(String(balance)) : null;
       const concurrency = orgObj?.concurrencyLimit ?? 10;
-      const estMins = balanceNum !== null ? Math.floor(balanceNum / 0.05) : 0; // ~5 cents per min
+      const estMins = balanceNum !== null ? Math.floor(balanceNum / 0.05) : null; // ~5 cents per min if prepaid, null if pay-as-you-go
 
       const isLow = balanceNum !== null && balanceNum < 15.00;
       let warningReason: string | null = null;

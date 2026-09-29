@@ -445,9 +445,9 @@ export default function ConnectedAccountsView() {
                       <span className={`text-3xl font-extrabold ${isHighAlert ? 'text-red-400' : 'text-white'}`}>
                         {p.creditBalance !== null && p.creditBalance !== undefined 
                           ? `$${p.creditBalance.toFixed(2)}` 
-                          : p.configured ? 'Active' : '$0.00'}
+                          : p.configured ? 'Pay-As-You-Go' : '$0.00'}
                       </span>
-                      {p.currency && <span className="text-sm text-gray-400 uppercase">{p.currency}</span>}
+                      {p.creditBalance !== null && p.currency && <span className="text-sm text-gray-400 uppercase">{p.currency}</span>}
                     </div>
                   </div>
 
@@ -455,8 +455,10 @@ export default function ConnectedAccountsView() {
                   <div className="grid grid-cols-2 gap-3 pt-2 text-xs">
                     <div className="bg-gray-950/60 p-2.5 rounded-xl border border-gray-800">
                       <span className="text-gray-400">Est. Voice Time Remaining:</span>
-                      <p className="font-bold text-gray-100 text-sm mt-0.5">
-                        ~{(p.estimatedVoiceMinutesRemaining || 0).toLocaleString()} mins
+                      <p className="font-bold text-emerald-400 text-sm mt-0.5">
+                        {p.estimatedVoiceMinutesRemaining !== null && p.estimatedVoiceMinutesRemaining !== undefined
+                          ? `~${p.estimatedVoiceMinutesRemaining.toLocaleString()} mins`
+                          : 'Active (Pay-As-You-Go)'}
                       </p>
                     </div>
                     <div className="bg-gray-950/60 p-2.5 rounded-xl border border-gray-800">
