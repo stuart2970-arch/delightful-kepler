@@ -138,24 +138,45 @@ export async function GET(req: NextRequest) {
 
       // 2. Vapi API
       (async () => {
-        if (!vapiKey) throw new Error('No API Key configured');
-        const res = await fetch('https://api.vapi.ai/org', {
-          headers: { 'Authorization': `Bearer ${vapiKey}` },
-          cache: 'no-store',
-        });
-        if (!res.ok) {
-          // Fallback check on /user or /account
-          const userRes = await fetch('https://api.vapi.ai/user', {
-            headers: { 'Authorization': `Bearer ${vapiKey}` },
-            cache: 'no-store',
-          });
-          if (!userRes.ok) {
-            const errText = await res.text().catch(() => '');
-            throw new Error(`Vapi API returned ${res.status}: ${errText || res.statusText}`);
-          }
-          return await userRes.json();
+        const cleanVapiKey = (vapiKey || '').trim().replace(/^Bearer\s+/i, '').replace(/["']/g, '');
+        if (!cleanVapiKey) throw new Error('No Vapi API Key configured');
+
+        const headers = { 'Authorization': `Bearer ${cleanVapiKey}` };
+
+        // Test 1: Fetch Org details
+        const orgRes = await fetch('https://api.vapi.ai/org', { headers, cache: 'no-store' });
+        if (orgRes.ok) {
+          return await orgRes.json();
         }
-        return await res.json();
+
+        // Test 2: Fetch Assistants list (supported by Private Key)
+        const assistantRes = await fetch('https://api.vapi.ai/assistant?limit=1', { headers, cache: 'no-store' });
+        if (assistantRes.ok) {
+          const assistantData = await assistantRes.json();
+          return {
+            name: 'Vapi Voice Account',
+            creditBalance: null,
+            concurrencyLimit: 10,
+            assistantsCount: Array.isArray(assistantData) ? assistantData.length : 1,
+          };
+        }
+
+        // Test 3: Fetch Calls list
+        const callRes = await fetch('https://api.vapi.ai/call?limit=1', { headers, cache: 'no-store' });
+        if (callRes.ok) {
+          return {
+            name: 'Vapi Voice Account',
+            creditBalance: null,
+            concurrencyLimit: 10,
+          };
+        }
+
+        if (orgRes.status === 401 || assistantRes.status === 401 || callRes.status === 401) {
+          throw new Error('Vapi returned 401 (Unauthorized). Ensure you copied the Private Key from dashboard.vapi.ai/org and trimmed trailing spaces.');
+        }
+
+        const errText = await orgRes.text().catch(() => '');
+        throw new Error(`Vapi API returned ${orgRes.status}: ${errText || orgRes.statusText}`);
       })(),
 
       // 3. Twilio API
