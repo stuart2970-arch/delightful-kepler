@@ -2630,13 +2630,35 @@ Highlighted adjustments in the modal:
 
 ---
 
-### Session 32 (September 28, 2026)
-* **User**: "the field for local phone number is showing the mobile number"
-  * **Fix**: Fixed misclassification of UK mobile numbers (`+447446900875`) as landline numbers:
-    1. Added `isUkMobileNumber` detection (`+447...`, `07...`) in `src/app/dashboard/page.tsx` server data loader and `src/components/dashboard-views/TelephonyView.tsx`.
-    2. Implemented client-side and server-side auto-healing: mobile numbers stored in `twilio_shadow_number` automatically migrate to `twilio_mobile_number`, clearing `twilio_shadow_number`.
-    3. Fixed `OpenClawMonitorView.tsx` SMS saving to prevent overwriting `twilioShadowNumber` when entering mobile numbers.
-    4. Verified production build (`npm run build`), compiling cleanly in 5.5s with 0 errors.
+### 33. Google Tag Manager (GTM) & Multi-Pixel Advertising Analytics Integration
+* **Problem**: The platform previously relied exclusively on direct GA4 and Meta Pixel script tags (`NEXT_PUBLIC_GA_MEASUREMENT_ID` and `NEXT_PUBLIC_FB_PIXEL_ID`), lacking native support for Google Tag Manager (GTM) or additional advertising pixels (e.g. TikTok Pixel, Google Ads Conversion Tags). Advertising campaigns required a unified `dataLayer` event pipeline for custom conversions (e.g. registrations, lead intent, pricing tier selections).
+* **Solution**:
+  - Enhanced `src/lib/analytics.ts` to export `GTM_ID` (`NEXT_PUBLIC_GTM_ID`) and `TIKTOK_PIXEL_ID` (`NEXT_PUBLIC_TIKTOK_PIXEL_ID`), and created `pushToDataLayer(event, data)` to stream events to `window.dataLayer`.
+  - Updated conversion tracking functions (`trackPageView`, `trackSignUp`, `trackLeadIntent`, `trackVisitorNotSignedUp`) to automatically push events simultaneously to GTM `dataLayer`, GA4 `gtag`, Meta Pixel `fbq`, and TikTok `ttq`.
+  - Upgraded `src/components/Analytics.tsx` to inject GTM (`gtm.js` snippet and `<noscript>` iframe) and TikTok Pixel scripts when configured in `.env.local`.
+  - Verified production build (`npm run build`), compiling cleanly in 5.0s with 0 errors.
+
+---
+
+### 34. Connected Accounts Balances & Quota Monitor (ElevenLabs, Vapi, Twilio, Google Cloud)
+* **Problem**: Superadmins lacked central visibility into remaining tokens, credits, voice synthesis character quotas, call minutes, and SMS balances across third-party connected provider accounts (ElevenLabs, Vapi, Twilio, and Google Cloud / Gemini). When an account ran out of credits or hit quota limits, services could fail silently or return error statuses without pre-warning.
+* **Solution**:
+  - Built secure GET/POST API endpoint `/api/superadmin/connected-accounts/route.ts` that queries live provider APIs and Supabase usage ledgers:
+    - **ElevenLabs**: Queries `/v1/user/subscription` to extract character count, total limit, characters remaining, percentage remaining, subscription tier, reset date, and estimated voice time remaining.
+    - **Vapi**: Queries `/org` to extract account credit balance ($), organization details, concurrency limits, and estimated voice call minutes remaining.
+    - **Twilio**: Queries `/Accounts/${sid}/Balance.json` and `/Accounts/${sid}.json` to extract live balance (£/$), currency, account type/status, estimated SMS credits remaining, and estimated voice minutes.
+    - **Google Cloud & Gemini**: Queries Google AI API health, extracts active LLM engine model (e.g. `gemini-3.6-flash`), computes monthly token usage and processed message count from `usage_ledger`, and calculates estimated API costs.
+  - Built `ConnectedAccountsView.tsx` component mounted in `/superadmin` under tab `💳 Account Balances`. Includes real-time progress bars, low-balance alert banners (red/amber highlighting for accounts <20% quota or <$10 balance), on-demand telemetry refresh, and an embedded API Credentials Manager allowing superadmins to update provider keys directly in the UI.
+
+---
+
+### Session 34 (September 29, 2026)
+* **User**: "As a business i need visibility in the dashboard at /superadmin of hiw many tikens/ credit/ voice time/ sms i have left in the connected accounts for elevenlabs, vapi, twilio and google cloud, ca you get this data and display it on a data page, highlughting any item that id getting low"
+  * **Fix**: Implemented the Connected Accounts Balances & Quota Monitor across APIs and Superadmin UI:
+    1. Created `/api/superadmin/connected-accounts/route.ts` to poll live metrics and telemetry for ElevenLabs, Vapi, Twilio, and Google Cloud / Gemini.
+    2. Implemented `ConnectedAccountsView.tsx` component with real-time status badges, character/credit remaining meters, low-balance warning alerts, and an API credentials manager.
+    3. Integrated the view into `SuperadminClient.tsx` under tab `💳 Account Balances`.
+
 
 
 
