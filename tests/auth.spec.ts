@@ -11,8 +11,9 @@ test.describe('Authentication Flows', () => {
     await expect(page.locator('input[type="email"]')).toBeVisible();
     await expect(page.locator('input[type="password"]')).toBeVisible();
 
-    // Verify sign in button exists
-    await expect(page.getByRole('button', { name: 'Sign In', exact: true })).toBeVisible();
+    // Verify sign in with password and magic login buttons exist
+    await expect(page.getByRole('button', { name: /Sign In with Password/i })).toBeVisible();
+    await expect(page.getByRole('button', { name: /Send Magic Login Link/i })).toBeVisible();
   });
 
   test('can toggle to signup form', async ({ page }) => {
