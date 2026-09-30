@@ -141,8 +141,13 @@ export default function LoginPage() {
   }, [supabase, router]);
 
   const handleSendMagicLink = async () => {
+    if (!email || !email.trim() || !email.includes('@')) {
+      setError('Please enter a valid email address first to receive a magic login link.');
+      return;
+    }
     setSendingMagicLink(true);
     setError(null);
+    setSuccessMessage(null);
     try {
       const res = await fetch('/api/auth/magic-link', {
         method: 'POST',
@@ -150,7 +155,23 @@ export default function LoginPage() {
         body: JSON.stringify({ email: email.trim(), clientEmail: email.trim(), name: fullName }),
       });
       const data = await res.json().catch(() => ({}));
-      if (data.redirectUrl || data.success) {
+
+      const isLocal = typeof window !== 'undefined' && (
+        window.location.hostname === 'localhost' || 
+        window.location.hostname === '127.0.0.1'
+      );
+      const redirectUrl = isLocal 
+        ? `${window.location.origin}/dashboard`
+        : 'https://app.styleflo.ai/dashboard';
+
+      await supabase.auth.signInWithOtp({
+        email: email.trim(),
+        options: {
+          emailRedirectTo: redirectUrl,
+        },
+      });
+
+      if (data.redirectUrl || data.success || !data.error) {
         setMagicLinkSent(true);
         setDuplicateEmailDetected(false);
       } else if (data.error) {
@@ -160,6 +181,7 @@ export default function LoginPage() {
         setDuplicateEmailDetected(false);
       }
     } catch (e: any) {
+      console.error('Magic link error:', e);
       setError(e?.message || 'Failed to send magic login link.');
     } finally {
       setSendingMagicLink(false);
@@ -434,10 +456,22 @@ export default function LoginPage() {
           </div>
 
           <div>
-            <label className="block text-xs font-bold text-[#1E293B] mb-1.5 uppercase tracking-wider">Password</label>
+            <div className="flex items-center justify-between mb-1.5">
+              <label className="block text-xs font-bold text-[#1E293B] uppercase tracking-wider">Password</label>
+              {isLogin && (
+                <button
+                  type="button"
+                  onClick={handleSendMagicLink}
+                  disabled={sendingMagicLink}
+                  className="text-xs font-semibold text-[#7E5FBB] hover:text-[#4A1F52] underline transition-colors disabled:opacity-50"
+                >
+                  {sendingMagicLink ? 'Sending link...' : '✨ Magic Login Link'}
+                </button>
+              )}
+            </div>
             <input
               type="password"
-              required
+              required={isLogin}
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               className="w-full bg-white border border-[#CBD5E1] text-[#0F172A] rounded-xl px-4 py-3 focus:outline-none focus:border-[#7E5FBB] focus:ring-2 focus:ring-[#7E5FBB]/20 transition-all text-sm placeholder-slate-400 font-medium"
@@ -551,13 +585,46 @@ export default function LoginPage() {
             </>
           )}
 
-          <button
-            type="submit"
-            disabled={loading || (!isLogin && !termsAccepted)}
-            className="w-full bg-gradient-to-r from-[#260475] to-[#7E5FBB] hover:from-[#1d0359] hover:to-[#6a4ca2] text-white font-bold rounded-xl px-4 py-3 shadow-md shadow-[#7E5FBB]/25 transition-all focus:ring-2 focus:ring-[#7E5FBB] focus:ring-offset-2 mt-2 disabled:opacity-50 disabled:cursor-not-allowed"
-          >
-            {loading ? 'Processing...' : isLogin ? 'Sign In' : 'Create Account'}
-          </button>
+          {isLogin ? (
+            <div className="space-y-2.5 pt-2">
+              <button
+                type="submit"
+                disabled={loading}
+                className="w-full bg-gradient-to-r from-[#260475] to-[#7E5FBB] hover:from-[#1d0359] hover:to-[#6a4ca2] text-white font-bold rounded-xl px-4 py-3 shadow-md shadow-[#7E5FBB]/25 transition-all focus:ring-2 focus:ring-[#7E5FBB] focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 cursor-pointer"
+              >
+                {loading ? 'Signing In...' : '🔑 Sign In with Password'}
+              </button>
+
+              <button
+                type="button"
+                onClick={handleSendMagicLink}
+                disabled={sendingMagicLink || loading}
+                className="w-full bg-[#F4EFFC] hover:bg-[#EBE3F8] text-[#260475] font-extrabold text-sm border border-[#7E5FBB]/30 hover:border-[#7E5FBB] rounded-xl px-4 py-3 transition-all flex items-center justify-center gap-2 shadow-xs disabled:opacity-50 cursor-pointer"
+              >
+                {sendingMagicLink ? (
+                  <>
+                    <svg className="animate-spin h-4 w-4 text-[#260475]" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                    </svg>
+                    <span>Sending Magic Login Link...</span>
+                  </>
+                ) : (
+                  <>
+                    <span>✨ Send Magic Login Link</span>
+                  </>
+                )}
+              </button>
+            </div>
+          ) : (
+            <button
+              type="submit"
+              disabled={loading || !termsAccepted}
+              className="w-full bg-gradient-to-r from-[#260475] to-[#7E5FBB] hover:from-[#1d0359] hover:to-[#6a4ca2] text-white font-bold rounded-xl px-4 py-3 shadow-md shadow-[#7E5FBB]/25 transition-all focus:ring-2 focus:ring-[#7E5FBB] focus:ring-offset-2 mt-2 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
+            >
+              {loading ? 'Processing...' : 'Create Account'}
+            </button>
+          )}
         </form>
 
         <div className="mt-6 text-center">

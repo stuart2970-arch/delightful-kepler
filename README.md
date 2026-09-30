@@ -2650,14 +2650,29 @@ Highlighted adjustments in the modal:
     - **Google Cloud & Gemini**: Queries Google AI API health, extracts active LLM engine model (e.g. `gemini-3.6-flash`), computes monthly token usage and processed message count from `usage_ledger`, and calculates estimated API costs.
   - Built `ConnectedAccountsView.tsx` component mounted in `/superadmin` under tab `💳 Account Balances`. Includes real-time progress bars, low-balance alert banners (red/amber highlighting for accounts <20% quota or <$10 balance), on-demand telemetry refresh, and an embedded API Credentials Manager allowing superadmins to update provider keys directly in the UI.
 
+
 ---
 
-### Session 34 (September 29, 2026)
-* **User**: "As a business i need visibility in the dashboard at /superadmin of hiw many tikens/ credit/ voice time/ sms i have left in the connected accounts for elevenlabs, vapi, twilio and google cloud, ca you get this data and display it on a data page, highlughting any item that id getting low"
-  * **Fix**: Implemented the Connected Accounts Balances & Quota Monitor across APIs and Superadmin UI:
-    1. Created `/api/superadmin/connected-accounts/route.ts` to poll live metrics and telemetry for ElevenLabs, Vapi, Twilio, and Google Cloud / Gemini.
-    2. Implemented `ConnectedAccountsView.tsx` component with real-time status badges, character/credit remaining meters, low-balance warning alerts, and an API credentials manager.
-    3. Integrated the view into `SuperadminClient.tsx` under tab `💳 Account Balances`.
+### Session 35 (September 29, 2026)
+* **User**: "GTM-5VG3F5WC"
+  * **Fix**: Configured Google Tag Manager Container ID (`GTM-5VG3F5WC`):
+    1. Updated global Antigravity MCP config `C:\Users\Stuar\.gemini\config\mcp_config.json` with `"GTM_CONTAINER_ID": "GTM-5VG3F5WC"` under `google-tag-manager`.
+    2. Updated `.env.local` to set `NEXT_PUBLIC_GTM_ID=GTM-5VG3F5WC`, enabling automatic GTM container snippet injection on app startup.
+
+---
+
+### 35. Magic Login Link Button on Login Page
+* **Problem**: The login page (`src/app/login/page.tsx`) lacked a direct, dedicated "Magic Login Link" button on the main authentication form, making passwordless magic link login less accessible to users signing in.
+* **Solution**:
+  - Enhanced `handleSendMagicLink` in `src/app/login/page.tsx` with email validation (prompting users to enter a valid email address first if left blank) and executed `supabase.auth.signInWithOtp` alongside the `/api/auth/magic-link` route to guarantee magic link email delivery.
+  - Added a shortcut link (`✨ Magic Login Link`) adjacent to the Password field label.
+  - Added a dedicated, high-visibility `✨ Send Magic Login Link` secondary action button directly under the `🔑 Sign In with Password` button on the main login form.
+
+---
+
+### Session 36 (September 30, 2026)
+* **User**: "can we add the magic login button to the login page?"
+  * **Fix**: Added a dedicated `✨ Send Magic Login Link` button and quick header action to `src/app/login/page.tsx`, integrated with `supabase.auth.signInWithOtp` and `/api/auth/magic-link` with email validation and success notification banners.
 
 
 
