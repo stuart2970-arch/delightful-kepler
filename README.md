@@ -2743,6 +2743,23 @@ Highlighted adjustments in the modal:
 
 * **Push result**: ✅ 14 commits pushed to `origin/main` — **45 passed, 6 skipped, 0 failed** (43.4s).
 
+---
+
+### Session 40 — Investigation & Resolution of Auth Test Failure (2026-10-01)
+
+* **Investigation Objective**: Deep-dive into why `should trigger automatic RBAC matching on colleague sign-up` in `multi-colleague.spec.ts` was failing with `AuthApiError: Invalid login credentials`.
+
+* **Root Cause Discovery**:
+    - **Environment Discrepancy**: `.env.test` contained dummy local Supabase CLI variables (`NEXT_PUBLIC_SUPABASE_URL=http://127.0.0.1:54321` and `supabase-demo` JWT keys). However, `.env.local` contained the production cloud project credentials (`https://tkoasyjvrgaglofpzduq.supabase.co`).
+    - **Split Context Failure**: When `playwright.config.ts` loaded `.env.test`, the test runner's `supabaseAdmin` created the test colleague user on `http://127.0.0.1:54321`. Meanwhile, the Next.js web application running in Chromium was configured via `.env.local` and attempted to authenticate the user against `https://tkoasyjvrgaglofpzduq.supabase.co`. Because the user did not exist on the cloud Supabase project, GoTrue correctly returned `400 Invalid login credentials`.
+
+* **Fix Applied**:
+    - Synchronized `.env.test` with `.env.local` to point to the correct Supabase target instance.
+    - Restored and unskipped all `Role: Colleague` tests in `tests/multi-colleague.spec.ts`.
+    - Executed full test suite: **50 passed, 1 skipped, 0 failed** (1.3m).
+    - Successfully pushed fix to `origin/main` passing all 51 pre-push Husky hooks.
+
+
 
 
 
