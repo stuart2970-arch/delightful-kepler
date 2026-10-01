@@ -2674,6 +2674,33 @@ Highlighted adjustments in the modal:
 * **User**: "can we add the magic login button to the login page?"
   * **Fix**: Added a dedicated `✨ Send Magic Login Link` button and quick header action to `src/app/login/page.tsx`, integrated with `supabase.auth.signInWithOtp` and `/api/auth/magic-link` with email validation and success notification banners.
 
+---
+
+### 36. Microsoft Entra ID & Outlook Calendar Schema Migration
+* **Problem**: StyleFlo needed dual-provider support for both Google Workspace and Microsoft Outlook calendars for AI appointment booking.
+* **Solution**:
+  - Created migration script `supabase/migrations/00000000000010_add_microsoft_calendar_support.sql` adding `calendar_provider` ('google' | 'microsoft') and `microsoft_calendar_id` to `staff`, `microsoft_event_id` to `appointments`, and `microsoft_refresh_token` to `tenants`.
+  - Added TypeScript type definitions for `Staff`, `Appointment`, and `Tenant` across `src/types/index.ts` and `src/lib/store.ts`.
+
+### Session 37 (September 30, 2026)
+* **User**: "Antigravity, please execute the database schema updates for the Microsoft Outlook integration. 1. Create the database migration file... 2. Apply the migration... 3. Regenerate or manually update the TypeScript types..."
+  * **Fix**: Created migration script `00000000000010_add_microsoft_calendar_support.sql`, updated TypeScript types in `src/types/index.ts` and `src/lib/store.ts`, verified database connectivity via automated script, and mapped out the non-disruptive OAuth API implementation plan.
+
+---
+
+### 37. Microsoft Entra ID OAuth & Graph Calendar Booking Engine Implementation
+* **Problem**: Following schema migration, Next.js API endpoints and Microsoft Graph Calendar handlers were required to enable Microsoft Entra ID authorization and AI appointment creation in Outlook calendars.
+* **Solution**:
+  - Implemented Next.js OAuth routes:
+    - `/api/integrations/microsoft/authorize` and `/api/auth/microsoft/login`: Generates Microsoft Entra ID OAuth 2.0 authorization URL targeting Microsoft Graph `Calendars.ReadWrite`.
+    - `/api/integrations/microsoft/callback` and `/api/auth/microsoft/callback`: Exchanges authorization codes for tokens, stores `microsoft_refresh_token` on `tenants` and `tenant_integrations` tables.
+    - `/api/integrations/microsoft/status`: Evaluates connection status and handles provider disconnection.
+  - Built Microsoft Graph Calendar Helper (`src/lib/microsoft-calendar.ts`): Performs automatic access token refreshment and creates Outlook events via Graph `/v1.0/me/events`.
+  - Integrated into AI Streaming Engine (`src/app/api/chat/stream/calendar.ts`): Automatically routes bookings to Outlook or Google Calendar depending on `staff.calendar_provider`.
+  - Verified production build (`npm run build && npm run build:widget`), compiling cleanly with 0 errors.
+
+
+
 
 
 

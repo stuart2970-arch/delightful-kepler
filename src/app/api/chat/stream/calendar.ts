@@ -302,7 +302,7 @@ export async function bookMeeting(tenantId: string, staffId: string, serviceId: 
     // Fetch Staff Details
     const { data: staff, error: staffError } = await getSupabaseAdmin()
       .from('staff')
-      .select('name, google_calendar_id')
+      .select('name, google_calendar_id, calendar_provider, microsoft_calendar_id')
       .eq('id', staffId)
       .eq('tenant_id', tenantId)
       .single();
@@ -311,61 +311,89 @@ export async function bookMeeting(tenantId: string, staffId: string, serviceId: 
       return `Error: Staff member not found.`;
     }
 
-    const calendarId = staff.google_calendar_id || 'primary';
-    const calendar = await getCalendarClient(tenantId);
-
     // Fetch Service details for name
     const { data: service } = await getSupabaseAdmin().from('services').select('name').eq('id', serviceId).single();
     const serviceName = service ? service.name : 'Service';
 
-    // 1. Final check for availability to prevent double booking
-    const freeBusyRes = await calendar.freebusy.query({
-      requestBody: {
-        timeMin: new Date(startTimeStr).toISOString(),
-        timeMax: new Date(endTimeStr).toISOString(),
-        timeZone: timezone,
-        items: [{ id: calendarId }],
-      },
-    });
-    
-    const busy = freeBusyRes.data.calendars?.[calendarId]?.busy;
-    if (busy && busy.length > 0) {
-      console.warn(`[Calendar] Double-booking prevented for ${calendarId} at ${startTimeStr}`);
-      return `Error: The requested time slot is no longer available. It was just booked by someone else.`;
+    const isMicrosoft = staff.calendar_provider === 'microsoft';
+
+    if (isMicrosoft) {
+      const { createMicrosoftCalendarEvent } = await import('@/lib/microsoft-calendar');
+      const msEvent = await createMicrosoftCalendarEvent({
+        tenantId,
+        calendarId: staff.microsoft_calendar_id || 'primary',
+        summary: `[StyleFlo] ${serviceName} - ${customerName}`,
+        description: `Customer Name: ${customerName}\nEmail: ${customerEmail}\nPhone: ${customerPhone}\nService: ${serviceName}\nStaff: ${staff.name}\n\nBooked via StyleFlo AI`,
+        startTime: new Date(startTimeStr).toISOString(),
+        endTime: new Date(endTimeStr).toISOString(),
+        attendeeEmail: customerEmail,
+      });
+
+      // Record the appointment in our local DB
+      await getSupabaseAdmin().from('appointments').insert({
+        tenant_id: tenantId,
+        staff_id: staffId,
+        service_id: serviceId,
+        customer_name: customerName,
+        customer_email: customerEmail,
+        customer_phone: customerPhone,
+        start_time: new Date(startTimeStr).toISOString(),
+        end_time: new Date(endTimeStr).toISOString(),
+        microsoft_event_id: msEvent?.id || `ms-${Date.now()}`
+      });
+    } else {
+      const calendarId = staff.google_calendar_id || 'primary';
+      const calendar = await getCalendarClient(tenantId);
+
+      // 1. Final check for availability to prevent double booking
+      const freeBusyRes = await calendar.freebusy.query({
+        requestBody: {
+          timeMin: new Date(startTimeStr).toISOString(),
+          timeMax: new Date(endTimeStr).toISOString(),
+          timeZone: timezone,
+          items: [{ id: calendarId }],
+        },
+      });
+
+      const busy = freeBusyRes.data.calendars?.[calendarId]?.busy;
+      if (busy && busy.length > 0) {
+        console.warn(`[Calendar] Double-booking prevented for ${calendarId} at ${startTimeStr}`);
+        return `Error: The requested time slot is no longer available. It was just booked by someone else.`;
+      }
+
+      const event = {
+        summary: `[StyleFlo] ${serviceName} - ${customerName}`,
+        description: `Customer Name: ${customerName}\nEmail: ${customerEmail}\nPhone: ${customerPhone}\nService: ${serviceName}\nStaff: ${staff.name}\n\nBooked via StyleFlo AI`,
+        start: {
+          dateTime: new Date(startTimeStr).toISOString(),
+        },
+        end: {
+          dateTime: new Date(endTimeStr).toISOString(),
+        },
+        attendees: customerEmail && customerEmail.includes('@') ? [
+          { email: customerEmail, displayName: customerName }
+        ] : [],
+      };
+
+      const res = await calendar.events.insert({
+        calendarId: calendarId,
+        requestBody: event,
+        sendUpdates: 'all', // Send email to attendees
+      });
+
+      // Record the appointment in our local DB
+      await getSupabaseAdmin().from('appointments').insert({
+        tenant_id: tenantId,
+        staff_id: staffId,
+        service_id: serviceId,
+        customer_name: customerName,
+        customer_email: customerEmail,
+        customer_phone: customerPhone,
+        start_time: new Date(startTimeStr).toISOString(),
+        end_time: new Date(endTimeStr).toISOString(),
+        google_event_id: res.data.id
+      });
     }
-
-    const event = {
-      summary: `[StyleFlo] ${serviceName} - ${customerName}`,
-      description: `Customer Name: ${customerName}\nEmail: ${customerEmail}\nPhone: ${customerPhone}\nService: ${serviceName}\nStaff: ${staff.name}\n\nBooked via StyleFlo AI`,
-      start: {
-        dateTime: new Date(startTimeStr).toISOString(),
-      },
-      end: {
-        dateTime: new Date(endTimeStr).toISOString(),
-      },
-      attendees: customerEmail && customerEmail.includes('@') ? [
-        { email: customerEmail, displayName: customerName }
-      ] : [],
-    };
-
-    const res = await calendar.events.insert({
-      calendarId: calendarId,
-      requestBody: event,
-      sendUpdates: 'all', // Send email to attendees
-    });
-
-    // Record the appointment in our local DB
-    await getSupabaseAdmin().from('appointments').insert({
-      tenant_id: tenantId,
-      staff_id: staffId,
-      service_id: serviceId,
-      customer_name: customerName,
-      customer_email: customerEmail,
-      customer_phone: customerPhone,
-      start_time: new Date(startTimeStr).toISOString(),
-      end_time: new Date(endTimeStr).toISOString(),
-      google_event_id: res.data.id
-    });
 
     // --- SEND CUSTOM MAILGUN EMAIL ---
     try {
