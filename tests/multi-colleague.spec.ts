@@ -65,10 +65,10 @@ test.describe.serial('Multi-Colleague Dashboard & RBAC Rota Systems', () => {
 
     test('should allow Owner to invite/create a new Colleague', async ({ page }) => {
       // Navigate to Scheduling & Staff
-      await page.locator('nav').locator('text=Master Calendar & Rota').first().click();
+      await page.locator('button', { hasText: 'Master Calendar & Rota' }).first().click();
       
       // Open "Add Staff" dialog/modal
-      await page.locator('button:has-text("+ Add Staff Member")').first().click();
+      await page.locator('button', { hasText: '+ Add Staff Member' }).first().click();
       
       const uniqueSuffix = Date.now();
       const inviteEmail = `test+colleague.${uniqueSuffix}@styleflo.ai`;
