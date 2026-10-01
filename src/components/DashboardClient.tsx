@@ -169,6 +169,7 @@ export default function DashboardClient({
       userName,
       isSuperAdmin,
       role,
+      ...(initialTab ? { activeTab: initialTab as any } : {}),
       chatbots: initialChatbots || [],
       conversations: initialConversations || [],
       services: initialServices || [],

@@ -7,21 +7,6 @@ import { getMondayDate, formatMondayTabLabel, formatMondayFull, generateRollingS
 
 
 export default function SchedulingView() {
-  const [mounted, setMounted] = useState(false);
-  const [showCalendarUpsellModal, setShowCalendarUpsellModal] = useState(false);
-  const [calendarCategoryToUpsell, setCalendarCategoryToUpsell] = useState<'google_calendar' | 'microsoft_calendar'>('google_calendar');
-  const [isMicrosoftConnected, setIsMicrosoftConnected] = useState(false);
-
-  useEffect(() => {
-    setMounted(true);
-    if (tenantId) {
-      fetch(`/api/integrations/microsoft/status?tenantId=${tenantId}`)
-        .then(res => res.json())
-        .then(data => setIsMicrosoftConnected(!!data?.connected))
-        .catch(err => console.error('Microsoft status error:', err));
-    }
-  }, [tenantId]);
-
   const {
     tenantId,
     chatbots,
@@ -50,6 +35,21 @@ export default function SchedulingView() {
     appointments,
     setAppointments
   } = useDashboardStore();
+
+  const [mounted, setMounted] = useState(false);
+  const [showCalendarUpsellModal, setShowCalendarUpsellModal] = useState(false);
+  const [calendarCategoryToUpsell, setCalendarCategoryToUpsell] = useState<'google_calendar' | 'microsoft_calendar'>('google_calendar');
+  const [isMicrosoftConnected, setIsMicrosoftConnected] = useState(false);
+
+  useEffect(() => {
+    setMounted(true);
+    if (tenantId) {
+      fetch(`/api/integrations/microsoft/status?tenantId=${tenantId}`)
+        .then(res => res.json())
+        .then(data => setIsMicrosoftConnected(!!data?.connected))
+        .catch(err => console.error('Microsoft status error:', err));
+    }
+  }, [tenantId]);
 
   const safeChatbots = Array.isArray(chatbots) ? chatbots : [];
   const safeServices = Array.isArray(services) ? services : [];

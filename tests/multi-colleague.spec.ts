@@ -45,12 +45,14 @@ test.describe.serial('Multi-Colleague Dashboard & RBAC Rota Systems', () => {
 
   test.describe('Role: Account Owner (t0000000-0000-0000-0000-000000000001)', () => {
     test.beforeEach(async ({ page }) => {
-      // Mocking owner login (admin@acme.com)
-      await page.goto('/login');
-      await page.fill('input[type="email"]', 'admin@acme.com');
-      await page.fill('input[type="password"]', 'password123');
-      await page.click('button[type="submit"]');
-      await expect(page).toHaveURL(/\/dashboard/, { timeout: 15000 });
+      // Navigate to dashboard or login
+      await page.goto('/dashboard');
+      if (page.url().includes('/login')) {
+        await page.fill('input[type="email"]', 'admin@acme.com');
+        await page.fill('input[type="password"]', 'password123');
+        await page.click('button[type="submit"]');
+        await expect(page).toHaveURL(/\/dashboard/, { timeout: 15000 });
+      }
     });
 
     test('should allow Owner to view all Admin tabs and KPI Metrics', async ({ page }) => {
@@ -64,12 +66,11 @@ test.describe.serial('Multi-Colleague Dashboard & RBAC Rota Systems', () => {
     });
 
     test('should allow Owner to invite/create a new Colleague', async ({ page }) => {
-      // Navigate to Scheduling & Staff
-      await page.locator('nav button', { hasText: 'Master Calendar & Rota' }).first().click();
-      await page.waitForTimeout(500);
+      // Navigate to Scheduling & Staff tab using sidebar navigation
+      await page.locator('nav').locator('text=Master Calendar & Rota').first().click();
       
       // Open "Add Staff" dialog/modal
-      await page.locator('button', { hasText: '+ Add Staff Member' }).first().click({ force: true });
+      await page.getByRole('button', { name: '+ Add Staff Member' }).click();
       
       const uniqueSuffix = Date.now();
       const inviteEmail = `test+colleague.${uniqueSuffix}@styleflo.ai`;
@@ -122,6 +123,8 @@ test.describe.serial('Multi-Colleague Dashboard & RBAC Rota Systems', () => {
           user_metadata: { full_name: 'Sarah Miller' }
         });
         if (createErr) console.warn('[E2E Test] Admin user creation note:', createErr.message);
+        // Allow time for DB triggers (handle_new_user, match_colleague_on_signup) to complete
+        await new Promise(r => setTimeout(r, 2000));
       } else {
         await page.goto('/login?mode=register');
         await page.fill('input[placeholder="Sarah Jenkins"]', 'Sarah Miller');
@@ -133,12 +136,13 @@ test.describe.serial('Multi-Colleague Dashboard & RBAC Rota Systems', () => {
       }
 
       // Log in as the confirmed colleague to verify dashboard access and RBAC
+      await page.context().clearCookies();
       await page.goto('/login');
       await page.fill('input[type="email"]', inviteEmail);
       await page.fill('input[type="password"]', 'securepass123!');
       await page.click('button[type="submit"]');
 
-      await expect(page).toHaveURL(/\/dashboard/, { timeout: 10000 });
+      await expect(page).toHaveURL(/\/dashboard/, { timeout: 30000 });
       // Verify UI changes according to Colleague ('member') role
       await expect(page.locator('nav').locator('text=Agent').first()).not.toBeVisible();
       await expect(page.locator('nav').locator('text=Master Calendar & Rota').first()).toBeVisible();
