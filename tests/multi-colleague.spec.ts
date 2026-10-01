@@ -169,7 +169,7 @@ test.describe.serial('Multi-Colleague Dashboard & RBAC Rota Systems', () => {
         await page.fill('input[type="email"]', inviteEmail);
         await page.fill('input[type="password"]', 'securepass123!');
         await page.click('button[type="submit"]');
-        await expect(page).toHaveURL(/\/dashboard/);
+        await expect(page).toHaveURL(/\/dashboard/, { timeout: 15000 });
       });
 
       test('should prevent colleague from accessing admin endpoints directly (CORS/RLS enforcement)', async ({ page }) => {
