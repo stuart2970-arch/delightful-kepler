@@ -66,8 +66,8 @@ export default function SchedulingView() {
     }
   }, [chatbots, targetChatbotId]);
 
-  const filteredServices = safeServices.filter(s => s && (s.chatbot_id === targetChatbotId || !s.chatbot_id));
-  const filteredStaff = safeStaff.filter(s => s && (s.chatbot_id === targetChatbotId || !s.chatbot_id));
+  const filteredServices = safeServices.filter(s => s && (s.chatbot_id === targetChatbotId || !s.chatbot_id || !targetChatbotId));
+  const filteredStaff = safeStaff.filter(s => s && (s.chatbot_id === targetChatbotId || !s.chatbot_id || !targetChatbotId));
 
   const [activeWeekIndex, setActiveWeekIndex] = useState(0);
   const [isSavingBookingMode, setIsSavingBookingMode] = useState(false);
