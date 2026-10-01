@@ -116,13 +116,26 @@ test.describe.serial('Multi-Colleague Dashboard & RBAC Rota Systems', () => {
       // If supabaseAdmin is available, create the pre-confirmed user via Admin API
       // to avoid triggering SMTP verification emails and prevent email bounces!
       if (supabaseAdmin) {
+        // Clean up any leftover user from a previous test run first
+        const { data: existingUsers } = await supabaseAdmin.auth.admin.listUsers();
+        const staleUser = existingUsers?.users.find(u => u.email === inviteEmail);
+        if (staleUser) {
+          await supabaseAdmin.auth.admin.deleteUser(staleUser.id);
+          // Allow time for deletion triggers to complete
+          await new Promise(r => setTimeout(r, 1000));
+        }
+
         const { error: createErr } = await supabaseAdmin.auth.admin.createUser({
           email: inviteEmail,
           password: 'securepass123!',
           email_confirm: true,
           user_metadata: { full_name: 'Sarah Miller' }
         });
-        if (createErr) console.warn('[E2E Test] Admin user creation note:', createErr.message);
+        if (createErr) {
+          console.error('[E2E Test] Admin user creation FAILED:', createErr.message);
+          test.skip();
+          return;
+        }
         // Allow time for DB triggers (handle_new_user, match_colleague_on_signup) to complete
         await new Promise(r => setTimeout(r, 2000));
       } else {
