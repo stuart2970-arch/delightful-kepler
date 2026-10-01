@@ -2699,6 +2699,28 @@ Highlighted adjustments in the modal:
   - Integrated into AI Streaming Engine (`src/app/api/chat/stream/calendar.ts`): Automatically routes bookings to Outlook or Google Calendar depending on `staff.calendar_provider`.
   - Verified production build (`npm run build && npm run build:widget`), compiling cleanly with 0 errors.
 
+---
+
+### 38. Microsoft Outlook Calendar Add-on Catalog & Mutually Exclusive Provider Selection UI
+* **Problem**: B2B users required the option to purchase and enable Microsoft Outlook Calendar integration as a bolt-on add-on under Integrations/Billing at £4.99/month, identical to Google Calendar pricing. Additionally, businesses can only select one active calendar provider (Google Calendar OR Microsoft Outlook Calendar) at any given time.
+* **Solution**:
+  - Added migration `supabase/migrations/20261001150000_microsoft_calendar_addon.sql` inserting `microsoft_calendar_addon` into `addon_catalog` (£4.99/month), adding `has_microsoft_calendar` column to `tenants`, and updating `sync_tenant_channel_flags()`.
+  - Updated `/api/billing/checkout/route.ts` to process `microsoft_calendar_addon` checkouts (£4.99/mo).
+  - Updated `src/lib/entitlements.ts` mapping `has_microsoft_calendar` to `microsoft_calendar_addon`.
+  - Updated `AddOnUpsellModal.tsx` and `PricingMatrixView.tsx` with Microsoft Outlook Calendar add-on metadata.
+  - Enhanced `SchedulingView.tsx` with side-by-side Calendar Selection cards (Google vs. Microsoft Outlook at £4.99/mo each) enforcing mutually exclusive provider selection.
+
+---
+
+### Session 38 (October 1, 2026)
+* **User**: "this needs to be added to the integration section at 4.99 p month the same as google, and the user should only be able to select one option... okay merge to main"
+  * **Fix**: Built complete Microsoft Outlook Calendar add-on catalog integration and mutually exclusive calendar provider selection UI:
+    1. Created migration `20261001150000_microsoft_calendar_addon.sql` for `microsoft_calendar_addon` (£4.99/mo).
+    2. Updated Checkout API, Entitlements, AddOn Upsell Modals, and Superadmin Pricing Matrix.
+    3. Added side-by-side Google vs. Microsoft Outlook Calendar cards in `SchedulingView.tsx` with mutually exclusive provider selection.
+    4. Committed changes to `main` branch and pushed local commits to remote (`origin/main`).
+
+
 
 
 
