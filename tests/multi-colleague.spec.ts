@@ -68,8 +68,7 @@ test.describe.serial('Multi-Colleague Dashboard & RBAC Rota Systems', () => {
       await page.click('button:has-text("Master Calendar & Rota")');
       
       // Open "Add Staff" dialog/modal
-      await page.locator('text=+ Add Staff Member').first().scrollIntoViewIfNeeded();
-      await page.locator('text=+ Add Staff Member').first().click();
+      await page.locator('button:has-text("+ Add Staff Member")').first().click();
       
       const uniqueSuffix = Date.now();
       const inviteEmail = `test+colleague.${uniqueSuffix}@styleflo.ai`;
