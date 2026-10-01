@@ -2759,6 +2759,12 @@ Highlighted adjustments in the modal:
     - Executed full test suite: **50 passed, 1 skipped, 0 failed** (1.3m).
     - Successfully pushed fix to `origin/main` passing all 51 pre-push Husky hooks.
 
+* **Microsoft Outlook Calendar Upsell & Exclusivity Fix**:
+    - Applied missing database feature (`microsoft_calendar`) and catalog record (`microsoft_calendar_addon` at £4.99/mo) in Supabase.
+    - Resolved blank modal popup when selecting Microsoft Outlook Calendar in the Scheduling view.
+    - Enforced mutually exclusive calendar selection UI (if Google is active, Microsoft selection is locked with a "Google Active (1 Provider Max)" badge, and vice-versa).
+
+
 
 
 
