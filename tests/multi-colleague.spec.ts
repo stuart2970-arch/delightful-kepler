@@ -68,6 +68,7 @@ test.describe.serial('Multi-Colleague Dashboard & RBAC Rota Systems', () => {
       await page.click('button:has-text("Master Calendar & Rota")');
       
       // Open "Add Staff" dialog/modal
+      await page.waitForSelector('button:has-text("Add Staff Member")', { state: 'visible', timeout: 15000 });
       await page.click('button:has-text("Add Staff Member")');
       
       const uniqueSuffix = Date.now();

@@ -25,7 +25,7 @@ export default defineConfig({
   webServer: {
     command: 'npm run test:server',
     url: 'http://localhost:3000',
-    reuseExistingServer: false,
+    reuseExistingServer: !process.env.CI,
     timeout: 120 * 1000,
     env: {
       PLAYWRIGHT_TEST: 'true',
