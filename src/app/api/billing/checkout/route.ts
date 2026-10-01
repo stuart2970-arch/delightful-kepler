@@ -17,6 +17,12 @@ const MODULAR_ADDON_DEFINITIONS: Record<string, { name: string; description: str
     unit_amount: 499,
     category: 'google_calendar',
   },
+  microsoft_calendar_addon: {
+    name: 'Microsoft Outlook Calendar Integration (£4.99/mo)',
+    description: 'Two-way real-time Outlook calendar synchronization to prevent double-booking',
+    unit_amount: 499,
+    category: 'microsoft_calendar',
+  },
   data_pack_500: {
     name: 'Knowledgebase Storage - 500 Chunks (£9.99/mo)',
     description: '500 additional knowledge vector chunks for rich business rules and menus',

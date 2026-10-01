@@ -27,6 +27,7 @@ export type ChannelFlags = {
   has_mobile: boolean;
   has_whatsapp: boolean;
   has_google_calendar: boolean;
+  has_microsoft_calendar: boolean;
 };
 
 export type ActiveAddon = {
@@ -71,6 +72,7 @@ const FEATURE_TO_UPGRADE_MAP: Record<string, { category: string; addonId: string
   knowledge_data_chunks: { category: 'data_pack', addonId: 'data_pack_500', addonName: '500 Knowledge Base Chunks', pricePence: 999 },
   whatsapp_messages: { category: 'whatsapp', addonId: 'whatsapp_addon', addonName: 'WhatsApp (Add-on)', pricePence: 999 },
   google_calendar: { category: 'google_calendar', addonId: 'google_calendar_addon', addonName: 'Google Calendar Integration', pricePence: 499 },
+  microsoft_calendar: { category: 'microsoft_calendar', addonId: 'microsoft_calendar_addon', addonName: 'Microsoft Outlook Calendar Integration', pricePence: 499 },
 };
 
 // =========================================================================
@@ -80,7 +82,7 @@ export async function getTenantChannelFlags(tenantId: string): Promise<ChannelFl
   const supabase = createAdminClient();
   const { data: tenant } = await supabase
     .from('tenants')
-    .select('has_landline, has_mobile, has_whatsapp, has_google_calendar')
+    .select('has_landline, has_mobile, has_whatsapp, has_google_calendar, has_microsoft_calendar')
     .eq('id', tenantId)
     .single();
 
@@ -89,6 +91,7 @@ export async function getTenantChannelFlags(tenantId: string): Promise<ChannelFl
     has_mobile: tenant?.has_mobile ?? false,
     has_whatsapp: tenant?.has_whatsapp ?? false,
     has_google_calendar: tenant?.has_google_calendar ?? false,
+    has_microsoft_calendar: tenant?.has_microsoft_calendar ?? false,
   };
 }
 
@@ -238,6 +241,11 @@ export async function getTenantEffectiveLimit(tenantId: string, featureId: strin
         case 'google_calendar':
         case 'calendar_booking':
           if (catalog.category === 'google_calendar' || addon.addon_catalog_id === 'google_calendar_addon') {
+            addonBonus += 1;
+          }
+          break;
+        case 'microsoft_calendar':
+          if (catalog.category === 'microsoft_calendar' || addon.addon_catalog_id === 'microsoft_calendar_addon') {
             addonBonus += 1;
           }
           break;

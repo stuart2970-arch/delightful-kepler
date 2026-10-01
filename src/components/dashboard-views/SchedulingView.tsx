@@ -9,9 +9,18 @@ import { getMondayDate, formatMondayTabLabel, formatMondayFull, generateRollingS
 export default function SchedulingView() {
   const [mounted, setMounted] = useState(false);
   const [showCalendarUpsellModal, setShowCalendarUpsellModal] = useState(false);
+  const [calendarCategoryToUpsell, setCalendarCategoryToUpsell] = useState<'google_calendar' | 'microsoft_calendar'>('google_calendar');
+  const [isMicrosoftConnected, setIsMicrosoftConnected] = useState(false);
+
   useEffect(() => {
     setMounted(true);
-  }, []);
+    if (tenantId) {
+      fetch(`/api/integrations/microsoft/status?tenantId=${tenantId}`)
+        .then(res => res.json())
+        .then(data => setIsMicrosoftConnected(!!data?.connected))
+        .catch(err => console.error('Microsoft status error:', err));
+    }
+  }, [tenantId]);
 
   const {
     tenantId,
@@ -27,6 +36,7 @@ export default function SchedulingView() {
     isGoogleConnected,
     setIsGoogleConnected,
     hasGoogleCalendarAddon,
+    hasMicrosoftCalendarAddon,
     maxAdvanceWeeks,
     setMaxAdvanceWeeks,
     generalOperatingHours,
@@ -578,61 +588,123 @@ export default function SchedulingView() {
   return (
     <>
       <div className="space-y-6">
-        {/* Google Calendar Authorization Banner */}
-        <div className="bg-gradient-to-r from-slate-900 to-indigo-950 p-6 rounded-2xl text-white shadow-xl flex flex-col xl:flex-row items-start xl:items-center justify-between gap-5">
-          <div className="space-y-2 flex-1">
-            <div className="flex items-center gap-2.5 flex-wrap">
-              <span className="text-2xl">📅</span>
-              <h3 className="text-lg font-bold text-white tracking-tight">Google Calendar Integration</h3>
-              {!hasGoogleCalendarAddon && (
-                <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider bg-amber-500/20 text-amber-300 border border-amber-500/30">
-                  ⚡ Bolt-on Add-on
+        {/* Calendar Integration Choice Banner (Mutually Exclusive £4.99/mo Bolt-ons) */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
+          {/* Google Calendar Card */}
+          <div className="bg-gradient-to-r from-slate-900 to-indigo-950 p-6 rounded-2xl text-white shadow-xl flex flex-col justify-between gap-5">
+            <div className="space-y-2">
+              <div className="flex items-center justify-between gap-2">
+                <div className="flex items-center gap-2">
+                  <span className="text-2xl">📅</span>
+                  <h3 className="text-base font-bold text-white tracking-tight">Google Calendar Sync</h3>
+                </div>
+                <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider bg-indigo-500/20 text-indigo-300 border border-indigo-500/30">
+                  £4.99/mo
                 </span>
+              </div>
+              <p className="text-xs text-slate-300 leading-relaxed">
+                Two-way real-time appointment sync with Google Workspace & Personal Google Calendars.
+              </p>
+              {hasGoogleCalendarAddon ? (
+                isGoogleConnected ? (
+                  <div className="mt-2 inline-flex items-center gap-2 px-3 py-1 bg-emerald-500/20 text-emerald-300 rounded-full text-xs font-semibold border border-emerald-500/30">
+                    <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
+                    Connected to Google Calendar
+                  </div>
+                ) : (
+                  <div className="mt-2 inline-flex items-center gap-2 px-3 py-1 bg-amber-500/20 text-amber-300 rounded-full text-xs font-semibold border border-amber-500/30">
+                    <span className="w-2 h-2 rounded-full bg-amber-400"></span>
+                    Not Connected to Google
+                  </div>
+                )
+              ) : (
+                <div className="mt-2 inline-flex items-center gap-2 px-3 py-1 bg-slate-800 text-slate-300 rounded-full text-xs font-semibold border border-slate-700">
+                  <span className="text-amber-400">🔒</span>
+                  Option Inactive
+                </div>
               )}
             </div>
-            <p className="text-xs text-slate-300 max-w-xl leading-relaxed">
-              {hasGoogleCalendarAddon
-                ? 'Synchronize appointments two-way with Google Calendar in real-time. Prevents double-booking and updates staff rotas automatically.'
-                : 'Connect Google Calendar to sync appointments two-way in real-time. (Note: Services, staff shift rotas, and webpage bookings work completely without this bolt-on!)'}
-            </p>
+
             {hasGoogleCalendarAddon ? (
-              isGoogleConnected ? (
-                <div className="mt-2 inline-flex items-center gap-2 px-3 py-1 bg-emerald-500/20 text-emerald-300 rounded-full text-xs font-semibold border border-emerald-500/30">
-                  <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
-                  Connected to Google Calendar API
-                </div>
-              ) : (
-                <div className="mt-2 inline-flex items-center gap-2 px-3 py-1 bg-amber-500/20 text-amber-300 rounded-full text-xs font-semibold border border-amber-500/30">
-                  <span className="w-2 h-2 rounded-full bg-amber-400"></span>
-                  Not Connected to Google Calendar
-                </div>
-              )
+              <a
+                href="/api/integrations/google/authorize"
+                target="_top"
+                rel="noopener noreferrer"
+                className="w-full px-4 py-2.5 bg-indigo-600 hover:bg-indigo-500 text-white font-bold rounded-xl shadow-md transition-all flex items-center justify-center gap-2 text-xs text-center"
+              >
+                <span>{isGoogleConnected ? '🔄 Re-authorize Google' : '🔗 Connect Google Calendar'}</span>
+              </a>
             ) : (
-              <div className="mt-2 inline-flex items-center gap-2 px-3 py-1 bg-slate-800 text-slate-300 rounded-full text-xs font-semibold border border-slate-700">
-                <span className="text-amber-400">🔒</span>
-                Bolt-on inactive (£4.99/mo)
-              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  setCalendarCategoryToUpsell('google_calendar');
+                  setShowCalendarUpsellModal(true);
+                }}
+                className="w-full px-4 py-2.5 bg-gradient-to-r from-indigo-500 to-indigo-600 hover:from-indigo-400 hover:to-indigo-500 text-white font-bold rounded-xl shadow-lg transition-all flex items-center justify-center gap-2 text-xs text-center"
+              >
+                <span>⚡ Select Google Calendar (£4.99/mo)</span>
+              </button>
             )}
           </div>
 
-          {hasGoogleCalendarAddon ? (
-            <a
-              href="/api/integrations/google/authorize"
-              target="_top"
-              rel="noopener noreferrer"
-              className="w-full sm:w-auto px-5 py-3 bg-indigo-600 hover:bg-indigo-500 text-white font-bold rounded-xl shadow-md transition-all flex items-center justify-center gap-2 text-sm whitespace-nowrap shrink-0 self-stretch sm:self-start xl:self-center"
-            >
-              <span>{isGoogleConnected ? '🔄 Re-authorize Google Calendar' : '🔗 Connect Google Calendar'}</span>
-            </a>
-          ) : (
-            <button
-              type="button"
-              onClick={() => setShowCalendarUpsellModal(true)}
-              className="w-full sm:w-auto px-5 py-3 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-slate-950 font-bold rounded-xl shadow-lg transition-all flex items-center justify-center gap-2 text-sm whitespace-nowrap shrink-0 self-stretch sm:self-start xl:self-center"
-            >
-              <span>⚡ Add Google Calendar Bolt-on (£4.99/mo)</span>
-            </button>
-          )}
+          {/* Microsoft Outlook Calendar Card */}
+          <div className="bg-gradient-to-r from-slate-900 to-blue-950 p-6 rounded-2xl text-white shadow-xl flex flex-col justify-between gap-5">
+            <div className="space-y-2">
+              <div className="flex items-center justify-between gap-2">
+                <div className="flex items-center gap-2">
+                  <span className="text-2xl">📆</span>
+                  <h3 className="text-base font-bold text-white tracking-tight">Microsoft Outlook Sync</h3>
+                </div>
+                <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider bg-blue-500/20 text-blue-300 border border-blue-500/30">
+                  £4.99/mo
+                </span>
+              </div>
+              <p className="text-xs text-slate-300 leading-relaxed">
+                Two-way real-time appointment sync with Microsoft 365, Office 365 & Outlook.com.
+              </p>
+              {hasMicrosoftCalendarAddon ? (
+                isMicrosoftConnected ? (
+                  <div className="mt-2 inline-flex items-center gap-2 px-3 py-1 bg-emerald-500/20 text-emerald-300 rounded-full text-xs font-semibold border border-emerald-500/30">
+                    <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
+                    Connected to Outlook Calendar
+                  </div>
+                ) : (
+                  <div className="mt-2 inline-flex items-center gap-2 px-3 py-1 bg-amber-500/20 text-amber-300 rounded-full text-xs font-semibold border border-amber-500/30">
+                    <span className="w-2 h-2 rounded-full bg-amber-400"></span>
+                    Not Connected to Outlook
+                  </div>
+                )
+              ) : (
+                <div className="mt-2 inline-flex items-center gap-2 px-3 py-1 bg-slate-800 text-slate-300 rounded-full text-xs font-semibold border border-slate-700">
+                  <span className="text-amber-400">🔒</span>
+                  Option Inactive
+                </div>
+              )}
+            </div>
+
+            {hasMicrosoftCalendarAddon ? (
+              <a
+                href="/api/integrations/microsoft/authorize"
+                target="_top"
+                rel="noopener noreferrer"
+                className="w-full px-4 py-2.5 bg-blue-600 hover:bg-blue-500 text-white font-bold rounded-xl shadow-md transition-all flex items-center justify-center gap-2 text-xs text-center"
+              >
+                <span>{isMicrosoftConnected ? '🔄 Re-authorize Outlook' : '🔗 Connect Outlook Calendar'}</span>
+              </a>
+            ) : (
+              <button
+                type="button"
+                onClick={() => {
+                  setCalendarCategoryToUpsell('microsoft_calendar');
+                  setShowCalendarUpsellModal(true);
+                }}
+                className="w-full px-4 py-2.5 bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-400 hover:to-blue-500 text-white font-bold rounded-xl shadow-lg transition-all flex items-center justify-center gap-2 text-xs text-center"
+              >
+                <span>⚡ Select Microsoft Outlook (£4.99/mo)</span>
+              </button>
+            )}
+          </div>
         </div>
 
         {/* Services & Treatment Catalog */}
@@ -1553,7 +1625,7 @@ export default function SchedulingView() {
           <AddOnUpsellModal
             isOpen={showCalendarUpsellModal}
             onClose={() => setShowCalendarUpsellModal(false)}
-            category="google_calendar"
+            category={calendarCategoryToUpsell}
             tenantId={tenantId}
           />
         )}

@@ -165,6 +165,12 @@ export interface DashboardState {
   setGoogleConnectedEmail: (email: string | null) => void;
   hasGoogleCalendarAddon: boolean;
   setHasGoogleCalendarAddon: (hasAddon: boolean) => void;
+  isMicrosoftConnected: boolean;
+  setIsMicrosoftConnected: (connected: boolean) => void;
+  microsoftConnectedEmail: string | null;
+  setMicrosoftConnectedEmail: (email: string | null) => void;
+  hasMicrosoftCalendarAddon: boolean;
+  setHasMicrosoftCalendarAddon: (hasAddon: boolean) => void;
 
   // Billing & Superadmin
   billingData: BillingData | null;
@@ -300,6 +306,12 @@ export const useDashboardStore = create<DashboardState>((set) => ({
   setGoogleConnectedEmail: (googleConnectedEmail) => set({ googleConnectedEmail }),
   hasGoogleCalendarAddon: false,
   setHasGoogleCalendarAddon: (hasGoogleCalendarAddon) => set({ hasGoogleCalendarAddon }),
+  isMicrosoftConnected: false,
+  setIsMicrosoftConnected: (isMicrosoftConnected) => set({ isMicrosoftConnected }),
+  microsoftConnectedEmail: null,
+  setMicrosoftConnectedEmail: (microsoftConnectedEmail) => set({ microsoftConnectedEmail }),
+  hasMicrosoftCalendarAddon: false,
+  setHasMicrosoftCalendarAddon: (hasMicrosoftCalendarAddon) => set({ hasMicrosoftCalendarAddon }),
 
   billingData: {
     planTier: 'free',

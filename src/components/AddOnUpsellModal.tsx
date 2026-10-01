@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 
-export type AddOnCategory = 'landline' | 'mobile' | 'whatsapp' | 'voice_pack' | 'sms_pack' | 'data_pack' | 'google_calendar';
+export type AddOnCategory = 'landline' | 'mobile' | 'whatsapp' | 'voice_pack' | 'sms_pack' | 'data_pack' | 'google_calendar' | 'microsoft_calendar';
 
 interface AddOnUpsellModalProps {
   isOpen: boolean;
@@ -95,7 +95,7 @@ export default function AddOnUpsellModal({ isOpen, onClose, category, tenantId }
       const baseUrl = isLocal ? 'https://styleflo.test/app' : 'https://styleflo.ai/app';
 
       let targetTab = 'telephony';
-      if (category === 'google_calendar' || addonCatalogId === 'google_calendar_addon') {
+      if (category === 'google_calendar' || addonCatalogId === 'google_calendar_addon' || category === 'microsoft_calendar' || addonCatalogId === 'microsoft_calendar_addon') {
         targetTab = 'scheduling';
       } else if (category === 'data_pack' || addonCatalogId === 'data_pack_500') {
         targetTab = 'knowledge';
@@ -149,6 +149,7 @@ export default function AddOnUpsellModal({ isOpen, onClose, category, tenantId }
       case 'sms_pack': return 'SMS Messages Bolt-on';
       case 'data_pack': return 'Knowledge Base Capacity';
       case 'google_calendar': return 'Google Calendar Integration Bolt-on';
+      case 'microsoft_calendar': return 'Microsoft Outlook Calendar Integration Bolt-on';
       default: return 'Upgrade Feature';
     }
   };

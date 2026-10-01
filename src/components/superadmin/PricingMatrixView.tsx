@@ -94,7 +94,7 @@ export default function PricingMatrixView() {
         } else if (item.category === 'whatsapp') {
           lowerAllow = String(item.included_messages || 500);
           upperAllow = String(item.included_messages || 500);
-        } else if (item.category === 'google_calendar') {
+        } else if (item.category === 'google_calendar' || item.category === 'microsoft_calendar') {
           lowerAllow = '1';
           upperAllow = '1';
         }
