@@ -109,16 +109,8 @@ test.describe.serial('Multi-Colleague Dashboard & RBAC Rota Systems', () => {
     });
   });
 
-  // FIXME: All colleague tests skipped — supabaseAdmin.auth.admin.createUser succeeds
-  // but signInWithPassword consistently returns "Invalid login credentials" for the
-  // newly created user. This is a Supabase GoTrue auth issue, not related to app code.
-  // All Owner tests + all non-colleague tests pass (45+). Investigate separately.
-  test.describe.skip('Role: Colleague (test+colleague@styleflo.ai)', () => {
-    // FIXME: supabaseAdmin.auth.admin.createUser succeeds but signInWithPassword
-    // consistently returns "Invalid login credentials" for the newly created user.
-    // This is a Supabase GoTrue auth propagation issue, not related to app code.
-    // All other 50 tests pass. Investigate separately.
-    test.fixme('should trigger automatic RBAC matching on colleague sign-up', async ({ page }) => {
+  test.describe.serial('Role: Colleague (test+colleague@styleflo.ai)', () => {
+    test('should trigger automatic RBAC matching on colleague sign-up', async ({ page }) => {
       const inviteEmail = getInviteEmail();
 
       // If supabaseAdmin is available, create the pre-confirmed user via Admin API
