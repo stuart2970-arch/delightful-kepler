@@ -634,6 +634,14 @@ export default function SchedulingView() {
               >
                 <span>{isGoogleConnected ? '🔄 Re-authorize Google' : '🔗 Connect Google Calendar'}</span>
               </a>
+            ) : hasMicrosoftCalendarAddon ? (
+              <button
+                type="button"
+                disabled
+                className="w-full px-4 py-2.5 bg-slate-800 text-slate-400 font-bold rounded-xl border border-slate-700 cursor-not-allowed flex items-center justify-center gap-2 text-xs text-center opacity-75"
+              >
+                <span>🔒 Microsoft Active (1 Provider Max)</span>
+              </button>
             ) : (
               <button
                 type="button"
@@ -641,7 +649,7 @@ export default function SchedulingView() {
                   setCalendarCategoryToUpsell('google_calendar');
                   setShowCalendarUpsellModal(true);
                 }}
-                className="w-full px-4 py-2.5 bg-gradient-to-r from-indigo-500 to-indigo-600 hover:from-indigo-400 hover:to-indigo-500 text-white font-bold rounded-xl shadow-lg transition-all flex items-center justify-center gap-2 text-xs text-center"
+                className="w-full px-4 py-2.5 bg-gradient-to-r from-indigo-500 to-indigo-600 hover:from-indigo-400 hover:to-indigo-500 text-white font-bold rounded-xl shadow-lg transition-all flex items-center justify-center gap-2 text-xs text-center cursor-pointer"
               >
                 <span>⚡ Select Google Calendar (£4.99/mo)</span>
               </button>
@@ -692,6 +700,14 @@ export default function SchedulingView() {
               >
                 <span>{isMicrosoftConnected ? '🔄 Re-authorize Outlook' : '🔗 Connect Outlook Calendar'}</span>
               </a>
+            ) : hasGoogleCalendarAddon ? (
+              <button
+                type="button"
+                disabled
+                className="w-full px-4 py-2.5 bg-slate-800 text-slate-400 font-bold rounded-xl border border-slate-700 cursor-not-allowed flex items-center justify-center gap-2 text-xs text-center opacity-75"
+              >
+                <span>🔒 Google Active (1 Provider Max)</span>
+              </button>
             ) : (
               <button
                 type="button"
@@ -699,7 +715,7 @@ export default function SchedulingView() {
                   setCalendarCategoryToUpsell('microsoft_calendar');
                   setShowCalendarUpsellModal(true);
                 }}
-                className="w-full px-4 py-2.5 bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-400 hover:to-blue-500 text-white font-bold rounded-xl shadow-lg transition-all flex items-center justify-center gap-2 text-xs text-center"
+                className="w-full px-4 py-2.5 bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-400 hover:to-blue-500 text-white font-bold rounded-xl shadow-lg transition-all flex items-center justify-center gap-2 text-xs text-center cursor-pointer"
               >
                 <span>⚡ Select Microsoft Outlook (£4.99/mo)</span>
               </button>
