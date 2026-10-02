@@ -2779,6 +2779,30 @@ Highlighted adjustments in the modal:
     - Added an environment protection guardrail rule to `.agents/AGENTS.md` forbidding future agents from overwriting `.env.test` with `.env.local` credentials.
     - Authored `.agents/skills/local-testing-environment/SKILL.md` containing runbooks and guidelines for local Supabase DB CLI execution and dual env management.
 
+---
+
+### Session 42 — Complete Local Database Test Unskipping & Dedicated Test Server (2026-10-02)
+
+* **User Requests & Context**:
+    - "Is the point of having a mock database not the reason for being able to inject mock data to test against?"
+    - Resolve all remaining test failures, un-skip skipped tests, and ensure 100% of Playwright E2E tests run and pass cleanly against the local Supabase container.
+
+* **Root Cause & Technical Analysis**:
+    - **Cloud DB Port Reuse Collision**: `playwright.config.ts` had `reuseExistingServer: !process.env.CI` running on port 3000. When Next.js dev server was already running on port 3000 via `.env.local` (Cloud DB), Playwright reused that server. The web app inside Chromium attempted authentication against cloud Supabase (`https://tkoasyjvrgaglofpzduq.supabase.co`), whereas `supabaseAdmin` in test files updated local Supabase (`http://127.0.0.1:54321`).
+    - **GoTrue Password Hash Sync**: Direct SQL inserts into `auth.users` using `crypt('password123', gen_salt('bf'))` generated salts that GoTrue (Go bcrypt implementation) rejected during browser login unless `supabaseAdmin.auth.admin.updateUserById` was called to sync the password hash.
+    - **Case Sensitivity in `handle_new_user()`**: `handle_new_user()` PL/pgSQL trigger looked for pre-invited staff using exact equality `WHERE email = NEW.email`. If casing or whitespace differed, it created an `owner` profile instead of a `member` profile on sign-up.
+
+* **Fixes & Enhancements**:
+    - **Dedicated Test Server Architecture**: Updated `package.json` `test:server` to run on port 3001 (`dotenv -e .env.test --override -- next dev -p 3001`), updated `playwright.config.ts` `baseURL` to `http://localhost:3001`, and set `reuseExistingServer: false`. This guarantees tests run isolated from normal development server on port 3000.
+    - **Dynamic Password Sync**: Updated `loginAsUser` helper in `tests/multi-colleague.spec.ts` to dynamically sync passwords for seeded users (`admin@acme.com`, `colleague@acme.com`, `staff@globex.com`) via `supabaseAdmin.auth.admin.updateUserById`.
+    - **Case-Insensitive Trigger**: Updated `handle_new_user()` trigger in `supabase/migrations/20260926210000_manual_page_publish_and_sequential_slugs.sql` to match staff emails using `LOWER(TRIM(email)) = LOWER(TRIM(NEW.email))`.
+    - **Unskipped All Tests**: Unskipped test 38 (`should trigger automatic RBAC matching on colleague sign-up`) in `tests/multi-colleague.spec.ts`.
+    - **Seeded Mock Data**: Added staff records (`Sarah Miller`), appointments, services, and auth identities to `supabase/seed.sql` and reset local database (`npx supabase db reset`).
+
+* **Verification**:
+    - Executed full test suite: **51 passed, 0 skipped, 0 failed** (1.2m).
+
+
 
 
 

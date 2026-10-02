@@ -77,7 +77,13 @@ BEGIN
 END;
 $$;
 
--- 5. Ensure base_tier has microsoft_calendar entitlement set to 0 (bolt-on required)
+-- 5. Ensure microsoft_calendar feature exists in features table
+INSERT INTO public.features (id, category_id, name, description)
+VALUES ('microsoft_calendar', 'integrations', 'Microsoft Outlook Calendar', 'Microsoft Outlook Calendar integration and sync')
+ON CONFLICT (id) DO NOTHING;
+
+-- 6. Ensure base_tier has microsoft_calendar entitlement set to 0 (bolt-on required)
 INSERT INTO public.tier_entitlements (tier_id, feature_id, limit_value)
 VALUES ('base_tier', 'microsoft_calendar', 0)
 ON CONFLICT (tier_id, feature_id) DO UPDATE SET limit_value = 0;
+

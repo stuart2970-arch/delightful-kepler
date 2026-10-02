@@ -216,10 +216,27 @@ INSERT INTO auth.users (
 ) ON CONFLICT (id) DO NOTHING;
 
 INSERT INTO auth.identities (id, user_id, identity_data, provider, provider_id, last_sign_in_at, created_at, updated_at)
-VALUES (
+VALUES 
+(
+  '20000000-0000-0000-0000-000000000001',
+  '20000000-0000-0000-0000-000000000001',
+  '{"sub":"20000000-0000-0000-0000-000000000001","email":"admin@acme.com"}'::jsonb,
+  'email',
+  '20000000-0000-0000-0000-000000000001',
+  now(), now(), now()
+),
+(
+  '20000000-0000-0000-0000-000000000002',
+  '20000000-0000-0000-0000-000000000002',
+  '{"sub":"20000000-0000-0000-0000-000000000002","email":"staff@globex.com"}'::jsonb,
+  'email',
+  '20000000-0000-0000-0000-000000000002',
+  now(), now(), now()
+),
+(
   '20000000-0000-0000-0000-000000000003',
   '20000000-0000-0000-0000-000000000003',
-  format('{"sub":"%s","email":"%s"}', '20000000-0000-0000-0000-000000000003', 'colleague@acme.com')::jsonb,
+  '{"sub":"20000000-0000-0000-0000-000000000003","email":"colleague@acme.com"}'::jsonb,
   'email',
   '20000000-0000-0000-0000-000000000003',
   now(), now(), now()
@@ -232,11 +249,12 @@ VALUES (
   'member'
 ) ON CONFLICT (id) DO UPDATE SET tenant_id = EXCLUDED.tenant_id, role = EXCLUDED.role;
 
-INSERT INTO public.staff (id, tenant_id, name, email)
+INSERT INTO public.staff (id, tenant_id, chatbot_id, name, email)
 VALUES (
   '30000000-0000-0000-0000-000000000003',
   '10000000-0000-0000-0000-000000000001',
-  'Acme Colleague',
+  'e0000000-0000-0000-0000-000000000001',
+  'Sarah Miller',
   'colleague@acme.com'
 ) ON CONFLICT (id) DO NOTHING;
 
@@ -244,5 +262,29 @@ VALUES (
 INSERT INTO public.tenant_active_addons (tenant_id, addon_catalog_id, is_active)
 VALUES ('10000000-0000-0000-0000-000000000001', 'google_calendar_addon', true)
 ON CONFLICT DO NOTHING;
+
+-- Seed Services for Acme Corp
+INSERT INTO public.services (id, tenant_id, name, duration_minutes, price)
+VALUES (
+  '40000000-0000-0000-0000-000000000001',
+  '10000000-0000-0000-0000-000000000001',
+  'Haircut & Styling',
+  60,
+  50.00
+) ON CONFLICT (id) DO NOTHING;
+
+-- Seed Appointments for Acme Colleague
+INSERT INTO public.appointments (id, tenant_id, staff_id, service_id, customer_name, customer_email, start_time, end_time)
+VALUES (
+  '50000000-0000-0000-0000-000000000002',
+  '10000000-0000-0000-0000-000000000001',
+  '30000000-0000-0000-0000-000000000003',
+  '40000000-0000-0000-0000-000000000001',
+  'John Doe',
+  'john@example.com',
+  now(),
+  now() + interval '1 hour'
+) ON CONFLICT (id) DO NOTHING;
+
 
 

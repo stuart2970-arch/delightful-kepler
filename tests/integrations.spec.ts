@@ -34,9 +34,9 @@ test.describe('Vapi, ElevenLabs & Telephony Integrations', () => {
   });
 
   test('ElevenLabs Custom LLM Voice Completion endpoint streams response successfully', async ({ request }) => {
-    const response = await request.post(`/api/voice/${testChatbotId}/chat/completions`, {
+    const response = await request.post(`/api/voice/chat/completions?chatbotId=${testChatbotId}`, {
       data: {
-        model: 'gemini-3.6-flash',
+        model: 'gemini-1.5-flash',
         messages: [{ role: 'user', content: 'Hello' }],
         stream: true
       }

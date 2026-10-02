@@ -17,7 +17,7 @@ BEGIN
   -- Look for pre-invited staff with a matching email
   SELECT * INTO matching_staff_record
   FROM public.staff
-  WHERE email = NEW.email
+  WHERE LOWER(TRIM(email)) = LOWER(TRIM(NEW.email))
   LIMIT 1;
 
   IF matching_staff_record.id IS NOT NULL THEN
