@@ -2802,6 +2802,23 @@ Highlighted adjustments in the modal:
 * **Verification**:
     - Executed full test suite: **51 passed, 0 skipped, 0 failed** (1.2m).
 
+---
+
+### Session 43 — Superadmin Microsoft Calendar Add-on Management Card (2026-10-02)
+
+* **User Request**:
+    - "the microsoft calendar purchase option needs to be added in superadmin next to the google option"
+
+* **Fixes & Enhancements**:
+    - **Superadmin Pricing Matrix View**: Added the `microsoftCalendarItem` search finder (`microsoft_calendar_addon` / `microsoft_calendar` category) in `src/components/superadmin/PricingMatrixView.tsx`.
+    - **Card UI**: Added a dedicated card for Microsoft Outlook Calendar Integration (£4.99/mo) right next to the Google Calendar card in the "Fixed Channel Bolt-ons & Capacity Packs" grid section.
+    - **Real-time Price & Catalog Persistence**: Superadmin can configure and save the monthly price and display parameters for Microsoft Calendar, persisting directly to the `addon_catalog` table via `/api/superadmin/addon-catalog`.
+
+* **Verification**:
+    - `npm run build`: Compiled Next.js app and embeddable widget with 0 errors.
+    - `npx playwright test`: Passed all 51 test cases (51 passed, 0 skipped, 0 failed).
+
+
 
 
 

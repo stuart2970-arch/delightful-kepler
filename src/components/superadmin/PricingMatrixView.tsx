@@ -298,6 +298,7 @@ export default function PricingMatrixView() {
   const whatsappAddon = addons.find((a) => a.id === 'whatsapp_addon');
   const dataPack = addons.find((a) => a.id === 'data_pack_500' || a.category === 'data_pack');
   const googleCalendarItem = addons.find((a) => a.id === 'google_calendar_addon' || a.category === 'google_calendar');
+  const microsoftCalendarItem = addons.find((a) => a.id === 'microsoft_calendar_addon' || a.category === 'microsoft_calendar');
 
   return (
     <div className="space-y-6 mt-6">
@@ -906,6 +907,50 @@ export default function PricingMatrixView() {
                 className="w-full py-1.5 bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 text-white text-[11px] font-bold rounded-lg transition-colors cursor-pointer"
               >
                 {savingId === googleCalendarItem.id ? 'Saving...' : 'Save Google Calendar'}
+              </button>
+            </div>
+          )}
+
+          {/* Microsoft Outlook Calendar Integration */}
+          {microsoftCalendarItem && formState[microsoftCalendarItem.id] && (
+            <div className="bg-gray-950 border border-gray-800 p-4 rounded-xl space-y-3">
+              <div className="flex justify-between items-center">
+                <span className="text-xs font-bold text-white flex items-center gap-1.5">
+                  <span>📅</span> Microsoft Calendar
+                </span>
+                <span className="text-[10px] text-gray-400 font-mono">microsoft_calendar_addon</span>
+              </div>
+              <p className="text-[10px] text-gray-400 leading-tight">
+                Two-way Microsoft Outlook Calendar synchronization for bookings & rotas.
+              </p>
+              <div>
+                <label className="block text-[10px] text-gray-400 mb-1">Monthly Price (£)</label>
+                <div className="relative">
+                  <span className="absolute left-2.5 top-1.5 text-gray-400 text-xs">£</span>
+                  <input
+                    type="number"
+                    step="0.01"
+                    value={formState[microsoftCalendarItem.id].lowerCostGBP}
+                    onChange={(e) => handleFieldChange(microsoftCalendarItem.id, 'lowerCostGBP', e.target.value)}
+                    className="w-full bg-gray-900 border border-gray-700 rounded-lg pl-6 pr-2 py-1 text-xs text-white font-mono"
+                  />
+                </div>
+              </div>
+              <div>
+                <label className="block text-[10px] text-gray-400 mb-1">Included Integration</label>
+                <input
+                  type="text"
+                  disabled
+                  value="Full 2-Way Sync"
+                  className="w-full bg-gray-900/60 border border-gray-800 rounded-lg px-2.5 py-1 text-xs text-gray-400 font-mono cursor-not-allowed"
+                />
+              </div>
+              <button
+                onClick={() => handleSaveFixedAddon(microsoftCalendarItem.id, 'Microsoft Outlook Calendar Integration', formState[microsoftCalendarItem.id].lowerCostGBP, '1', 'display_order')}
+                disabled={savingId === microsoftCalendarItem.id}
+                className="w-full py-1.5 bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 text-white text-[11px] font-bold rounded-lg transition-colors cursor-pointer"
+              >
+                {savingId === microsoftCalendarItem.id ? 'Saving...' : 'Save Microsoft Calendar'}
               </button>
             </div>
           )}
