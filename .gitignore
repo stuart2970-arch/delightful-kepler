@@ -66,4 +66,8 @@ tests/.test-state.json
 test-results/
 playwright-report/
 
-certificates
+# Service Account JSON Keys & Secrets
+.agents/*.json
+*.json
+!package.json
+!tsconfig.json

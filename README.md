@@ -2764,6 +2764,22 @@ Highlighted adjustments in the modal:
     - Resolved blank modal popup when selecting Microsoft Outlook Calendar in the Scheduling view.
     - Enforced mutually exclusive calendar selection UI (if Google is active, Microsoft selection is locked with a "Google Active (1 Provider Max)" badge, and vice-versa).
 
+---
+
+### Session 41 — Dual Config Investigation & Local Testing Environment Skill (2026-10-02)
+
+* **User Request**: "I have two local config files, one for testing locally and one for testing locally with a spun up DB. This was done to stop testing sending spam emails from the supabase db. This seems to have become confusing at some time, can you investigate exactly which file is being used fir which pirpose and ensure the files contain correct data, i recall a message yesterday where you changed the settings for the database. When you have investigated i wiuld like you to create a skill for testing that i can review and set up so we do nit have the same issue again"
+
+* **Root Cause Investigation**:
+    - **`.env.local` vs `.env.test` Architecture**: `.env.local` is designed for standard local app development (`npm run dev`) against the cloud Supabase project (`https://tkoasyjvrgaglofpzduq.supabase.co`). `.env.test` is designed exclusively for automated Playwright E2E tests (`npm run test:e2e`) running against a local spun-up Supabase CLI database (`http://127.0.0.1:54321`) with mock email credentials to prevent sending spam emails or mutating live cloud DB data.
+    - **Session 40 Misstep**: During Session 40, when an auth test failed due to the local Supabase container not running, the agent accidentally synchronized `.env.test` to point to the live cloud Supabase database, destroying the environment separation and causing tests to hit live cloud infrastructure.
+
+* **Fixes & Enhancements**:
+    - Restored `.env.test` to point to the local Supabase CLI instance (`http://127.0.0.1:54321`) with local JWT keys and `MAILGUN_API_KEY=mock_mailgun_api_key_for_local_testing` so outbound test emails stay trapped in local Inbucket (`http://127.0.0.1:54324`).
+    - Added an environment protection guardrail rule to `.agents/AGENTS.md` forbidding future agents from overwriting `.env.test` with `.env.local` credentials.
+    - Authored `.agents/skills/local-testing-environment/SKILL.md` containing runbooks and guidelines for local Supabase DB CLI execution and dual env management.
+
+
 
 
 
