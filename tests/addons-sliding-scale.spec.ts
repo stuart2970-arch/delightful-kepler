@@ -171,6 +171,13 @@ test.describe('Modular Add-Ons & Sliding Scale Checkout API', () => {
       expect(location).toContain('stripe.com');
     }
   });
+
+  test('Registration page endpoint loads successfully with plan and addons parameters', async ({ request }) => {
+    const res = await request.get('/register?plan=basic&addons=google_calendar_addon');
+    expect(res.status()).toBe(200);
+    const html = await res.text();
+    expect(html).toBeDefined();
+  });
 });
 
 

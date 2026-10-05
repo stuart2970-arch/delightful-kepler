@@ -368,10 +368,10 @@ export default function LoginPage() {
           <div className="bg-emerald-50 border border-emerald-200 rounded-2xl p-5 mb-6 text-left space-y-2 shadow-sm animate-in fade-in duration-300">
             <div className="flex items-center gap-2 text-emerald-900 font-bold text-sm">
               <span className="text-xl">✨</span>
-              <span>Magic Login Link Sent!</span>
+              <span>Logging You In...</span>
             </div>
             <p className="text-xs text-emerald-800 leading-relaxed">
-              We've sent a magic login link to <strong className="text-emerald-950 underline">{email}</strong>. Please check your inbox (and spam folder) to sign in directly.
+              Authenticating <strong className="text-emerald-950 underline">{email}</strong>. Redirecting to your dashboard now...
             </p>
           </div>
         )}

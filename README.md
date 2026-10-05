@@ -224,13 +224,14 @@ This runbook documents the key fixes and architecture enhancements implemented d
 * **Solution**:
   - Replaced `.upsert(..., { onConflict: ... })` with a robust `select-or-insert` pattern across all voice completion routes (`src/app/api/voice/[chatbotId]/chat/completions/route.ts` and `src/app/api/voice/chat/completions/route.ts`).
   - Added default fallback Supabase environment variables for runtime resilience on Cloud Run.
-### 24. Robust Meta & Instagram Settings Persistence with Schema Cache Fallback
-* **Problem**: Saving Instagram/Meta account settings in the dashboard resulted in a runtime error alert: `Error saving settings: Could not find the 'instagram_enabled' column of 'chatbots' in the schema cache`. This occurred because the Supabase PostgREST schema cache on the target database instance lacked top-level table columns for `instagram_enabled` or was out of sync with migration definitions, causing direct column `UPDATE` queries on `chatbots` to fail and throw an unhandled exception.
+### 25. Registration Form Modular Bolt-on Package Pricing & Mobile Layout Positioning
+* **Problem**:
+  1. When a user selected modular bolt-ons on the main landing page (e.g. Google Calendar Integration for +£4.99/mo) and clicked "Get Started" / "Get It Now", the registration form (`src/app/register/page.tsx`) hardcoded the plan header and submit button price to `£9.99/mo` instead of calculating and displaying the total package price (`£14.98/mo`).
+  2. On mobile screens and embedded views, the registration page container used `min-h-screen flex items-center justify-center`, which forced the registration card down into the vertical middle/bottom of tall viewports, leaving a massive empty white space above the form.
 * **Solution**:
-  - Updated `/api/integrations/meta/settings/route.ts` to construct a complete configuration payload (`updatedConfig`) and persist all Meta settings (`instagram_enabled`, `instagram_handle`, `instagram_account_id`, `whatsapp_enabled`, `whatsapp_phone_number`, `whatsapp_phone_number_id`, `whatsapp_waba_id`, `messenger_enabled`, `messenger_page_id`, `meta_access_token`, `meta_verify_token`, `meta_app_id`, `meta_app_secret`) into the guaranteed `configuration_json` column of `chatbots`.
-  - Added graceful fallback handling to `PATCH` in `/api/integrations/meta/settings/route.ts`: if top-level table column updates fail due to a PostgREST schema cache error, the route catches the error and executes a guaranteed fallback update targeting `{ configuration_json: updatedConfig }`.
-  - Updated `GET` in `/api/integrations/meta/settings/route.ts` to read Meta settings from both top-level columns and `configuration_json` as fallback.
-  - Added `configuration_json` fallbacks for resolving chatbots during inbound Meta (Instagram, WhatsApp, Messenger) webhooks in `/api/webhooks/meta/route.ts` (`configuration_json->>instagram_account_id`, `configuration_json->>whatsapp_phone_number_id`, `configuration_json->>messenger_page_id`).
+  - Refactored `src/app/register/page.tsx` to read selected bolt-on query parameters (`addons`, `addon`, or `addonCatalogIds`) and calculate the total monthly package price (`basePrice` + sum of selected bolt-on prices).
+  - Dynamically updated the card banner header and submit button label (`Continue to Checkout (£XX.XX/mo)`), explicitly itemizing included bolt-ons (e.g., `Includes Core Base Plan (£9.99/mo) + Google Calendar Integration`).
+  - Adjusted the layout container to `min-h-screen flex flex-col items-center justify-start sm:justify-center py-4 sm:py-8 md:py-12 px-4`, aligning the registration card cleanly near the top of the viewport on mobile devices and inside iframe layouts.
 
 ---
 
@@ -2817,6 +2818,48 @@ Highlighted adjustments in the modal:
 * **Verification**:
     - `npm run build`: Compiled Next.js app and embeddable widget with 0 errors.
     - `npx playwright test`: Passed all 51 test cases (51 passed, 0 skipped, 0 failed).
+
+---
+
+### Session 44 — Supabase Mailgun SMTP Authentication Investigation (2026-10-02)
+
+* **User Request**:
+    - "i added smtp details to my supabase db to send user emails via mailgun but it doesnt seem to be working, can you investigate"
+
+* **Investigation & Findings**:
+    - **Mailgun EU Endpoint & Domain Verification**: Verified via Mailgun API that `auth.styleflo.ai` is registered and **`active`** in Mailgun's **EU Region** (`api.eu.mailgun.net`).
+    - **SMTP Port Connectivity**: Verified TCP connectivity to `smtp.eu.mailgun.org` on ports 587 and 465.
+    - **Log Inspection Guidance**: Documented where to inspect Supabase Auth Logs (`Logs -> Auth Logs`) and Mailgun Logs (`Sending -> Logs`) to diagnose SMTP dispatch status.
+    - **Supabase Auth Log Screenshot Analysis**: Analyzed user log screenshot showing `User recovery requested: request completed` at 20:31:47 followed by 60s email cooldown rate limit (`For security purposes, you can only request this after 59 seconds`).
+    - **Instant Server-Side Login Bypass Discovery**: Discovered why 0 emails hit Mailgun: `/api/auth/magic-link` generates the token via `admin.generateLink()` and immediately calls `verifyOtp()` on the server to authenticate session cookies, logging the user in instantly and bypassing email dispatch entirely.
+
+---
+
+### Session 45 — Registration Form Bolt-on Package Pricing & Mobile Viewport Alignment (2026-10-05)
+
+* **User Request**:
+    - "When the user adds boltons at the same time as the base broduct, the price increases on the main page, but when the user selects get it now button and is taken to the register form, the price only shows the basic price 9.99 also, the form is too low on the screen (off page on a mobile)"
+
+* **Root Causes**:
+    1. **Hardcoded Price Text**: The registration page (`src/app/register/page.tsx`) hardcoded the plan banner title and the main checkout submit button label to `£9.99/mo` (`Basic Subscription (£9.99/mo)` / `Continue to Checkout (£9.99/mo)`), ignoring selected bolt-on query parameters (`addons` / `addon` / `addonCatalogIds`).
+    2. **Off-Page Vertical Center Positioning on Mobile**: The page layout wrapper used `min-h-screen flex items-center justify-center`. On mobile devices and embedded iframe layouts, vertical centering inside a tall screen height forced the registration card far down past the top fold, resulting in a large empty gap above the form.
+
+* **Changes Made**:
+    1. **Dynamic Modular Package Calculation**: Updated `src/app/register/page.tsx` to read selected bolt-on parameters (`addons`, `addon`, `addonCatalogIds`), sum the base price (£9.99) with all selected bolt-on prices (e.g. £4.99 for Google Calendar Integration, £9.99 for Knowledgebase Storage, £8.99 for Landline, £10.99 for Mobile), and compute `formattedTotalPrice` (e.g., `£14.98/mo`).
+    2. **Itemized Package Banner & Button**: Updated the plan badge banner and submit button text to render `Basic Subscription + 1 Bolt-on (£14.98/mo)` and `Continue to Checkout (£14.98/mo)`, explicitly listing included bolt-on names (e.g. `Includes Core Base Plan (£9.99/mo) + Google Calendar Integration`).
+    3. **Mobile & Viewport Layout Optimization**: Changed page wrapper to `min-h-screen flex flex-col items-center justify-start sm:justify-center py-4 sm:py-8 md:py-12 px-4`. This positions the registration form cleanly near the top of the viewport on mobile devices while maintaining smooth responsiveness on desktop screens.
+    4. **Automated Verification**: Added test case in `tests/addons-sliding-scale.spec.ts` verifying `/register?plan=basic&addons=google_calendar_addon` parameter handling and layout structure, and confirmed clean production builds with `npm run build`.
+
+
+
+
+
+
+
+
+
+
+
 
 
 

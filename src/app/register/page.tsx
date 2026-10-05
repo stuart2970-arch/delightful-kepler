@@ -12,9 +12,28 @@ function RegisterContent() {
 
   const planParam = searchParams.get('plan') || 'basic';
   const promoParam = searchParams.get('promo') || '';
-  const addonsParam = searchParams.get('addons') || searchParams.get('addon') || '';
+  const addonsParam = searchParams.get('addons') || searchParams.get('addon') || searchParams.get('addonCatalogIds') || '';
   const addonsList = addonsParam ? addonsParam.split(',').filter(Boolean) : [];
   const hasAddons = addonsList.length > 0;
+
+  const MODULAR_ADDONS: Record<string, { name: string; price: number }> = {
+    google_calendar_addon: { name: 'Google Calendar Integration', price: 4.99 },
+    microsoft_calendar_addon: { name: 'Microsoft Outlook Calendar Integration', price: 4.99 },
+    data_pack_500: { name: 'Knowledgebase Storage (500 Chunks)', price: 9.99 },
+    landline_addon: { name: 'Local Landline Number', price: 8.99 },
+    mobile_addon: { name: 'Mobile Number', price: 10.99 },
+  };
+
+  const basePrice = 9.99;
+  const addonsTotal = addonsList.reduce((sum, addonId) => {
+    return sum + (MODULAR_ADDONS[addonId]?.price || 0);
+  }, 0);
+  const totalPrice = basePrice + addonsTotal;
+  const formattedTotalPrice = `£${totalPrice.toFixed(2)}/mo`;
+
+  const selectedAddonNames = addonsList
+    .map(id => MODULAR_ADDONS[id]?.name)
+    .filter(Boolean);
 
   useEffect(() => {
     trackVisitorNotSignedUp('register_page', { plan: planParam });
@@ -89,11 +108,14 @@ function RegisterContent() {
 
   const getPlanBadge = () => {
     return {
-      name: 'Basic Subscription',
-      price: '£9.99/mo',
+      name: hasAddons 
+        ? `Basic Subscription + ${addonsList.length} Bolt-on${addonsList.length > 1 ? 's' : ''}`
+        : 'Basic Subscription',
+      price: formattedTotalPrice,
       tag: hasAddons
         ? `Basic £9.99/mo + ${addonsList.length} Bolt-on${addonsList.length > 1 ? 's' : ''}`
-        : 'No setup fee • Cancel anytime'
+        : 'No setup fee • Cancel anytime',
+      addonsDetail: selectedAddonNames.length > 0 ? selectedAddonNames.join(', ') : null,
     };
   };
 
@@ -280,7 +302,7 @@ function RegisterContent() {
   };
 
   return (
-    <main className="min-h-screen flex items-center justify-center bg-[#FAF9FC] p-4 font-sans relative overflow-hidden">
+    <main className="min-h-screen flex flex-col items-center justify-start sm:justify-center py-4 sm:py-8 md:py-12 px-4 bg-[#FAF9FC] font-sans relative overflow-hidden">
       {/* StyleFlo Pearl Ambient Glow Decor */}
       <div className="absolute top-[-10%] left-[-10%] w-[500px] h-[500px] bg-[#7E5FBB]/10 rounded-full blur-[120px] pointer-events-none"></div>
       <div className="absolute bottom-[-10%] right-[-10%] w-[500px] h-[500px] bg-[#260475]/10 rounded-full blur-[120px] pointer-events-none"></div>
@@ -293,7 +315,13 @@ function RegisterContent() {
             ⚡ {planInfo.tag}
           </span>
           <h2 className="text-base font-bold text-[#0F172A] mt-1">{planInfo.name} ({planInfo.price})</h2>
-          <p className="text-xs text-slate-600 font-medium">24/7 AI Receptionist & Web Chatbot • Cancel anytime</p>
+          {planInfo.addonsDetail ? (
+            <p className="text-xs text-[#7E5FBB] font-semibold">
+              Includes Core Base Plan (£9.99/mo) + {planInfo.addonsDetail}
+            </p>
+          ) : (
+            <p className="text-xs text-slate-600 font-medium">24/7 AI Receptionist & Web Chatbot • Cancel anytime</p>
+          )}
         </div>
 
         {error && (
@@ -545,7 +573,7 @@ function RegisterContent() {
             disabled={loading || !termsAccepted}
             className="w-full bg-gradient-to-r from-[#260475] to-[#7E5FBB] hover:from-[#1d0359] hover:to-[#6a4ca2] text-white font-bold rounded-xl px-4 py-3 shadow-md shadow-[#7E5FBB]/25 transition-all focus:ring-2 focus:ring-[#7E5FBB] focus:ring-offset-2 mt-2 disabled:opacity-50 disabled:cursor-not-allowed"
           >
-            {loading ? 'Creating Account & Opening Checkout...' : `Continue to Checkout (£9.99/mo)`}
+            {loading ? 'Creating Account & Opening Checkout...' : `Continue to Checkout (${planInfo.price})`}
           </button>
         </form>
 
