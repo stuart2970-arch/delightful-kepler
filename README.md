@@ -233,6 +233,13 @@ This runbook documents the key fixes and architecture enhancements implemented d
   - Dynamically updated the card banner header and submit button label (`Continue to Checkout (£XX.XX/mo)`), explicitly itemizing included bolt-ons (e.g., `Includes Core Base Plan (£9.99/mo) + Google Calendar Integration`).
   - Adjusted the layout container to `min-h-screen flex flex-col items-center justify-start sm:justify-center py-4 sm:py-8 md:py-12 px-4`, aligning the registration card cleanly near the top of the viewport on mobile devices and inside iframe layouts.
 
+### 26. General Chat & Voice Disclaimer Pre-Chat Form Reversion
+* **Problem**: Setting a global chat disclaimer message in Superadmin caused regular chatbots on client websites to display the hardcoded FloChat B2B onboarding screen ("Welcome to StyleFlo AI / Let's build your AI receptionist in 60 seconds / Continue with Google / Start Onboarding with FloBot") instead of displaying the general notice box and the pre-chat form for visitors to enter their name and confirm acceptance of Terms & Conditions and Privacy Policy.
+* **Solution**:
+  - Updated `src/widget/index.ts` and `src/widget/embed.ts` to differentiate between standard chatbots and the FloBot onboarding bot (`styleflo-onboarding-flobot`).
+  - For standard chatbots requiring pre-chat confirmation or having a `globalVoiceDisclaimer`, the widget now renders a styled notice box displaying the global disclaimer text, a Full Name * input field, an optional Email input field, a mandatory Terms of Service & Privacy Policy agreement checkbox, and a "Start Chat 💬" submit button.
+  - Recompiled widget assets using `npm run build:widget` and verified production Next.js build with `npm run build`.
+
 ---
 
 ### Session Chat History Log
@@ -2818,6 +2825,27 @@ Highlighted adjustments in the modal:
 * **Verification**:
     - `npm run build`: Compiled Next.js app and embeddable widget with 0 errors.
     - `npx playwright test`: Passed all 51 test cases (51 passed, 0 skipped, 0 failed).
+
+---
+
+### Session 46 — Reversion of General Pre-Chat Form & Global Disclaimer Notice Display (2026-10-05)
+
+* **User Request**:
+    - "I tried to set a global chat message that must be accepted along with the website T&Cs and Privacy policy, which was in place before i set up flochat onboarding, which has since been scrapped, this needs to be reverted so the general message displays again and the form for the user to add their name and confirm acceptance of T&Cs etc"
+
+* **Root Cause**:
+    - When a global disclaimer message was set in Superadmin (`globalVoiceDisclaimer`), the widget evaluated `needsOnboarding` as true. Because the widget template hardcoded the FloChat B2B onboarding HTML ("Welcome to StyleFlo AI / Let's build your AI receptionist in 60 seconds / Continue with Google / Start Onboarding with FloBot ⚡"), website visitors on regular client chatbots were shown the FloBot account creation wizard instead of the pre-chat disclaimer and name entry form.
+
+* **Changes Made**:
+    - **Widget Component Isolation**: Updated `src/widget/index.ts` and `src/widget/embed.ts` to check `isFloBot = chatbotId === 'styleflo-onboarding-flobot'`.
+    - **General Pre-Chat Notice & Form**: For all regular chatbots (`!isFloBot`), when a disclaimer or client name is required, the widget renders:
+        1. A prominent **Chat & Voice Disclaimer** header.
+        2. A styled notice container displaying the exact `globalVoiceDisclaimer` text configured in Superadmin.
+        3. Pre-chat input fields for **Full Name *** and **Email Address (optional)**.
+        4. Mandatory agreement checkbox (`I agree to the Terms of Service and acknowledge the Privacy Policy`).
+        5. Submit action button labeled **Start Chat 💬**.
+    - **Asset Re-compilation & Verification**: Rebuilt `public/widget.js` and `public/embed.js` via `npm run build:widget` and executed a full production build (`npm run build`) with zero errors.
+
 
 ---
 

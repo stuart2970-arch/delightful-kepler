@@ -375,6 +375,7 @@ import Vapi from '@vapi-ai/web';
   // 7. Initialize and render the DOM elements
   function initializeWidget() {
     const finalAvatarSrc = agentAvatarUrl.startsWith('http') ? agentAvatarUrl : `${apiHost}${agentAvatarUrl}`;
+    const isFloBot = chatbotId === 'styleflo-onboarding-flobot';
 
     // Floating Chat Bubble
     const bubble = document.createElement('button');
@@ -430,32 +431,46 @@ import Vapi from '@vapi-ai/web';
         </button>
       </div>
 
-      <!-- Onboarding Area -->
+      <!-- Onboarding / Disclaimer Area -->
       <div id="styleflo-onboarding" class="flex-1 flex flex-col items-center justify-center p-6 bg-gray-50 text-center" style="display: none; overflow-y: auto;">
-        <h4 class="font-bold text-gray-900 text-lg mb-1 shrink-0">Welcome to StyleFlo AI</h4>
-        <p class="text-gray-500 text-xs mb-4 shrink-0">Let's build your AI receptionist in 60 seconds</p>
+        ${isFloBot ? `
+          <h4 class="font-bold text-gray-900 text-lg mb-1 shrink-0">Welcome to StyleFlo AI</h4>
+          <p class="text-gray-500 text-xs mb-4 shrink-0">Let's build your AI receptionist in 60 seconds</p>
 
-        <!-- Google OAuth Button -->
-        <button
-          type="button"
-          id="styleflo-google-btn"
-          class="w-full py-3 px-4 mb-3 rounded-xl shadow-md flex items-center justify-center gap-2.5 transition-all cursor-pointer"
-          style="background-color: #260475 !important; color: #ffffff !important; font-weight: 700; font-size: 14px;"
-        >
-          <svg class="w-5 h-5 bg-white rounded-full p-0.5" viewBox="0 0 24 24">
-            <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" />
-            <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" />
-            <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.63z" />
-            <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z" />
-          </svg>
-          <span style="color: #ffffff !important; font-weight: 700;">Continue with Google</span>
-        </button>
+          <!-- Google OAuth Button -->
+          <button
+            type="button"
+            id="styleflo-google-btn"
+            class="w-full py-3 px-4 mb-3 rounded-xl shadow-md flex items-center justify-center gap-2.5 transition-all cursor-pointer"
+            style="background-color: #260475 !important; color: #ffffff !important; font-weight: 700; font-size: 14px;"
+          >
+            <svg class="w-5 h-5 bg-white rounded-full p-0.5" viewBox="0 0 24 24">
+              <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" />
+              <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" />
+              <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.63z" />
+              <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z" />
+            </svg>
+            <span style="color: #ffffff !important; font-weight: 700;">Continue with Google</span>
+          </button>
 
-        <div class="w-full flex items-center my-3 text-gray-400 text-xs">
-          <div class="flex-1 border-t border-gray-200"></div>
-          <span class="px-3 font-medium text-[11px] uppercase tracking-wider text-gray-400">or enter details</span>
-          <div class="flex-1 border-t border-gray-200"></div>
-        </div>
+          <div class="w-full flex items-center my-3 text-gray-400 text-xs">
+            <div class="flex-1 border-t border-gray-200"></div>
+            <span class="px-3 font-medium text-[11px] uppercase tracking-wider text-gray-400">or enter details</span>
+            <div class="flex-1 border-t border-gray-200"></div>
+          </div>
+        ` : `
+          <h4 class="font-bold text-gray-900 text-lg mb-1 shrink-0">${globalVoiceDisclaimer ? 'Chat & Voice Disclaimer' : `Welcome to ${agentName || botName}`}</h4>
+          <p class="text-gray-500 text-xs mb-3 shrink-0">${globalVoiceDisclaimer ? 'Please review the notice below and confirm your details to start chatting.' : 'Please enter your details to start chatting.'}</p>
+
+          ${globalVoiceDisclaimer ? `
+            <div class="w-full bg-blue-50/80 border border-blue-100 rounded-xl p-3.5 mb-4 text-xs text-blue-950 text-left leading-relaxed shadow-sm max-h-48 overflow-y-auto">
+              <div class="font-bold text-blue-900 text-[11px] uppercase tracking-wider mb-1 flex items-center gap-1">
+                <span>📋</span> <span>Important Notice</span>
+              </div>
+              ${globalVoiceDisclaimer}
+            </div>
+          ` : ''}
+        `}
 
         <form id="styleflo-onboarding-form" class="w-full shrink-0">
           <input
@@ -469,21 +484,21 @@ import Vapi from '@vapi-ai/web';
           <input
             type="email"
             id="styleflo-onboarding-email"
-            required
-            placeholder="Email Address *"
+            ${isFloBot ? 'required' : ''}
+            placeholder="${isFloBot ? 'Email Address *' : 'Email Address (optional)'}"
             class="w-full px-4 py-3 mb-3 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:border-transparent transition-all"
             style="--tw-ring-color: ${primaryColor};"
           />
 
           <div class="flex items-start gap-2 mb-4 text-left">
             <input type="checkbox" id="styleflo-disclaimer-accept" required class="mt-0.5 cursor-pointer" />
-            <label for="styleflo-disclaimer-accept" style="font-size: 10px; color: #9ca3af; line-height: 1.35;" class="cursor-pointer">
-              I agree to StyleFlo's <a href="https://styleflo.ai/terms-conditions/" target="_blank" style="color: #6b7280; text-decoration: underline; font-weight: 500;">Terms of Service</a> and acknowledge the <a href="https://styleflo.ai/privacy/" target="_blank" style="color: #6b7280; text-decoration: underline; font-weight: 500;">Privacy Policy</a>.
+            <label for="styleflo-disclaimer-accept" style="font-size: 11px; color: #4b5563; line-height: 1.4;" class="cursor-pointer">
+              I agree to the <a href="https://styleflo.ai/terms-conditions/" target="_blank" style="color: ${primaryColor}; text-decoration: underline; font-weight: 500;">Terms of Service</a> and acknowledge the <a href="https://styleflo.ai/privacy/" target="_blank" style="color: ${primaryColor}; text-decoration: underline; font-weight: 500;">Privacy Policy</a>.
             </label>
           </div>
 
           <button type="submit" class="w-full py-3 rounded-xl text-white font-bold text-sm shadow-md transition-opacity hover:opacity-95 cursor-pointer" style="background-color: ${primaryColor};">
-            Start Onboarding with FloBot ⚡
+            ${isFloBot ? 'Start Onboarding with FloBot ⚡' : 'Start Chat 💬'}
           </button>
         </form>
       </div>
@@ -931,7 +946,6 @@ import Vapi from '@vapi-ai/web';
       welcomeTextEl.innerHTML = getFormattedWelcomeMessage(storedName);
     }
 
-    const isFloBot = chatbotId === 'styleflo-onboarding-flobot';
     const needsOnboarding = isFloBot
       ? (!storedName || !storedEmail)
       : ((requireClientName && !storedName) || (globalVoiceDisclaimer && !disclaimerAccepted));
