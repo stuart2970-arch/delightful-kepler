@@ -74,20 +74,30 @@ async function fetchGoogleReviews(tenant: any, apiKey: string): Promise<{ rating
     if (addressParts.length === 0) return defaultResult;
     const query = addressParts.join(', ');
 
+    const headers: Record<string, string> = {
+      'Content-Type': 'application/json',
+      'X-Goog-Api-Key': apiKey,
+      'X-Goog-FieldMask': 'places.id,places.displayName,places.rating,places.userRatingCount,places.reviews,places.regularOpeningHours,places.photos,places.photos.authorAttributions'
+    };
+    if (process.env.GOOGLE_PLACES_HTTP_REFERER) {
+      headers['Referer'] = process.env.GOOGLE_PLACES_HTTP_REFERER;
+    }
+
     const response = await fetch('https://places.googleapis.com/v1/places:searchText', {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'X-Goog-Api-Key': apiKey,
-        'X-Goog-FieldMask': 'places.id,places.displayName,places.rating,places.userRatingCount,places.reviews,places.regularOpeningHours,places.photos,places.photos.authorAttributions'
-      },
+      headers,
       body: JSON.stringify({
         textQuery: query
       })
     });
 
     if (!response.ok) {
-      console.warn('[Places API Error]', response.status, await response.text());
+      const errText = await response.text();
+      if (response.status === 403 && errText.includes('API_KEY_HTTP_REFERRER_BLOCKED')) {
+        console.warn('[Places API Error] Google returned 403 API_KEY_HTTP_REFERRER_BLOCKED. Server-side API requests from Node.js require an API key without HTTP Referrer restrictions in Google Cloud Console, or set GOOGLE_PLACES_SERVER_API_KEY / GOOGLE_PLACES_HTTP_REFERER in environment variables.');
+      } else {
+        console.warn('[Places API Error]', response.status, errText);
+      }
       return defaultResult;
     }
 
@@ -337,7 +347,7 @@ export async function GET(req: Request, { params }: { params: Promise<{ slug: st
       }
     }
 
-    const apiKey = process.env.GOOGLE_MAPS_API_KEY || process.env.GOOGLE_PLACES_API_KEY;
+    const apiKey = process.env.GOOGLE_PLACES_SERVER_API_KEY || process.env.GOOGLE_PLACES_API_KEY || process.env.GOOGLE_MAPS_API_KEY;
     const isCacheExpired = !lastUpdated || (Date.now() - new Date(lastUpdated).getTime() > 24 * 60 * 60 * 1000);
 
     if (apiKey && (cachedReviews.length === 0 || isCacheExpired)) {
