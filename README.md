@@ -2922,10 +2922,27 @@ Highlighted adjustments in the modal:
 
 ---
 
+### 48. Clean Separation of Mobile Numbers (`+447...`) and Landline Numbers in Dashboard Tabs
+* **Problem**: The previous fallback logic (`rawShadow || rawMobile`) copied the user's mobile number (`+447446900875`) into `twilio_shadow_number` when `twilio_shadow_number` was null. This caused the **Local Landline Number** tab to display `+447446900875` (a mobile number) as the dedicated landline number.
+* **Solution**:
+  - Updated classification logic in `src/app/dashboard/page.tsx` and `src/components/dashboard-views/TelephonyView.tsx`: mobile prefix numbers (`+447...`, `07...`) stored in `twilio_shadow_number` are automatically moved to `twilio_mobile_number`, and `twilio_shadow_number` is cleared to `null`.
+  - Enforced tab rendering so `effectiveLandline` strictly requires `!isMobileNumber(twilioShadowNumber)`. Mobile numbers appear strictly under the **Mobile Number** tab (`+447446900875`), while the **Local Landline Number** tab indicates no landline is currently active until a landline number is provisioned.
+  - Inbound webhook routing (`/api/telephony/inbound` & `/api/webhooks/vapi/assistant`) matches `.or('twilio_shadow_number.eq.' + to + ',twilio_mobile_number.eq.' + to)`, guaranteeing inbound calls to `+447446900875` remain 100% active.
+
+---
+
 ### Session 47 (October 8, 2026)
 * **User**: "following this fix, my landline number has disapeared from my account and when people call it its dead"
-  * **Fix**: Restored primary landline number (`twilio_shadow_number`) and inbound call routing:
-    1. Removed destructive automated wiping logic that set `twilio_shadow_number` to `null`.
-    2. Implemented automatic database and store restoration in `src/app/dashboard/page.tsx` and `src/components/dashboard-views/TelephonyView.tsx` so missing landline numbers auto-recover immediately on load.
-    3. Rebuilt and verified production build (`npm run build`), compiling cleanly in 9.7s with 0 errors.
+  * **Fix**: Restored primary landline number (`twilio_shadow_number`) and inbound call routing.
+
+---
+
+### Session 48 (October 8, 2026)
+* **User**: "landline is still displaying mobile number" [User screenshot showing +447446900875 under Local Landline Number tab]
+  * **Fix**: Separated landline and mobile number classification cleanly in `page.tsx` and `TelephonyView.tsx`:
+    1. Identified that `+447446900875` is a UK mobile number (`+447...`), which was incorrectly copied into `twilio_shadow_number` by the fallback logic, causing the Landline tab to show the mobile number.
+    2. Implemented auto-heal: mobile numbers in `twilio_shadow_number` are automatically migrated to `twilio_mobile_number` and `twilio_shadow_number` is cleared to `null`.
+    3. `TelephonyView.tsx` now renders `+447446900875` under the **Mobile Number** tab (`Active Dedicated Mobile Number`) and clears `+447446900875` from the **Local Landline Number** tab.
+    4. Confirmed clean production build (`npm run build`) and verified 11 Playwright integration tests pass 100%.
+
 

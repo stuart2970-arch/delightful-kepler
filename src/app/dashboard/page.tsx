@@ -170,15 +170,32 @@ export default async function DashboardPage(props: { searchParams?: Promise<{ [k
         operatingHoursOverrides = tenant.operating_hours_overrides || [];
         holidaySettings = tenant.holiday_settings || {};
         
+        const isMobileNumber = (num?: string | null): boolean => {
+          if (!num) return false;
+          const clean = num.replace(/[^\d+]/g, '');
+          return /^(?:\+447|07|447|00447)/.test(clean);
+        };
+
         const rawShadow = tenant.twilio_shadow_number || null;
         const rawMobile = tenant.twilio_mobile_number || null;
 
-        initialTwilioShadowNumber = rawShadow || rawMobile || null;
-        initialTwilioMobileNumber = rawMobile || rawShadow || null;
+        let shadow: string | null = null;
+        let mobile: string | null = null;
 
-        if (!rawShadow && rawMobile) {
-          supabase.from('tenants').update({ twilio_shadow_number: rawMobile }).eq('id', tenantId).then();
+        if (rawShadow && isMobileNumber(rawShadow)) {
+          mobile = rawShadow;
+          shadow = null;
+          supabase.from('tenants').update({ twilio_shadow_number: null, twilio_mobile_number: rawShadow }).eq('id', tenantId).then();
+        } else {
+          shadow = rawShadow;
         }
+
+        if (rawMobile) {
+          mobile = rawMobile;
+        }
+
+        initialTwilioShadowNumber = shadow;
+        initialTwilioMobileNumber = mobile;
       }
 
       // Check Google Connection Status
@@ -250,12 +267,23 @@ export default async function DashboardPage(props: { searchParams?: Promise<{ [k
         const rawImpShadow = impTenant.twilio_shadow_number || null;
         const rawImpMobile = impTenant.twilio_mobile_number || null;
 
-        initialTwilioShadowNumber = rawImpShadow || rawImpMobile || null;
-        initialTwilioMobileNumber = rawImpMobile || rawImpShadow || null;
+        let impShadow: string | null = null;
+        let impMobile: string | null = null;
 
-        if (!rawImpShadow && rawImpMobile) {
-          queryClient.from('tenants').update({ twilio_shadow_number: rawImpMobile }).eq('id', tenantId).then();
+        if (rawImpShadow && isMobileNumber(rawImpShadow)) {
+          impMobile = rawImpShadow;
+          impShadow = null;
+          queryClient.from('tenants').update({ twilio_shadow_number: null, twilio_mobile_number: rawImpShadow }).eq('id', tenantId).then();
+        } else {
+          impShadow = rawImpShadow;
         }
+
+        if (rawImpMobile) {
+          impMobile = rawImpMobile;
+        }
+
+        initialTwilioShadowNumber = impShadow;
+        initialTwilioMobileNumber = impMobile;
       }
 
       // Check Google Connection Status for Impersonated Tenant

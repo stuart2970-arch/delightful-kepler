@@ -126,14 +126,15 @@ test.describe('Vapi, ElevenLabs & Telephony Integrations', () => {
 
   test('Tenant Settings API preserves landline phone number without destructive wiping', async ({ request }) => {
     const testTenantId = '7b0f485d-49b8-416e-8c6f-1effea14a57b';
-    const testLandline = '+447446900875';
+    const testLandline = '+441619460000';
+    const testMobile = '+447446900875';
 
-    // 1. Update tenant settings with dedicated phone number
+    // 1. Update tenant settings with dedicated phone numbers
     const patchRes = await request.patch('/api/tenants/settings', {
       data: {
         tenantId: testTenantId,
         twilioShadowNumber: testLandline,
-        twilioMobileNumber: testLandline
+        twilioMobileNumber: testMobile
       }
     });
 
@@ -141,6 +142,7 @@ test.describe('Vapi, ElevenLabs & Telephony Integrations', () => {
     const patchData = await patchRes.json();
     expect(patchData.success).toBe(true);
     expect(patchData.tenant.twilio_shadow_number).toBe(testLandline);
+    expect(patchData.tenant.twilio_mobile_number).toBe(testMobile);
 
     // 2. Verify inbound call webhook matches tenant for the landline number
     const inboundRes = await request.post('/api/telephony/inbound', {
@@ -154,6 +156,18 @@ test.describe('Vapi, ElevenLabs & Telephony Integrations', () => {
     const twimlText = await inboundRes.text();
     // Verify response connects call rather than returning "not configured" dead line error
     expect(twimlText).not.toContain('Sorry, this number is not configured correctly');
+
+    // 3. Verify inbound call webhook matches tenant for the mobile number
+    const inboundMobileRes = await request.post('/api/telephony/inbound', {
+      form: {
+        To: testMobile,
+        From: '+447111222333'
+      }
+    });
+
+    expect(inboundMobileRes.status()).toBe(200);
+    const twimlMobileText = await inboundMobileRes.text();
+    expect(twimlMobileText).not.toContain('Sorry, this number is not configured correctly');
   });
 });
 
