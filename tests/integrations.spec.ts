@@ -123,5 +123,37 @@ test.describe('Vapi, ElevenLabs & Telephony Integrations', () => {
     expect(data.confirmation_code).toBeTruthy();
     expect(data.url).toContain('https://styleflo.ai/data-deletion');
   });
+
+  test('Tenant Settings API preserves landline phone number without destructive wiping', async ({ request }) => {
+    const testTenantId = '7b0f485d-49b8-416e-8c6f-1effea14a57b';
+    const testLandline = '+447446900875';
+
+    // 1. Update tenant settings with dedicated phone number
+    const patchRes = await request.patch('/api/tenants/settings', {
+      data: {
+        tenantId: testTenantId,
+        twilioShadowNumber: testLandline,
+        twilioMobileNumber: testLandline
+      }
+    });
+
+    expect(patchRes.status()).toBe(200);
+    const patchData = await patchRes.json();
+    expect(patchData.success).toBe(true);
+    expect(patchData.tenant.twilio_shadow_number).toBe(testLandline);
+
+    // 2. Verify inbound call webhook matches tenant for the landline number
+    const inboundRes = await request.post('/api/telephony/inbound', {
+      form: {
+        To: testLandline,
+        From: '+447111222333'
+      }
+    });
+
+    expect(inboundRes.status()).toBe(200);
+    const twimlText = await inboundRes.text();
+    // Verify response connects call rather than returning "not configured" dead line error
+    expect(twimlText).not.toContain('Sorry, this number is not configured correctly');
+  });
 });
 
