@@ -2900,3 +2900,32 @@ Highlighted adjustments in the modal:
 
 
 
+
+
+### Session 17 (October 5, 2026)
+* **User**: "on the webpage, there seems to be no google reviews and there was can you check the places api is working"
+* **Diagnosis & Fix**:
+  1. **Diagnosed Google Places API 403 Forbidden Error**: Executed empirical testing of `https://places.googleapis.com/v1/places:searchText` with the server-side API key. Identified that Google returned HTTP `403 Forbidden` (`API_KEY_HTTP_REFERRER_BLOCKED: Requests from referer <empty> are blocked`). This occurred because the API key had HTTP Referrer Restrictions enabled in Google Cloud Console, causing Node.js server-side `fetch()` requests (which have no HTTP referrer) to fail and return empty reviews (`{ reviews: [] }`).
+  2. **Enhanced Server-Side API Key Resolution & Diagnostics**:
+     - Updated `src/app/api/tenants/[slug]/metadata/route.ts` and `src/app/api/integrations/google/places/route.ts` to support `GOOGLE_PLACES_SERVER_API_KEY` for server-side API requests, falling back to `GOOGLE_PLACES_API_KEY` and `GOOGLE_MAPS_API_KEY`.
+     - Added optional `GOOGLE_PLACES_HTTP_REFERRER` header support for server environments that require explicit referrer headers.
+     - Added clear diagnostic warning logging in server logs when Google Places API returns 403 HTTP Referrer Blocked, giving actionable instructions to create an unrestricted/IP-restricted server API key or configure `GOOGLE_PLACES_SERVER_API_KEY`.
+
+---
+
+### 47. Restoration of Dedicated Landline Phone Number (`twilio_shadow_number`)
+* **Problem**: Following a previous classification change for UK mobile prefixes (`+447...`), the user's primary business phone number (`+447446900875`) disappeared from the **Local Landline Number** tab in the dashboard, rendering inbound phone calls dead because `twilio_shadow_number` was wiped to `null` in the Supabase database.
+* **Solution**:
+  - Removed destructive `twilioShadowNumber: null` wiping side-effects in `src/app/dashboard/page.tsx` and `src/components/dashboard-views/TelephonyView.tsx`.
+  - Added automatic database restoration logic: if `twilio_shadow_number` is missing/null, the system automatically restores `twilio_shadow_number` from `twilio_mobile_number` across server-side page loads and client Zustand store effects.
+  - Verified `npm run build && npm run build:widget`, compiling with 0 errors.
+
+---
+
+### Session 47 (October 8, 2026)
+* **User**: "following this fix, my landline number has disapeared from my account and when people call it its dead"
+  * **Fix**: Restored primary landline number (`twilio_shadow_number`) and inbound call routing:
+    1. Removed destructive automated wiping logic that set `twilio_shadow_number` to `null`.
+    2. Implemented automatic database and store restoration in `src/app/dashboard/page.tsx` and `src/components/dashboard-views/TelephonyView.tsx` so missing landline numbers auto-recover immediately on load.
+    3. Rebuilt and verified production build (`npm run build`), compiling cleanly in 9.7s with 0 errors.
+

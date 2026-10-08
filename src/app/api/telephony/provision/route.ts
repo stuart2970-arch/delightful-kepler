@@ -245,10 +245,9 @@ export async function POST(request: Request) {
     }
 
     // 3. Save it to Supabase
-    const isPurchasedMobile = isMobile || /^(?:\+447|07|447|00447)/.test((purchasedNumber.phoneNumber || '').replace(/[^\d+]/g, ''));
-    const updateData = isPurchasedMobile
+    const updateData = isMobile
       ? { twilio_mobile_number: purchasedNumber.phoneNumber }
-      : { twilio_shadow_number: purchasedNumber.phoneNumber };
+      : { twilio_shadow_number: purchasedNumber.phoneNumber, twilio_mobile_number: purchasedNumber.phoneNumber };
 
     const { error: updateError } = await supabase
       .from('tenants')

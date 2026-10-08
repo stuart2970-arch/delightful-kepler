@@ -178,24 +178,23 @@ export default function TelephonyView() {
     return /^(?:\+447|07|447|00447)/.test(clean);
   };
 
-  // Auto-heal: If twilioShadowNumber is a mobile number, move it to twilioMobileNumber in store and DB
+  // Auto-restore: If twilioShadowNumber is missing but twilioMobileNumber exists, restore twilioShadowNumber in store and DB
   useEffect(() => {
-    if (twilioShadowNumber && isMobileNumber(twilioShadowNumber)) {
-      const mob = twilioShadowNumber;
-      setTwilioMobileNumber(mob);
-      setTwilioShadowNumber(null);
+    if (!twilioShadowNumber && twilioMobileNumber) {
+      const num = twilioMobileNumber;
+      setTwilioShadowNumber(num);
       getAuthHeaders({ 'Content-Type': 'application/json' }).then(headers => {
         fetch('/api/tenants/settings', {
           method: 'PATCH',
           headers,
-          body: JSON.stringify({ tenantId, twilioShadowNumber: null, twilioMobileNumber: mob })
+          body: JSON.stringify({ tenantId, twilioShadowNumber: num })
         }).catch(console.error);
       });
     }
-  }, [twilioShadowNumber, tenantId]);
+  }, [twilioShadowNumber, twilioMobileNumber, tenantId]);
 
-  const effectiveLandline = twilioShadowNumber && !isMobileNumber(twilioShadowNumber) ? twilioShadowNumber : null;
-  const effectiveMobile = twilioMobileNumber || (twilioShadowNumber && isMobileNumber(twilioShadowNumber) ? twilioShadowNumber : null);
+  const effectiveLandline = twilioShadowNumber || twilioMobileNumber || null;
+  const effectiveMobile = twilioMobileNumber || twilioShadowNumber || null;
 
   const copyToClipboard = (text: string) => {
     navigator.clipboard.writeText(text);

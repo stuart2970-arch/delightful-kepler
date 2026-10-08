@@ -172,14 +172,12 @@ export default async function DashboardPage(props: { searchParams?: Promise<{ [k
         
         const rawShadow = tenant.twilio_shadow_number || null;
         const rawMobile = tenant.twilio_mobile_number || null;
-        const isShadowMobile = rawShadow ? /^(?:\+447|07|447|00447)/.test(rawShadow.replace(/[^\d+]/g, '')) : false;
 
-        if (isShadowMobile) {
-          initialTwilioMobileNumber = rawMobile || rawShadow;
-          initialTwilioShadowNumber = null;
-        } else {
-          initialTwilioShadowNumber = rawShadow;
-          initialTwilioMobileNumber = rawMobile;
+        initialTwilioShadowNumber = rawShadow || rawMobile || null;
+        initialTwilioMobileNumber = rawMobile || rawShadow || null;
+
+        if (!rawShadow && rawMobile) {
+          supabase.from('tenants').update({ twilio_shadow_number: rawMobile }).eq('id', tenantId).then();
         }
       }
 
@@ -251,14 +249,12 @@ export default async function DashboardPage(props: { searchParams?: Promise<{ [k
 
         const rawImpShadow = impTenant.twilio_shadow_number || null;
         const rawImpMobile = impTenant.twilio_mobile_number || null;
-        const isImpShadowMobile = rawImpShadow ? /^(?:\+447|07|447|00447)/.test(rawImpShadow.replace(/[^\d+]/g, '')) : false;
 
-        if (isImpShadowMobile) {
-          initialTwilioMobileNumber = rawImpMobile || rawImpShadow;
-          initialTwilioShadowNumber = null;
-        } else {
-          initialTwilioShadowNumber = rawImpShadow;
-          initialTwilioMobileNumber = rawImpMobile;
+        initialTwilioShadowNumber = rawImpShadow || rawImpMobile || null;
+        initialTwilioMobileNumber = rawImpMobile || rawImpShadow || null;
+
+        if (!rawImpShadow && rawImpMobile) {
+          queryClient.from('tenants').update({ twilio_shadow_number: rawImpMobile }).eq('id', tenantId).then();
         }
       }
 
