@@ -39,7 +39,7 @@ export async function GET(request: NextRequest) {
   const verifyToken = searchParams.get('hub.verify_token');
   const challenge = searchParams.get('hub.challenge');
 
-  console.log(`[Meta Webhook Handshake] mode: "${mode}", token: "${verifyToken}"`);
+  console.log(`[Meta Webhook Handshake] mode: "${mode}"`);
 
   if (mode === 'subscribe') {
     // Check against global env or default verify token

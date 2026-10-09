@@ -101,7 +101,7 @@ export default function SchedulingView() {
   const [newServiceDescription, setNewServiceDescription] = useState('');
   const [newServiceDuration, setNewServiceDuration] = useState(30);
   const [newServiceBuffer, setNewServiceBuffer] = useState(0);
-  const [newServicePrice, setNewServicePrice] = useState(0);
+  const [newServicePrice, setNewServicePrice] = useState<number | string>('');
   const [newServiceStaff, setNewServiceStaff] = useState<any[]>([]);
 
   const openAddService = () => {
@@ -110,7 +110,7 @@ export default function SchedulingView() {
     setNewServiceDescription('');
     setNewServiceDuration(30);
     setNewServiceBuffer(0);
-    setNewServicePrice(0);
+    setNewServicePrice('');
     setNewServiceStaff(staff.map(st => ({ staff_id: st.id, custom_price: '', custom_duration: '' })));
     setShowAddService(true);
   };
@@ -662,7 +662,7 @@ export default function SchedulingView() {
               <div className="flex items-center justify-between gap-2">
                 <div className="flex items-center gap-2">
                   <span className="text-2xl">📆</span>
-                  <h3 className="text-base font-bold text-white tracking-tight">Microsoft Outlook Sync</h3>
+                  <h3 className="text-base font-bold text-white tracking-tight">Microsoft Calendar</h3>
                 </div>
                 <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider bg-blue-500/20 text-blue-300 border border-blue-500/30">
                   £4.99/mo
@@ -835,7 +835,13 @@ export default function SchedulingView() {
                     </div>
                   </div>
                   <div className="flex items-center justify-between pt-2 border-t border-gray-100 text-xs">
-                    <span className="text-gray-500 truncate mr-2">Calendar: <strong className="text-slate-700">{member.google_calendar_id || 'primary'}</strong></span>
+                    <span className="text-gray-500 truncate mr-2">
+                      Calendar: <strong className="text-slate-700">
+                        {member.google_calendar_id && member.google_calendar_id !== 'primary' 
+                          ? (member.google_calendar_id.length > 25 ? 'Google Calendar (Connected)' : member.google_calendar_id)
+                          : 'Default Calendar'}
+                      </strong>
+                    </span>
                     <div className="flex items-center gap-2 shrink-0">
                       <button type="button" onClick={() => openEditStaff(member)} className="text-indigo-600 hover:text-indigo-800 font-semibold">Edit Rota</button>
                       <button type="button" onClick={() => handleDeleteStaff(member.id)} className="text-rose-500 hover:text-rose-700 font-semibold">Delete</button>
@@ -858,7 +864,7 @@ export default function SchedulingView() {
             <h4 className="text-sm font-bold text-slate-900 mb-3">Operating Booking Mode</h4>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-4">
               {[
-                { id: 'walk_in_only', label: 'Walk-ins Only', desc: 'No appointments. Bots tell users to just walk in.' },
+                { id: 'walk_in_only', label: 'Walk-ins Only', desc: 'No appointments needed. Clients are told they can walk in anytime during opening hours.' },
                 { id: 'single_calendar', label: 'Single Unified Calendar', desc: 'All bookings drop into one central Google Calendar.' },
                 { id: 'multi_calendar', label: 'Multi-Calendar (Per Staff)', desc: 'Bookings map to individual Google Calendars per staff.' },
                 { id: 'external_platform', label: 'External Booking Link', desc: 'Use an existing system like Vagaro or Fresha.' }
@@ -910,7 +916,7 @@ export default function SchedulingView() {
         <div className="bg-[var(--awb-color1)] border border-[var(--awb-color3)] p-6 rounded-2xl shadow-xl space-y-4">
           <div>
             <h3 className="text-lg font-bold text-[var(--awb-color8)]">Standard Operating Hours</h3>
-            <p className="text-xs text-[var(--awb-color6)] mt-0.5">Define your standard opening and closing times. Drives web page displays when Google Places is unlinked.</p>
+            <p className="text-xs text-[var(--awb-color6)] mt-0.5">Define your regular salon opening and closing times for appointment booking and enquiry responses.</p>
           </div>
 
           <div className="bg-white border border-[#f2f3f5] p-4 rounded-xl divide-y divide-gray-100">
@@ -946,7 +952,7 @@ export default function SchedulingView() {
                           ))}
                         </select>
 
-                        <span className="text-xs text-gray-500 font-semibold ml-2">Closed:</span>
+                        <span className="text-xs text-gray-500 font-semibold ml-2">Closes at:</span>
                         <select
                           value={dayData.close || '17:00'}
                           onChange={e => handleDayOperatingHoursChange(day, 'close', e.target.value)}
@@ -1049,7 +1055,7 @@ export default function SchedulingView() {
           <div className="bg-white border border-[#f2f3f5] p-4 rounded-xl">
             {rotaAppointments.length === 0 ? (
               <div className="py-12 text-center text-sm text-gray-400 italic">
-                No appointments scheduled for {selectedRotaDate}.
+                No appointments scheduled for {selectedRotaDate ? new Date(selectedRotaDate + 'T00:00:00').toLocaleDateString('en-GB') : 'selected date'}.
               </div>
             ) : (
               <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4">
@@ -1153,9 +1159,12 @@ export default function SchedulingView() {
                       <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">Base Price (£)</label>
                       <input
                         type="number"
+                        required
                         min={0}
+                        step="0.01"
+                        placeholder="e.g. 25.00"
                         value={newServicePrice}
-                        onChange={e => setNewServicePrice(Number(e.target.value))}
+                        onChange={e => setNewServicePrice(e.target.value === '' ? '' : Number(e.target.value))}
                         className="w-full h-11 px-3 bg-slate-50 border border-slate-200 rounded-xl text-xs font-medium text-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-600"
                       />
                     </div>
@@ -1188,7 +1197,7 @@ export default function SchedulingView() {
                                   />
                                   <span className="text-xs font-bold text-slate-800">{st.name}</span>
                                 </div>
-                                <span className="text-[10px] text-slate-400">{st.email || 'Staff member'}</span>
+                                <span className="text-[10px] text-slate-400 font-medium">Team Member</span>
                               </label>
 
                               {isAssigned && (

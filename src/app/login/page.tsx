@@ -198,13 +198,11 @@ export default function LoginPage() {
 
     try {
       if (isLogin) {
-        console.log("TRYING TO LOGIN:", JSON.stringify({ email, password }));
         const { error } = await supabase.auth.signInWithPassword({
           email,
           password,
         });
         if (error) {
-           console.error("LOGIN ERROR:", error);
            throw error;
         }
       } else {

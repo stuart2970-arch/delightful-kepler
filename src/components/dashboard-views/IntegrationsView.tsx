@@ -285,7 +285,7 @@ export default function IntegrationsView() {
                       type="text"
                       value={businessNameInput}
                       onChange={(e) => setBusinessNameInput(e.target.value)}
-                      placeholder="e.g. Styleflo Salon & Spa"
+                      placeholder="e.g. StyleFlo Salon & Spa"
                       className="w-full h-[50px] bg-white border border-[#f2f3f5] rounded-[6px] px-3.5 py-2 text-sm text-[#212326] focus:outline-none focus:border-[#65bd7d] placeholder-gray-400 font-medium"
                     />
                   </div>
@@ -336,12 +336,12 @@ export default function IntegrationsView() {
               <div className="bg-white border border-[#f2f3f5] p-6 rounded-2xl shadow-sm space-y-6">
                 {/* Reserve with Google Integration */}
                 <div>
-                  <div className="flex items-center justify-between mb-4">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4">
                     <div>
                       <h3 className="text-lg font-bold text-[#260475]">Reserve with Google (Actions Center)</h3>
                       <p className="text-xs text-[#434549] mt-0.5">Enable native "Book Online" functionality directly on your Google Maps and Search profile.</p>
                     </div>
-                    <div className={`px-3.5 py-1.5 rounded-full text-xs font-bold border shadow-sm ${
+                    <div className={`px-3.5 py-1.5 rounded-full text-xs font-bold border shadow-sm shrink-0 self-start sm:self-auto ${
                       rwgStatus === 'Active on Google' ? 'bg-emerald-50 border-emerald-300 text-emerald-800' :
                       rwgStatus === 'Pending Verification' ? 'bg-amber-50 border-amber-300 text-amber-900' :
                       'bg-[#f9f9fb] border-[#f2f3f5] text-[#434549]'
@@ -361,7 +361,7 @@ export default function IntegrationsView() {
                     />
                     <div>
                       <label htmlFor="rwg-enable-toggle" className="text-sm font-bold text-[#260475] cursor-pointer select-none">Authorize Google Integration</label>
-                      <p className="text-xs text-[#434549] mt-0.5">Checking this box will start generating dynamic JSON feeds for your business and expose realtime webhook APIs for Google's servers.</p>
+                      <p className="text-xs text-[#434549] mt-0.5">Connects your available booking appointments directly to Google so clients can book straight from Google Search and Maps.</p>
                     </div>
                   </div>
 
@@ -474,7 +474,7 @@ export default function IntegrationsView() {
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-2 border-t border-[#f2f3f5]">
                         <div>
                           <label className="block text-xs font-semibold text-[#212326] mb-1.5">Business Name</label>
-                          <input type="text" value={rwgBusinessName} onChange={(e) => setRwgBusinessName(e.target.value)} disabled={rwgAddressSameAsTrading} className="w-full h-[50px] bg-white disabled:bg-gray-100/80 disabled:text-[#212326] font-semibold disabled:cursor-not-allowed border border-[#f2f3f5] rounded-[6px] px-3.5 py-2 text-sm text-[#212326] focus:outline-none focus:border-[#65bd7d] placeholder-gray-400" placeholder="e.g. Styleflo Salon" />
+                          <input type="text" value={rwgBusinessName} onChange={(e) => setRwgBusinessName(e.target.value)} disabled={rwgAddressSameAsTrading} className="w-full h-[50px] bg-white disabled:bg-gray-100/80 disabled:text-[#212326] font-semibold disabled:cursor-not-allowed border border-[#f2f3f5] rounded-[6px] px-3.5 py-2 text-sm text-[#212326] focus:outline-none focus:border-[#65bd7d] placeholder-gray-400" placeholder="e.g. StyleFlo Salon" />
                         </div>
                         <div>
                           <label className="block text-xs font-semibold text-[#212326] mb-1.5">Phone Number</label>

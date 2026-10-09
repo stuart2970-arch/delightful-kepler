@@ -154,7 +154,7 @@ export default function InboxView() {
   const selectedConvObj = (conversations || []).find(c => c && c.id === selectedConversation);
 
   // Filter conversations based on selected channel dropdown
-  const webConversations = (conversations || []).filter(c => c && !c.is_phone_call);
+  const webConversations = (conversations || []).filter(c => c && !c.is_phone_call && (!c.user_session_id || !c.user_session_id.startsWith('phone_')));
 
   const filteredConversations = (webConversations || []).filter(conv => {
     if (!conv) return false;
@@ -175,7 +175,7 @@ export default function InboxView() {
         <div className="bg-[var(--awb-color1)] border border-[var(--awb-color3)] p-6 rounded-2xl shadow-xl">
           <h3 className="text-lg font-bold text-[var(--awb-color8)] mb-1">Communications Index</h3>
           <p className="text-xs text-[var(--awb-color6)]">
-            Explore and review all customer communications across Web Chat, Web Voice, SMS, WhatsApp, and Instagram DMs.
+            Explore and review all customer communications across Web Chat, Web Voice, and SMS. WhatsApp and Instagram channels are coming soon.
           </p>
         </div>
 
@@ -193,14 +193,14 @@ export default function InboxView() {
                     setChannelFilter(e.target.value as ChannelFilterOption);
                     setConvPage(0);
                   }}
-                  className="w-[130px] sm:w-[155px] bg-white border border-gray-200 rounded-lg px-2.5 py-1.5 text-xs font-semibold text-[#260475] focus:outline-none focus:border-[#198fd9] shadow-sm truncate cursor-pointer"
+                  className="w-[145px] sm:w-[170px] bg-white border border-gray-200 rounded-lg px-2.5 py-1.5 text-xs font-semibold text-[#260475] focus:outline-none focus:border-[#198fd9] shadow-sm truncate cursor-pointer"
                 >
                   <option value="all">All Comms ({webConversations.length})</option>
                   <option value="chat">Web Chat ({chatCount})</option>
                   <option value="sms">SMS ({smsCount})</option>
                   <option value="web_voice">Web Voice ({webVoiceCount})</option>
-                  <option value="instagram" disabled className="text-gray-400">Instagram (Unavailable)</option>
-                  <option value="whatsapp" disabled className="text-gray-400">WhatsApp (Unavailable)</option>
+                  <option value="instagram" disabled className="text-gray-400">Instagram (Coming soon)</option>
+                  <option value="whatsapp" disabled className="text-gray-400">WhatsApp (Coming soon)</option>
                 </select>
 
                 <div className="flex gap-1 shrink-0">
@@ -250,6 +250,12 @@ export default function InboxView() {
               ) : (
                 filteredConversations.slice(convPage * 10, (convPage + 1) * 10).map((conv) => {
                   const chatbotName = chatbots.find(b => b.id === conv.chatbot_id)?.name || 'AI Bot';
+                  const displaySession = conv.caller_phone_number 
+                    ? conv.caller_phone_number 
+                    : conv.user_session_id?.startsWith('phone_')
+                    ? conv.user_session_id.replace('phone_', '')
+                    : 'Web visitor';
+
                   return (
                     <button
                       key={conv.id}
@@ -263,13 +269,13 @@ export default function InboxView() {
                       <div className="flex justify-between items-center w-full">
                         <span className="font-bold text-gray-900">{chatbotName}</span>
                         <span className="text-[10px] text-gray-500 font-mono">
-                          {conv.created_at && !isNaN(new Date(conv.created_at).getTime()) ? `${new Date(conv.created_at).toLocaleDateString()} ${new Date(conv.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}` : ''}
+                          {conv.created_at && !isNaN(new Date(conv.created_at).getTime()) ? `${new Date(conv.created_at).toLocaleDateString('en-GB')} ${new Date(conv.created_at).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })}` : ''}
                         </span>
                       </div>
                       
                       <div className="flex justify-between items-center w-full">
-                        <div className="font-mono text-[10px] truncate text-gray-500 max-w-[170px]">
-                          {conv.caller_phone_number || conv.user_session_id}
+                        <div className="font-medium text-[11px] truncate text-gray-600 max-w-[170px]">
+                          {displaySession}
                         </div>
                         <div className="flex items-center gap-1.5 shrink-0">
                           {renderChannelBadge(conv)}

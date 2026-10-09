@@ -176,7 +176,7 @@ export default function FloBotProfileSettingsView({
             <span>⚡</span> FloBot Onboarding Profile & Voice Settings
           </h2>
           <p className="text-xs text-gray-400 mt-1">
-            Customize the system-wide onboarding FloBot assistant picture, StyleFlo Voice Persona, role, and welcome greeting across styleflo.ai/onboard.
+            Customise the system-wide onboarding FloBot assistant picture, StyleFlo Voice Persona, role, and welcome greeting across styleflo.ai/onboard.
           </p>
         </div>
         <div className="flex items-center gap-3">
@@ -267,7 +267,7 @@ export default function FloBotProfileSettingsView({
           </div>
 
           <div>
-            <label className="block text-xs font-semibold text-gray-300 mb-1.5">Primary Theme Color</label>
+            <label className="block text-xs font-semibold text-gray-300 mb-1.5">Primary Theme Colour</label>
             <div className="flex items-center gap-2">
               <input
                 type="color"

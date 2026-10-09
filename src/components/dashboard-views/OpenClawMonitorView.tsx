@@ -19,35 +19,33 @@ interface LogEntry {
 }
 
 export default function OpenClawMonitorView() {
-  const { tradingAddressPhone, twilioShadowNumber, twilioMobileNumber, tenantName, tenantId, setActiveTab } = useDashboardStore();
+  const { tradingAddressPhone, twilioShadowNumber, twilioMobileNumber, tenantName, tenantId, setActiveTab, conversations } = useDashboardStore();
   const [nodeStatus] = useState<'healthy' | 'degraded' | 'offline'>('healthy');
   const [latency, setLatency] = useState<number>(42);
-  const isWhatsappConnected = Boolean(tradingAddressPhone);
   const isSmsConnected = Boolean(twilioShadowNumber || twilioMobileNumber);
+
+  const latestSms = useMemo(() => {
+    return (conversations || []).find((c: any) => c && (c.channel === 'sms' || c.user_session_id?.startsWith('sms_') || c.user_session_id?.startsWith('twilio_')));
+  }, [conversations]);
+
+  const lastSmsDateStr = latestSms?.created_at 
+    ? new Date(latestSms.created_at).toLocaleDateString('en-GB') 
+    : 'Never';
 
   const channels: ChannelConnection[] = useMemo(() => [
     { 
       id: '1', 
       name: 'WhatsApp', 
-      type: 'Meta WhatsApp Cloud API (Native)', 
-      status: isWhatsappConnected ? 'connected' : 'disconnected', 
-      activeTenants: isWhatsappConnected ? 1 : 0, 
-      uptime: isWhatsappConnected ? '14d 6h' : '0m', 
-      lastMessageAt: isWhatsappConnected ? 'Just now' : 'Never' 
-    },
-    { 
-      id: '2', 
-      name: 'Instagram', 
-      type: 'Instagram Messenger API', 
+      type: 'Meta WhatsApp Cloud API (Coming soon)', 
       status: 'disconnected', 
       activeTenants: 0, 
       uptime: '0m', 
       lastMessageAt: 'Never' 
     },
     { 
-      id: '3', 
-      name: 'Telegram', 
-      type: 'Telegram Bot API', 
+      id: '2', 
+      name: 'Instagram', 
+      type: 'Instagram Messenger API (Coming soon)', 
       status: 'disconnected', 
       activeTenants: 0, 
       uptime: '0m', 
@@ -60,18 +58,9 @@ export default function OpenClawMonitorView() {
       status: isSmsConnected ? 'connected' : 'disconnected', 
       activeTenants: isSmsConnected ? 1 : 0, 
       uptime: isSmsConnected ? '45d 1h' : '0m', 
-      lastMessageAt: isSmsConnected ? 'Never' : 'Never' 
-    },
-    { 
-      id: '5', 
-      name: 'Slack', 
-      type: 'Slack App Gateway', 
-      status: 'disconnected', 
-      activeTenants: 0, 
-      uptime: '0m', 
-      lastMessageAt: 'Never' 
+      lastMessageAt: isSmsConnected ? (lastSmsDateStr !== 'Never' ? lastSmsDateStr : 'Active') : 'Never' 
     }
-  ], [isWhatsappConnected, isSmsConnected]);
+  ], [isSmsConnected, lastSmsDateStr]);
 
   const [logSearch, setLogSearch] = useState('');
   const [logLevelFilter, setLogLevelFilter] = useState<'all' | 'info' | 'warn' | 'error'>('all');
@@ -118,8 +107,8 @@ export default function OpenClawMonitorView() {
       {/* HEADER SECTION */}
       <div className="bg-[var(--awb-color1)] border border-[var(--awb-color3)] p-6 rounded-2xl shadow-xl flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
         <div>
-          <div className="flex items-center gap-3">
-            <span className="flex h-3 w-3 relative">
+          <div className="flex flex-wrap items-center gap-3">
+            <span className="flex h-3 w-3 relative shrink-0">
               <span className={`animate-ping absolute inline-flex h-full w-full rounded-full opacity-75 ${
                 nodeStatus === 'healthy' ? 'bg-emerald-400' : nodeStatus === 'degraded' ? 'bg-amber-400' : 'bg-rose-400'
               }`}></span>
@@ -128,7 +117,7 @@ export default function OpenClawMonitorView() {
               }`}></span>
             </span>
             <h2 className="text-2xl font-extrabold text-[var(--awb-color8)] tracking-tight">Messaging Gateways</h2>
-            <span className="text-xs font-bold px-2.5 py-0.5 rounded-full bg-blue-50 text-[#198fd9] border border-blue-200">
+            <span className="text-xs font-bold px-2.5 py-0.5 rounded-full bg-blue-50 text-[#198fd9] border border-blue-200 shrink-0">
               Active v1.8
             </span>
           </div>
@@ -138,9 +127,9 @@ export default function OpenClawMonitorView() {
         </div>
         
         {/* KPI Pills */}
-        <div className="flex gap-4 w-full md:w-auto">
+        <div className="flex flex-wrap sm:flex-nowrap gap-3 w-full md:w-auto">
           <div className="flex-1 md:flex-none bg-[var(--awb-color2)] border border-[var(--awb-color3)] rounded-xl px-4 py-2.5 text-center min-w-[120px]">
-            <span className="text-[10px] text-[var(--awb-color6)] block uppercase font-bold tracking-wider">Gateway Latency</span>
+            <span className="text-[10px] text-[var(--awb-color6)] block uppercase font-bold tracking-wider">Response Speed</span>
             <span className={`text-lg font-mono font-extrabold ${
               latency < 60 ? 'text-emerald-600' : latency < 120 ? 'text-amber-600' : 'text-rose-600'
             }`}>
@@ -148,7 +137,7 @@ export default function OpenClawMonitorView() {
             </span>
           </div>
           <div className="flex-1 md:flex-none bg-[var(--awb-color2)] border border-[var(--awb-color3)] rounded-xl px-4 py-2.5 text-center min-w-[120px]">
-            <span className="text-[10px] text-[var(--awb-color6)] block uppercase font-bold tracking-wider">Active Channels</span>
+            <span className="text-[10px] text-[var(--awb-color6)] block uppercase font-bold tracking-wider">Connected Channels</span>
             <span className="text-lg font-extrabold text-[#198fd9]">
               {channels.filter(c => c.status === 'connected').length} / {channels.length}
             </span>
@@ -246,11 +235,7 @@ export default function OpenClawMonitorView() {
                               type="button"
                               onClick={() => {
                                 setActiveConfigModal(channel);
-                                if (channel.name === 'Telegram') {
-                                  setActivePhoneOrHandle('@StyleFloBot');
-                                } else {
-                                  setActivePhoneOrHandle(tradingAddressPhone || twilioShadowNumber || twilioMobileNumber || '');
-                                }
+                                setActivePhoneOrHandle(tradingAddressPhone || twilioShadowNumber || twilioMobileNumber || '');
                               }}
                               className="text-[#198fd9] hover:text-[#157ab9] font-bold text-xs hover:underline transition cursor-pointer"
                             >
@@ -269,10 +254,10 @@ export default function OpenClawMonitorView() {
           {/* GATEWAY CALLBACK INFO */}
           <div className="bg-[var(--awb-color1)] border border-[var(--awb-color3)] p-6 rounded-2xl shadow-xl space-y-3">
             <h3 className="text-base font-bold text-[var(--awb-color8)] flex items-center gap-2">
-              🧠 Native Meta Webhook Endpoint &amp; Status
+              🧠 Meta Messaging Connection
             </h3>
             <p className="text-xs text-[var(--awb-color6)] leading-relaxed">
-              Direct Meta Graph API integration (bypassing OpenClaw). Incoming customer messages across WhatsApp, Instagram, and Messenger are authenticated and answered by your StyleFlo AI assistant.
+              Automated messaging integration for Meta channels. WhatsApp and Instagram support is coming soon. Once launched, incoming customer messages will be authenticated and answered directly by your StyleFlo AI assistant.
             </p>
             <div className="bg-[var(--awb-color2)] rounded-xl p-3.5 font-mono text-xs border border-[var(--awb-color3)] text-[var(--awb-color8)] flex items-center justify-between">
               <div>
@@ -283,7 +268,7 @@ export default function OpenClawMonitorView() {
                 type="button"
                 className="px-2.5 py-1 rounded bg-gray-200 text-gray-500 text-[10px] font-bold cursor-not-allowed"
               >
-                Channels Unavailable
+                Coming soon
               </button>
             </div>
           </div>

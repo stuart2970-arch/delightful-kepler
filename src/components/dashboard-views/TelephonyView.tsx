@@ -253,10 +253,10 @@ export default function TelephonyView() {
       ) : (
       <>
       {/* CHANNEL TABS SELECTOR */}
-      <div className="flex border-b border-[var(--awb-color3)] gap-3">
+      <div className="flex border-b border-[var(--awb-color3)] gap-3 overflow-x-auto whitespace-nowrap pb-1 styleflo-scrollbar">
         <button
           onClick={() => { setActiveChannelTab('landline'); setSearchResults([]); setHasSearched(false); setSearchedCode(null); setError(null); }}
-          className={`pb-3 px-4 text-sm font-bold border-b-2 transition-all flex items-center gap-2 ${
+          className={`pb-3 px-4 text-sm font-bold border-b-2 transition-all flex items-center gap-2 shrink-0 ${
             activeChannelTab === 'landline'
               ? 'border-[#198fd9] text-[#198fd9]'
               : 'border-transparent text-[var(--awb-color6)] hover:text-[var(--awb-color8)]'
@@ -280,7 +280,7 @@ export default function TelephonyView() {
 
         <button
           onClick={() => { setActiveChannelTab('mobile'); setSearchResults([]); setHasSearched(false); setSearchedCode(null); setError(null); }}
-          className={`pb-3 px-4 text-sm font-bold border-b-2 transition-all flex items-center gap-2 ${
+          className={`pb-3 px-4 text-sm font-bold border-b-2 transition-all flex items-center gap-2 shrink-0 ${
             activeChannelTab === 'mobile'
               ? 'border-[#260475] text-[#260475]'
               : 'border-transparent text-[var(--awb-color6)] hover:text-[var(--awb-color8)]'
@@ -526,118 +526,124 @@ export default function TelephonyView() {
               </button>
             </div>
 
-            {/* Call Divert & Forwarding Guide */}
-            <div className="bg-blue-50/80 border border-blue-200 rounded-xl p-5 space-y-3 text-xs">
-              <h4 className="text-[#260475] font-bold text-sm flex items-center gap-2">
-                ℹ️ Call Forwarding & Divert Setup
-              </h4>
-              
-              {activeChannelTab === 'landline' ? (
-                <div className="space-y-2 text-[var(--awb-color7)] leading-relaxed">
-                  <p>
-                    Divert incoming calls from your existing salon telephone line to your dedicated AI receptionist number <strong className="font-mono text-[#198fd9]">{currentActiveNumber}</strong>:
-                  </p>
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-2 pt-1 font-mono text-[11px]">
-                    <div className="bg-white p-2.5 rounded-lg border border-blue-100">
-                      <strong className="block text-[#260475] font-sans">BT / Plusnet:</strong>
-                      Divert all: <code>*21*{currentActiveNumber}#</code><br />
-                      On no reply: <code>*61*{currentActiveNumber}#</code>
-                    </div>
-                    <div className="bg-white p-2.5 rounded-lg border border-blue-100">
-                      <strong className="block text-[#260475] font-sans">Virgin Media:</strong>
-                      Divert all: <code>*70{currentActiveNumber}</code><br />
-                      On busy: <code>*76{currentActiveNumber}</code>
-                    </div>
-                    <div className="bg-white p-2.5 rounded-lg border border-blue-100">
-                      <strong className="block text-[#260475] font-sans">Sky Talk:</strong>
-                      Divert all: <code>*21*{currentActiveNumber}#</code><br />
-                      Cancel divert: <code>#21#</code>
-                    </div>
-                  </div>
-                </div>
-              ) : (
-                <div className="space-y-2 text-[var(--awb-color7)] leading-relaxed">
-                  <p>
-                    Divert calls from your mobile handset to your AI receptionist number <strong className="font-mono text-[#260475]">{currentActiveNumber}</strong>:
-                  </p>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-2 pt-1 font-mono text-[11px]">
-                    <div className="bg-white p-2.5 rounded-lg border border-blue-100">
-                      <strong className="block text-[#260475] font-sans">Divert When Unanswered:</strong>
-                      Dial from handset: <code>**61*{currentActiveNumber}#</code>
-                    </div>
-                    <div className="bg-white p-2.5 rounded-lg border border-blue-100">
-                      <strong className="block text-[#260475] font-sans">Divert All Calls:</strong>
-                      Dial from handset: <code>**21*{currentActiveNumber}#</code>
-                    </div>
-                  </div>
-                </div>
-              )}
+              {/* Call Divert & Forwarding Guide */}
+              <div className="bg-blue-50/80 border border-blue-200 rounded-xl p-5 space-y-3 text-xs">
+                <h4 className="text-[#260475] font-bold text-sm flex items-center gap-2">
+                  ℹ️ Call Forwarding & Divert Setup
+                </h4>
+                
+                {(() => {
+                  // Format number for UK mobile/landline USSD star codes (e.g., convert +44... to 0...)
+                  const cleanNum = currentActiveNumber.replace(/\s+/g, '');
+                  const nationalNum = cleanNum.startsWith('+44') ? '0' + cleanNum.slice(3) : cleanNum;
 
-              <p className="text-[var(--awb-color6)] text-[11px] pt-1 border-t border-blue-200/60">
-                <strong>Note:</strong> You do not need to cancel your existing telephone contract. Call divert ensures you never miss a client booking while working with other customers.
-              </p>
-            </div>
-          </div>
-        ) : null}
-      </div>
-
-      {/* PHONE CALL HISTORY INDEX */}
-      <div className="bg-[var(--awb-color1)] border border-[var(--awb-color3)] p-6 md:p-8 rounded-2xl shadow-xl space-y-6">
-        <div>
-          <h3 className="text-base font-bold text-[var(--awb-color8)]">Phone Call History & Transcripts</h3>
-          <p className="text-xs text-[var(--awb-color6)] mt-0.5">
-            Log of incoming calls received on your dedicated business phone numbers.
-          </p>
-        </div>
-
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 items-start">
-          {/* Phone Call List */}
-          <div className="bg-[var(--awb-color2)] border border-[var(--awb-color3)] p-4 rounded-xl h-[500px] flex flex-col">
-            <h4 className="text-xs font-bold uppercase tracking-wider text-[var(--awb-color8)] mb-3">
-              Incoming Phone Calls ({phoneCallLogs.length})
-            </h4>
-
-            <div className="flex-1 overflow-y-auto space-y-2 pr-1 styleflo-scrollbar">
-              {phoneCallLogs.length === 0 ? (
-                <div className="text-center text-xs text-[var(--awb-color6)] py-16 px-4 space-y-2">
-                  <p className="font-semibold text-[var(--awb-color7)]">No incoming phone calls logged yet.</p>
-                  <p className="text-[11px]">Calls made to your dedicated numbers will appear here with full audio recordings and transcripts.</p>
-                </div>
-              ) : (
-                phoneCallLogs.map((call) => (
-                  <button
-                    key={call.id}
-                    onClick={() => setSelectedCallId(call.id)}
-                    className={`w-full text-left p-3 rounded-xl border text-xs transition-all flex flex-col gap-1.5 ${
-                      selectedCallId === call.id
-                        ? 'bg-blue-50 border-blue-300 text-[var(--awb-color8)] shadow-sm'
-                        : 'bg-white border-[var(--awb-color3)] hover:bg-gray-50 text-[var(--awb-color7)]'
-                    }`}
-                  >
-                    <div className="flex justify-between items-center w-full">
-                      <span className="font-bold font-mono text-sm text-[#260475]">
-                        📞 {call.user_session_id?.replace('phone_', '') || 'Incoming Call'}
-                      </span>
-                      <span className="text-[10px] text-[var(--awb-color6)] font-mono">
-                        {call.created_at && !isNaN(new Date(call.created_at).getTime()) ? new Date(call.created_at).toLocaleDateString() : 'N/A'}
-                      </span>
-                    </div>
-                    <div className="flex justify-between items-center w-full mt-1">
-                      <span className="text-[10px] text-[var(--awb-color6)]">
-                        {call.created_at && !isNaN(new Date(call.created_at).getTime()) ? new Date(call.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : ''}
-                      </span>
-                      <div className="flex gap-1">
-                        {call.resulted_in_booking && (
-                          <span className="px-1.5 py-0.5 bg-emerald-100 text-emerald-800 rounded text-[9px] font-bold">📅 Booked</span>
-                        )}
-                        <span className="px-1.5 py-0.5 bg-blue-100 text-blue-800 rounded text-[9px] font-bold">📞 Phone Call</span>
+                  return activeChannelTab === 'landline' ? (
+                    <div className="space-y-2 text-[var(--awb-color7)] leading-relaxed">
+                      <p>
+                        Divert incoming calls from your existing salon telephone line to your dedicated AI receptionist number <strong className="font-mono text-[#198fd9]">{nationalNum}</strong>:
+                      </p>
+                      <div className="grid grid-cols-1 md:grid-cols-3 gap-2 pt-1 font-mono text-[11px]">
+                        <div className="bg-white p-2.5 rounded-lg border border-blue-100">
+                          <strong className="block text-[#260475] font-sans">BT / Plusnet:</strong>
+                          Divert all: <code>*21*{nationalNum}#</code><br />
+                          On no reply: <code>*61*{nationalNum}#</code>
+                        </div>
+                        <div className="bg-white p-2.5 rounded-lg border border-blue-100">
+                          <strong className="block text-[#260475] font-sans">Virgin Media:</strong>
+                          Divert all: <code>*70{nationalNum}</code><br />
+                          On busy: <code>*76{nationalNum}</code>
+                        </div>
+                        <div className="bg-white p-2.5 rounded-lg border border-blue-100">
+                          <strong className="block text-[#260475] font-sans">Sky Talk:</strong>
+                          Divert all: <code>*21*{nationalNum}#</code><br />
+                          Cancel divert: <code>#21#</code>
+                        </div>
                       </div>
                     </div>
-                  </button>
-                ))
-              )}
+                  ) : (
+                    <div className="space-y-2 text-[var(--awb-color7)] leading-relaxed">
+                      <p>
+                        Divert calls from your mobile handset (EE, O2, Vodafone, Three) to your AI receptionist number <strong className="font-mono text-[#260475]">{nationalNum}</strong>:
+                      </p>
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-2 pt-1 font-mono text-[11px]">
+                        <div className="bg-white p-2.5 rounded-lg border border-blue-100">
+                          <strong className="block text-[#260475] font-sans">Divert When Unanswered:</strong>
+                          Dial from handset: <code>**61*{nationalNum}#</code>
+                        </div>
+                        <div className="bg-white p-2.5 rounded-lg border border-blue-100">
+                          <strong className="block text-[#260475] font-sans">Divert All Calls:</strong>
+                          Dial from handset: <code>**21*{nationalNum}#</code>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })()}
+
+                <p className="text-[var(--awb-color6)] text-[11px] pt-1 border-t border-blue-200/60">
+                  <strong>Note:</strong> You do not need to cancel your existing telephone contract. Call divert ensures you never miss a client booking while working with other customers.
+                </p>
+              </div>
             </div>
+          ) : null}
+        </div>
+
+        {/* PHONE CALL HISTORY INDEX */}
+        <div className="bg-[var(--awb-color1)] border border-[var(--awb-color3)] p-6 md:p-8 rounded-2xl shadow-xl space-y-6">
+          <div>
+            <h3 className="text-base font-bold text-[var(--awb-color8)]">Phone Call History & Transcripts</h3>
+            <p className="text-xs text-[var(--awb-color6)] mt-0.5">
+              Log of incoming calls received on your dedicated business phone numbers.
+            </p>
           </div>
+
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 items-start">
+            {/* Phone Call List */}
+            <div className="bg-[var(--awb-color2)] border border-[var(--awb-color3)] p-4 rounded-xl h-[500px] flex flex-col">
+              <h4 className="text-xs font-bold uppercase tracking-wider text-[var(--awb-color8)] mb-3">
+                Incoming Phone Calls ({phoneCallLogs.length})
+              </h4>
+
+              <div className="flex-1 overflow-y-auto space-y-2 pr-1 styleflo-scrollbar">
+                {phoneCallLogs.length === 0 ? (
+                  <div className="text-center text-xs text-[var(--awb-color6)] py-16 px-4 space-y-2">
+                    <p className="font-semibold text-[var(--awb-color7)]">No incoming phone calls logged yet.</p>
+                    <p className="text-[11px]">Calls made to your dedicated numbers will appear here with full audio recordings and transcripts.</p>
+                  </div>
+                ) : (
+                  phoneCallLogs.map((call) => (
+                    <button
+                      key={call.id}
+                      onClick={() => setSelectedCallId(call.id)}
+                      className={`w-full text-left p-3 rounded-xl border text-xs transition-all flex flex-col gap-1.5 ${
+                        selectedCallId === call.id
+                          ? 'bg-blue-50 border-blue-300 text-[var(--awb-color8)] shadow-sm'
+                          : 'bg-white border-[var(--awb-color3)] hover:bg-gray-50 text-[var(--awb-color7)]'
+                      }`}
+                    >
+                      <div className="flex justify-between items-center w-full">
+                        <span className="font-bold font-mono text-sm text-[#260475]">
+                          📞 {call.user_session_id?.replace('phone_', '') || 'Incoming Call'}
+                        </span>
+                        <span className="text-[10px] text-[var(--awb-color6)] font-mono">
+                          {call.created_at && !isNaN(new Date(call.created_at).getTime()) ? new Date(call.created_at).toLocaleDateString('en-GB') : 'N/A'}
+                        </span>
+                      </div>
+                      <div className="flex justify-between items-center w-full mt-1">
+                        <span className="text-[10px] text-[var(--awb-color6)]">
+                          {call.created_at && !isNaN(new Date(call.created_at).getTime()) ? new Date(call.created_at).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' }) : ''}
+                        </span>
+                        <div className="flex gap-1">
+                          {call.resulted_in_booking && (
+                            <span className="px-1.5 py-0.5 bg-emerald-100 text-emerald-800 rounded text-[9px] font-bold">📅 Booked</span>
+                          )}
+                          <span className="px-1.5 py-0.5 bg-blue-100 text-blue-800 rounded text-[9px] font-bold">📞 Phone Call</span>
+                        </div>
+                      </div>
+                    </button>
+                  ))
+                )}
+              </div>
+            </div>
 
           {/* Call Details & Audio Transcript Viewer */}
           <div className="bg-[var(--awb-color2)] border border-[var(--awb-color3)] p-4 rounded-xl h-[500px] flex flex-col">

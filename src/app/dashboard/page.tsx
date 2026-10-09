@@ -363,16 +363,63 @@ export default async function DashboardPage(props: { searchParams?: Promise<{ [k
       }
 
       const { data: tenantData } = await queryClient.from('tenants').select('plan_tier, has_landline, has_mobile, has_whatsapp, has_google_calendar').eq('id', tenantId).maybeSingle();
-      if (tenantData) {
-        billingData.planTier = tenantData.plan_tier;
-        if (tenantData.has_google_calendar) {
-          initialHasGoogleCalendarAddon = true;
+      const currentTierId = tenantData?.plan_tier || 'base_tier';
+      billingData.planTier = currentTierId;
+
+      if (tenantData?.has_google_calendar) {
+        initialHasGoogleCalendarAddon = true;
+      }
+
+      // Fetch dynamic tier info from subscription_tiers
+      const { data: tierRow } = await queryClient
+        .from('subscription_tiers')
+        .select('*')
+        .eq('id', currentTierId)
+        .maybeSingle();
+
+      if (tierRow) {
+        billingData.tierDetails = {
+          name: tierRow.name,
+          monthly_price: tierRow.monthly_price,
+        };
+      } else {
+        const { data: baseTierRow } = await queryClient
+          .from('subscription_tiers')
+          .select('*')
+          .eq('id', 'base_tier')
+          .maybeSingle();
+        if (baseTierRow) {
+          billingData.tierDetails = {
+            name: baseTierRow.name,
+            monthly_price: baseTierRow.monthly_price,
+          };
         }
-        const { data: entitlements } = await queryClient
+      }
+
+      // Fetch dynamic entitlements, falling back to base_tier if missing or empty
+      let { data: entitlements } = await queryClient
+        .from('tier_entitlements')
+        .select('feature_id, limit_value, features(name, is_metered)')
+        .eq('tier_id', currentTierId);
+
+      if (!entitlements || entitlements.length === 0 || !entitlements.some(e => e.feature_id === 'message_allowance')) {
+        const { data: fallbackEnts } = await queryClient
           .from('tier_entitlements')
           .select('feature_id, limit_value, features(name, is_metered)')
-          .eq('tier_id', tenantData.plan_tier);
-        if (entitlements) billingData.entitlements = entitlements;
+          .eq('tier_id', 'base_tier');
+        if (fallbackEnts && fallbackEnts.length > 0) {
+          entitlements = fallbackEnts;
+        }
+      }
+      if (entitlements) billingData.entitlements = entitlements;
+
+      // Fetch catalog for dynamic rendering
+      const { data: catalogItems } = await queryClient
+        .from('addon_catalog')
+        .select('*')
+        .order('display_order', { ascending: true });
+      if (catalogItems) {
+        billingData.catalog = catalogItems;
       }
       
       const firstDay = new Date();

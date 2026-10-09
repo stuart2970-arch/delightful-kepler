@@ -37,7 +37,7 @@ const MODULAR_ADDON_DEFINITIONS: Record<string, { name: string; description: str
   },
   mobile_addon: {
     name: 'Mobile Number (£10.99/mo)',
-    description: 'Dedicated UK mobile number (07) for WhatsApp inquiries and 50 SMS messages',
+    description: 'Dedicated UK mobile number (07) for 2-way SMS text conversations and automated reminders',
     unit_amount: 1099,
     category: 'mobile',
   },

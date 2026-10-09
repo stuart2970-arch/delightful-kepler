@@ -515,8 +515,8 @@ export default function KnowledgeBaseView() {
           
             <div className="bg-[var(--awb-color1)] border border-[var(--awb-color3)] p-6 rounded-2xl shadow-xl space-y-6">
               <div>
-                <h3 className="text-lg font-bold text-[var(--awb-color8)]">Ingest Website Content</h3>
-                <p className="text-xs text-[var(--awb-color6)] mt-0.5">Scrapes client sites, chunks content, generates embeddings, and saves vectors to the chatbot.</p>
+                <h3 className="text-lg font-bold text-[var(--awb-color8)]">Add Knowledge to Chatbot</h3>
+                <p className="text-xs text-[var(--awb-color6)] mt-0.5">Teach your assistant by adding website pages, documents, or salon policy information.</p>
               </div>
 
               {!isShopifyPreflight ? (
@@ -721,7 +721,7 @@ export default function KnowledgeBaseView() {
                   disabled={isCrawling || !crawlBotId || (ingestMode === 'url' ? !crawlUrl : ingestMode === 'text' ? (!rawTextContent || !rawTextSource) : !selectedFile)}
                   className="bg-[#198fd9] text-white font-semibold rounded-[4px] px-[29px] py-[13px] hover:bg-[#198fd9] text-white font-semibold rounded-[4px] px-[29px] py-[13px] text-[var(--awb-color8)] text-sm font-semibold py-2 px-5 rounded-xl shadow-lg shadow-indigo-500/10 transition-colors disabled:opacity-50"
                 >
-                  {isCrawling || isShopifyExecuting ? 'Processing...' : ingestMode === 'url' ? 'Trigger Crawler Pipeline' : ingestMode === 'text' ? 'Ingest Text Content' : 'Upload File'}
+                  {isCrawling || isShopifyExecuting ? 'Updating...' : ingestMode === 'url' ? 'Update Knowledge' : ingestMode === 'text' ? 'Add Text to Knowledge' : 'Upload Document'}
                 </button>
               </form>
               ) : (
@@ -865,7 +865,7 @@ export default function KnowledgeBaseView() {
                       value={newRuleInput}
                       onChange={(e) => setNewRuleInput(e.target.value)}
                       onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); handleAddRule(); } }}
-                      placeholder="e.g. Always state that prices exclude VAT, or Never discuss competitor products"
+                      placeholder="e.g. Skin patch tests must be booked 48 hours prior to colour appointments"
                       className="flex-1 min-w-0 w-full bg-white border border-[#f2f3f5] rounded-xl px-3.5 py-2 text-sm text-[var(--awb-color8)] focus:outline-none focus:ring-1 focus:ring-indigo-500"
                     />
                     <button
@@ -886,7 +886,7 @@ export default function KnowledgeBaseView() {
                   <textarea
                     value={bulkRulesText}
                     onChange={(e) => handleBulkTextChange(e.target.value)}
-                    placeholder="Rule 1: Always check stock before confirming availability&#10;Rule 2: Never give out private staff phone numbers&#10;Rule 3: Support queries must be directed to support@example.com"
+                    placeholder="Rule 1: Always check stylist availability before confirming appointments&#10;Rule 2: Never disclose private colleague phone numbers&#10;Rule 3: Enquiries regarding wedding hair packages should be directed to the salon manager"
                     rows={6}
                     className="w-full bg-white border border-[#f2f3f5] rounded-xl px-3.5 py-2.5 text-sm text-[var(--awb-color8)] focus:outline-none focus:ring-1 focus:ring-indigo-500 min-h-[140px] resize-y styleflo-scrollbar"
                   />
@@ -933,7 +933,7 @@ export default function KnowledgeBaseView() {
             {/* Ingested URLs List */}
             <div className="bg-[var(--awb-color1)] border border-[var(--awb-color3)] p-6 rounded-2xl shadow-xl space-y-4">
               <div>
-                <h3 className="text-lg font-bold text-[var(--awb-color8)]">Ingested Sources</h3>
+                <h3 className="text-lg font-bold text-[var(--awb-color8)]">Learned Pages & Sources</h3>
                 <p className="text-xs text-[var(--awb-color6)] mt-0.5">Manage the websites and content already loaded into this chatbot's knowledge base.</p>
               </div>
 
@@ -948,7 +948,7 @@ export default function KnowledgeBaseView() {
                       <div className="flex-1 min-w-0 pr-4">
                         <p className="text-sm font-medium text-gray-200 truncate" title={item.url}>{item.url}</p>
                         <p className="text-xs text-[var(--awb-color6)] mt-0.5">
-                          {item.chunkCount} {item.chunkCount === 1 ? 'chunk' : 'chunks'} &bull; Last updated {new Date(item.latestDate).toLocaleDateString()}
+                          {item.chunkCount} {item.chunkCount === 1 ? 'section' : 'sections'} &bull; Last updated {new Date(item.latestDate).toLocaleDateString('en-GB')}
                         </p>
                       </div>
                       <button

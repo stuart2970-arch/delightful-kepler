@@ -2940,14 +2940,36 @@ Highlighted adjustments in the modal:
 
 ---
 
-### Session 49 (October 9, 2026)
-* **User**: "when i dial the landline i am recieving the phone number not found message that operators push to virtual mobile numbers that cannot revieve incoming calls"
-  * **Fix**: Fixed inbound call routing by updating Twilio's `VoiceUrl` configuration to point directly to Vapi's inbound voice handler (`https://api.vapi.ai/twilio/inbound_call`) and updated `/api/telephony/inbound/route.ts` TwiML redirect:
-    1. Diagnosed that custom TwiML SIP dialing was failing at the SIP gateway level, causing mobile operators to play the "number not recognized" / virtual number disconnect message.
-    2. Reconfigured Twilio incoming phone number SID `PN2d1809dca53873346ebc5416b60a81dc` (`+441514538001`) and SID `PN33c83573f33606e6d0928c74bec4fdd5` (`+447446900875`) to route Voice directly to `https://api.vapi.ai/twilio/inbound_call`.
-    3. Confirmed that Vapi executes the `assistant-request` webhook to StyleFlo, matching tenant `119afba8-69cb-4700-8e3e-7432130255c9` and answering inbound calls cleanly.
-    4. Verified build and all Playwright integration test cases passed 100%.
+### 50. StyleFlo Production App Audit Remediation & Regression Test Suite
+* **Problem**: A read-only audit conducted by the Product Owner (9 Oct 2026) identified critical P0 security issues (password logging in browser console, leaked internal prompt/system instructions in DOM/JS bundles, sandbox Stripe portal in production), P1 functional and design bugs (OpenClaw codename in customer copy, inconsistent addresses, 390px mobile viewport overflows, non-UK USSD star call divert codes, inconsistent message counts, unescaped technical jargon), and P2 cosmetic items (US vs British English spellings, missing favicon 404, retail/VAT placeholder examples, and duplicate wizard steps).
+* **Solution**:
+  - **P0-1 (Password Logging Eliminated)**: Removed `console.log('TRYING TO LOGIN:', ...)` from `src/app/login/page.tsx` and sanitized sensitive token logging in `src/app/api/webhooks/meta/route.ts`.
+  - **P0-2 (Leaked Prompts Removed)**: Removed internal AI guardrails from `src/app/layout.tsx`, `src/widget/index.ts`, and `src/widget/embed.ts`. Recompiled widget scripts via `npm run build:widget` so no prompts or `agent.md` references exist in client-side bundles or the DOM.
+  - **P0-3 (Dynamic Pricing & Catalog Rendering)**: Updated `src/app/dashboard/page.tsx` and `src/components/DashboardClient.tsx` to dynamically query tier prices, names, and bolt-ons from `subscription_tiers`, `tier_entitlements`, and `addon_catalog`. Ensured allowances are never hard-coded or zero, removed all "+ VAT" text, renamed "Upgrade Plan" to "Plan Allowance", and replaced "sliding capacity extensions" with plain English.
+  - **P0-4 (WhatsApp & Instagram Coming Soon)**: Updated header copy, Meta channel panels, Virtual Mobile cards, and channel filters across `DashboardClient.tsx`, `OpenClawMonitorView.tsx`, `InboxView.tsx`, and `checkout/route.ts` to present WhatsApp and Instagram as "Coming soon" with no active claims.
+  - **P0-5 & P1-13 (Stripe Billing Portal Resilience)**: Added a 10s auto-reset timeout to the Stripe portal button in `DashboardClient.tsx` to prevent perpetual spinner states, and ensured billing checkout dynamically routes to production customer portal sessions.
+  - **P1-6 & P1-7 (Gateways Copy & Channels)**: Removed internal codename "OpenClaw" from customer-facing copy. Removed Telegram and Slack from channels list (neither is offered).
+  - **P1-8 & P1-11 (Database Cleanup)**: Removed test records (`ig_test_447999888777`), test staff member "Jane Wood" (`jane@example.com`), setup service placeholders, cleared test job values, updated business name to "StyleFlo", and synchronized address fields across the StyleFlo tenant.
+  - **P1-9 (Welcome Message Polished)**: Corrected punctuation and capitalization in FloChat chatbot welcome message to: `"Hi, you're through to FloChat at StyleFlo AI. How can I help you today?"`.
+  - **P1-10 (UK Date & Time Formats)**: Enforced `en-GB` formatting across `InboxView.tsx`, `TelephonyView.tsx`, `SchedulingView.tsx`, `KnowledgeBaseView.tsx`, and `lead-notifier.ts`.
+  - **P1-14 (390px Mobile Responsive Layouts)**: Added horizontal scrolling containers (`overflow-x-auto whitespace-nowrap`), `flex-wrap`, and `shrink-0` safeguards on Telephony tabs, OpenClaw monitor headers, and Reserve with Google cards.
+  - **P1-16 (Message Counts Disjoint Synchronization)**: Aligned sidebar badges and inbox counters so Web Chat & Voice exclusively counts web conversations and excludes phone calls, matching the dedicated phone logs.
+  - **P1-17 (UK GSM USSD Divert Codes)**: Converted phone numbers in call forwarding instructions to national leading `0` format (`0151...` and `07...`) ensuring compatibility with UK networks (EE, O2, Vodafone, Three).
+  - **P1-18 & P2-24 (Plain English Terminology)**: Replaced technical jargon ("chunks" -> "page sections", "Trigger Crawler Pipeline" -> "Update Knowledge", "ID Name" -> "Agent Name", "Gateway Latency" -> "Response Speed", "Closed:" -> "Closes at:").
+  - **P2-21 (Favicon)**: Restored valid `favicon.ico` in both `public/favicon.ico` and `src/app/favicon.ico`.
+  - **P2-22 & P2-23 (British English Spellings & Database Slugs)**: Converted US spellings ("Customise", "Colour", "Enquiry") and corrected `booksly-or-other` -> `booksy-or-other` and `hippa` -> `hipaa` in Supabase chunks.
+  - **P2-28 & P2-29 (Scheduling Enhancements)**: Renamed Microsoft bolt-on card to "Microsoft Calendar", defaulted Base Price to empty with required validation in Add Service, and hid staff emails in assignment pickers.
+  - **P2-30 (Wizard Steps Fix)**: Fixed modal step logic in `ChatbotManagerView.tsx` so only the active wizard step renders, resolving the Persona duplicate field issue.
+  - **Regression Test Suite**: Created `tests/audit-fixes.spec.ts` (T1 through T13), achieving 100% pass rate in Playwright.
 
+---
 
-
+### Session 50 (October 9, 2026)
+* **User**: "StyleFlo app – fix list for Anti-Gravity" (Product Owner Audit — 9 Oct 2026)
+  * **Actions Taken**:
+    1. **P0 Security & Core Fixes**: Eliminated plaintext password logging on login, purged leaked system guardrail prompts from client HTML/JS bundles, verified dynamic `/superadmin` subscription catalog rendering, updated WhatsApp and Instagram to "Coming soon", and added safety timeouts for Stripe portal redirects.
+    2. **P1 UX, Data & Regionalisation**: Removed "OpenClaw" codename, removed Telegram and Slack channels (neither is offered to customers), purged test data (Jane Wood, test conversations, placeholder services), harmonised addresses, formatted UK dates (`en-GB`), formatted UK USSD divert star codes with leading `0`, ensured disjoint message badge counts, and resolved 390px mobile viewport layout overflows.
+    3. **P2 Polish & Terminology**: Added favicon (`favicon.ico`), converted US English to British English ("customise", "colour", "enquiry"), replaced retail/VAT placeholder examples with salon examples, renamed Microsoft card to "Microsoft Calendar", defaulted service prices to empty with validation, and fixed the chatbot wizard multi-step view.
+    4. **Automated Testing**: Created and executed `tests/audit-fixes.spec.ts` verifying all 9 audit test cases pass cleanly (15.7s).
+    5. **Item #20 (Account Settings Legal Wording)**: Softened registered address notice in `DashboardClient.tsx` from aggressive legal claims to a factual, helpful note: "If your business is a UK limited company, adding your registered office address and Companies House registration number (CRN) here ensures your receipts, invoices, and public contact details are accurate."
 

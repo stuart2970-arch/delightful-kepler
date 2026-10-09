@@ -468,14 +468,14 @@ export default function ChatbotManagerView() {
                 }} className="space-y-6">
                   
                   {/* Step 1: Basics & Branding */}
-                  {(editingBotId || wizardStep === 1) && (
+                  {wizardStep === 1 && (
                     <div className="space-y-4 animate-in fade-in slide-in-from-right-4 duration-300">
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                         <div>
-                          <label className="block text-xs font-semibold text-[var(--awb-color7)] mb-1.5">ID Name</label>
+                          <label className="block text-xs font-semibold text-[var(--awb-color7)] mb-1.5">Agent Name</label>
                           <input
                             type="text"
-                            placeholder="e.g. Acme Support Bot"
+                            placeholder="e.g. FloChat Assistant"
                             value={newBotName}
                             onChange={(e) => setNewBotName(e.target.value)}
                             className="w-full h-[50px] bg-[var(--awb-color1)] border border-[var(--awb-color3)] rounded-[6px] px-3.5 py-2 text-sm text-[var(--awb-color8)] focus:outline-none focus:border-[var(--awb-color4)]"
@@ -483,7 +483,7 @@ export default function ChatbotManagerView() {
                           />
                         </div>
                         <div>
-                          <label className="block text-xs font-semibold text-[var(--awb-color7)] mb-1.5">Branding Accent Color</label>
+                          <label className="block text-xs font-semibold text-[var(--awb-color7)] mb-1.5">Branding Accent Colour</label>
                           <div className="flex gap-2.5 items-center">
                             <input
                               type="color"
@@ -518,7 +518,7 @@ export default function ChatbotManagerView() {
                   )}
 
                   {/* Step 2: Persona & Messaging */}
-                  {(editingBotId || wizardStep === 2) && (
+                  {wizardStep === 2 && (
                     <div className="space-y-4 animate-in fade-in slide-in-from-right-4 duration-300">
                       <div>
                         <label className="block text-xs font-semibold text-[var(--awb-color7)] mb-1.5">Welcome Message</label>
@@ -556,7 +556,7 @@ export default function ChatbotManagerView() {
                   )}
 
                   {/* Step 3: Avatar Selection */}
-                  {(editingBotId || wizardStep === 3) && (
+                  {wizardStep === 3 && (
                     <div className="space-y-4 animate-in fade-in slide-in-from-right-4 duration-300">
                       <div>
                       <label className="block text-xs font-semibold text-[var(--awb-color7)] mb-2">Select Agent Avatar Preset</label>
@@ -609,7 +609,7 @@ export default function ChatbotManagerView() {
                     </div>
                   )}
                   {/* Step 4: VAPI VOICE CONFIGURATION */}
-                  {(editingBotId || wizardStep === 4) && (
+                  {wizardStep === 4 && (
                     <div className="space-y-4 animate-in fade-in slide-in-from-right-4 duration-300">
                       <div className="flex items-center justify-between bg-[var(--awb-color2)] p-4 rounded-xl border border-[var(--awb-color3)]">
                         <div className={`w-10 h-10 rounded-xl flex items-center justify-center transition-colors ${newVoiceEnabled ? 'bg-[#198fd9] text-white' : 'bg-[var(--awb-color3)]'}`}>

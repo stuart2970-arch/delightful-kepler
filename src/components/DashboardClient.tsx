@@ -819,7 +819,7 @@ const globalBotId = '00000000-0000-0000-0000-000000000000';
                 : [
                     { id: 'chatbots', label: 'Agent', icon: <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 002-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />, count: (chatbots || []).filter(b => b.id !== globalBotId).length },
                     { id: 'scheduling', label: 'Master Calendar & Rota', icon: <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" /> },
-                    { id: 'conversations', label: 'Web Chat & Voice', icon: <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z" />, count: (conversations || []).filter(c => c && !c.is_phone_call).length },
+                    { id: 'conversations', label: 'Web Chat & Voice', icon: <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z" />, count: (conversations || []).filter(c => c && !c.is_phone_call && (!c.user_session_id || !c.user_session_id.startsWith('phone_'))).length },
                     { id: 'crawler', label: 'Knowledge Base', icon: <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" /> },
                     { id: 'integrations', label: 'Integrations', icon: <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 10V3L4 14h7v7l9-11h-7z" /> },
                     ...(isSuperAdmin ? [{ id: 'openclaw-monitor', label: 'Gateways', icon: <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 10V3L4 14h7v7l9-11h-7z" /> }] : []),
@@ -906,15 +906,25 @@ const globalBotId = '00000000-0000-0000-0000-000000000000';
             <div className="space-y-6">
               {/* Standard Tenant View */}
               <div className="bg-[var(--awb-color1)] border border-[var(--awb-color3)] p-6 rounded-2xl shadow-xl">
-                <div className="flex justify-between items-center mb-6">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
                   <div>
-                    <h3 className="text-lg font-bold text-[var(--awb-color8)]">Current Plan: <span className="text-[var(--awb-color5)] uppercase tracking-wider font-bold">{billingData?.planTier === 'base_tier' ? 'Base Subscription' : billingData?.planTier || 'Base'}</span></h3>
-                    <p className="text-xs text-[var(--awb-color6)] mt-1">£9.99/mo • Manage your usage limits, active add-ons, and entitlements.</p>
+                    <h3 className="text-lg font-bold text-[var(--awb-color8)]">
+                      Current Plan: <span className="text-[var(--awb-color5)] uppercase tracking-wider font-bold">
+                        {billingData?.tierDetails?.name || (billingData?.planTier === 'base_tier' || billingData?.planTier === 'basic' ? 'Base Subscription' : billingData?.planTier || 'Base')}
+                      </span>
+                    </h3>
+                    <p className="text-xs text-[var(--awb-color6)] mt-1">
+                      {billingData?.tierDetails?.monthly_price != null ? `£${Number(billingData.tierDetails.monthly_price).toFixed(2)}/month` : '£9.99/month'} • Manage your usage limits, active bolt-ons, and allowances.
+                    </p>
                   </div>
                   <button
                     onClick={async () => {
                       setIsOpeningPortal(true);
                       setBillingMessage(null);
+                      const timeoutId = setTimeout(() => {
+                        setIsOpeningPortal(false);
+                      }, 10000);
+
                       try {
                         const isLocal = typeof window !== 'undefined' && (window.location.hostname.includes('localhost') || window.location.hostname.includes('.test'));
                         const wpAppUrl = isLocal ? 'https://styleflo.test/app' : 'https://styleflo.ai/app';
@@ -924,6 +934,7 @@ const globalBotId = '00000000-0000-0000-0000-000000000000';
                           body: JSON.stringify({ action: 'portal', tenantId, returnUrl: wpAppUrl }),
                         });
                         const data = await res.json();
+                        clearTimeout(timeoutId);
                         if (data.url) {
                           if (typeof window !== 'undefined' && window.top && window.top !== window) {
                             window.top.location.href = data.url;
@@ -938,13 +949,14 @@ const globalBotId = '00000000-0000-0000-0000-000000000000';
                           setIsOpeningPortal(false);
                         }
                       } catch (err: any) {
+                        clearTimeout(timeoutId);
                         console.error('Stripe portal error:', err);
                         setBillingMessage(err.message || 'Failed to open billing portal');
                         setIsOpeningPortal(false);
                       }
                     }}
                     disabled={isOpeningPortal}
-                    className="bg-[#198fd9] hover:bg-[#157ab9] disabled:bg-[#198fd9]/60 text-white text-xs font-bold py-2.5 px-5 rounded-[4px] shadow-sm transition-colors whitespace-nowrap flex items-center gap-2 cursor-pointer"
+                    className="w-full sm:w-auto bg-[#198fd9] hover:bg-[#157ab9] disabled:bg-[#198fd9]/60 text-white text-xs font-bold py-2.5 px-5 rounded-[4px] shadow-sm transition-colors whitespace-nowrap flex items-center justify-center gap-2 cursor-pointer"
                   >
                     {isOpeningPortal && (
                       <div className="w-3 h-3 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
@@ -983,11 +995,11 @@ const globalBotId = '00000000-0000-0000-0000-000000000000';
                     <div className="flex justify-between text-xs text-[var(--awb-color6)] mb-2">
                       <span>{billingData?.usage?.chunks || 0} used</span>
                       <span>
-                        {billingData?.entitlements?.find((e: { feature_id: string; limit_value: number }) => e.feature_id === 'knowledge_data_chunks')?.limit_value || 0} total
+                        {billingData?.entitlements?.find((e: { feature_id: string; limit_value: number }) => e.feature_id === 'knowledge_data_chunks')?.limit_value || 500} total
                       </span>
                     </div>
                     <div className="w-full bg-[var(--awb-color3)] rounded-full h-2.5">
-                      <div className="bg-[var(--awb-color4)] h-2.5 rounded-full" style={{ width: `${Math.min(100, ((billingData?.usage?.chunks || 0) / (billingData?.entitlements?.find((e: { feature_id: string; limit_value: number }) => e.feature_id === 'knowledge_data_chunks')?.limit_value || 1)) * 100)}%`}}></div>
+                      <div className="bg-[var(--awb-color4)] h-2.5 rounded-full" style={{ width: `${Math.min(100, ((billingData?.usage?.chunks || 0) / (billingData?.entitlements?.find((e: { feature_id: string; limit_value: number }) => e.feature_id === 'knowledge_data_chunks')?.limit_value || 500)) * 100)}%`}}></div>
                     </div>
                   </div>
 
@@ -1006,19 +1018,19 @@ const globalBotId = '00000000-0000-0000-0000-000000000000';
                           }
                         }}
                         className="bg-[var(--awb-color3)] hover:bg-[var(--awb-color4)] text-[var(--awb-color8)] text-[11px] font-bold py-1 px-3 rounded-[4px] shadow-sm transition-colors cursor-pointer flex items-center gap-1 shrink-0"
-                        title="Upgrade plan to increase monthly chat message quota"
+                        title="Manage monthly chat message quota"
                       >
-                        Upgrade Plan
+                        Plan Allowance
                       </button>
                     </div>
                     <div className="flex justify-between text-xs text-[var(--awb-color6)] mb-2">
                       <span>{billingData?.usage?.messages || 0} used this month</span>
                       <span>
-                        {billingData?.entitlements?.find((e: { feature_id: string; limit_value: number }) => e.feature_id === 'message_allowance')?.limit_value === -1 ? 'Unlimited' : (billingData?.entitlements?.find((e: { feature_id: string; limit_value: number }) => e.feature_id === 'message_allowance')?.limit_value || 0) + ' total'}
+                        {billingData?.entitlements?.find((e: { feature_id: string; limit_value: number }) => e.feature_id === 'message_allowance')?.limit_value === -1 ? 'Unlimited' : (billingData?.entitlements?.find((e: { feature_id: string; limit_value: number }) => e.feature_id === 'message_allowance')?.limit_value || 1500) + ' total'}
                       </span>
                     </div>
                     <div className="w-full bg-[var(--awb-color3)] rounded-full h-2.5">
-                      <div className="bg-[var(--awb-color5)] h-2.5 rounded-full" style={{ width: `${billingData?.entitlements?.find((e: { feature_id: string; limit_value: number }) => e.feature_id === 'message_allowance')?.limit_value === -1 ? 100 : Math.min(100, ((billingData?.usage?.messages || 0) / (billingData?.entitlements?.find((e: { feature_id: string; limit_value: number }) => e.feature_id === 'message_allowance')?.limit_value || 1)) * 100)}%`}}></div>
+                      <div className="bg-[var(--awb-color5)] h-2.5 rounded-full" style={{ width: `${billingData?.entitlements?.find((e: { feature_id: string; limit_value: number }) => e.feature_id === 'message_allowance')?.limit_value === -1 ? 100 : Math.min(100, ((billingData?.usage?.messages || 0) / (billingData?.entitlements?.find((e: { feature_id: string; limit_value: number }) => e.feature_id === 'message_allowance')?.limit_value || 1500)) * 100)}%`}}></div>
                     </div>
                   </div>
 
@@ -1080,7 +1092,7 @@ const globalBotId = '00000000-0000-0000-0000-000000000000';
                         <div key={addon.id} className="bg-[var(--awb-color2)] border border-[var(--awb-color3)] rounded-xl p-4 flex items-center justify-between gap-3">
                           <div className="flex items-center gap-3 min-w-0">
                             <div className="w-8 h-8 rounded-lg bg-[#260475] text-white flex items-center justify-center text-xs font-bold shrink-0">
-                              {addon.category === 'landline' ? '📞' : addon.category === 'mobile' ? '📱' : addon.category === 'whatsapp' ? '💬' : addon.category === 'voice_pack' ? '🎙️' : addon.category === 'sms_pack' ? '✉️' : '📦'}
+                              {addon.category === 'landline' ? '📞' : addon.category === 'mobile' ? '📱' : addon.category === 'whatsapp' ? '💬' : addon.category === 'google_calendar' || addon.category === 'microsoft_calendar' ? '📅' : addon.category === 'voice_pack' ? '🎙️' : addon.category === 'sms_pack' ? '✉️' : '📦'}
                             </div>
                             <div className="min-w-0">
                               <p className="text-xs font-bold text-[var(--awb-color8)] truncate">{addon.name}</p>
@@ -1107,139 +1119,225 @@ const globalBotId = '00000000-0000-0000-0000-000000000000';
                   <div className="mb-4">
                     <h4 className="text-base font-extrabold text-[var(--awb-color8)]">Available Modular Bolt-ons</h4>
                     <p className="text-xs text-[var(--awb-color6)] mt-0.5">
-                      Enhance your AI workspace with dedicated phone numbers, channels, and sliding capacity extensions.
+                      Enhance your AI workspace with dedicated phone numbers, channels, and extra message and voice allowances.
                     </p>
                   </div>
                   <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                     {/* 1. Landline */}
-                    <div className="bg-[var(--awb-color2)] border border-[var(--awb-color3)] hover:border-[#198fd9] rounded-xl p-4 flex flex-col justify-between transition-colors shadow-sm">
-                      <div>
-                        <div className="flex items-center justify-between mb-2">
-                          <div className="flex items-center gap-2">
-                            <span className="text-xl">📞</span>
-                            <h5 className="text-xs font-extrabold text-[var(--awb-color8)]">Local Landline Number</h5>
+                    {(() => {
+                      const item = billingData?.catalog?.find((c: any) => c.category === 'landline' || c.id === 'landline_addon');
+                      const priceStr = item ? `${item.is_sliding ? 'From ' : ''}£${(item.monthly_price_pence / 100).toFixed(2)}/mo` : 'From £8.99/mo';
+                      return (
+                        <div className="bg-[var(--awb-color2)] border border-[var(--awb-color3)] hover:border-[#198fd9] rounded-xl p-4 flex flex-col justify-between transition-colors shadow-sm">
+                          <div>
+                            <div className="flex items-center justify-between mb-2">
+                              <div className="flex items-center gap-2">
+                                <span className="text-xl">📞</span>
+                                <h5 className="text-xs font-extrabold text-[var(--awb-color8)]">{item?.name || 'Local Landline Number'}</h5>
+                              </div>
+                              <span className="text-[11px] font-bold text-[var(--awb-color5)]">{priceStr}</span>
+                            </div>
+                            <p className="text-[11px] text-[var(--awb-color6)] mb-3 leading-relaxed">
+                              {item?.description || 'Dedicated local UK area number (01/02) bundled with 10–30 shared voice minutes.'}
+                            </p>
                           </div>
-                          <span className="text-[11px] font-bold text-[var(--awb-color5)]">From £8.99/mo</span>
+                          <button
+                            onClick={() => setBillingUpsellCategory('landline')}
+                            className="w-full bg-[#198fd9] hover:bg-[#157ab9] text-white text-xs font-bold py-2 px-3 rounded-[4px] shadow-sm transition-colors cursor-pointer flex items-center justify-center gap-1.5"
+                          >
+                            <span>📞</span> Get Landline Bolt-on
+                          </button>
                         </div>
-                        <p className="text-[11px] text-[var(--awb-color6)] mb-3 leading-relaxed">
-                          Dedicated local UK area number (01/02) bundled with 10–30 shared voice minutes.
-                        </p>
-                      </div>
-                      <button
-                        onClick={() => setBillingUpsellCategory('landline')}
-                        className="w-full bg-[#198fd9] hover:bg-[#157ab9] text-white text-xs font-bold py-2 px-3 rounded-[4px] shadow-sm transition-colors cursor-pointer flex items-center justify-center gap-1.5"
-                      >
-                        <span>📞</span> Get Landline Bolt-on
-                      </button>
-                    </div>
+                      );
+                    })()}
 
                     {/* 2. Mobile */}
-                    <div className="bg-[var(--awb-color2)] border border-[var(--awb-color3)] hover:border-[#198fd9] rounded-xl p-4 flex flex-col justify-between transition-colors shadow-sm">
-                      <div>
-                        <div className="flex items-center justify-between mb-2">
-                          <div className="flex items-center gap-2">
-                            <span className="text-xl">📱</span>
-                            <h5 className="text-xs font-extrabold text-[var(--awb-color8)]">Virtual Mobile Number</h5>
+                    {(() => {
+                      const item = billingData?.catalog?.find((c: any) => c.category === 'mobile' || c.id === 'mobile_addon');
+                      const priceStr = item ? `${item.is_sliding ? 'From ' : ''}£${(item.monthly_price_pence / 100).toFixed(2)}/mo` : 'From £10.99/mo';
+                      return (
+                        <div className="bg-[var(--awb-color2)] border border-[var(--awb-color3)] hover:border-[#198fd9] rounded-xl p-4 flex flex-col justify-between transition-colors shadow-sm">
+                          <div>
+                            <div className="flex items-center justify-between mb-2">
+                              <div className="flex items-center gap-2">
+                                <span className="text-xl">📱</span>
+                                <h5 className="text-xs font-extrabold text-[var(--awb-color8)]">{item?.name || 'Virtual Mobile Number'}</h5>
+                              </div>
+                              <span className="text-[11px] font-bold text-[var(--awb-color5)]">{priceStr}</span>
+                            </div>
+                            <p className="text-[11px] text-[var(--awb-color6)] mb-3 leading-relaxed">
+                              UK 07 virtual mobile number for SMS messaging (WhatsApp coming soon).
+                            </p>
                           </div>
-                          <span className="text-[11px] font-bold text-[var(--awb-color5)]">From £10.99/mo</span>
+                          <button
+                            onClick={() => setBillingUpsellCategory('mobile')}
+                            className="w-full bg-[#198fd9] hover:bg-[#157ab9] text-white text-xs font-bold py-2 px-3 rounded-[4px] shadow-sm transition-colors cursor-pointer flex items-center justify-center gap-1.5"
+                          >
+                            <span>📱</span> Get Mobile Bolt-on
+                          </button>
                         </div>
-                        <p className="text-[11px] text-[var(--awb-color6)] mb-3 leading-relaxed">
-                          UK 07 virtual mobile number for WhatsApp and SMS messaging.
-                        </p>
-                      </div>
-                      <button
-                        onClick={() => setBillingUpsellCategory('mobile')}
-                        className="w-full bg-[#198fd9] hover:bg-[#157ab9] text-white text-xs font-bold py-2 px-3 rounded-[4px] shadow-sm transition-colors cursor-pointer flex items-center justify-center gap-1.5"
-                      >
-                        <span>📱</span> Get Mobile Bolt-on
-                      </button>
-                    </div>
+                      );
+                    })()}
 
-                    {/* 3. WhatsApp (Greyed out & unclickable) */}
-                    <div className="bg-[var(--awb-color2)] border border-[var(--awb-color3)] rounded-xl p-4 flex flex-col justify-between shadow-sm opacity-40 filter grayscale pointer-events-none cursor-not-allowed select-none">
+                    {/* 3. Google Calendar */}
+                    {(() => {
+                      const item = billingData?.catalog?.find((c: any) => c.category === 'google_calendar' || c.id === 'google_calendar_addon');
+                      const priceStr = item ? `£${(item.monthly_price_pence / 100).toFixed(2)}/mo` : '£4.99/mo';
+                      return (
+                        <div className="bg-[var(--awb-color2)] border border-[var(--awb-color3)] hover:border-[#198fd9] rounded-xl p-4 flex flex-col justify-between transition-colors shadow-sm">
+                          <div>
+                            <div className="flex items-center justify-between mb-2">
+                              <div className="flex items-center gap-2">
+                                <span className="text-xl">📅</span>
+                                <h5 className="text-xs font-extrabold text-[var(--awb-color8)]">{item?.name || 'Google Calendar Integration'}</h5>
+                              </div>
+                              <span className="text-[11px] font-bold text-[var(--awb-color5)]">{priceStr}</span>
+                            </div>
+                            <p className="text-[11px] text-[var(--awb-color6)] mb-3 leading-relaxed">
+                              {item?.description || 'Real-time two-way synchronization with Google Calendar to prevent double-booking.'}
+                            </p>
+                          </div>
+                          <button
+                            onClick={() => setBillingUpsellCategory('google_calendar')}
+                            className="w-full bg-[#198fd9] hover:bg-[#157ab9] text-white text-xs font-bold py-2 px-3 rounded-[4px] shadow-sm transition-colors cursor-pointer flex items-center justify-center gap-1.5"
+                          >
+                            <span>📅</span> Get Google Calendar Bolt-on
+                          </button>
+                        </div>
+                      );
+                    })()}
+
+                    {/* 4. Microsoft Calendar */}
+                    {(() => {
+                      const item = billingData?.catalog?.find((c: any) => c.category === 'microsoft_calendar' || c.id === 'microsoft_calendar_addon');
+                      const priceStr = item ? `£${(item.monthly_price_pence / 100).toFixed(2)}/mo` : '£4.99/mo';
+                      return (
+                        <div className="bg-[var(--awb-color2)] border border-[var(--awb-color3)] hover:border-[#198fd9] rounded-xl p-4 flex flex-col justify-between transition-colors shadow-sm">
+                          <div>
+                            <div className="flex items-center justify-between mb-2">
+                              <div className="flex items-center gap-2">
+                                <span className="text-xl">📆</span>
+                                <h5 className="text-xs font-extrabold text-[var(--awb-color8)]">Microsoft Calendar</h5>
+                              </div>
+                              <span className="text-[11px] font-bold text-[var(--awb-color5)]">{priceStr}</span>
+                            </div>
+                            <p className="text-[11px] text-[var(--awb-color6)] mb-3 leading-relaxed">
+                              {item?.description || 'Real-time two-way synchronization with Microsoft Outlook Calendar.'}
+                            </p>
+                          </div>
+                          <button
+                            onClick={() => setBillingUpsellCategory('microsoft_calendar')}
+                            className="w-full bg-[#198fd9] hover:bg-[#157ab9] text-white text-xs font-bold py-2 px-3 rounded-[4px] shadow-sm transition-colors cursor-pointer flex items-center justify-center gap-1.5"
+                          >
+                            <span>📆</span> Get Microsoft Calendar Bolt-on
+                          </button>
+                        </div>
+                      );
+                    })()}
+
+                    {/* 5. Voice Minutes */}
+                    {(() => {
+                      const item = billingData?.catalog?.find((c: any) => c.category === 'voice_pack' || c.id === 'voice_pack_20');
+                      const priceStr = item ? `${item.is_sliding ? 'From ' : ''}£${(item.monthly_price_pence / 100).toFixed(2)}` : 'From £15.00';
+                      return (
+                        <div className="bg-[var(--awb-color2)] border border-[var(--awb-color3)] hover:border-[#9333ea] rounded-xl p-4 flex flex-col justify-between transition-colors shadow-sm">
+                          <div>
+                            <div className="flex items-center justify-between mb-2">
+                              <div className="flex items-center gap-2">
+                                <span className="text-xl">🎙️</span>
+                                <h5 className="text-xs font-extrabold text-[var(--awb-color8)]">{item?.name || 'Voice Minutes Pack'}</h5>
+                              </div>
+                              <span className="text-[11px] font-bold text-[#9333ea]">{priceStr}</span>
+                            </div>
+                            <p className="text-[11px] text-[var(--awb-color6)] mb-3 leading-relaxed">
+                              {item?.description || 'One-off pack of 20–100 voice minutes valid for 3 months from purchase.'}
+                            </p>
+                          </div>
+                          <button
+                            onClick={() => setBillingUpsellCategory('voice_pack')}
+                            className="w-full bg-[#9333ea] hover:bg-[#7e22ce] text-white text-xs font-bold py-2 px-3 rounded-[4px] shadow-sm transition-colors cursor-pointer flex items-center justify-center gap-1.5"
+                          >
+                            <span>🎙️</span> Purchase Voice Minutes
+                          </button>
+                        </div>
+                      );
+                    })()}
+
+                    {/* 6. SMS Pack */}
+                    {(() => {
+                      const item = billingData?.catalog?.find((c: any) => c.category === 'sms_pack' || c.id === 'sms_pack_100');
+                      const priceStr = item ? `${item.is_sliding ? 'From ' : ''}£${(item.monthly_price_pence / 100).toFixed(2)}` : 'From £5.99';
+                      return (
+                        <div className="bg-[var(--awb-color2)] border border-[var(--awb-color3)] hover:border-[#198fd9] rounded-xl p-4 flex flex-col justify-between transition-colors shadow-sm">
+                          <div>
+                            <div className="flex items-center justify-between mb-2">
+                              <div className="flex items-center gap-2">
+                                <span className="text-xl">✉️</span>
+                                <h5 className="text-xs font-extrabold text-[var(--awb-color8)]">{item?.name || 'SMS Message Credits'}</h5>
+                              </div>
+                              <span className="text-[11px] font-bold text-[var(--awb-color5)]">{priceStr}</span>
+                            </div>
+                            <p className="text-[11px] text-[var(--awb-color6)] mb-3 leading-relaxed">
+                              {item?.description || 'One-off pack of 100–500 SMS text message credits valid for 3 months from purchase.'}
+                            </p>
+                          </div>
+                          <button
+                            onClick={() => setBillingUpsellCategory('sms_pack')}
+                            className="w-full bg-[#198fd9] hover:bg-[#157ab9] text-white text-xs font-bold py-2 px-3 rounded-[4px] shadow-sm transition-colors cursor-pointer flex items-center justify-center gap-1.5"
+                          >
+                            <span>✉️</span> Purchase SMS Credits
+                          </button>
+                        </div>
+                      );
+                    })()}
+
+                    {/* 7. Knowledge Chunks */}
+                    {(() => {
+                      const item = billingData?.catalog?.find((c: any) => c.category === 'data_pack' || c.id === 'data_pack_500');
+                      const priceStr = item ? `${item.is_sliding ? 'From ' : ''}£${(item.monthly_price_pence / 100).toFixed(2)}/mo` : 'From £4.99/mo';
+                      return (
+                        <div className="bg-[var(--awb-color2)] border border-[var(--awb-color3)] hover:border-[#198fd9] rounded-xl p-4 flex flex-col justify-between transition-colors shadow-sm">
+                          <div>
+                            <div className="flex items-center justify-between mb-2">
+                              <div className="flex items-center gap-2">
+                                <span className="text-xl">📦</span>
+                                <h5 className="text-xs font-extrabold text-[var(--awb-color8)]">{item?.name || 'Knowledge Base Chunks'}</h5>
+                              </div>
+                              <span className="text-[11px] font-bold text-[var(--awb-color5)]">{priceStr}</span>
+                            </div>
+                            <p className="text-[11px] text-[var(--awb-color6)] mb-3 leading-relaxed">
+                              {item?.description || 'Additional vector database capacity for large PDF catalogs, menus, and site crawls.'}
+                            </p>
+                          </div>
+                          <button
+                            onClick={() => setBillingUpsellCategory('data_pack')}
+                            className="w-full bg-[#198fd9] hover:bg-[#157ab9] text-white text-xs font-bold py-2 px-3 rounded-[4px] shadow-sm transition-colors cursor-pointer flex items-center justify-center gap-1.5"
+                          >
+                            <span>📦</span> Add Knowledge Capacity
+                          </button>
+                        </div>
+                      );
+                    })()}
+
+                    {/* 8. WhatsApp (Coming soon, no sales description) */}
+                    <div className="bg-[var(--awb-color2)] border border-[var(--awb-color3)] rounded-xl p-4 flex flex-col justify-between shadow-sm opacity-50 filter grayscale pointer-events-none cursor-not-allowed select-none">
                       <div>
                         <div className="flex items-center justify-between mb-2">
                           <div className="flex items-center gap-2">
                             <span className="text-xl">💬</span>
-                            <h5 className="text-xs font-extrabold text-[var(--awb-color8)]">WhatsApp Business</h5>
+                            <h5 className="text-xs font-extrabold text-[var(--awb-color8)]">WhatsApp</h5>
                           </div>
-                          <span className="text-[10px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded bg-gray-200 text-gray-700">Unavailable</span>
+                          <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded bg-gray-200 text-gray-700">Coming soon</span>
                         </div>
                         <p className="text-[11px] text-[var(--awb-color6)] mb-3 leading-relaxed">
-                          Official Meta WhatsApp Cloud API integration with automated AI responses and booking.
+                          Official Meta WhatsApp integration is coming soon.
                         </p>
                       </div>
                       <button
                         disabled
                         className="w-full bg-gray-300 text-gray-500 text-xs font-bold py-2 px-3 rounded-[4px] cursor-not-allowed flex items-center justify-center gap-1.5"
                       >
-                        <span>💬</span> WhatsApp Unavailable
-                      </button>
-                    </div>
-
-                    {/* 4. Voice Minutes */}
-                    <div className="bg-[var(--awb-color2)] border border-[var(--awb-color3)] hover:border-[#9333ea] rounded-xl p-4 flex flex-col justify-between transition-colors shadow-sm">
-                      <div>
-                        <div className="flex items-center justify-between mb-2">
-                          <div className="flex items-center gap-2">
-                            <span className="text-xl">🎙️</span>
-                            <h5 className="text-xs font-extrabold text-[var(--awb-color8)]">Voice Minutes Pack</h5>
-                          </div>
-                          <span className="text-[11px] font-bold text-[#9333ea]">From £15.00</span>
-                        </div>
-                        <p className="text-[11px] text-[var(--awb-color6)] mb-3 leading-relaxed">
-                          One-off pack of 20–100 voice minutes valid for 3 months from purchase.
-                        </p>
-                      </div>
-                      <button
-                        onClick={() => setBillingUpsellCategory('voice_pack')}
-                        className="w-full bg-[#9333ea] hover:bg-[#7e22ce] text-white text-xs font-bold py-2 px-3 rounded-[4px] shadow-sm transition-colors cursor-pointer flex items-center justify-center gap-1.5"
-                      >
-                        <span>🎙️</span> Purchase Voice Minutes
-                      </button>
-                    </div>
-
-                    {/* 5. SMS Pack */}
-                    <div className="bg-[var(--awb-color2)] border border-[var(--awb-color3)] hover:border-[#198fd9] rounded-xl p-4 flex flex-col justify-between transition-colors shadow-sm">
-                      <div>
-                        <div className="flex items-center justify-between mb-2">
-                          <div className="flex items-center gap-2">
-                            <span className="text-xl">✉️</span>
-                            <h5 className="text-xs font-extrabold text-[var(--awb-color8)]">SMS Message Credits</h5>
-                          </div>
-                          <span className="text-[11px] font-bold text-[var(--awb-color5)]">From £5.99</span>
-                        </div>
-                        <p className="text-[11px] text-[var(--awb-color6)] mb-3 leading-relaxed">
-                          One-off pack of 100–500 SMS text message credits valid for 3 months from purchase.
-                        </p>
-                      </div>
-                      <button
-                        onClick={() => setBillingUpsellCategory('sms_pack')}
-                        className="w-full bg-[#198fd9] hover:bg-[#157ab9] text-white text-xs font-bold py-2 px-3 rounded-[4px] shadow-sm transition-colors cursor-pointer flex items-center justify-center gap-1.5"
-                      >
-                        <span>✉️</span> Purchase SMS Credits
-                      </button>
-                    </div>
-
-                    {/* 6. Knowledge Chunks */}
-                    <div className="bg-[var(--awb-color2)] border border-[var(--awb-color3)] hover:border-[#198fd9] rounded-xl p-4 flex flex-col justify-between transition-colors shadow-sm">
-                      <div>
-                        <div className="flex items-center justify-between mb-2">
-                          <div className="flex items-center gap-2">
-                            <span className="text-xl">📦</span>
-                            <h5 className="text-xs font-extrabold text-[var(--awb-color8)]">Knowledge Base Chunks</h5>
-                          </div>
-                          <span className="text-[11px] font-bold text-[var(--awb-color5)]">From £4.99/mo</span>
-                        </div>
-                        <p className="text-[11px] text-[var(--awb-color6)] mb-3 leading-relaxed">
-                          Additional vector database capacity for large PDF catalogs, menus, and site crawls.
-                        </p>
-                      </div>
-                      <button
-                        onClick={() => setBillingUpsellCategory('data_pack')}
-                        className="w-full bg-[#198fd9] hover:bg-[#157ab9] text-white text-xs font-bold py-2 px-3 rounded-[4px] shadow-sm transition-colors cursor-pointer flex items-center justify-center gap-1.5"
-                      >
-                        <span>📦</span> Add Knowledge Capacity
+                        <span>💬</span> Coming soon
                       </button>
                     </div>
                   </div>
@@ -1357,7 +1455,7 @@ const globalBotId = '00000000-0000-0000-0000-000000000000';
                         className="w-full h-[50px] bg-white border border-[#f2f3f5] rounded-[6px] px-3.5 py-2 text-sm text-[#212326] focus:outline-none focus:border-[#198fd9]"
                         placeholder="e.g. www.mycompany.com"
                       />
-                      <p className="text-[10px] text-[#434549] mt-1">Point this domain to the webpage we are creating for you.</p>
+                      <p className="text-[10px] text-[#434549] mt-1">Add your custom domain (e.g. salonname.co.uk) to point to your StyleFlo booking site.</p>
                     </div>
                   </div>
 
@@ -1452,15 +1550,12 @@ const globalBotId = '00000000-0000-0000-0000-000000000000';
                       </label>
                     </div>
 
-                    <div className="bg-blue-50 border border-blue-200 p-4 rounded-xl space-y-1.5">
-                      <p className="text-xs text-blue-900 flex items-center gap-1.5 font-bold">
-                        ℹ️ About Registered Address
+                    <div className="bg-slate-50 border border-slate-200 p-4 rounded-xl space-y-1.5">
+                      <p className="text-xs text-slate-800 flex items-center gap-1.5 font-semibold">
+                        ℹ️ Registered Office & Company Number
                       </p>
-                      <p className="text-[11px] text-blue-800 leading-relaxed">
-                        This is your official registered office address and company registration number (CRN). Under UK law, registered corporate entities are legally required to display this on their website.
-                      </p>
-                      <p className="text-[11px] text-[#260475] font-bold border-t border-blue-200/50 pt-1.5 mt-1.5">
-                        ⚠️ If Omitted: For registered UK entities, failing to display this on your website violates e-commerce regulations and may result in compliance flags or invoicing limitations.
+                      <p className="text-[12px] text-slate-600 leading-relaxed">
+                        If your business is a UK limited company, adding your registered office address and Companies House registration number (CRN) here ensures your receipts, invoices, and public contact details are accurate.
                       </p>
                     </div>
 

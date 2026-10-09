@@ -136,20 +136,20 @@ export async function sendConsolidatedLeadEmail(params: LeadNotificationParams):
     const phoneDisplay = extractedPhones.length > 0 ? extractedPhones.join(', ') : 'Not provided yet';
 
     // 5. Derive Customer Intent Summary
-    let intentCategory = 'General Inquiry / Customer Assistance';
+    let intentCategory = 'General Enquiry / Customer Assistance';
     const lowerText = combinedAllText.toLowerCase();
 
     if (lowerText.includes('book') || lowerText.includes('appointment') || lowerText.includes('slot') || lowerText.includes('availability') || lowerText.includes('schedule')) {
-      intentCategory = 'Appointment & Booking Inquiry';
+      intentCategory = 'Appointment & Booking Enquiry';
     } else if (lowerText.includes('price') || lowerText.includes('cost') || lowerText.includes('how much') || lowerText.includes('rate') || lowerText.includes('fee')) {
-      intentCategory = 'Pricing & Fee Inquiry';
+      intentCategory = 'Pricing & Fee Enquiry';
     } else if (lowerText.includes('service') || lowerText.includes('treatment') || lowerText.includes('cut') || lowerText.includes('style') || lowerText.includes('colour') || lowerText.includes('color')) {
-      intentCategory = 'Services Inquiry';
+      intentCategory = 'Services Enquiry';
     } else if (lowerText.includes('cancel') || lowerText.includes('reschedule') || lowerText.includes('change')) {
       intentCategory = 'Appointment Modification';
     }
 
-    // Extract first user inquiry as primary intent snippet
+    // Extract first user enquiry as primary intent snippet
     const firstUserMsg = messages?.find((m) => m.sender_type === 'user' || m.sender_role === 'user');
     const userIntentSnippet = firstUserMsg ? (firstUserMsg.text_content || firstUserMsg.content || '').trim() : (voiceTranscript || newContactInfo || 'Customer initiated contact with chatbot');
 
@@ -218,7 +218,7 @@ CONSOLIDATED CONTACT DETAILS:
 --------------------------------------------------
 CUSTOMER INTENT:
 - Category: ${intentCategory}
-- Primary Inquiry: "${userIntentSnippet}"
+- Primary Enquiry: "${userIntentSnippet}"
 --------------------------------------------------
 ${transcriptBlock}
 --------------------------------------------------
