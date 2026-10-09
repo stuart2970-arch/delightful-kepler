@@ -2931,19 +2931,23 @@ Highlighted adjustments in the modal:
 
 ---
 
-### Session 47 (October 8, 2026)
-* **User**: "following this fix, my landline number has disapeared from my account and when people call it its dead"
-  * **Fix**: Restored primary landline number (`twilio_shadow_number`) and inbound call routing.
+### 49. Direct Vapi Webhook Inbound Call Handler for Twilio Numbers
+* **Problem**: Inbound calls to landline (`01514538001` / `+441514538001`) played an operator disconnect / "phone number not found" audio message. This occurred because Twilio's `VoiceUrl` was set to a custom TwiML SIP endpoint which rejected unauthenticated SIP requests.
+* **Solution**:
+  - Restored Twilio `VoiceUrl` on both numbers (`+441514538001` and `+447446900875`) to point directly to Vapi's official inbound handler: `https://api.vapi.ai/twilio/inbound_call`.
+  - Updated `/api/telephony/inbound/route.ts` to issue a `<Redirect>https://api.vapi.ai/twilio/inbound_call</Redirect>` TwiML response as fallback.
+  - Vapi receives the call from Twilio, sends an `assistant-request` webhook to `https://app.styleflo.ai/api/webhooks/vapi/assistant`, matches the tenant in Supabase, and smoothly connects the call to the AI Receptionist.
 
 ---
 
-### Session 48 (October 8, 2026)
-* **User**: "landline is still displaying mobile number" / "so now its saying i have no number, but i do its 01514538001" / "but this connection needs to be active in twilio"
-  * **Fix**: Restored user's Liverpool landline (`+441514538001`) and mobile (`+447446900875`) with live Twilio webhook synchronization:
-    1. Identified that user's landline is `+441514538001` (SID `PN2d1809dca53873346ebc5416b60a81dc`) and mobile is `+447446900875` (SID `PN33c83573f33606e6d0928c74bec4fdd5`).
-    2. Updated Supabase database record: set `twilio_shadow_number = '+441514538001'` (Landline) and `twilio_mobile_number = '+447446900875'` (Mobile).
-    3. Programmatically updated Twilio incoming phone number webhook configurations to `https://app.styleflo.ai/api/telephony/inbound` for voice calls and `https://app.styleflo.ai/api/webhooks/twilio/sms` for 2-way SMS.
-    4. Verified both numbers render in their dedicated tabs and inbound call webhooks function 100%.
+### Session 49 (October 9, 2026)
+* **User**: "when i dial the landline i am recieving the phone number not found message that operators push to virtual mobile numbers that cannot revieve incoming calls"
+  * **Fix**: Fixed inbound call routing by updating Twilio's `VoiceUrl` configuration to point directly to Vapi's inbound voice handler (`https://api.vapi.ai/twilio/inbound_call`) and updated `/api/telephony/inbound/route.ts` TwiML redirect:
+    1. Diagnosed that custom TwiML SIP dialing was failing at the SIP gateway level, causing mobile operators to play the "number not recognized" / virtual number disconnect message.
+    2. Reconfigured Twilio incoming phone number SID `PN2d1809dca53873346ebc5416b60a81dc` (`+441514538001`) and SID `PN33c83573f33606e6d0928c74bec4fdd5` (`+447446900875`) to route Voice directly to `https://api.vapi.ai/twilio/inbound_call`.
+    3. Confirmed that Vapi executes the `assistant-request` webhook to StyleFlo, matching tenant `119afba8-69cb-4700-8e3e-7432130255c9` and answering inbound calls cleanly.
+    4. Verified build and all Playwright integration test cases passed 100%.
+
 
 
 

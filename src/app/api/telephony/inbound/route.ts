@@ -97,9 +97,8 @@ export async function POST(request: Request) {
       ? rawBotAssistantId
       : (process.env.VAPI_MASTER_ASSISTANT_ID || '1bb95940-1cb9-4c54-9b16-ba5bc11daae2');
 
-    console.log(`[Telephony Inbound] Connecting call to Vapi SIP Assistant ${resolvedAssistantId} (tenant has ${remainingMinutes} mins remaining, plan: ${planTier})`);
-    const dial = twiml.dial();
-    dial.sip(`sip:${resolvedAssistantId}@sip.vapi.ai;transport=tls`);
+    console.log(`[Telephony Inbound] Forwarding call for tenant ${tenant.id} to Vapi handler (remaining mins: ${remainingMinutes}, plan: ${planTier})`);
+    twiml.redirect('https://api.vapi.ai/twilio/inbound_call');
 
     return new NextResponse(twiml.toString(), {
       status: 200,
