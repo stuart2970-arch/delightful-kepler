@@ -169,5 +169,80 @@ test.describe('Vapi, ElevenLabs & Telephony Integrations', () => {
     const twimlMobileText = await inboundMobileRes.text();
     expect(twimlMobileText).not.toContain('Sorry, this number is not configured correctly');
   });
+
+  test('Inbound Vapi voice call webhook resolves assistant and provides valid trailing-slash custom LLM endpoint for both landline and mobile numbers', async ({ request }) => {
+    const testTenantId = '7b0f485d-49b8-416e-8c6f-1effea14a57b';
+    const landlineNumber = '+441514538001';
+    const mobileNumber = '+447446900875';
+
+    // 1. Ensure tenant has both landline and mobile numbers mapped in DB
+    await request.patch('/api/tenants/settings', {
+      data: {
+        tenantId: testTenantId,
+        twilioShadowNumber: landlineNumber,
+        twilioMobileNumber: mobileNumber
+      }
+    });
+
+    // 2. Test inbound call dialed to Landline (+441514538001)
+    const landlineVapiRes = await request.post('/api/webhooks/vapi/assistant', {
+      data: {
+        message: {
+          type: 'assistant-request',
+          call: {
+            id: 'call_landline_test_123',
+            phoneNumber: { number: landlineNumber },
+            customer: { number: '+447970819149' }
+          },
+          phoneNumber: { number: landlineNumber }
+        }
+      }
+    });
+
+    expect(landlineVapiRes.status()).toBe(200);
+    const landlineData = await landlineVapiRes.json();
+    const landlineAssistant = landlineData.assistant || landlineData.messageResponse?.assistant;
+    expect(landlineAssistant).toBeTruthy();
+    expect(landlineAssistant.name).toBeTruthy();
+    expect(landlineAssistant.firstMessage).toBeTruthy();
+    expect(landlineAssistant.model.provider).toBe('custom-llm');
+    // Ensure trailing slash is present to prevent Vapi /chat/completions URL corruption
+    expect(landlineAssistant.model.url.endsWith('/')).toBe(true);
+
+    // 3. Test inbound call dialed to Mobile (+447446900875)
+    const mobileVapiRes = await request.post('/api/webhooks/vapi/assistant', {
+      data: {
+        message: {
+          type: 'assistant-request',
+          call: {
+            id: 'call_mobile_test_123',
+            phoneNumber: { number: mobileNumber },
+            customer: { number: '+447970819149' }
+          },
+          phoneNumber: { number: mobileNumber }
+        }
+      }
+    });
+
+    expect(mobileVapiRes.status()).toBe(200);
+    const mobileData = await mobileVapiRes.json();
+    const mobileAssistant = mobileData.assistant || mobileData.messageResponse?.assistant;
+    expect(mobileAssistant).toBeTruthy();
+    expect(mobileAssistant.name).toBeTruthy();
+    expect(mobileAssistant.model.url.endsWith('/')).toBe(true);
+
+    // 4. Test that the returned Custom LLM endpoint actually responds to Vapi chat completion requests
+    const completionUrl = new URL('chat/completions', landlineAssistant.model.url).pathname;
+    const completionRes = await request.post(completionUrl, {
+      data: {
+        model: 'gemini-1.5-flash',
+        messages: [{ role: 'user', content: 'What time are you open?' }],
+        stream: true
+      }
+    });
+
+    expect(completionRes.status()).toBe(200);
+    expect(completionRes.headers()['content-type']).toContain('text/event-stream');
+  });
 });
 

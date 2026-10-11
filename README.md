@@ -2990,13 +2990,24 @@ Highlighted adjustments in the modal:
 
 ---
 
-### Session 52 (October 11, 2026)
-* **User**: "couldnt get the assistant, set the agent id on the phone number! but the number is now on display in the account"
-  * **Fix**: Attached the active agent ID directly to the phone number in Vapi:
-    1. Identified that phone number `+441514538001` had `assistantId: undefined` in Vapi.
-    2. Executed `PATCH https://api.vapi.ai/phone-number/3829bd68-0bc0-4f54-9fd6-6678e062b3b8` setting `assistantId: 'bd4db293-1b7b-4640-860c-8b9c70c6fd1b'` and `serverUrl: 'https://app.styleflo.ai/api/webhooks/vapi/assistant'`.
-    3. Synchronized `.env.local` and Supabase `chatbots.vapi_assistant_id` with the active agent ID.
-    4. Verified live webhook response for `+441514538001` returns the FloChat persona with status 200.
+### 53. Automated Telephone Inbound Call & AI Assistant E2E Verification Test
+* **Problem**: Although settings and TwiML mocks existed, the test suite lacked an automated E2E test to verify that incoming phone calls to dedicated Landline (`0151 453 8001`) and Mobile (`07446 900875`) numbers resolve the AI assistant webhook and return a functional streaming Custom LLM completion endpoint with valid trailing-slash URL.
+* **Solution**:
+  - Added new comprehensive Playwright integration test in `tests/integrations.spec.ts`:
+    `Inbound Vapi voice call webhook resolves assistant and provides valid trailing-slash custom LLM endpoint for both landline and mobile numbers`.
+  - The test simulates incoming calls to both Landline (`+441514538001`) and Mobile (`+447446900875`), verifies assistant resolution (name, greeting, voice persona), validates that the custom LLM URL has the required trailing slash (`/`), and dispatches an actual streaming chat completion to confirm LLM voice generation.
+  - Full suite passed 100% (12/12 integration tests passing).
+
+---
+
+### Session 53 (October 11, 2026)
+* **User**: "are we missing a test to confirm the phone numbers are working"
+  * **Fix**: Added dedicated automated E2E test in `tests/integrations.spec.ts` confirming phone number voice call handling:
+    1. Tests both dedicated Landline (`+441514538001`) and Mobile (`+447446900875`) inbound webhooks.
+    2. Validates assistant personality, voice provider configuration, and trailing-slash custom LLM endpoint structure.
+    3. Performs an end-to-end voice completion request verifying real-time AI response streaming.
+    4. Confirmed all 12 integration tests pass cleanly in Playwright (21.3s).
+
 
 
 
