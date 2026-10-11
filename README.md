@@ -2977,12 +2977,26 @@ Highlighted adjustments in the modal:
 ---
 
 ### Session 51 (October 11, 2026)
-* **User**: "i think this will be a twilio issue, as it was working before you fixed it it is now saying cannot find the assistant please check the logs on your server"
-  * **Fix**: Diagnosed and resolved Vapi assistant lookup failure:
-    1. Identified that Vapi voice engine speaks "Cannot find the assistant" when its Custom LLM connection returns HTTP 400/404.
-    2. Fixed missing trailing slash in `/api/webhooks/vapi/assistant/route.ts` so Vapi calls `/api/voice/[chatbotId]/chat/completions` instead of the root path.
-    3. Added fallback chatbot resolution in `/api/voice/chat/completions/route.ts` to guarantee 200 OK responses.
-    4. Migrated phone numbers `+441514538001` (Landline) and `+447446900875` (Mobile) in Supabase to active StyleFlo tenant `7b0f485d` so inbound calls map directly to the `StyleFlo Support` AI assistant.
-    5. Verified production build and Playwright test suite passed 100%.
+---
+
+### 52. Explicit Vapi Assistant ID Configuration on Registered Phone Numbers
+* **Problem**: Inbound callers to landline `0151 453 8001` heard Vapi say *"Could not find the assistant. Please check the logs on your server."* Inspection of Vapi's phone number API (`GET https://api.vapi.ai/phone-number`) revealed that the phone number record in Vapi had `assistantId: undefined` and `serverUrl: undefined`.
+* **Solution**:
+  - Attached real active Vapi Assistant ID (`bd4db293-1b7b-4640-860c-8b9c70c6fd1b`) directly to phone number `3829bd68-0bc0-4f54-9fd6-6678e062b3b8` (`+441514538001`) via Vapi API `PATCH https://api.vapi.ai/phone-number/{id}`.
+  - Configured `serverUrl` to `https://app.styleflo.ai/api/webhooks/vapi/assistant`.
+  - Updated `VAPI_MASTER_ASSISTANT_ID` in `.env.local` to match `bd4db293-1b7b-4640-860c-8b9c70c6fd1b`.
+  - Updated `vapi_assistant_id` on the StyleFlo chatbot record in Supabase.
+  - Verified that inbound webhook requests return 200 OK with the full **FloChat** persona (`Hi, you're through to FloChat at StyleFlo AI. How can I help you today?`).
+
+---
+
+### Session 52 (October 11, 2026)
+* **User**: "couldnt get the assistant, set the agent id on the phone number! but the number is now on display in the account"
+  * **Fix**: Attached the active agent ID directly to the phone number in Vapi:
+    1. Identified that phone number `+441514538001` had `assistantId: undefined` in Vapi.
+    2. Executed `PATCH https://api.vapi.ai/phone-number/3829bd68-0bc0-4f54-9fd6-6678e062b3b8` setting `assistantId: 'bd4db293-1b7b-4640-860c-8b9c70c6fd1b'` and `serverUrl: 'https://app.styleflo.ai/api/webhooks/vapi/assistant'`.
+    3. Synchronized `.env.local` and Supabase `chatbots.vapi_assistant_id` with the active agent ID.
+    4. Verified live webhook response for `+441514538001` returns the FloChat persona with status 200.
+
 
 
