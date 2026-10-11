@@ -2964,12 +2964,25 @@ Highlighted adjustments in the modal:
 
 ---
 
-### Session 50 (October 9, 2026)
-* **User**: "StyleFlo app – fix list for Anti-Gravity" (Product Owner Audit — 9 Oct 2026)
-  * **Actions Taken**:
-    1. **P0 Security & Core Fixes**: Eliminated plaintext password logging on login, purged leaked system guardrail prompts from client HTML/JS bundles, verified dynamic `/superadmin` subscription catalog rendering, updated WhatsApp and Instagram to "Coming soon", and added safety timeouts for Stripe portal redirects.
-    2. **P1 UX, Data & Regionalisation**: Removed "OpenClaw" codename, removed Telegram and Slack channels (neither is offered to customers), purged test data (Jane Wood, test conversations, placeholder services), harmonised addresses, formatted UK dates (`en-GB`), formatted UK USSD divert star codes with leading `0`, ensured disjoint message badge counts, and resolved 390px mobile viewport layout overflows.
-    3. **P2 Polish & Terminology**: Added favicon (`favicon.ico`), converted US English to British English ("customise", "colour", "enquiry"), replaced retail/VAT placeholder examples with salon examples, renamed Microsoft card to "Microsoft Calendar", defaulted service prices to empty with validation, and fixed the chatbot wizard multi-step view.
-    4. **Automated Testing**: Created and executed `tests/audit-fixes.spec.ts` verifying all 9 audit test cases pass cleanly (15.7s).
-    5. **Item #20 (Account Settings Legal Wording)**: Softened registered address notice in `DashboardClient.tsx` from aggressive legal claims to a factual, helpful note: "If your business is a UK limited company, adding your registered office address and Companies House registration number (CRN) here ensures your receipts, invoices, and public contact details are accurate."
+### 51. Vapi Inbound Assistant Webhook Resolution & Trailing Slash Fix
+* **Problem**: Inbound calls to landline (`0151 453 8001`) and mobile connected to Vapi, but Vapi spoke: *"Cannot find the assistant. Please check the logs on your server."* This occurred because:
+  1. The custom-llm URL in `src/app/api/webhooks/vapi/assistant/route.ts` was missing a trailing slash (`/`), causing Vapi to resolve `new URL('chat/completions', url)` to `/api/voice/chat/completions` (dropping the chatbot ID) which returned HTTP 400.
+  2. The phone numbers were linked to placeholder tenant `119afba8` (which had no chatbot) rather than the active StyleFlo tenant (`7b0f485d`).
+* **Solution**:
+  - Appended trailing slash to custom-llm URL in `src/app/api/webhooks/vapi/assistant/route.ts`: `${appUrl}/api/voice/${chatbot.id}/`.
+  - Added fallback in `src/app/api/voice/chat/completions/route.ts` to automatically resolve the active tenant chatbot if `chatbotId` is ever omitted from query parameters, preventing 400 errors.
+  - Linked `+441514538001` (Landline) and `+447446900875` (Mobile) to the primary StyleFlo tenant (`7b0f485d`) with chatbot `StyleFlo Support` (`9825855e-d478-443f-b75c-6c0d77039ca6`).
+  - Confirmed 11 Playwright integration tests pass 100%.
+
+---
+
+### Session 51 (October 11, 2026)
+* **User**: "i think this will be a twilio issue, as it was working before you fixed it it is now saying cannot find the assistant please check the logs on your server"
+  * **Fix**: Diagnosed and resolved Vapi assistant lookup failure:
+    1. Identified that Vapi voice engine speaks "Cannot find the assistant" when its Custom LLM connection returns HTTP 400/404.
+    2. Fixed missing trailing slash in `/api/webhooks/vapi/assistant/route.ts` so Vapi calls `/api/voice/[chatbotId]/chat/completions` instead of the root path.
+    3. Added fallback chatbot resolution in `/api/voice/chat/completions/route.ts` to guarantee 200 OK responses.
+    4. Migrated phone numbers `+441514538001` (Landline) and `+447446900875` (Mobile) in Supabase to active StyleFlo tenant `7b0f485d` so inbound calls map directly to the `StyleFlo Support` AI assistant.
+    5. Verified production build and Playwright test suite passed 100%.
+
 

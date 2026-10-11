@@ -143,7 +143,7 @@ export async function POST(request: Request) {
     const appUrl = (process.env.NEXT_PUBLIC_APP_URL || 'https://app.styleflo.ai').replace(/\/$/, '');
     const modelOverrides: any = {
       provider: 'custom-llm',
-      url: `${appUrl}/api/voice/${chatbot.id}`,
+      url: `${appUrl}/api/voice/${chatbot.id}/`,
       model: activeModelName,
       messages: [
         {

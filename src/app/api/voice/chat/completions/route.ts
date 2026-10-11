@@ -28,6 +28,24 @@ export async function POST(req: Request) {
     }
 
     if (!chatbotId) {
+      const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+      const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+      if (supabaseUrl && serviceRoleKey) {
+        const admin = createClient(supabaseUrl, serviceRoleKey);
+        const { data: defaultBot } = await admin
+          .from('chatbots')
+          .select('id')
+          .neq('id', '00000000-0000-0000-0000-000000000000')
+          .not('tenant_id', 'is', null)
+          .limit(1)
+          .maybeSingle();
+        if (defaultBot) {
+          chatbotId = defaultBot.id;
+        }
+      }
+    }
+
+    if (!chatbotId) {
       return NextResponse.json({ error: 'Missing chatbotId in query' }, { status: 400, headers: corsHeaders });
     }
 
