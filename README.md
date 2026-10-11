@@ -3008,6 +3008,35 @@ Highlighted adjustments in the modal:
     3. Performs an end-to-end voice completion request verifying real-time AI response streaming.
     4. Confirmed all 12 integration tests pass cleanly in Playwright (21.3s).
 
+---
+
+### 54. Complete Vapi Assistant Persona Replacement: "Riley" to "FloChat" (StyleFlo AI)
+* **Problem**: When dialing the dedicated landline (`0151 453 8001` / `+441514538001`), callers were answered by a template assistant named "Riley" saying *"Thank you for calling Wellness Partners. This is Riley, your scheduling assistant..."* instead of StyleFlo's authentic AI assistant **FloChat** (*"Hi, you're through to FloChat at StyleFlo AI. How can I help you today?"*). This occurred because Vapi Assistant ID `bd4db293-1b7b-4640-860c-8b9c70c6fd1b` on Vapi's platform was originally a pre-made template assistant configured with Riley's static persona, greeting, and organization details.
+* **Solution**:
+  - Sent `PATCH https://api.vapi.ai/assistant/bd4db293-1b7b-4640-860c-8b9c70c6fd1b` with Vapi API key to update the assistant directly on Vapi's platform:
+    - **Name**: `FloChat`
+    - **First Message**: `"Hi, you're through to FloChat at StyleFlo AI. How can I help you today?"`
+    - **Voicemail Message**: `"Hello, this is FloChat from StyleFlo AI. We missed your call. Please call us back or contact us online."`
+    - **End Call Message**: `"Thank you for calling StyleFlo AI. Have a wonderful day!"`
+    - **Model Provider**: `custom-llm` with URL `https://app.styleflo.ai/api/voice/9825855e-d478-443f-b75c-6c0d77039ca6/` and model `gemini-3.6-flash`.
+    - **Voice Provider**: `11labs` with `voiceId`: `dqTe8OSrj3PERbkXF8Kx` (UK Female Northern, Warm & Friendly), `eleven_turbo_v2_5`, SSML parsing enabled.
+    - **Background Ambient Sound**: `https://app.styleflo.ai/audio/ambient/office.wav`.
+    - **Server URL**: `https://app.styleflo.ai/api/webhooks/vapi/assistant`.
+  - Tested `https://app.styleflo.ai/api/webhooks/vapi/assistant` returning 200 OK with identical FloChat overrides.
+  - Executed Playwright automated test suite `tests/integrations.spec.ts` (12 of 12 tests passed, 21.9s).
+
+---
+
+### Session 54 (October 11, 2026)
+* **User**: "I now have the wring agent answering the call. Someone called riley"
+  * **Root Cause**: Vapi assistant `bd4db293-1b7b-4640-860c-8b9c70c6fd1b` mapped to phone number `+441514538001` held static metadata for a template assistant ("Riley" from "Wellness Partners").
+  * **Fix**:
+    1. Executed direct Vapi API PATCH to assistant `bd4db293-1b7b-4640-860c-8b9c70c6fd1b` replacing Riley with FloChat at StyleFlo AI.
+    2. Configured custom-llm streaming endpoint (`https://app.styleflo.ai/api/voice/9825855e-d478-443f-b75c-6c0d77039ca6/`), ElevenLabs voice (`dqTe8OSrj3PERbkXF8Kx`), and authentic greeting.
+    3. Verified live webhook returns 200 OK with FloChat assistant overrides.
+    4. Verified all 12 Playwright tests pass (100% pass rate).
+
+
 
 
 
