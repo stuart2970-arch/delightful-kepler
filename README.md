@@ -3063,6 +3063,32 @@ Highlighted adjustments in the modal:
     4. Implemented secure `/api/billing/session-details` API and `/payment-confirmed` page firing Meta `Purchase` once per session upon cookie consent with real amount charged and payment ID without sending personal data.
     5. Verified Next.js Turbopack build and passed all 15 automated Playwright tests.
 
+---
+
+### 56. CookieYes Banner & Google Consent Mode v2 on app.styleflo.ai
+* **Problem**: 
+  1. The CookieYes banner was not loading directly on `app.styleflo.ai`, meaning consent granted on the main WordPress domain (`styleflo.ai`) was not being shared across `.styleflo.ai` subdomains.
+  2. Google Analytics 4 (`G-DHF4NRZEE3`) needed to operate under Google Consent Mode v2 default denied, ensuring cookieless mode until the visitor accepts analytics cookies.
+  3. Needed clear confirmation and architecture documentation regarding which page the Meta Pixel `Purchase` event fires on.
+* **Solution**:
+  - Injected Google Consent Mode v2 default `denied` script into `<head>` of `RootLayout` (`src/app/layout.tsx`), executing before any analytics or third-party tags.
+  - Injected the official CookieYes banner script (`https://cdn-cookieyes.com/client_data/d5b119468f48c13f083b0c3f59232ce3/script.js`) into `<head>` of `RootLayout` with client token `d5b119468f48c13f083b0c3f59232ce3`.
+  - Added cross-subdomain cookie synchronization script syncing the `cookieyes-consent` cookie with `domain=.styleflo.ai; path=/` so consent accepted on `styleflo.ai` is shared across `app.styleflo.ai`.
+  - Confirmed the Meta Pixel `Purchase` event fires on `https://app.styleflo.ai/payment-confirmed` (`src/app/payment-confirmed/page.tsx`), where Stripe Checkout redirects after payment succeeds.
+  - Tested production build and passed all 15 automated Playwright tests.
+
+---
+
+### Session 56 (October 12, 2026)
+* **User**: "Load the CookieYes banner on app.styleflo.ai, ideally sharing consent across .styleflo.ai so a visitor who accepts on the main site doesn't have to accept again. Set Google Consent Mode to denied by default on the app, so GA4 (G-DHF4NRZEE3) only tracks after consent. Confirm which page the Purchase event fires on, since it wasn't found in the app code checked so far."
+  * **Fix**:
+    1. Configured Google Consent Mode v2 in `src/app/layout.tsx` with all storage denied by default (`analytics_storage: 'denied'`, `ad_storage: 'denied'`, `wait_for_update: 500`).
+    2. Loaded CookieYes script (`d5b119468f48c13f083b0c3f59232ce3`) in `<head>` of `RootLayout`.
+    3. Added automatic cross-subdomain cookie persistence for `cookieyes-consent` scoped to `.styleflo.ai`.
+    4. Confirmed `Purchase` event fires on the dedicated `/payment-confirmed` page (`src/app/payment-confirmed/page.tsx`) upon redirect from Stripe checkout.
+    5. Verified Turbopack build and 15 Playwright integration and consent tests pass.
+
+
 
 
 
