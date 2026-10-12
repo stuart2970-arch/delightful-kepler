@@ -303,6 +303,12 @@ export default function DashboardClient({
       const tabParam = params.get('tab');
 
       if (checkoutStatus === 'success') {
+        const sessionId = params.get('session_id');
+        if (sessionId && !addon) {
+          window.location.href = `/payment-confirmed?session_id=${encodeURIComponent(sessionId)}&checkout_status=success`;
+          return;
+        }
+
         let targetTab: any = 'telephony';
         let notificationMessage = '🎉 Subscription & Add-on payment successful! Your workspace features have been updated.';
 

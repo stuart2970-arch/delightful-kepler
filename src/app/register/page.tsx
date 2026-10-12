@@ -258,13 +258,13 @@ function RegisterContent() {
       });
       if (error) throw error;
       
-      trackSignUp('email', planParam);
+      trackSignUp('email', planParam, data?.user?.id);
 
       if (data?.session === null) {
         setSuccessMessage("Account created successfully! Please check your email to verify your account, then sign in to complete your subscription.");
       } else {
         // Trigger Stripe Checkout with plan and bolt-ons in basket
-        const wpAppUrl = isLocal ? 'https://styleflo.test/app' : 'https://styleflo.ai/app';
+        const returnTargetUrl = `${isLocal ? (typeof window !== 'undefined' ? window.location.origin : '') : 'https://app.styleflo.ai'}/payment-confirmed`;
         const checkoutRes = await fetch('/api/billing/checkout', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -273,7 +273,7 @@ function RegisterContent() {
             planTier: 'base_tier',
             customerEmail: email,
             addons: addonsList,
-            returnUrl: wpAppUrl,
+            returnUrl: returnTargetUrl,
           }),
         });
         const checkoutData = await checkoutRes.json();

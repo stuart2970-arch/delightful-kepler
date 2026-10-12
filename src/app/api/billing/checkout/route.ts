@@ -138,6 +138,9 @@ export async function GET(req: Request) {
       sessionMetadata.selected_addons = selectedAddonIds.join(',');
     }
 
+    const defaultConfirmedUrl = isLocal ? 'http://localhost:3000/payment-confirmed' : 'https://app.styleflo.ai/payment-confirmed';
+    const targetSuccessUrl = returnUrl || defaultConfirmedUrl;
+
     const session = await stripe.checkout.sessions.create({
       mode: 'subscription',
       payment_method_types: ['card'],
@@ -147,7 +150,7 @@ export async function GET(req: Request) {
         metadata: sessionMetadata,
       },
       metadata: sessionMetadata,
-      success_url: appendQueryParams(returnUrl || wpAppUrl, 'checkout_status=success&session_id={CHECKOUT_SESSION_ID}'),
+      success_url: appendQueryParams(targetSuccessUrl, 'checkout_status=success&session_id={CHECKOUT_SESSION_ID}'),
       cancel_url: appendQueryParams(returnUrl || (isLocal ? 'https://styleflo.test/#pricing' : 'https://styleflo.ai/#pricing'), 'checkout_status=cancelled'),
     });
 
@@ -493,6 +496,9 @@ export async function POST(req: Request) {
         sessionMetadata.selected_addons = selectedAddonIds.join(',');
       }
 
+      const defaultConfirmedUrl = isLocal ? 'http://localhost:3000/payment-confirmed' : 'https://app.styleflo.ai/payment-confirmed';
+      const targetSuccessUrl = returnUrl || defaultConfirmedUrl;
+
       const session = await stripe.checkout.sessions.create({
         mode: 'subscription',
         payment_method_types: ['card'],
@@ -502,7 +508,7 @@ export async function POST(req: Request) {
           metadata: sessionMetadata,
         },
         metadata: sessionMetadata,
-        success_url: appendQueryParams(returnUrl || wpAppUrl, 'checkout_status=success&session_id={CHECKOUT_SESSION_ID}'),
+        success_url: appendQueryParams(targetSuccessUrl, 'checkout_status=success&session_id={CHECKOUT_SESSION_ID}'),
         cancel_url: appendQueryParams(returnUrl || (isLocal ? 'https://styleflo.test/#pricing' : 'https://styleflo.ai/#pricing'), 'checkout_status=cancelled'),
       });
 

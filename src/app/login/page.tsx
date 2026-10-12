@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import { createBrowserClient } from '@supabase/ssr';
 import { useRouter } from 'next/navigation';
 import LegalModal from '@/components/LegalModal';
+import { trackSignUp } from '@/lib/analytics';
 
 export default function LoginPage() {
   const router = useRouter();
@@ -250,6 +251,8 @@ export default function LoginPage() {
           },
         });
         if (error) throw error;
+
+        trackSignUp('email', selectedPlan, data?.user?.id);
         
         if (data?.session === null) {
           setSuccessMessage("Account created successfully! Please check your email to verify your account.");

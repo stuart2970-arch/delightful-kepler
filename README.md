@@ -3036,6 +3036,34 @@ Highlighted adjustments in the modal:
     3. Verified live webhook returns 200 OK with FloChat assistant overrides.
     4. Verified all 12 Playwright tests pass (100% pass rate).
 
+---
+
+### 55. Meta Pixel Consent Management, Homepage Loader Suppression & Payment Confirmation Tracking
+* **Problem**: 
+  1. The Meta Pixel ID `1083974731158850` was hardcoded in `Dockerfile`, `cloudbuild.yaml`, `.env.local`, and `.env.test`.
+  2. The Crew Childwall dynamic hours loader in the WordPress Avada Child theme was running on the homepage (`functions.php`), which caused unwanted asset fetches.
+  3. When an account was created, registration conversion events needed to be gated by visitor acceptance of CookieYes advertising cookies (`ad_storage` granted) and use pixel ID `1072502378701795` with `eventID: 'reg_' + USER_ID`.
+  4. On successful checkout, the Meta Pixel `Purchase` event needed to fire on the payment-confirmed page (not on button click) with the exact amount paid (base plan plus bolt-ons) and payment reference ID, gated by the same CookieYes consent check, without leaking personal data.
+* **Solution**:
+  - Removed all hardcoded instances of Meta pixel `1083974731158850` across `Dockerfile`, `cloudbuild.yaml`, `.env.local`, and `.env.test`.
+  - Added `if ( is_front_page() ) return;` to `styleflo_inject_realtime_script` in `functions.php` (Avada Child Theme) to prevent the loader from running on the homepage.
+  - Implemented `hasAdvertisingConsent()` in `src/lib/analytics.ts` checking CookieYes `window.getCkyConsent()`, the `cookieyes-consent` cookie, and Google Consent Mode `ad_storage`.
+  - Integrated `trackCompleteRegistrationMeta(userId)` to initialize pixel `1072502378701795` and fire `CompleteRegistration` (`value: 9.99`, `currency: 'GBP'`, `eventID: 'reg_' + USER_ID`) upon account creation in `src/app/register/page.tsx` and `src/app/login/page.tsx`.
+  - Created `/api/billing/session-details` and a dedicated `/payment-confirmed` route (`src/app/payment-confirmed/page.tsx`) that verifies checkout completion and fires `Purchase` once on page load using `AMOUNT_PAID` and `ORDER_OR_SUBSCRIPTION_ID` with zero personal data.
+  - Added automated Playwright test suite `tests/meta-pixel-consent.spec.ts` (all 3 tests passed) and verified all 15 integration tests pass cleanly.
+
+---
+
+### Session 55 (October 12, 2026)
+* **User**: "Remove the hard-coded Meta pixel 1083974731158850 from the app. Stop the crew-childwall loader running on the homepage. In the wp_footer function that prints it, add if ( is_front_page() ) return;. When an account is created, fire the event below, but only if the visitor accepted CookieYes advertising cookies (ad_storage granted): fbq('init','1072502378701795'); fbq('track','CompleteRegistration',{value:9.99,currency:'GBP'},{eventID:'reg_'+USER_ID}); When the first payment succeeds, fire the event below on the payment-confirmed page, not on the button click, with the same cookie check:"
+  * **Fix**:
+    1. Eradicated hardcoded Meta Pixel `1083974731158850` from all Dockerfiles, CloudBuild configs, and environment files.
+    2. Added `if ( is_front_page() ) return;` to `styleflo_inject_realtime_script` in the WordPress Avada child theme `functions.php`.
+    3. Built `hasAdvertisingConsent()` CookieYes validator and wired `CompleteRegistration` into register and login flows.
+    4. Implemented secure `/api/billing/session-details` API and `/payment-confirmed` page firing Meta `Purchase` once per session upon cookie consent with real amount charged and payment ID without sending personal data.
+    5. Verified Next.js Turbopack build and passed all 15 automated Playwright tests.
+
+
 
 
 

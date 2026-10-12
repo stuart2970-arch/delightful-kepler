@@ -52,9 +52,130 @@ export const trackPageView = (url: string) => {
 };
 
 /**
+ * Check if the visitor accepted CookieYes advertising cookies (ad_storage granted)
+ */
+export const hasAdvertisingConsent = (): boolean => {
+  if (typeof window === 'undefined') return false;
+
+  // 1. Check CookieYes official API
+  try {
+    if (typeof (window as any).getCkyConsent === 'function') {
+      const consent = (window as any).getCkyConsent();
+      if (consent && consent.categories && consent.categories.advertisement !== undefined) {
+        return Boolean(consent.categories.advertisement);
+      }
+    }
+  } catch (e) {
+    // ignore
+  }
+
+  // 2. Check CookieYes consent cookie (cookieyes-consent)
+  try {
+    const match = document.cookie.match(/(?:^|;\s*)cookieyes-consent=([^;]+)/);
+    if (match) {
+      const val = decodeURIComponent(match[1]);
+      if (val.includes('advertisement:yes') || val.includes('"advertisement":true') || val.includes('"advertisement":"yes"')) {
+        return true;
+      }
+      if (val.includes('advertisement:no') || val.includes('"advertisement":false') || val.includes('"advertisement":"no"')) {
+        return false;
+      }
+    }
+  } catch (e) {
+    // ignore
+  }
+
+  // 3. Check Google Consent Mode v2 ad_storage status if updated by CookieYes
+  try {
+    const ics = (window as any).google_tag_data?.ics?.entries;
+    if (ics?.ad_storage) {
+      const status = ics.ad_storage;
+      if (status === 'granted' || status?.default === 'granted' || status?.update === 'granted' || status === 1) {
+        return true;
+      }
+    }
+  } catch (e) {
+    // ignore
+  }
+
+  return false;
+};
+
+/**
+ * Ensure Meta Pixel fbq script is loaded in the browser
+ */
+export const ensureFbqLoaded = () => {
+  if (typeof window === 'undefined') return;
+  if (window.fbq) return;
+
+  (function (f: any, b: any, e: any, v: any, n?: any, t?: any, s?: any) {
+    if (f.fbq) return;
+    n = f.fbq = function () {
+      n.callMethod ? n.callMethod.apply(n, arguments) : n.queue.push(arguments);
+    };
+    if (!f._fbq) f._fbq = n;
+    n.push = n;
+    n.loaded = !0;
+    n.version = '2.0';
+    n.queue = [];
+    t = b.createElement(e);
+    t.async = !0;
+    t.src = v;
+    s = b.getElementsByTagName(e)[0];
+    s.parentNode.insertBefore(t, s);
+  })(window, document, 'script', 'https://connect.facebook.net/en_US/fbevents.js');
+};
+
+/**
+ * Track Meta Pixel CompleteRegistration if CookieYes advertising consent is granted
+ */
+export const trackCompleteRegistrationMeta = (userId?: string) => {
+  if (typeof window === 'undefined') return;
+  if (!hasAdvertisingConsent()) {
+    console.log('[Analytics] CompleteRegistration Meta event skipped (no CookieYes ad_storage consent)');
+    return;
+  }
+
+  ensureFbqLoaded();
+  if (window.fbq) {
+    window.fbq('init', '1072502378701795');
+    window.fbq('track', 'CompleteRegistration', {
+      value: 9.99,
+      currency: 'GBP',
+    }, {
+      eventID: 'reg_' + (userId || ''),
+    });
+    console.log(`[Analytics] CompleteRegistration Meta event fired (eventID: reg_${userId || ''})`);
+  }
+};
+
+/**
+ * Track Meta Pixel Purchase event on payment-confirmed page if CookieYes advertising consent is granted
+ */
+export const trackPurchaseMeta = (amountPaid: number, orderOrSubscriptionId: string) => {
+  if (typeof window === 'undefined') return;
+  if (!hasAdvertisingConsent()) {
+    console.log('[Analytics] Purchase Meta event skipped (no CookieYes ad_storage consent)');
+    return;
+  }
+
+  ensureFbqLoaded();
+  if (window.fbq) {
+    window.fbq('init', '1072502378701795');
+    window.fbq('track', 'Purchase', {
+      value: Number(amountPaid) || 9.99,
+      currency: 'GBP',
+    }, {
+      eventID: 'pur_' + orderOrSubscriptionId,
+    });
+    console.log(`[Analytics] Purchase Meta event fired (value: ${amountPaid}, eventID: pur_${orderOrSubscriptionId})`);
+  }
+};
+
+/**
  * Track successful Sign Up conversion across GTM, GA4, Meta & TikTok Pixels
  */
-export const trackSignUp = (method: string = 'email', plan: string = 'starter') => {
+export const trackSignUp = (method: string = 'email', plan: string = 'starter', userId?: string) => {
   if (typeof window === 'undefined') return;
 
   const value = plan === 'premium' ? 79 : plan === 'basic' ? 5.99 : 29;
@@ -79,16 +200,8 @@ export const trackSignUp = (method: string = 'email', plan: string = 'starter') 
     });
   }
 
-  // Meta (Facebook) Pixel
-  if (window.fbq) {
-    window.fbq('track', 'CompleteRegistration', {
-      content_name: plan,
-      status: true,
-      registration_method: method,
-      value,
-      currency: 'GBP',
-    });
-  }
+  // Meta (Facebook) Pixel with CookieYes consent check
+  trackCompleteRegistrationMeta(userId);
 
   // TikTok Pixel
   if (window.ttq) {
