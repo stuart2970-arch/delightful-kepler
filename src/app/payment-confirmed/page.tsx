@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useRef, Suspense } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
-import { hasAdvertisingConsent, ensureFbqLoaded } from '@/lib/analytics';
+import { trackPurchaseMeta, hasAdvertisingConsent, ensureFbqLoaded } from '@/lib/analytics';
 
 function PaymentConfirmedContent() {
   const searchParams = useSearchParams();
@@ -23,7 +23,7 @@ function PaymentConfirmedContent() {
 
   const hasFiredRef = useRef(false);
 
-  // Helper to fire the Meta Pixel Purchase event once
+  // Helper to fire the Meta Pixel Purchase event once (direct fbq on top-level if consented, or postMessage to parent frame)
   const fireMetaPurchaseEvent = (amount: number, id: string) => {
     if (!id) return;
     const storageKey = `sf_pur_fired_${id}`;
@@ -31,22 +31,22 @@ function PaymentConfirmedContent() {
       return;
     }
 
-    if (hasAdvertisingConsent()) {
-      ensureFbqLoaded();
-      if (window.fbq) {
-        window.fbq('init', '1072502378701795');
-        window.fbq('track', 'Purchase', {
-          value: amount,
-          currency: 'GBP',
-        }, {
-          eventID: 'pur_' + id,
-        });
+    const isFrame = typeof window !== 'undefined' && (window.self !== window.top);
+
+    if (isFrame) {
+      // In frame: unconditionally postMessage to parent (parent handles CookieYes consent check)
+      trackPurchaseMeta(amount, id);
+      hasFiredRef.current = true;
+      sessionStorage.setItem(storageKey, 'true');
+    } else {
+      // Top-level direct visit: check local CookieYes advertising consent
+      if (hasAdvertisingConsent()) {
+        trackPurchaseMeta(amount, id);
         hasFiredRef.current = true;
         sessionStorage.setItem(storageKey, 'true');
-        console.log(`[Analytics] Purchase Meta event fired (value: ${amount}, eventID: pur_${id})`);
+      } else {
+        console.log('[Analytics] Direct Purchase Meta event waiting for CookieYes advertising consent (ad_storage)');
       }
-    } else {
-      console.log('[Analytics] Purchase Meta event waiting for CookieYes advertising consent (ad_storage)');
     }
   };
 

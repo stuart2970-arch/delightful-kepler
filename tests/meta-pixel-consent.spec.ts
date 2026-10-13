@@ -61,4 +61,43 @@ test.describe('Meta Pixel & CookieYes Consent Tracking', () => {
     expect(purchaseCalls[0][2].currency).toBe('GBP');
     expect(purchaseCalls[0][3].eventID).toBe('pur_test_order_cs_test_mock_456');
   });
+
+  test('when inside an iframe, CookieYes banner is NOT loaded and Purchase dispatches postMessage regardless of consent', async ({ page }) => {
+    // Collect postMessage events sent to the parent window
+    const messages: any[] = [];
+    await page.exposeFunction('onParentMessage', (msg: any) => {
+      messages.push(msg);
+    });
+
+    // Navigate to a parent page first so relative or absolute baseURL is resolved
+    await page.goto('/');
+
+    await page.evaluate(() => {
+      window.addEventListener('message', (event) => {
+        (window as any).onParentMessage(event.data);
+      });
+
+      const iframe = document.createElement('iframe');
+      iframe.id = 'test-iframe';
+      iframe.src = '/payment-confirmed?session_id=cs_test_mock_iframe&amount=9.99&order_id=sub_iframe_123';
+      iframe.style.width = '800px';
+      iframe.style.height = '600px';
+      document.body.appendChild(iframe);
+    });
+
+    // Wait for the iframe content to load
+    const iframeElement = page.frameLocator('#test-iframe');
+    await expect(iframeElement.locator('text=Payment Confirmed')).toBeVisible({ timeout: 15000 });
+
+    // 1. Verify inside the iframe, the #cookieyes banner script was NOT inserted
+    const iframeCookieyes = await iframeElement.locator('#cookieyes').count();
+    expect(iframeCookieyes).toBe(0);
+
+    // 2. Verify postMessage was dispatched to parent
+    const purchaseMessage = messages.find((m: any) => m && m.type === 'STYLEFLO_PURCHASE');
+    expect(purchaseMessage).toBeDefined();
+    expect(purchaseMessage.event).toBe('Purchase');
+    expect(purchaseMessage.currency).toBe('GBP');
+    expect(purchaseMessage.eventID).toContain('pur_');
+  });
 });

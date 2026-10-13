@@ -38,7 +38,7 @@ export default function RootLayout({
       className={`${poppins.variable} ${inter.variable} antialiased`}
     >
       <head>
-        {/* 1. Google Consent Mode v2 (default denied, runs before any tag/script) */}
+        {/* 1. Google Consent Mode v2 (default denied, runs before any tag/script both inside and outside frame) */}
         <script
           id="google-consent-mode-default"
           dangerouslySetInnerHTML={{
@@ -58,33 +58,43 @@ export default function RootLayout({
           }}
         />
 
-        {/* 2. CookieYes Banner Script */}
+        {/* 2. CookieYes Banner Script: ONLY load when top-level (window.self === window.top) */}
+        {/* Inside styleflo.ai/app/ frame, do NOT load CookieYes banner at all */}
         <script
-          id="cookieyes"
-          type="text/javascript"
-          src="https://cdn-cookieyes.com/client_data/d5b119468f48c13f083b0c3f59232ce3/script.js"
-        />
-
-        {/* 3. Cross-subdomain consent sharing across .styleflo.ai */}
-        <script
-          id="cookieyes-subdomain-sync"
+          id="cookieyes-conditional-loader"
           dangerouslySetInnerHTML={{
             __html: `
               (function() {
-                function syncConsentCookie() {
-                  if (typeof document === 'undefined') return;
-                  var host = window.location.hostname;
-                  if (!host.endsWith('styleflo.ai')) return;
-                  var match = document.cookie.match(/(?:^|;\\s*)cookieyes-consent=([^;]+)/);
-                  if (match && match[1]) {
-                    document.cookie = 'cookieyes-consent=' + match[1] + '; domain=.styleflo.ai; path=/; max-age=31536000; SameSite=Lax; Secure';
-                  }
+                var isTopWindow = false;
+                try {
+                  isTopWindow = (window.self === window.top);
+                } catch(e) {
+                  isTopWindow = false;
                 }
-                document.addEventListener('cookieyes_consent_update', syncConsentCookie);
-                if (document.readyState === 'loading') {
-                  document.addEventListener('DOMContentLoaded', syncConsentCookie);
-                } else {
-                  syncConsentCookie();
+
+                if (isTopWindow) {
+                  // Direct visit on app.styleflo.ai: load CookieYes banner
+                  var script = document.createElement('script');
+                  script.id = 'cookieyes';
+                  script.type = 'text/javascript';
+                  script.src = 'https://cdn-cookieyes.com/client_data/d5b119468f48c13f083b0c3f59232ce3/script.js';
+                  document.head.appendChild(script);
+
+                  // Sync consent cookie with domain=.styleflo.ai for seamless sharing
+                  function syncConsentCookie() {
+                    var host = window.location.hostname;
+                    if (!host.endsWith('styleflo.ai')) return;
+                    var match = document.cookie.match(/(?:^|;\\s*)cookieyes-consent=([^;]+)/);
+                    if (match && match[1]) {
+                      document.cookie = 'cookieyes-consent=' + match[1] + '; domain=.styleflo.ai; path=/; max-age=31536000; SameSite=Lax; Secure';
+                    }
+                  }
+                  document.addEventListener('cookieyes_consent_update', syncConsentCookie);
+                  if (document.readyState === 'loading') {
+                    document.addEventListener('DOMContentLoaded', syncConsentCookie);
+                  } else {
+                    syncConsentCookie();
+                  }
                 }
               })();
             `,

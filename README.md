@@ -3097,3 +3097,32 @@ Highlighted adjustments in the modal:
     1. Updated `/api/tenants/check-slug/route.ts` so the preview and generated URL uses `${baseUrl}/business/${baseSlug}` (`styleflo.ai/business/[business-name]`).
     2. Updated `src/app/register/page.tsx` and `src/app/login/page.tsx` to clear all input state and render a dedicated full confirmation screen with instructions and a direct "Go to Sign In" button, automatically scrolling to the top.
     3. Added automated test coverage in `tests/auth.spec.ts`.
+
+---
+
+### 58. Iframe Consent Isolation & Cross-Origin Event Messaging Architecture
+* **Problem**:
+  1. The CookieYes banner script was loading indiscriminately on `app.styleflo.ai`, causing nested/redundant cookie banners when embedded inside the iframe on `styleflo.ai/app/`.
+  2. Inside the frame, Google Consent Mode v2 needed to strictly default to `denied` for all storage categories (`analytics_storage`, `ad_storage`, `ad_user_data`, `ad_personalization`).
+  3. Conversion events (`CompleteRegistration` and `Purchase`) needed to be dispatched via `postMessage` to `https://styleflo.ai` unconditionally whenever running inside the iframe container, allowing the parent site to govern Meta Pixel transmission based on the visitor's main consent state.
+  4. When accessed directly at `app.styleflo.ai` (`window.self === window.top`), the app needed to maintain its independent CookieYes banner and direct `fbq` tracking gated by advertising consent.
+* **Solution**:
+  - In `src/app/layout.tsx`: Guarded CookieYes banner injection behind `window.self === window.top` (`#cookieyes-conditional-loader`). Inside the iframe, CookieYes is completely suppressed from loading.
+  - Kept Google Consent Mode v2 default denied executing unconditionally in `<head>` for all visitors (`analytics_storage`, `ad_storage`, `ad_user_data`, `ad_personalization`), keeping GA4 (`G-DHF4NRZEE3`) in cookieless privacy-safe mode inside the iframe.
+  - In `src/lib/analytics.ts` and `src/app/payment-confirmed/page.tsx`:
+    - Implemented `postEventToParent(payload)` helper to relay `STYLEFLO_REGISTRATION` and `STYLEFLO_PURCHASE` messages to the parent window (`window.parent.postMessage`) unconditionally regardless of consent state when running inside an iframe.
+    - Preserved direct `fbq` initialization and tracking (`1072502378701795`) gated by `hasAdvertisingConsent()` for direct visits at `app.styleflo.ai`.
+  - Added automated Playwright test in `tests/meta-pixel-consent.spec.ts` verifying that when embedded inside an iframe, `#cookieyes` is not inserted and the `STYLEFLO_PURCHASE` event is cleanly dispatched to the parent window.
+  - Verified production build (`npm run build`) and passed all 16 automated Playwright tests (100% pass rate).
+
+---
+
+### Session 58 (October 13, 2026)
+* **User**: "Only load CookieYes in the app when it isn't inside a frame (window.self === window.top). Inside the styleflo.ai/app/ frame, don't load it at all. Inside the frame, keep GA4 Consent Mode defaulting to denied for analytics_storage, ad_storage, ad_user_data and ad_personalization. Keep sending the sign-up and purchase messages to https://styleflo.ai whatever the consent state. The main site checks consent before anything goes to Meta. When the app is opened directly at app.styleflo.ai, keep its own banner as it is now. As an optional extra, the main site could pass your cookie choice into the app, so analytics works inside the frame too. Without it, the app's GA4 just stays off in the frame, which is safe. Say if you want it. To check your test sign-up reached Meta, Marketing Manager needs Facebook signed in again. They'll ask you for that in their chat."
+  * **Fix**:
+    1. Conditioned CookieYes banner script loading in `src/app/layout.tsx` strictly on `window.self === window.top`, preventing it from mounting inside the `styleflo.ai/app/` iframe.
+    2. Maintained Google Consent Mode v2 default denied for `analytics_storage`, `ad_storage`, `ad_user_data`, and `ad_personalization` so GA4 remains quiet/cookieless inside the frame.
+    3. Updated `trackCompleteRegistrationMeta` and `trackPurchaseMeta` in `src/lib/analytics.ts` and `src/app/payment-confirmed/page.tsx` to unconditionally relay `STYLEFLO_REGISTRATION` and `STYLEFLO_PURCHASE` `postMessage` events to the parent window when framed.
+    4. Maintained direct CookieYes consent gating and `fbq` triggers for direct visits at `app.styleflo.ai`.
+    5. Added end-to-end iframe isolation test in `tests/meta-pixel-consent.spec.ts` and verified with 100% pass rate across the test suite.
+

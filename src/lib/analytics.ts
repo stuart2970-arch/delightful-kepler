@@ -127,48 +127,100 @@ export const ensureFbqLoaded = () => {
 };
 
 /**
- * Track Meta Pixel CompleteRegistration if CookieYes advertising consent is granted
+ * Helper to dispatch analytics conversion messages to the parent frame (https://styleflo.ai)
+ * dispatched whatever the app's consent state, as the parent site checks consent before sending to Meta.
  */
-export const trackCompleteRegistrationMeta = (userId?: string) => {
+export const postEventToParent = (payload: Record<string, any>) => {
   if (typeof window === 'undefined') return;
-  if (!hasAdvertisingConsent()) {
-    console.log('[Analytics] CompleteRegistration Meta event skipped (no CookieYes ad_storage consent)');
-    return;
-  }
-
-  ensureFbqLoaded();
-  if (window.fbq) {
-    window.fbq('init', '1072502378701795');
-    window.fbq('track', 'CompleteRegistration', {
-      value: 9.99,
-      currency: 'GBP',
-    }, {
-      eventID: 'reg_' + (userId || ''),
-    });
-    console.log(`[Analytics] CompleteRegistration Meta event fired (eventID: reg_${userId || ''})`);
+  try {
+    const isFrame = (window.self !== window.top);
+    if (isFrame && window.parent) {
+      // Post to parent container. We support both production https://styleflo.ai and local testing
+      window.parent.postMessage(payload, '*');
+      console.log('[Analytics] Dispatched postMessage to parent window:', payload);
+    }
+  } catch (e) {
+    console.error('[Analytics] Failed to send postMessage to parent:', e);
   }
 };
 
 /**
- * Track Meta Pixel Purchase event on payment-confirmed page if CookieYes advertising consent is granted
+ * Track Meta Pixel CompleteRegistration if CookieYes advertising consent is granted.
+ * Inside iframe (styleflo.ai/app/), sends postMessage to parent frame regardless of consent state.
+ */
+export const trackCompleteRegistrationMeta = (userId?: string) => {
+  if (typeof window === 'undefined') return;
+
+  const eventPayload = {
+    type: 'STYLEFLO_REGISTRATION',
+    event: 'CompleteRegistration',
+    value: 9.99,
+    currency: 'GBP',
+    eventID: 'reg_' + (userId || ''),
+  };
+
+  // 1. If running inside iframe, always notify parent frame (styleflo.ai checks consent)
+  postEventToParent(eventPayload);
+
+  // 2. If opened directly at top-level (app.styleflo.ai), check local CookieYes advertising consent
+  const isTopWindow = (window.self === window.top);
+  if (isTopWindow) {
+    if (!hasAdvertisingConsent()) {
+      console.log('[Analytics] Direct CompleteRegistration Meta event skipped (no CookieYes ad_storage consent)');
+      return;
+    }
+
+    ensureFbqLoaded();
+    if (window.fbq) {
+      window.fbq('init', '1072502378701795');
+      window.fbq('track', 'CompleteRegistration', {
+        value: 9.99,
+        currency: 'GBP',
+      }, {
+        eventID: 'reg_' + (userId || ''),
+      });
+      console.log(`[Analytics] Direct CompleteRegistration Meta event fired (eventID: reg_${userId || ''})`);
+    }
+  }
+};
+
+/**
+ * Track Meta Pixel Purchase event on payment-confirmed page.
+ * Inside iframe (styleflo.ai/app/), sends postMessage to parent frame regardless of consent state.
  */
 export const trackPurchaseMeta = (amountPaid: number, orderOrSubscriptionId: string) => {
   if (typeof window === 'undefined') return;
-  if (!hasAdvertisingConsent()) {
-    console.log('[Analytics] Purchase Meta event skipped (no CookieYes ad_storage consent)');
-    return;
-  }
 
-  ensureFbqLoaded();
-  if (window.fbq) {
-    window.fbq('init', '1072502378701795');
-    window.fbq('track', 'Purchase', {
-      value: Number(amountPaid) || 9.99,
-      currency: 'GBP',
-    }, {
-      eventID: 'pur_' + orderOrSubscriptionId,
-    });
-    console.log(`[Analytics] Purchase Meta event fired (value: ${amountPaid}, eventID: pur_${orderOrSubscriptionId})`);
+  const eventPayload = {
+    type: 'STYLEFLO_PURCHASE',
+    event: 'Purchase',
+    value: Number(amountPaid) || 9.99,
+    currency: 'GBP',
+    eventID: 'pur_' + orderOrSubscriptionId,
+  };
+
+  // 1. If running inside iframe, always notify parent frame (styleflo.ai checks consent)
+  postEventToParent(eventPayload);
+
+  // 2. If opened directly at top-level (app.styleflo.ai), check local CookieYes advertising consent
+  const isTopWindow = (window.self === window.top);
+  if (isTopWindow) {
+    if (!hasAdvertisingConsent()) {
+      console.log('[Analytics] Direct Purchase Meta event skipped (no CookieYes ad_storage consent)');
+      return;
+    }
+
+    ensureFbqLoaded();
+    if (window.fbq) {
+      window.fbq('init', '1072502378701795');
+      window.fbq('track', 'Purchase', {
+        value: Number(amountPaid) || 9.99,
+        currency: 'GBP',
+      }, {
+        eventID: 'pur_' + orderOrSubscriptionId,
+      });
+      console.log(`[Analytics] Direct Purchase Meta event fired (value: ${amountPaid}, eventID: pur_${orderOrSubscriptionId})`);
+    }
   }
 };
 
