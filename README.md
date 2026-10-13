@@ -3126,3 +3126,15 @@ Highlighted adjustments in the modal:
     4. Maintained direct CookieYes consent gating and `fbq` triggers for direct visits at `app.styleflo.ai`.
     5. Added end-to-end iframe isolation test in `tests/meta-pixel-consent.spec.ts` and verified with 100% pass rate across the test suite.
 
+---
+
+### Session 59 (October 13, 2026)
+* **User**: "the app sends sign-ups to Meta from the server? If it does, it should either stop or only send for people who accepted cookies."
+  * **Audit & Finding**:
+    1. Audited all server-side API routes (`src/app/api/**`), lib utilities (`src/lib/**`), and webhooks.
+    2. Confirmed the server does **not** send sign-ups to Meta via the Meta Conversions API (CAPI) or any server-side HTTP request. Server-side Meta integration is strictly for two-way WhatsApp, Messenger, and Instagram direct messaging.
+    3. All sign-up (`CompleteRegistration`) and purchase events originate exclusively client-side:
+       - Inside the `styleflo.ai/app/` iframe: Relayed via `postMessage` to the parent window (`https://styleflo.ai`), where the main site controls consent verification before forwarding to Meta.
+       - Outside the frame (direct on `app.styleflo.ai`): Fired via client-side `fbq(...)` only after verifying that CookieYes advertising consent (`ad_storage`) is granted.
+
+
