@@ -115,7 +115,7 @@ export async function POST(request: Request) {
       if (!verifyError && verifyData?.session) {
         console.log(`[Magic Link Route] Successfully authenticated session for ${email}. Session cookies set!`);
         return NextResponse.json(
-          { success: true, redirectUrl: '/dashboard' },
+          { success: true, authenticated: true, redirectUrl: '/dashboard' },
           { status: 200, headers: corsHeaders }
         );
       } else {
@@ -134,7 +134,7 @@ export async function POST(request: Request) {
       if (!hashRes.error && hashRes.data?.session) {
         console.log(`[Magic Link Route] Successfully authenticated session via token_hash for ${email}. Session cookies set!`);
         return NextResponse.json(
-          { success: true, redirectUrl: '/dashboard' },
+          { success: true, authenticated: true, redirectUrl: '/dashboard' },
           { status: 200, headers: corsHeaders }
         );
       } else {

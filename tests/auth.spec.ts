@@ -43,4 +43,17 @@ test.describe('Authentication Flows', () => {
     // Verify preview URL contains /business/luxe-locks-lounge
     await expect(page.getByText(/business\/luxe-locks-lounge/)).toBeVisible({ timeout: 5000 });
   });
+
+  test('can request magic login link and handles authentication flow', async ({ page }) => {
+    await page.goto('/login');
+
+    const emailInput = page.locator('input[type="email"]');
+    await emailInput.fill('test001@styleflo.ai');
+
+    await page.getByRole('button', { name: /Send Magic Login Link/i }).click();
+
+    // In automated testing with local Supabase, the server logs in and redirects to /dashboard.
+    // In live cloud usage with email dispatch, it shows the confirmation banner.
+    await expect(page).toHaveURL(/.*dashboard.*/, { timeout: 10000 });
+  });
 });

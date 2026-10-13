@@ -3137,4 +3137,33 @@ Highlighted adjustments in the modal:
        - Inside the `styleflo.ai/app/` iframe: Relayed via `postMessage` to the parent window (`https://styleflo.ai`), where the main site controls consent verification before forwarding to Meta.
        - Outside the frame (direct on `app.styleflo.ai`): Fired via client-side `fbq(...)` only after verifying that CookieYes advertising consent (`ad_storage`) is granted.
 
+---
+
+### 59. Supabase Auth Email Confirmation Callback & Magic Link OTP Delivery Fixes
+* **Problem**:
+  1. When clicking the Supabase account confirmation email, users were redirected to `/login` with an authorization `code` or hash token, but the session cookies were not consistently exchanged or synced to the server, and no feedback was provided on whether confirmation succeeded or if an error occurred.
+  2. In `src/app/login/page.tsx`, requesting a Magic Login Link displayed a misleading banner: *"Logging You In... Authenticating <email>. Redirecting to your dashboard now..."* even though the user was not logged in yet, leaving users confused when no immediate redirect happened and they had not received their OTP.
+  3. The magic link generation endpoint (`/api/auth/magic-link`) did not flag when sessions were created versus when OTP email delivery had to be handled, and `login/page.tsx` was discarding action links returned by the API instead of redirecting or properly managing the OTP dispatch.
+* **Solution**:
+  - Enhanced `src/app/auth/callback/route.ts` to accept both PKCE `code` parameters and `token_hash` + `type` OTP parameters, verifying them using `@supabase/ssr` server client and setting secure session cookies before redirecting to `/dashboard` (or back to `/login?error=...` with detailed error descriptions).
+  - Updated `emailRedirectTo` in `src/app/register/page.tsx` and `src/app/login/page.tsx` so email verification links route directly through `/auth/callback?next=/dashboard`.
+  - Added hash fragment handling (`#access_token=...` / `#error=...`) and code parameter checking in `src/app/login/page.tsx`, displaying an explicit `successMessage` banner ("Email confirmed successfully! Signing you in...") or an error banner with decoded error descriptions.
+  - Corrected the `magicLinkSent` banner in `src/app/login/page.tsx` to clearly inform the user: *"✨ Magic Login Link Sent! We've sent a magic login link to <email>. Please check your inbox (and spam folder) to sign in directly."*
+  - Updated `handleSendMagicLink` across `src/app/login/page.tsx` and `src/app/register/page.tsx` to immediately redirect if a server session is authenticated, or dispatch `supabase.auth.signInWithOtp` with the `/auth/callback` redirect and display real error/success feedback.
+  - Added user guidance to password login if Supabase reports `"Email not confirmed"`, instructing the user to verify their inbox or use the Magic Login Link button.
+  - Added automated Playwright test in `tests/auth.spec.ts` verifying the magic link dispatch and authentication flow.
+
+---
+
+### Session 60 (October 13, 2026)
+* **User**: "I have just registered test001@styleflo.ai and recieved a email asking for the email to be confirmed from supabase, when i click on the link it taked me to tge login page but i cant log in, when i requested a magic email link it displayed a info box saying my details were authinticated logginv you in, but i was not logged in, and did not recieve a magic link email either"
+  * **Fix**:
+    1. Routed email verification links (`emailRedirectTo`) in `src/app/register/page.tsx` and `src/app/login/page.tsx` to `/auth/callback?next=/dashboard`.
+    2. Updated `src/app/auth/callback/route.ts` to exchange both PKCE authorization codes and `token_hash` OTP tokens and set server session cookies before navigating to `/dashboard`.
+    3. Added hash fragment (`#access_token=...`) and URL error handling in `src/app/login/page.tsx` with dedicated success and error feedback banners.
+    4. Fixed misleading *"Logging You In... Authenticating..."* banner on Magic Link request to properly state *"Magic Login Link Sent! We've sent a magic login link to <email>. Please check your inbox (and spam folder) to sign in directly."*
+    5. Enhanced `handleSendMagicLink` to cleanly distinguish authenticated server sessions from OTP email dispatch and surface any Supabase errors.
+    6. Added specific guidance to password sign-in for unconfirmed email accounts.
+    7. Added automated Playwright test in `tests/auth.spec.ts` and verified with 100% pass rate.
+
 

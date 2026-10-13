@@ -172,25 +172,49 @@ function RegisterContent() {
   };
 
   const handleSendMagicLink = async () => {
+    if (!email || !email.trim() || !email.includes('@')) {
+      setError('Please enter a valid email address first to receive a magic login link.');
+      return;
+    }
     setSendingMagicLink(true);
     setError(null);
     try {
+      const isLocal = typeof window !== 'undefined' && (
+        window.location.hostname === 'localhost' || 
+        window.location.hostname === '127.0.0.1'
+      );
+      const redirectUrl = isLocal 
+        ? `${window.location.origin}/auth/callback?next=/dashboard`
+        : 'https://app.styleflo.ai/auth/callback?next=/dashboard';
+
       const res = await fetch('/api/auth/magic-link', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email: email.trim(), clientEmail: email.trim(), name: fullName }),
       });
       const data = await res.json().catch(() => ({}));
-      if (data.redirectUrl || data.success) {
-        setMagicLinkSent(true);
-        setDuplicateEmailDetected(false);
-      } else if (data.error) {
-        setError(data.error);
+
+      if (data?.authenticated && data?.redirectUrl) {
+        window.location.href = data.redirectUrl;
+        return;
+      }
+
+      const { error: otpError } = await supabase.auth.signInWithOtp({
+        email: email.trim(),
+        options: {
+          emailRedirectTo: redirectUrl,
+        },
+      });
+
+      if (otpError) {
+        console.error('Supabase signInWithOtp error:', otpError);
+        setError(otpError.message);
       } else {
         setMagicLinkSent(true);
         setDuplicateEmailDetected(false);
       }
     } catch (e: any) {
+      console.error('Magic link error:', e);
       setError(e?.message || 'Failed to send magic login link.');
     } finally {
       setSendingMagicLink(false);
@@ -237,8 +261,8 @@ function RegisterContent() {
         window.location.hostname === '127.0.0.1'
       );
       const redirectUrl = isLocal 
-        ? `${window.location.origin}/login`
-        : 'https://app.styleflo.ai/login';
+        ? `${window.location.origin}/auth/callback?next=/dashboard`
+        : 'https://app.styleflo.ai/auth/callback?next=/dashboard';
 
       const { data, error } = await supabase.auth.signUp({
         email,

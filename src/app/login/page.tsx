@@ -109,19 +109,38 @@ export default function LoginPage() {
   });
 
   useEffect(() => {
-    // Handle PKCE auth code exchange if present in URL
+    // Handle PKCE auth code exchange or token hash if present in URL
     if (typeof window !== 'undefined') {
       const urlParams = new URLSearchParams(window.location.search);
       const code = urlParams.get('code');
-      if (code) {
+      const errorParam = urlParams.get('error_description') || urlParams.get('error');
+
+      if (errorParam) {
+        setError(decodeURIComponent(errorParam));
+        const cleanUrl = window.location.pathname;
+        window.history.replaceState({}, document.title, cleanUrl);
+      } else if (code) {
         supabase.auth.exchangeCodeForSession(code).then(({ error }) => {
           if (error) {
             console.error('Error exchanging code for session:', error);
+            setError(error.message);
           } else {
+            setSuccessMessage("Email confirmed successfully! Signing you in...");
             const cleanUrl = window.location.pathname;
             window.history.replaceState({}, document.title, cleanUrl);
           }
         });
+      }
+
+      // Check hash fragment (implicit flow token or error)
+      if (window.location.hash) {
+        const hashParams = new URLSearchParams(window.location.hash.substring(1));
+        const hashError = hashParams.get('error_description') || hashParams.get('error');
+        if (hashError) {
+          setError(decodeURIComponent(hashError));
+        } else if (hashParams.get('type') === 'signup' || hashParams.get('access_token')) {
+          setSuccessMessage("Email verified! Redirecting to your dashboard...");
+        }
       }
     }
 
@@ -163,21 +182,26 @@ export default function LoginPage() {
         window.location.hostname === '127.0.0.1'
       );
       const redirectUrl = isLocal 
-        ? `${window.location.origin}/dashboard`
-        : 'https://app.styleflo.ai/dashboard';
+        ? `${window.location.origin}/auth/callback?next=/dashboard`
+        : 'https://app.styleflo.ai/auth/callback?next=/dashboard';
 
-      await supabase.auth.signInWithOtp({
+      // 1. If server already authenticated the session (e.g. cookie set) or returned actionLink
+      if (data?.authenticated && data?.redirectUrl) {
+        window.location.href = data.redirectUrl;
+        return;
+      }
+
+      // 2. Dispatch OTP email through Supabase client
+      const { error: otpError } = await supabase.auth.signInWithOtp({
         email: email.trim(),
         options: {
           emailRedirectTo: redirectUrl,
         },
       });
 
-      if (data.redirectUrl || data.success || !data.error) {
-        setMagicLinkSent(true);
-        setDuplicateEmailDetected(false);
-      } else if (data.error) {
-        setError(data.error);
+      if (otpError) {
+        console.error('Supabase signInWithOtp error:', otpError);
+        setError(otpError.message);
       } else {
         setMagicLinkSent(true);
         setDuplicateEmailDetected(false);
@@ -235,8 +259,8 @@ export default function LoginPage() {
           window.location.hostname === '127.0.0.1'
         );
         const redirectUrl = isLocal 
-          ? `${window.location.origin}/login`
-          : 'https://app.styleflo.ai/login';
+          ? `${window.location.origin}/auth/callback?next=/dashboard`
+          : 'https://app.styleflo.ai/auth/callback?next=/dashboard';
 
         const { data, error } = await supabase.auth.signUp({
           email,
@@ -292,6 +316,9 @@ export default function LoginPage() {
             errorMsg = String(err);
           }
         }
+      }
+      if (errorMsg.toLowerCase().includes('email not confirmed')) {
+        errorMsg = 'Please verify your email address by clicking the link sent to your inbox before signing in, or use the "Send Magic Login Link" button below.';
       }
       setError(errorMsg);
     } finally {
@@ -377,14 +404,21 @@ export default function LoginPage() {
           </div>
         )}
 
+        {successMessage && (
+          <div className="mb-6 p-4 bg-emerald-50 border border-emerald-200 text-emerald-800 rounded-xl text-xs font-semibold leading-relaxed flex items-center gap-2 animate-in fade-in duration-300">
+            <span className="text-base">✓</span>
+            <span>{successMessage}</span>
+          </div>
+        )}
+
         {magicLinkSent && (
           <div className="bg-emerald-50 border border-emerald-200 rounded-2xl p-5 mb-6 text-left space-y-2 shadow-sm animate-in fade-in duration-300">
             <div className="flex items-center gap-2 text-emerald-900 font-bold text-sm">
               <span className="text-xl">✨</span>
-              <span>Logging You In...</span>
+              <span>Magic Login Link Sent!</span>
             </div>
             <p className="text-xs text-emerald-800 leading-relaxed">
-              Authenticating <strong className="text-emerald-950 underline">{email}</strong>. Redirecting to your dashboard now...
+              We've sent a magic login link to <strong className="text-emerald-950 underline">{email}</strong>. Please check your inbox (and spam folder) to sign in directly.
             </p>
           </div>
         )}
