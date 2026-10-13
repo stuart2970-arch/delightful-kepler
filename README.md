@@ -3079,18 +3079,21 @@ Highlighted adjustments in the modal:
 
 ---
 
-### Session 56 (October 12, 2026)
-* **User**: "Load the CookieYes banner on app.styleflo.ai, ideally sharing consent across .styleflo.ai so a visitor who accepts on the main site doesn't have to accept again. Set Google Consent Mode to denied by default on the app, so GA4 (G-DHF4NRZEE3) only tracks after consent. Confirm which page the Purchase event fires on, since it wasn't found in the app code checked so far."
+### 57. Registration Success Confirmation Screen & Business URL Route Alignment
+* **Problem**:
+  1. Upon successful registration (`data?.session === null`), the form inputs retained all entered data, and the success message banner appeared at the top of the form, requiring users to manually scroll up to notice that their account had been created.
+  2. The slug checking endpoint (`/api/tenants/check-slug`) was previewing URLs as `styleflo.ai/[slug]` instead of `styleflo.ai/business/[slug]`, creating inconsistency with published WordPress business pages.
+* **Solution**:
+  - Updated `/api/tenants/check-slug/route.ts` to return `url: ${baseUrl}/business/${baseSlug}`, properly matching the live WordPress public route `styleflo.ai/business/[slug]`.
+  - Added a dedicated, high-visibility "Account Created Successfully!" confirmation view in both `src/app/register/page.tsx` and `src/app/login/page.tsx`.
+  - Upon successful signup, cleared all sensitive form fields (email, password, full name, business name, custom slug, terms acceptance), smoothly scrolled the viewport to the top, and rendered the confirmation card with a direct "Go to Sign In" action button.
+  - Added automated Playwright test in `tests/auth.spec.ts` verifying the `/business/[slug]` URL preview and confirmed all authentication tests pass.
+
+---
+
+### Session 57 (October 13, 2026)
+* **User**: "I have just registered an account at styleflo.ai/app and the form has 2 issues, number one it retains the data that has been entered and the user only knows the account has been created if they scroll to the top of the page. Number 2, the field for business name that is used for the slug of the webpage we provide is lookimg at styleflo.ai/[business-name] and should be looking at styleflo.ai/business/[business-name] for duplicates"
   * **Fix**:
-    1. Configured Google Consent Mode v2 in `src/app/layout.tsx` with all storage denied by default (`analytics_storage: 'denied'`, `ad_storage: 'denied'`, `wait_for_update: 500`).
-    2. Loaded CookieYes script (`d5b119468f48c13f083b0c3f59232ce3`) in `<head>` of `RootLayout`.
-    3. Added automatic cross-subdomain cookie persistence for `cookieyes-consent` scoped to `.styleflo.ai`.
-    4. Confirmed `Purchase` event fires on the dedicated `/payment-confirmed` page (`src/app/payment-confirmed/page.tsx`) upon redirect from Stripe checkout.
-    5. Verified Turbopack build and 15 Playwright integration and consent tests pass.
-
-
-
-
-
-
-
+    1. Updated `/api/tenants/check-slug/route.ts` so the preview and generated URL uses `${baseUrl}/business/${baseSlug}` (`styleflo.ai/business/[business-name]`).
+    2. Updated `src/app/register/page.tsx` and `src/app/login/page.tsx` to clear all input state and render a dedicated full confirmation screen with instructions and a direct "Go to Sign In" button, automatically scrolling to the top.
+    3. Added automated test coverage in `tests/auth.spec.ts`.

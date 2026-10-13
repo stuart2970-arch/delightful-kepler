@@ -31,4 +31,16 @@ test.describe('Authentication Flows', () => {
     // Verify submit button changed
     await expect(page.getByRole('button', { name: 'Create Account' })).toBeVisible();
   });
+
+  test('business name preview uses styleflo.ai/business/[slug]', async ({ page }) => {
+    await page.goto('/login?mode=register');
+
+    // Type a business name
+    const businessInput = page.locator('input[placeholder="StyleFlo Lounge"]');
+    await expect(businessInput).toBeVisible();
+    await businessInput.fill('Luxe Locks Lounge');
+
+    // Verify preview URL contains /business/luxe-locks-lounge
+    await expect(page.getByText(/business\/luxe-locks-lounge/)).toBeVisible({ timeout: 5000 });
+  });
 });

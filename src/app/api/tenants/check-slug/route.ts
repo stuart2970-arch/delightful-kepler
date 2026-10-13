@@ -76,7 +76,7 @@ export async function GET(request: Request) {
     return NextResponse.json({
       available: isAvailable,
       slug: baseSlug,
-      url: `${baseUrl}/${baseSlug}`,
+      url: `${baseUrl}/business/${baseSlug}`,
       suggestions,
     });
   } catch (err: any) {
