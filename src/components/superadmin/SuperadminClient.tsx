@@ -10,6 +10,8 @@ import OpenClawMonitorView from '../dashboard-views/OpenClawMonitorView';
 import FloBotProfileSettingsView from './FloBotProfileSettingsView';
 import SuperAdminGdprView from './SuperAdminGdprView';
 import ConnectedAccountsView from './ConnectedAccountsView';
+import SuperAdminWhatsAppView from './SuperAdminWhatsAppView';
+
 
 interface ErrorBoundaryProps {
   children: ReactNode;
@@ -217,7 +219,7 @@ export default function SuperadminClient({
   const [newHoliday, setNewHoliday] = useState({ countries: ['UK'], date: new Date().toISOString().split('T')[0], name: '' });
   const [isSavingHoliday, setIsSavingHoliday] = useState(false);
 
-  const [activeTab, setActiveTab] = useState<'overview' | 'pricing' | 'holidays' | 'settings' | 'voices' | 'gateways' | 'flobot' | 'gdpr' | 'accounts'>('overview');
+  const [activeTab, setActiveTab] = useState<'overview' | 'pricing' | 'holidays' | 'settings' | 'voices' | 'gateways' | 'flobot' | 'gdpr' | 'accounts' | 'whatsapp'>('overview');
   const [pricingSubTab, setPricingSubTab] = useState<'sliding' | 'tiers'>('sliding');
 
   const [globalBrandingHtml, setGlobalBrandingHtml] = useState(initialGlobalBrandingHtml || '<span style="opacity: 0.6; font-size: 11px;">⚡ Powered by <strong>StyleFlo</strong></span>');
@@ -458,7 +460,19 @@ export default function SuperadminClient({
         >
           💳 Account Balances
         </button>
+        <button 
+          onClick={() => setActiveTab('whatsapp')}
+          className={`flex-1 py-2.5 text-sm font-medium rounded-lg transition-colors ${activeTab === 'whatsapp' ? 'bg-indigo-600 text-white shadow' : 'text-gray-400 hover:text-white hover:bg-gray-800'}`}
+        >
+          💬 WhatsApp
+        </button>
       </div>
+
+      {activeTab === 'whatsapp' && (
+        <div className="mt-6">
+          <SuperAdminWhatsAppView />
+        </div>
+      )}
 
       {activeTab === 'accounts' && (
         <div className="mt-6">

@@ -3222,6 +3222,47 @@ Highlighted adjustments in the modal:
     3. **Phase 3**: Twilio SMS code auto-capture in `src/app/api/webhooks/twilio/sms/route.ts` and `src/app/api/twilio/sms-inbound/route.ts`, voice transcription with instant audio deletion in `src/app/api/webhooks/twilio/voice/route.ts`, and real-time dashboard code endpoint at `src/app/api/whatsapp/verification-code/route.ts`.
     4. **Test & Build Verification**: All 18 automated Playwright tests passing with 100% success rate, and production build (`npm run build`) succeeded in 23.5s.
 
+---
 
+### 62. WhatsApp Dashboard UI (Embedded Signup v4) & Superadmin Intelligence Telemetry (Phases 4 & 5)
+* **Problem**:
+  1. Salon owners needed a self-serve UI in the StyleFlo Dashboard (Channels > WhatsApp) to connect their WhatsApp Business Account via Meta's Embedded Signup Version 4 (`sessionInfoVersion: '4'`).
+  2. Because salons pay Meta directly, a persistent amber warning banner was required when Meta reports a missing payment card (`card_missing: true`), complete with a direct link to Meta WhatsApp Manager.
+  3. When verifying new or Twilio numbers, the 6-digit Meta SMS verification code needed to be displayed in real time inside the dashboard with a 1-click copy button, polling every 2.5 seconds while in `verifying` status.
+  4. Account overview needed to display the connected phone number, verified business name, quality rating (`GREEN`), messaging tier limit (`TIER_250`), pre-approved starter templates (`appointment_reminder`, `booking_link`, `missed_call_followup`), 24-hour service window status, and a secure disconnect flow (`DELETE /api/whatsapp/onboard`).
+  5. Superadmins needed centralized platform telemetry (`/superadmin` › `💬 WhatsApp` tab) aggregating active accounts, total inbound/outbound freeform messages, template messages dispatched, message category breakdown (`service`, `utility`, `marketing`, `authentication`), and one-click CSV export.
+* **Solution**:
+  - In `src/components/dashboard-views/WhatsAppMetaView.tsx`:
+    - Embedded Meta JavaScript SDK loading with `FB.init` using `process.env.NEXT_PUBLIC_META_APP_ID` (`1878987246712536`).
+    - Configured window `message` event listener for `WA_EMBEDDED_SIGNUP` (`FINISH`, `CANCEL`, `ERROR`) with strict `.facebook.com` origin validation.
+    - Integrated Embedded Signup v4 launch via `FB.login` with `sessionInfoVersion: '4'`, `response_type: 'code'`, and `config_id` (`NEXT_PUBLIC_META_ES_CONFIG_ID`).
+    - Added real-time polling hook against `/api/whatsapp/verification-code` during `verifying` state with 1-click code copying.
+    - Added amber missing payment card banner linking directly to Meta WhatsApp Manager.
+    - Added connected account summary displaying display number, verified name, quality badge, tier limit, and starter templates.
+    - Implemented disconnect confirmation modal calling `DELETE /api/whatsapp/onboard`.
+    - Enabled WhatsApp simulation channel in the Journey Simulator.
+  - In `src/components/DashboardClient.tsx` & `src/components/dashboard-views/SidebarNavigation.tsx`:
+    - Registered the active `whatsapp` channel tab in navigation for salon owners and superadmins.
+  - In `src/app/api/superadmin/whatsapp-usage/route.ts`:
+    - Built superadmin reporting route aggregating tenant accounts, usage daily metrics, category breakdown, and CSV export (`?export=csv`).
+  - In `src/components/superadmin/SuperAdminWhatsAppView.tsx` & `SuperadminClient.tsx`:
+    - Created dedicated Superadmin WhatsApp Intelligence tab rendering KPI summary cards, active accounts table with payment and quality status, and usage telemetry with CSV download.
+  - In `src/app/api/whatsapp/onboard/route.ts` & `src/app/api/whatsapp/verification-code/route.ts`:
+    - Added Bearer token header authentication fallback for embedded iframes and automated testing.
+  - Added automated Playwright test suite `tests/whatsapp-ui.spec.ts` (4 tests) covering:
+    - 401 unauthenticated endpoint protection.
+    - Superadmin KPI calculations and CSV download format.
+    - Dashboard rendering of Embedded Signup v4, missing card banner, and 3 starter templates.
+    - Superadmin WhatsApp Intelligence tab and usage table rendering.
+  - Verified 100% pass rate across all 20 WhatsApp tests (4/4 in `tests/whatsapp-ui.spec.ts`, 6/6 in `tests/whatsapp-onboard-webhook.spec.ts`, 4/4 in `tests/twilio-whatsapp-verification.spec.ts`, 5/5 in `tests/crypto.spec.ts`, 1/1 in `tests/whatsapp-purge.spec.ts`).
+  - Verified Next.js 16.3.5 Turbopack production build succeeded cleanly with 0 errors across all 43 routes.
 
+---
 
+### Session 62 (October 14, 2026)
+* **User**: "1" (Proceed with full test suite verification, committing all Phase 4 & Phase 5 work, deploying to production via git push, and updating documentation).
+  * **Actions Completed**:
+    1. **Full Test Suite Execution**: Ran all 20 WhatsApp unit and end-to-end tests across `tests/crypto.spec.ts`, `tests/whatsapp-purge.spec.ts`, `tests/whatsapp-onboard-webhook.spec.ts`, `tests/twilio-whatsapp-verification.spec.ts`, and `tests/whatsapp-ui.spec.ts`, achieving 20/20 passed (100%).
+    2. **Production Build Validation**: Ran `npm run build` using Next.js 16 Turbopack; verified 0 errors, 43 compiled static/dynamic routes, and successful widget bundling.
+    3. **Phase 4 & 5 Deployment Preparation**: Staged and committed all Phase 4 & Phase 5 additions and updates to `main`.
+    4. **Documentation**: Updated `README.md` with Section 62 and Session 62 details.

@@ -47,15 +47,23 @@ export async function GET(req: NextRequest) {
       },
     });
 
-    const {
-      data: { user },
-      error: authErr,
-    } = await supabase.auth.getUser();
-    if (authErr || !user) {
+    const supabaseAdmin = getSupabaseAdmin();
+    let user = (await supabase.auth.getUser()).data?.user;
+    if (!user) {
+      const authHeader = req.headers.get('Authorization') || req.headers.get('authorization');
+      if (authHeader && authHeader.startsWith('Bearer ')) {
+        const token = authHeader.replace('Bearer ', '').trim();
+        const { data: userData } = await supabaseAdmin.auth.getUser(token);
+        if (userData?.user) {
+          user = userData.user;
+        }
+      }
+    }
+
+    if (!user) {
       return NextResponse.json({ error: 'Authentication required' }, { status: 401 });
     }
 
-    const supabaseAdmin = getSupabaseAdmin();
     const { data: profile } = await supabaseAdmin
       .from('profiles')
       .select('tenant_id, role, is_super_admin')
@@ -114,11 +122,19 @@ export async function POST(req: NextRequest) {
       },
     });
 
-    const {
-      data: { user },
-      error: authErr,
-    } = await supabase.auth.getUser();
-    if (authErr || !user) {
+    let user = (await supabase.auth.getUser()).data?.user;
+    if (!user) {
+      const authHeader = req.headers.get('Authorization') || req.headers.get('authorization');
+      if (authHeader && authHeader.startsWith('Bearer ')) {
+        const token = authHeader.replace('Bearer ', '').trim();
+        const { data: userData } = await supabase.auth.getUser(token);
+        if (userData?.user) {
+          user = userData.user;
+        }
+      }
+    }
+
+    if (!user) {
       return NextResponse.json({ error: 'Authentication required' }, { status: 401 });
     }
 
@@ -271,11 +287,19 @@ export async function DELETE(req: NextRequest) {
       },
     });
 
-    const {
-      data: { user },
-      error: authErr,
-    } = await supabase.auth.getUser();
-    if (authErr || !user) {
+    let user = (await supabase.auth.getUser()).data?.user;
+    if (!user) {
+      const authHeader = req.headers.get('Authorization') || req.headers.get('authorization');
+      if (authHeader && authHeader.startsWith('Bearer ')) {
+        const token = authHeader.replace('Bearer ', '').trim();
+        const { data: userData } = await supabase.auth.getUser(token);
+        if (userData?.user) {
+          user = userData.user;
+        }
+      }
+    }
+
+    if (!user) {
       return NextResponse.json({ error: 'Authentication required' }, { status: 401 });
     }
 

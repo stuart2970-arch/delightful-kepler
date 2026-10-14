@@ -40,11 +40,19 @@ export async function GET(req: NextRequest) {
       },
     });
 
-    const {
-      data: { user },
-      error: authErr,
-    } = await supabase.auth.getUser();
-    if (authErr || !user) {
+    let user = (await supabase.auth.getUser()).data?.user;
+    if (!user) {
+      const authHeader = req.headers.get('Authorization') || req.headers.get('authorization');
+      if (authHeader && authHeader.startsWith('Bearer ')) {
+        const token = authHeader.replace('Bearer ', '').trim();
+        const { data: userData } = await supabase.auth.getUser(token);
+        if (userData?.user) {
+          user = userData.user;
+        }
+      }
+    }
+
+    if (!user) {
       return NextResponse.json({ error: 'Authentication required' }, { status: 401 });
     }
 
