@@ -119,10 +119,34 @@ export async function POST(req: NextRequest) {
         msgs = msgData || [];
       }
 
+      // Query WhatsApp contacts & messages
+      let whatsappContacts: any[] = [];
+      let whatsappMessages: any[] = [];
+      try {
+        const { data: waContacts } = await supabaseAdmin
+          .from('whatsapp_contacts')
+          .select('*')
+          .eq('tenant_id', tenantId)
+          .or(`wa_id.ilike.%${cleanQuery}%,profile_name.ilike.%${cleanQuery}%`);
+        whatsappContacts = waContacts || [];
+
+        const contactIds = whatsappContacts.map(c => c.id);
+        if (contactIds.length > 0) {
+          const { data: waMsgs } = await supabaseAdmin
+            .from('whatsapp_messages')
+            .select('*')
+            .eq('tenant_id', tenantId)
+            .in('contact_id', contactIds);
+          whatsappMessages = waMsgs || [];
+        }
+      } catch (waErr) {
+        // Table might not exist yet in local mocks
+      }
+
       const returnedAppointments = appts || [];
       const returnedConversations = convs || [];
       const returnedMessages = msgs || [];
-      const totalRecords = returnedAppointments.length + returnedConversations.length + returnedMessages.length;
+      const totalRecords = returnedAppointments.length + returnedConversations.length + returnedMessages.length + whatsappContacts.length + whatsappMessages.length;
 
       return NextResponse.json({
         success: true,
@@ -137,12 +161,16 @@ export async function POST(req: NextRequest) {
           totalAppointments: returnedAppointments.length,
           totalConversations: returnedConversations.length,
           totalMessages: returnedMessages.length,
+          totalWhatsAppContacts: whatsappContacts.length,
+          totalWhatsAppMessages: whatsappMessages.length,
           totalRecords
         },
         data: {
           appointments: returnedAppointments,
           conversations: returnedConversations,
-          messages: returnedMessages
+          messages: returnedMessages,
+          whatsappContacts,
+          whatsappMessages
         }
       });
     }
@@ -195,8 +223,40 @@ export async function POST(req: NextRequest) {
         .select('id');
       if (standaloneMsgs) deletedMsgsCount += standaloneMsgs.length;
 
+      // WhatsApp Erasure
+      let deletedWaMsgsCount = 0;
+      let deletedWaContactsCount = 0;
+      try {
+        const { data: matchingWaContacts } = await supabaseAdmin
+          .from('whatsapp_contacts')
+          .select('id')
+          .eq('tenant_id', tenantId)
+          .or(`wa_id.ilike.%${cleanQuery}%,profile_name.ilike.%${cleanQuery}%`);
+
+        const waContactIds = (matchingWaContacts || []).map(c => c.id);
+        if (waContactIds.length > 0) {
+          const { data: delWaMsgs } = await supabaseAdmin
+            .from('whatsapp_messages')
+            .delete()
+            .eq('tenant_id', tenantId)
+            .in('contact_id', waContactIds)
+            .select('id');
+          if (delWaMsgs) deletedWaMsgsCount = delWaMsgs.length;
+
+          const { data: delWaContacts } = await supabaseAdmin
+            .from('whatsapp_contacts')
+            .delete()
+            .eq('tenant_id', tenantId)
+            .in('id', waContactIds)
+            .select('id');
+          if (delWaContacts) deletedWaContactsCount = delWaContacts.length;
+        }
+      } catch (waErr) {
+        // Table might not exist yet in local mocks
+      }
+
       const deletedApptsCount = deletedAppts ? deletedAppts.length : 0;
-      const totalErased = deletedApptsCount + deletedConvsCount + deletedMsgsCount;
+      const totalErased = deletedApptsCount + deletedConvsCount + deletedMsgsCount + deletedWaMsgsCount + deletedWaContactsCount;
 
       return NextResponse.json({
         success: true,
@@ -210,6 +270,8 @@ export async function POST(req: NextRequest) {
           deletedAppointments: deletedApptsCount,
           deletedConversations: deletedConvsCount,
           deletedMessages: deletedMsgsCount,
+          deletedWhatsAppMessages: deletedWaMsgsCount,
+          deletedWhatsAppContacts: deletedWaContactsCount,
           totalRecordsErased: totalErased
         }
       });

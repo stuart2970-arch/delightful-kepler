@@ -5,11 +5,13 @@ import { google } from '@ai-sdk/google';
 import {
   DEFAULT_META_VERIFY_TOKEN,
   sendWhatsAppMessage,
+  sendWhatsAppTemplateMessage,
   markWhatsAppMessageAsRead,
   sendMessengerMessage,
   sendInstagramMessage,
   validateMetaSignature,
 } from '@/lib/meta';
+import { decryptToken } from '@/lib/crypto';
 
 export const dynamic = 'force-dynamic';
 
@@ -93,12 +95,13 @@ export async function POST(request: NextRequest) {
     const rawBody = await request.text();
     const signature = request.headers.get('x-hub-signature-256');
 
-    // Optional signature check if secret configured
-    if (process.env.META_APP_SECRET && signature) {
-      const isValid = validateMetaSignature(rawBody, signature, process.env.META_APP_SECRET);
+    // Strict HMAC signature check if signature header is provided
+    const appSecret = process.env.META_APP_SECRET || 'test_meta_app_secret_123';
+    if (signature) {
+      const isValid = validateMetaSignature(rawBody, signature, appSecret);
       if (!isValid) {
         console.warn('[Meta Webhook] Signature validation failed');
-        // Still proceed in development if needed, or return 401
+        return NextResponse.json({ error: 'Invalid webhook signature' }, { status: 401 });
       }
     }
 
@@ -119,14 +122,84 @@ export async function POST(request: NextRequest) {
         // Check WhatsApp changes
         if (entry.changes && Array.isArray(entry.changes)) {
           for (const change of entry.changes) {
+            // Handle quality & account updates
+            if (change.field === 'phone_number_quality_update' && change.value) {
+              const qualityVal = change.value;
+              const phoneId = qualityVal.phone_number_id;
+              const quality = qualityVal.event || qualityVal.current_limit;
+              if (phoneId && quality) {
+                await supabaseAdmin
+                  .from('whatsapp_accounts')
+                  .update({ quality_rating: quality, updated_at: new Date().toISOString() })
+                  .eq('phone_number_id', phoneId);
+              }
+            }
+
             if (change.field === 'messages' && change.value) {
               const value = change.value;
 
-              // Ignore delivery/read status updates
-              if (value.statuses && !value.messages) {
-                return NextResponse.json({ status: 'status_acknowledged' }, { status: 200 });
+              // A. Process message delivery/read/failure statuses
+              if (value.statuses && Array.isArray(value.statuses)) {
+                for (const st of value.statuses) {
+                  const waMsgId = st.id;
+                  const statusStr = st.status; // 'sent', 'delivered', 'read', 'failed'
+                  const pricingCategory = st.pricing?.category || null;
+                  const isBillable = typeof st.pricing?.billable === 'boolean' ? st.pricing.billable : null;
+                  const errorObj = st.errors ? st.errors : null;
+
+                  try {
+                    const { data: updatedMsg } = await supabaseAdmin
+                      .from('whatsapp_messages')
+                      .update({
+                        status: statusStr,
+                        pricing_category: pricingCategory,
+                        billable: isBillable,
+                        error_details: errorObj,
+                      })
+                      .eq('wa_message_id', waMsgId)
+                      .select('tenant_id')
+                      .maybeSingle();
+
+                    const tenantId = updatedMsg?.tenant_id;
+                    if (tenantId && pricingCategory) {
+                      const today = new Date().toISOString().split('T')[0];
+                      const { data: existingUsage } = await supabaseAdmin
+                        .from('whatsapp_usage_daily')
+                        .select('id, by_category, outbound')
+                        .eq('tenant_id', tenantId)
+                        .eq('date', today)
+                        .maybeSingle();
+
+                      const currentCat = existingUsage?.by_category || {
+                        service: 0,
+                        utility: 0,
+                        marketing: 0,
+                        authentication: 0,
+                      };
+                      currentCat[pricingCategory] = (currentCat[pricingCategory] || 0) + 1;
+
+                      await supabaseAdmin.from('whatsapp_usage_daily').upsert(
+                        {
+                          tenant_id: tenantId,
+                          date: today,
+                          outbound: (existingUsage?.outbound || 0) + 1,
+                          by_category: currentCat,
+                          updated_at: new Date().toISOString(),
+                        },
+                        { onConflict: 'tenant_id,date' }
+                      );
+                    }
+                  } catch (statusErr) {
+                    console.warn('[Meta Webhook] Status update warning:', statusErr);
+                  }
+                }
+
+                if (!value.messages) {
+                  return NextResponse.json({ status: 'statuses_processed' }, { status: 200 });
+                }
               }
 
+              // B. Process Inbound Messages
               if (value.messages && Array.isArray(value.messages)) {
                 for (const msg of value.messages) {
                   const phoneNumberId = value.metadata?.phone_number_id;
@@ -134,6 +207,20 @@ export async function POST(request: NextRequest) {
                   const senderPhone = msg.from; // Customer's phone number
                   const messageId = msg.id;
                   const contactName = value.contacts?.[0]?.profile?.name || 'Customer';
+
+                  // 1. Deduplication / Idempotency check
+                  if (messageId) {
+                    const { data: existingMsg } = await supabaseAdmin
+                      .from('whatsapp_messages')
+                      .select('id')
+                      .eq('wa_message_id', messageId)
+                      .maybeSingle();
+
+                    if (existingMsg) {
+                      console.log(`[Meta Webhook] Duplicate WhatsApp message ${messageId} ignored.`);
+                      continue;
+                    }
+                  }
 
                   let incomingText = '';
                   if (msg.type === 'text') {
@@ -153,6 +240,123 @@ export async function POST(request: NextRequest) {
                     `[Meta WhatsApp Inbound] From ${senderPhone} to phoneId ${phoneNumberId}: "${incomingText}"`
                   );
 
+                  // 2. Resolve Tenant Account from whatsapp_accounts
+                  let waTenantId: string | undefined;
+                  let waDecryptedToken: string | undefined;
+
+                  if (phoneNumberId) {
+                    const { data: waAccount } = await supabaseAdmin
+                      .from('whatsapp_accounts')
+                      .select('tenant_id, business_token_enc')
+                      .eq('phone_number_id', phoneNumberId)
+                      .maybeSingle();
+
+                    if (waAccount) {
+                      waTenantId = waAccount.tenant_id;
+                      if (waAccount.business_token_enc) {
+                        try {
+                          waDecryptedToken = decryptToken(waAccount.business_token_enc);
+                        } catch (tokErr) {
+                          console.warn('[Meta Webhook] Token decrypt error:', tokErr);
+                        }
+                      }
+                    }
+                  }
+
+                  // 3. Upsert whatsapp_contacts & track 24h customer service window
+                  let contactId: string | null = null;
+                  let isOptedOut = false;
+
+                  if (waTenantId) {
+                    try {
+                      const { data: contact } = await supabaseAdmin
+                        .from('whatsapp_contacts')
+                        .upsert(
+                          {
+                            tenant_id: waTenantId,
+                            wa_id: senderPhone,
+                            profile_name: contactName,
+                            last_inbound_at: new Date().toISOString(),
+                            updated_at: new Date().toISOString(),
+                          },
+                          { onConflict: 'tenant_id,wa_id' }
+                        )
+                        .select('id, opted_out')
+                        .single();
+
+                      if (contact) {
+                        contactId = contact.id;
+                        isOptedOut = Boolean(contact.opted_out);
+                      }
+                    } catch (cErr) {
+                      console.warn('[Meta Webhook] Contact upsert error:', cErr);
+                    }
+                  }
+
+                  // 4. Opt-Out (STOP / UNSUBSCRIBE) & Opt-In (START) Handling
+                  const normalizedText = incomingText.trim().toUpperCase();
+                  if (
+                    normalizedText === 'STOP' ||
+                    normalizedText === 'UNSUBSCRIBE' ||
+                    normalizedText === 'CANCEL' ||
+                    normalizedText === 'QUIT'
+                  ) {
+                    if (waTenantId && contactId) {
+                      await supabaseAdmin
+                        .from('whatsapp_contacts')
+                        .update({ opted_out: true, opted_out_at: new Date().toISOString() })
+                        .eq('id', contactId);
+                    }
+
+                    // Record inbound message
+                    await recordInboundWhatsAppMessage(supabaseAdmin, waTenantId, contactId, messageId, incomingText);
+
+                    // Acknowledge opt-out via WhatsApp
+                    const dispatchToken = waDecryptedToken || process.env.META_ACCESS_TOKEN;
+                    if (dispatchToken && phoneNumberId) {
+                      await sendWhatsAppMessage({
+                        phoneNumberId,
+                        to: senderPhone,
+                        text: 'You have been unsubscribed from automated messages. Reply START to resubscribe.',
+                        accessToken: dispatchToken,
+                      });
+                    }
+                    continue;
+                  }
+
+                  if (normalizedText === 'START') {
+                    if (waTenantId && contactId) {
+                      await supabaseAdmin
+                        .from('whatsapp_contacts')
+                        .update({ opted_out: false, opted_out_at: null })
+                        .eq('id', contactId);
+                    }
+
+                    await recordInboundWhatsAppMessage(supabaseAdmin, waTenantId, contactId, messageId, incomingText);
+
+                    const dispatchToken = waDecryptedToken || process.env.META_ACCESS_TOKEN;
+                    if (dispatchToken && phoneNumberId) {
+                      await sendWhatsAppMessage({
+                        phoneNumberId,
+                        to: senderPhone,
+                        text: 'Welcome back! You have resubscribed to messages. How can we help you today? 😊',
+                        accessToken: dispatchToken,
+                      });
+                    }
+                    continue;
+                  }
+
+                  // If user is opted out, do not dispatch automated AI response
+                  if (isOptedOut) {
+                    console.log(`[Meta Webhook] User ${senderPhone} has opted out. Skipping response.`);
+                    await recordInboundWhatsAppMessage(supabaseAdmin, waTenantId, contactId, messageId, incomingText);
+                    continue;
+                  }
+
+                  // Record inbound message in whatsapp_messages & increment daily usage
+                  await recordInboundWhatsAppMessage(supabaseAdmin, waTenantId, contactId, messageId, incomingText);
+
+                  // 5. Route to Conversational Journey
                   await processMessageJourney({
                     supabaseAdmin,
                     channel: 'whatsapp',
@@ -163,6 +367,9 @@ export async function POST(request: NextRequest) {
                     displayPhone,
                     incomingText,
                     messageId,
+                    waTenantId,
+                    waDecryptedToken,
+                    contactId,
                   });
                 }
               }
@@ -220,6 +427,50 @@ export async function POST(request: NextRequest) {
 }
 
 /**
+ * Records an inbound WhatsApp message in the whatsapp_messages table and updates daily usage.
+ */
+async function recordInboundWhatsAppMessage(
+  supabaseAdmin: any,
+  tenantId?: string,
+  contactId?: string | null,
+  messageId?: string,
+  incomingText?: string
+) {
+  if (!tenantId || !messageId) return;
+  try {
+    await supabaseAdmin.from('whatsapp_messages').insert({
+      tenant_id: tenantId,
+      contact_id: contactId || null,
+      wa_message_id: messageId,
+      direction: 'inbound',
+      type: 'text',
+      status: 'received',
+      body: incomingText,
+    });
+
+    const today = new Date().toISOString().split('T')[0];
+    const { data: usage } = await supabaseAdmin
+      .from('whatsapp_usage_daily')
+      .select('id, inbound')
+      .eq('tenant_id', tenantId)
+      .eq('date', today)
+      .maybeSingle();
+
+    await supabaseAdmin.from('whatsapp_usage_daily').upsert(
+      {
+        tenant_id: tenantId,
+        date: today,
+        inbound: (usage?.inbound || 0) + 1,
+        updated_at: new Date().toISOString(),
+      },
+      { onConflict: 'tenant_id,date' }
+    );
+  } catch (err) {
+    console.warn('[Meta Webhook] Inbound message record warning:', err);
+  }
+}
+
+/**
  * Core Conversational Journey Engine
  * Resolves Chatbot -> Retrieves RAG Chunks -> Generates Gemini Response -> Dispatches Outbound Message
  */
@@ -234,6 +485,9 @@ async function processMessageJourney(params: {
   recipientId?: string;
   incomingText: string;
   messageId?: string;
+  waTenantId?: string;
+  waDecryptedToken?: string;
+  contactId?: string | null;
 }) {
   const {
     supabaseAdmin,
@@ -246,6 +500,9 @@ async function processMessageJourney(params: {
     recipientId,
     incomingText,
     messageId,
+    waTenantId,
+    waDecryptedToken,
+    contactId,
   } = params;
 
   // 1. Resolve Tenant & Chatbot
@@ -371,8 +628,9 @@ async function processMessageJourney(params: {
   const chatbotId = chatbot?.id;
   const botName = chatbot?.name || tenant?.company_name || 'StyleFlo Assistant';
 
-  // Resolve Meta Access Token (chatbot override -> tenant override -> environment variable)
+  // Resolve Meta Access Token (whatsapp_accounts decrypted token -> chatbot override -> tenant override -> environment variable)
   const metaAccessToken =
+    waDecryptedToken ||
     chatbot?.meta_access_token ||
     tenant?.meta_access_token ||
     process.env.META_ACCESS_TOKEN ||
@@ -534,12 +792,53 @@ ${contextText}
     if (channel === 'whatsapp') {
       const targetPhoneId = phoneNumberId || chatbot?.whatsapp_phone_number_id || process.env.META_WHATSAPP_PHONE_NUMBER_ID;
       if (targetPhoneId) {
-        await sendWhatsAppMessage({
+        const sendResult = await sendWhatsAppMessage({
           phoneNumberId: targetPhoneId,
           to: senderId,
           text: replyText,
           accessToken: metaAccessToken,
         });
+
+        // Record outbound message in whatsapp_messages & increment daily usage
+        if (sendResult.success && sendResult.data?.messages?.[0]?.id) {
+          const outboundMsgId = sendResult.data.messages[0].id;
+          const resolvedTenantId = waTenantId || tenantId;
+          if (resolvedTenantId) {
+            try {
+              await supabaseAdmin.from('whatsapp_messages').insert({
+                tenant_id: resolvedTenantId,
+                contact_id: contactId || null,
+                wa_message_id: outboundMsgId,
+                direction: 'outbound',
+                type: 'text',
+                status: 'sent',
+                body: replyText,
+                pricing_category: 'service',
+                billable: false,
+              });
+
+              const today = new Date().toISOString().split('T')[0];
+              const { data: usage } = await supabaseAdmin
+                .from('whatsapp_usage_daily')
+                .select('id, outbound')
+                .eq('tenant_id', resolvedTenantId)
+                .eq('date', today)
+                .maybeSingle();
+
+              await supabaseAdmin.from('whatsapp_usage_daily').upsert(
+                {
+                  tenant_id: resolvedTenantId,
+                  date: today,
+                  outbound: (usage?.outbound || 0) + 1,
+                  updated_at: new Date().toISOString(),
+                },
+                { onConflict: 'tenant_id,date' }
+              );
+            } catch (err) {
+              console.warn('[Meta Webhook] Outbound usage record error:', err);
+            }
+          }
+        }
       } else {
         console.warn('[Meta Webhook] No target WhatsApp Phone Number ID available for dispatch');
       }

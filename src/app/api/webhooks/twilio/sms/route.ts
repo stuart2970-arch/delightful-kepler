@@ -109,8 +109,48 @@ export async function POST(request: NextRequest) {
 
     const supabaseAdmin = getSupabaseAdmin();
 
-    // 2. Resolve target Tenant and Chatbot
+    // 1b. Check if this inbound SMS is a WhatsApp verification code for an account in 'verifying' state
+    const codeMatch = messageBody.match(/\b(\d{3})-?(\d{3})\b/);
     const digitsTo = toNumber.replace(/[^\d]/g, '');
+
+    if (codeMatch && digitsTo) {
+      const codeDigits = `${codeMatch[1]}${codeMatch[2]}`;
+      const isWhatsAppRelated =
+        messageBody.toLowerCase().includes('whatsapp') ||
+        fromNumber.toLowerCase().includes('whatsapp') ||
+        messageBody.toLowerCase().includes('code');
+
+      if (isWhatsAppRelated) {
+        const tailTo = digitsTo.slice(-9);
+        const { data: verifyingAccounts } = await supabaseAdmin
+          .from('whatsapp_accounts')
+          .select('id, tenant_id, twilio_number_sid, display_phone, status, updated_at')
+          .in('status', ['verifying', 'pending'])
+          .order('updated_at', { ascending: false });
+
+        const matchedAccount = (verifyingAccounts || []).find((acc: any) => {
+          const cleanDisplay = (acc.display_phone || '').replace(/[^\d]/g, '');
+          return cleanDisplay.endsWith(tailTo) || (digitsTo && cleanDisplay.includes(digitsTo));
+        });
+
+        if (matchedAccount) {
+          console.log(`[Twilio SMS] Intercepted WhatsApp verification code for tenant ${matchedAccount.tenant_id}`);
+          const { encryptToken } = await import('@/lib/crypto');
+          await supabaseAdmin.from('whatsapp_verification_codes').insert({
+            tenant_id: matchedAccount.tenant_id,
+            twilio_number_sid: matchedAccount.twilio_number_sid || null,
+            phone_number: toNumber,
+            code_enc: encryptToken(codeDigits),
+            method: 'SMS',
+            expires_at: new Date(Date.now() + 10 * 60 * 1000).toISOString(),
+          });
+
+          return twimlResponse('');
+        }
+      }
+    }
+
+    // 2. Resolve target Tenant and Chatbot
     let tenant: any = null;
     let chatbot: any = null;
 
