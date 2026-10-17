@@ -507,9 +507,9 @@ if (!defined('ABSPATH')) exit;
 
           <div class="bg-pearl p-8 rounded-2xl border border-slate-ash relative">
             <div class="w-10 h-10 rounded-xl bg-amethyst text-white font-black flex items-center justify-center mb-6 text-lg">3</div>
-            <h3 class="heading-poppins text-lg font-bold text-slate-body mb-2">Go Live with Basic + Modular Bolt-ons</h3>
+            <h3 class="heading-poppins text-lg font-bold text-slate-body mb-2">Go Live with Foundation + Modular Bolt-ons</h3>
             <p class="text-xs sm:text-sm text-slate-muted leading-relaxed">
-              Activate your Basic plan for £9.99/mo. Customize anytime with modular bolt-ons (Voice Minutes, SMS Message Packs, Dedicated Numbers, Calendar sync, extra knowledge). Cancel anytime!
+              Activate your Foundation plan for £9.99/mo. Customize anytime with modular bolt-ons (Voice Minutes, SMS Message Packs, Dedicated Numbers, Calendar sync, extra knowledge). Cancel anytime!
             </p>
           </div>
 
@@ -518,14 +518,14 @@ if (!defined('ABSPATH')) exit;
       </div>
     </section>
 
-    <!-- 5. PRICING SECTION (BASIC £9.99/MO + MODULAR BOLT-ONS) -->
+    <!-- 5. PRICING SECTION (FOUNDATION £9.99/MO + MODULAR BOLT-ONS) -->
     <section id="pricing" class="py-16 md:py-24 bg-pearl border-b border-slate-ash">
       <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         
         <div class="text-center max-w-3xl mx-auto mb-14">
           <span class="text-xs font-bold tracking-widest text-amethyst uppercase bg-amethyst-soft px-3.5 py-1.5 rounded-full">Transparent Modular Pricing</span>
           <h2 class="heading-poppins text-3xl sm:text-4xl font-bold text-slate-body mt-4">
-            Simple £9.99 Base Subscription + Modular Bolt-ons
+            Simple £9.99 Foundation Plan + Modular Bolt-ons
           </h2>
           <p class="text-slate-muted mt-3 text-base leading-relaxed">
             Start with our core AI Receptionist for <strong>£9.99/mo</strong> and select the modular power-ups you need. Build your custom package into one single monthly payment. No contracts—cancel or adjust anytime.
@@ -547,7 +547,7 @@ if (!defined('ABSPATH')) exit;
               <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mt-2 mb-6">
                 <div>
                   <div class="flex items-center gap-2 mb-1">
-                    <h3 class="font-bold text-xl text-slate-body">Core Base Plan</h3>
+                    <h3 class="font-bold text-xl text-slate-body">Foundation Plan</h3>
                     <span class="text-[10px] font-bold text-emerald-700 bg-emerald-100 px-2.5 py-0.5 rounded-full flex items-center gap-1">
                       <i data-lucide="check" class="w-3 h-3"></i> Included by Default
                     </span>
@@ -566,7 +566,7 @@ if (!defined('ABSPATH')) exit;
 
               <!-- Included Features Grid -->
               <div class="pt-5 border-t border-slate-ash/60">
-                <p class="text-xs font-bold text-slate-body uppercase tracking-wider mb-3">Included in Every Base Plan:</p>
+                <p class="text-xs font-bold text-slate-body uppercase tracking-wider mb-3">Included in Every Foundation Plan:</p>
                 <div class="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-2.5 text-xs text-slate-body">
                   <div class="flex items-center gap-2">
                     <i data-lucide="check-circle-2" class="w-4 h-4 text-emerald-600 flex-shrink-0"></i>
@@ -739,7 +739,7 @@ if (!defined('ABSPATH')) exit;
                 <div class="flex items-center justify-between text-xs py-2 border-b border-slate-ash">
                   <div class="flex items-center gap-2">
                     <i data-lucide="check" class="w-3.5 h-3.5 text-emerald-600"></i>
-                    <span class="font-bold text-slate-body">Core Base Plan</span>
+                    <span class="font-bold text-slate-body">Foundation Plan</span>
                   </div>
                   <span class="font-bold text-slate-body">£9.99/mo</span>
                 </div>
@@ -809,11 +809,11 @@ if (!defined('ABSPATH')) exit;
           
           <div class="bg-pearl rounded-2xl border border-slate-ash overflow-hidden">
             <button onclick="toggleFaq(1)" class="w-full p-6 text-left font-bold text-slate-body text-base flex justify-between items-center hover:bg-slate-ash/20 transition-colors">
-              <span>How does the £9.99 Basic Subscription and bolt-ons work?</span>
+              <span>How does the £9.99 Foundation Subscription and bolt-ons work?</span>
               <i id="faq-icon-1" data-lucide="chevron-down" class="w-5 h-5 text-amethyst transition-transform"></i>
             </button>
             <div id="faq-content-1" class="hidden px-6 pb-6 text-sm text-slate-muted leading-relaxed">
-              Our Basic Subscription gives you a full 24/7 web chat AI receptionist for just £9.99/mo with 1,000 messages and 50 knowledge vector chunks included. As your business grows, you can easily stack modular bolt-ons like a Voice AI Phone Agent, dedicated phone numbers, or extra message and knowledge packs anytime from your dashboard.
+              Our Foundation Subscription gives you a full 24/7 web chat AI receptionist for just £9.99/mo with 1,000 messages and 50 knowledge vector chunks included. As your business grows, you can easily stack modular bolt-ons like a Voice AI Phone Agent, dedicated phone numbers, or extra message and knowledge packs anytime from your dashboard.
             </div>
           </div>
 
@@ -945,7 +945,7 @@ if (!defined('ABSPATH')) exit;
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
-            plan: 'basic',
+            plan: 'foundation',
             planTier: 'base_tier',
             returnUrl: wpAppUrl
           })
@@ -960,7 +960,7 @@ if (!defined('ABSPATH')) exit;
       }
 
       // Fallback direct GET redirect
-      window.location.href = `${apiHost}/api/billing/checkout?plan=basic`;
+      window.location.href = `${apiHost}/api/billing/checkout?plan=foundation`;
     }
 
     // FloVoice Audio Demo Player
@@ -1179,7 +1179,7 @@ if (!defined('ABSPATH')) exit;
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
-            plan: 'basic',
+            plan: 'foundation',
             planTier: 'base_tier',
             addons: selectedAddons,
             returnUrl: wpAppUrl
@@ -1196,7 +1196,7 @@ if (!defined('ABSPATH')) exit;
 
       // Fallback direct GET redirect with addons query param
       const addonsQuery = selectedAddons.length > 0 ? `&addons=${encodeURIComponent(selectedAddons.join(','))}` : '';
-      window.location.href = `${apiHost}/api/billing/checkout?plan=basic${addonsQuery}`;
+      window.location.href = `${apiHost}/api/billing/checkout?plan=foundation${addonsQuery}`;
     }
 
     // Initialize package total on page load

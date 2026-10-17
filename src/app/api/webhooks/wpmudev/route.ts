@@ -24,7 +24,7 @@ export async function POST(req: Request) {
     const fullName = payload.full_name || payload.name || payload['name-1'] || '';
     
     let planTier = (payload.plan_tier || payload.tier || payload.plan || 'base_tier').toString().toLowerCase();
-    const validTiers = ['base_tier', 'basic', 'starter', 'premium', 'ultimate', 'trial'];
+    const validTiers = ['base_tier', 'foundation', 'basic', 'starter', 'premium', 'ultimate', 'trial'];
     if (!validTiers.includes(planTier)) {
       planTier = 'base_tier';
     }

@@ -798,7 +798,8 @@ export default function SuperadminClient({
                         disabled={updatingTenantId === tenant.id}
                         className="bg-gray-950 border border-gray-700 rounded-lg px-2.5 py-1 text-xs font-semibold text-white focus:outline-none focus:ring-1 focus:ring-indigo-500 capitalize disabled:opacity-50"
                       >
-                        <option value="base_tier">Base Tier</option>
+                        <option value="base_tier">Foundation Tier</option>
+                        <option value="foundation">Foundation (Alias)</option>
                         <option value="basic">Basic (Legacy)</option>
                         <option value="starter">Starter (Legacy)</option>
                         <option value="premium">Premium (Legacy)</option>

@@ -227,10 +227,10 @@ export const trackPurchaseMeta = (amountPaid: number, orderOrSubscriptionId: str
 /**
  * Track successful Sign Up conversion across GTM, GA4, Meta & TikTok Pixels
  */
-export const trackSignUp = (method: string = 'email', plan: string = 'starter', userId?: string) => {
+export const trackSignUp = (method: string = 'email', plan: string = 'foundation', userId?: string) => {
   if (typeof window === 'undefined') return;
 
-  const value = plan === 'premium' ? 79 : plan === 'basic' ? 5.99 : 29;
+  const value = plan === 'premium' ? 79 : (plan === 'basic' || plan === 'foundation' || plan === 'base_tier') ? 9.99 : 29;
 
   // GTM Event
   pushToDataLayer('sign_up', {

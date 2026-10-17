@@ -238,7 +238,17 @@ This runbook documents the key fixes and architecture enhancements implemented d
 * **Solution**:
   - Updated `src/widget/index.ts` and `src/widget/embed.ts` to differentiate between standard chatbots and the FloBot onboarding bot (`styleflo-onboarding-flobot`).
   - For standard chatbots requiring pre-chat confirmation or having a `globalVoiceDisclaimer`, the widget now renders a styled notice box displaying the global disclaimer text, a Full Name * input field, an optional Email input field, a mandatory Terms of Service & Privacy Policy agreement checkbox, and a "Start Chat 💬" submit button.
-  - Recompiled widget assets using `npm run build:widget` and verified production Next.js build with `npm run build`.
+### 27. Starter/Basic to Foundation Package Rename
+* **Problem**: The entry-level subscription plan was inconsistently named across the platform ("Basic", "Starter", "Core Base Plan", "Base Tier", "Basic Subscription"), leading to ambiguity in customer messaging, marketing pages, checkout line items, and database representations. The decision was made to unify and standardize the £9.99/mo plan name to **Foundation** (**"Foundation Plan" / "Foundation Subscription"**).
+* **Solution**:
+  - **Public Landing Pages**: Updated `public/template-styleflo-landing.php` and `public/styleflo_landing_page.html` metadata, top announcement banners, hero feature pills, pricing matrix headers, itemized breakdown, and FAQ responses to display **Foundation Plan** and **Foundation Subscription (£9.99/mo)**.
+  - **Registration Page**: Updated `src/app/register/page.tsx` default plan parameter, plan badges, banner itemization, Google OAuth callback, and Stripe checkout payloads to default to `'foundation'` and display **Foundation Plan (£9.99/mo)**.
+  - **Stripe Checkout & Billing APIs**: Updated `src/app/api/billing/checkout/route.ts` to name line items `'StyleFlo Foundation Plan (£9.99/mo)'` and accept `plan=foundation`, `tier=foundation`, and `priceId=foundation` alongside backwards-compatible legacy aliases.
+  - **Platform Routing & Webhooks**: Updated `src/app/api/billing/override/route.ts`, `src/app/api/webhooks/stripe/route.ts`, `src/app/api/webhooks/wpmudev/route.ts`, `src/app/api/chatbots/[id]/route.ts`, and `src/app/api/telephony/inbound/route.ts` to include `'foundation'` in all allowed tier and voice-entitlement validation arrays.
+  - **Dashboard & Superadmin UI**: Updated `src/components/DashboardClient.tsx` fallback plan name to `'Foundation'`, `src/components/dashboard-views/KnowledgeBaseView.tsx` limits and default planTier to `'foundation'`, and `src/components/superadmin/SuperadminClient.tsx` tier dropdown to include **Foundation Tier**.
+  - **Analytics & Stripe Scripts**: Updated `src/lib/analytics.ts` `trackSignUp` default plan and value calculation, and `scripts/setup-stripe-modular-products.js` to name the base subscription product `'StyleFlo Foundation Subscription'`.
+  - **Database Migration**: Created `supabase/migrations/20261017195500_rename_base_tier_to_foundation.sql` to rename `subscription_tiers` display name to `'Foundation Subscription'`, add `'foundation'` as a mirrored alias, and record the update in `addon_audit_log`.
+  - **Testing**: Added Playwright test cases in `tests/addons-sliding-scale.spec.ts` for `plan=foundation` checkout and registration page loading, passing all 16 tests cleanly.
 
 ---
 
@@ -3266,3 +3276,19 @@ Highlighted adjustments in the modal:
     2. **Production Build Validation**: Ran `npm run build` using Next.js 16 Turbopack; verified 0 errors, 43 compiled static/dynamic routes, and successful widget bundling.
     3. **Phase 4 & 5 Deployment Preparation**: Staged and committed all Phase 4 & Phase 5 additions and updates to `main`.
     4. **Documentation**: Updated `README.md` with Section 62 and Session 62 details.
+
+---
+
+### Session 63 (October 17, 2026)
+* **User**: "we have decided to rename the starter/ basic package to foundation, can you analyse the app and identify all areas where it needs to be changed" -> "proceed"
+  * **Actions Completed**:
+    1. **Comprehensive Full-Stack Audit**: Analyzed the full application codebase across marketing landing pages, registration and onboarding forms, dashboard views, superadmin console, checkout and billing APIs, webhooks, analytics, database models, Stripe setup scripts, and automated test suites.
+    2. **Landing Pages Update**: Replaced all customer-facing occurrences of "Basic Plan", "Basic Subscription", and "Core Base Plan" in `public/template-styleflo-landing.php` and `public/styleflo_landing_page.html` with **Foundation Plan** and **Foundation Subscription (£9.99/mo)**, including metadata, top banners, hero badges, order summary itemization, FAQ copy, and direct checkout functions.
+    3. **Registration Flow**: Updated `src/app/register/page.tsx` default plan parameter to `'foundation'`, badge labels to `"Foundation Plan"`, itemized detail to `"Includes Foundation Plan (£9.99/mo)"`, and Stripe checkout payload to send `plan: 'foundation'`.
+    4. **Checkout & Billing APIs**: Updated `src/app/api/billing/checkout/route.ts` to name line items `'StyleFlo Foundation Plan (£9.99/mo)'` and accept `plan=foundation`, `tier=foundation`, and `priceId=foundation` while preserving `'basic'` and `'base_tier'` as backward-compatible aliases.
+    5. **Webhooks, Telephony & Chatbot Routing**: Added `'foundation'` to tier acceptance and voice allowance checks in `src/app/api/billing/override/route.ts`, `src/app/api/webhooks/stripe/route.ts`, `src/app/api/webhooks/wpmudev/route.ts`, `src/app/api/chatbots/[id]/route.ts`, and `src/app/api/telephony/inbound/route.ts`.
+    6. **Dashboard & Superadmin UI**: Updated `src/components/DashboardClient.tsx` fallback plan name to `'Foundation'`, `src/components/dashboard-views/KnowledgeBaseView.tsx` rescan limits and planTier default to `'foundation'`, and `src/components/superadmin/SuperadminClient.tsx` tier selector dropdown to include **Foundation Tier**.
+    7. **Analytics & Provisioning Scripts**: Updated `src/lib/analytics.ts` `trackSignUp` default plan and conversion value calculation, and updated `scripts/setup-stripe-modular-products.js` to name the base subscription product `'StyleFlo Foundation Subscription'`.
+    8. **Database Migration**: Created `supabase/migrations/20261017195500_rename_base_tier_to_foundation.sql` to update `subscription_tiers.name` to `'Foundation Subscription'`, add `'foundation'` with mirrored entitlements, and log the change in `addon_audit_log`.
+    9. **Verification**: Executed Next.js 16.3.5 Turbopack production build (`npm run build`) and verified 100% success with 0 errors across all 43 routes. Executed Playwright billing tests (`tests/addons-sliding-scale.spec.ts`) with new Foundation tests, passing 16/16 tests (100%).
+

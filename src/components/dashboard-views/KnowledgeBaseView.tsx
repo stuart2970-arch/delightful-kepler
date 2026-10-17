@@ -4,7 +4,7 @@ import { useDashboardStore } from '../../lib/store';
 
 export default function KnowledgeBaseView() {
   const { chatbots, setChatbots, setMetrics, billingData } = useDashboardStore();
-  const planTier = billingData?.planTier || 'basic';
+  const planTier = billingData?.planTier || 'foundation';
   const [crawlBotId, setCrawlBotId] = useState(chatbots.filter(b => b.id !== '00000000-0000-0000-0000-000000000000')[0]?.id || '');
   const [crawlUrl, setCrawlUrl] = useState('');
   const [ingestMode, setIngestMode] = useState<'url' | 'text' | 'file'>('url');
@@ -168,7 +168,7 @@ export default function KnowledgeBaseView() {
     setCrawlSchedule(schedule);
     
     // Limits
-    const limit = planTier === 'basic' ? 5 : planTier === 'starter' ? 20 : planTier === 'pro' ? 100 : 500;
+    const limit = (planTier === 'foundation' || planTier === 'base_tier' || planTier === 'basic') ? 5 : planTier === 'starter' ? 20 : planTier === 'pro' ? 100 : 500;
     if (schedule === 'daily' && ingestedUrls.length > limit) {
       alert(`Your active plan (${planTier}) limits daily rescanning to ${limit} URLs. Please remove some URLs, select a different frequency, or upgrade your plan.`);
       // We still update the UI, but we won't save it to the DB if it fails validation, so revert:

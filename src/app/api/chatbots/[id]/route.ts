@@ -137,7 +137,7 @@ export async function GET(
       }
     }
 
-    let planTier = 'basic';
+    let planTier = 'foundation';
     
     if (chatbot.tenant_id) {
       const { data: tenantData } = await supabaseAdmin
@@ -146,7 +146,7 @@ export async function GET(
         .eq('id', chatbot.tenant_id)
         .single();
       
-      planTier = tenantData?.plan_tier || 'basic';
+      planTier = tenantData?.plan_tier || 'foundation';
     }
     
     // Check Voice Entitlement:
@@ -174,7 +174,7 @@ export async function GET(
       }
 
       // Base subscription tiers that inherently include voice minutes
-      const tiersWithIncludedVoice = ['base_tier', 'starter', 'premium', 'ultimate', 'trial'];
+      const tiersWithIncludedVoice = ['base_tier', 'foundation', 'starter', 'premium', 'ultimate', 'trial'];
       if (tiersWithIncludedVoice.includes(planTier)) {
         hasVoiceMinutes = true;
       }

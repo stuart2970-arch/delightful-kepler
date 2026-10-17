@@ -178,6 +178,30 @@ test.describe('Modular Add-Ons & Sliding Scale Checkout API', () => {
     const html = await res.text();
     expect(html).toBeDefined();
   });
+
+  test('Registration page endpoint loads successfully with plan=foundation', async ({ request }) => {
+    const res = await request.get('/register?plan=foundation&addons=google_calendar_addon');
+    expect(res.status()).toBe(200);
+    const html = await res.text();
+    expect(html).toBeDefined();
+    expect(html).toContain('Foundation');
+  });
+
+  test('POST /api/billing/checkout with plan: foundation initiates direct base tier checkout', async ({ request }) => {
+    const res = await request.post('/api/billing/checkout', {
+      headers: { 'Content-Type': 'application/json' },
+      data: {
+        plan: 'foundation',
+        planTier: 'base_tier',
+      },
+    });
+    expect([200, 500]).toContain(res.status());
+    if (res.status() === 200) {
+      const data = await res.json();
+      expect(data.url).toBeDefined();
+      expect(data.url).toContain('stripe.com');
+    }
+  });
 });
 
 

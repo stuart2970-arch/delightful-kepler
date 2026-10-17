@@ -69,7 +69,7 @@ export async function GET(req: Request) {
     }
 
     const { searchParams } = new URL(req.url);
-    const plan = searchParams.get('plan') || 'basic';
+    const plan = searchParams.get('plan') || 'foundation';
     const returnUrl = searchParams.get('return_url') || searchParams.get('returnUrl');
     const rawAddons = searchParams.get('addons') || searchParams.get('addonCatalogIds');
     const customerEmail = searchParams.get('customerEmail') || searchParams.get('email');
@@ -85,7 +85,7 @@ export async function GET(req: Request) {
     const priceData: Stripe.Checkout.SessionCreateParams.LineItem.PriceData = {
       currency: 'gbp',
       product_data: {
-        name: 'StyleFlo Basic Plan (£9.99/mo)',
+        name: 'StyleFlo Foundation Plan (£9.99/mo)',
         description: '24/7 AI Receptionist Automation with Web Chatbot, Knowledge Base & Modular Bolt-ons',
         metadata: {
           plan_tier: 'base_tier',
@@ -408,18 +408,22 @@ export async function POST(req: Request) {
 
     // Mode 1: New subscription checkout
     const isBaseTierRequest =
+      plan === 'foundation' ||
       plan === 'basic' ||
       plan === 'base_tier' ||
       planTier === 'base_tier' ||
+      planTier === 'foundation' ||
       tier === 'base_tier' ||
+      tier === 'foundation' ||
       tier === 'basic' ||
+      priceId === 'foundation' ||
       priceId === 'basic' ||
       priceId === 'base_tier';
 
     if (isBaseTierRequest || priceId) {
       let lineItems: Stripe.Checkout.SessionCreateParams.LineItem[] = [];
 
-      if (priceId && priceId !== 'basic' && priceId !== 'base_tier') {
+      if (priceId && priceId !== 'foundation' && priceId !== 'basic' && priceId !== 'base_tier') {
         lineItems.push({
           price: priceId,
           quantity: 1,
@@ -428,7 +432,7 @@ export async function POST(req: Request) {
         const priceData: Stripe.Checkout.SessionCreateParams.LineItem.PriceData = {
           currency: 'gbp',
           product_data: {
-            name: 'StyleFlo Basic Plan (£9.99/mo)',
+            name: 'StyleFlo Foundation Plan (£9.99/mo)',
             description: '24/7 AI Receptionist Automation with Web Chatbot, Knowledge Base & Modular Bolt-ons',
             metadata: {
               plan_tier: 'base_tier',

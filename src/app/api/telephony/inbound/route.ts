@@ -68,8 +68,8 @@ export async function POST(request: Request) {
       .eq('id', tenant.id)
       .single();
 
-    const planTier = tenantData?.plan_tier || 'basic';
-    const tierHasVoice = ['base_tier', 'starter', 'premium', 'ultimate', 'trial'].includes(planTier);
+    const planTier = tenantData?.plan_tier || 'foundation';
+    const tierHasVoice = ['base_tier', 'foundation', 'starter', 'premium', 'ultimate', 'trial'].includes(planTier);
 
     const VoiceResponse = twilio.twiml.VoiceResponse;
     const twiml = new VoiceResponse();

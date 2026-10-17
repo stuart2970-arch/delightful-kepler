@@ -917,7 +917,7 @@ const globalBotId = '00000000-0000-0000-0000-000000000000';
                   <div>
                     <h3 className="text-lg font-bold text-[var(--awb-color8)]">
                       Current Plan: <span className="text-[var(--awb-color5)] uppercase tracking-wider font-bold">
-                        {billingData?.tierDetails?.name || (billingData?.planTier === 'base_tier' || billingData?.planTier === 'basic' ? 'Base Subscription' : billingData?.planTier || 'Base')}
+                        {billingData?.tierDetails?.name || (billingData?.planTier === 'base_tier' || billingData?.planTier === 'foundation' || billingData?.planTier === 'basic' ? 'Foundation' : billingData?.planTier || 'Foundation')}
                       </span>
                     </h3>
                     <p className="text-xs text-[var(--awb-color6)] mt-1">

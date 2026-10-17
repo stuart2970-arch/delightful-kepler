@@ -27,7 +27,7 @@ async function main() {
   const productsToCreate = [
     // Base Tier
     {
-      name: 'StyleFlo Base Subscription',
+      name: 'StyleFlo Foundation Subscription',
       description: 'AI Chatbot, web widget, knowledge base (500 chunks), 1500 chat messages/mo, 10 shared voice minutes, lead capture & web presence.',
       metadata: { tier: 'base_tier', type: 'subscription' },
       monthlyPricePence: 999,

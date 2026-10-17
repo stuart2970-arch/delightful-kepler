@@ -316,7 +316,7 @@ export async function POST(req: Request) {
       ).toString().trim().toLowerCase();
 
       let planTier = (dataObject.metadata?.plan_tier || dataObject.metadata?.tier || 'base_tier').toString().toLowerCase();
-      const validTiers = ['base_tier', 'basic', 'starter', 'premium', 'ultimate', 'trial'];
+      const validTiers = ['base_tier', 'foundation', 'basic', 'starter', 'premium', 'ultimate', 'trial'];
       if (!validTiers.includes(planTier)) {
         planTier = 'base_tier';
       }

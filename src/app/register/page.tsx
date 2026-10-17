@@ -10,7 +10,7 @@ function RegisterContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
 
-  const planParam = searchParams.get('plan') || 'basic';
+  const planParam = searchParams.get('plan') || 'foundation';
   const promoParam = searchParams.get('promo') || '';
   const addonsParam = searchParams.get('addons') || searchParams.get('addon') || searchParams.get('addonCatalogIds') || '';
   const addonsList = addonsParam ? addonsParam.split(',').filter(Boolean) : [];
@@ -110,11 +110,11 @@ function RegisterContent() {
   const getPlanBadge = () => {
     return {
       name: hasAddons 
-        ? `Basic Subscription + ${addonsList.length} Bolt-on${addonsList.length > 1 ? 's' : ''}`
-        : 'Basic Subscription',
+        ? `Foundation Plan + ${addonsList.length} Bolt-on${addonsList.length > 1 ? 's' : ''}`
+        : 'Foundation Plan',
       price: formattedTotalPrice,
       tag: hasAddons
-        ? `Basic £9.99/mo + ${addonsList.length} Bolt-on${addonsList.length > 1 ? 's' : ''}`
+        ? `Foundation £9.99/mo + ${addonsList.length} Bolt-on${addonsList.length > 1 ? 's' : ''}`
         : 'No setup fee • Cancel anytime',
       addonsDetail: selectedAddonNames.length > 0 ? selectedAddonNames.join(', ') : null,
     };
@@ -141,7 +141,7 @@ function RegisterContent() {
         window.location.hostname === 'localhost' || 
         window.location.hostname === '127.0.0.1'
       );
-      const checkoutNext = `/api/billing/checkout?plan=${planParam || 'basic'}${addonsParam ? `&addons=${encodeURIComponent(addonsParam)}` : ''}`;
+      const checkoutNext = `/api/billing/checkout?plan=${planParam || 'foundation'}${addonsParam ? `&addons=${encodeURIComponent(addonsParam)}` : ''}`;
       const redirectUrl = isLocal 
         ? `${window.location.origin}/auth/callback?next=${encodeURIComponent(checkoutNext)}`
         : `https://app.styleflo.ai/auth/callback?next=${encodeURIComponent(checkoutNext)}`;
@@ -305,7 +305,7 @@ function RegisterContent() {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
-            plan: planParam || 'basic',
+            plan: planParam || 'foundation',
             planTier: 'base_tier',
             customerEmail: email,
             addons: addonsList,
@@ -353,7 +353,7 @@ function RegisterContent() {
           <h2 className="text-base font-bold text-[#0F172A] mt-1">{planInfo.name} ({planInfo.price})</h2>
           {planInfo.addonsDetail ? (
             <p className="text-xs text-[#7E5FBB] font-semibold">
-              Includes Core Base Plan (£9.99/mo) + {planInfo.addonsDetail}
+              Includes Foundation Plan (£9.99/mo) + {planInfo.addonsDetail}
             </p>
           ) : (
             <p className="text-xs text-slate-600 font-medium">24/7 AI Receptionist & Web Chatbot • Cancel anytime</p>
