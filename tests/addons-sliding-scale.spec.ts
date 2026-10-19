@@ -202,6 +202,25 @@ test.describe('Modular Add-Ons & Sliding Scale Checkout API', () => {
       expect(data.url).toContain('stripe.com');
     }
   });
+
+  test('Registration page renders Extra Knowledge (500 Knowledge Items) at £4.99/mo', async ({ request }) => {
+    const res = await request.get('/register?plan=foundation&addons=data_pack_500');
+    expect(res.status()).toBe(200);
+    const html = await res.text();
+    expect(html).toContain('Extra Knowledge (500 Knowledge Items)');
+    expect(html).toContain('£14.98/mo'); // £9.99 base + £4.99 extra knowledge
+    expect(html).not.toContain('Knowledgebase Storage (500 Chunks)');
+  });
+
+  test('GET /api/superadmin/addon-catalog returns data_pack_500 at 499 pence and Extra Knowledge title', async ({ request }) => {
+    const res = await request.get('/api/superadmin/addon-catalog');
+    expect(res.status()).toBe(200);
+    const json = await res.json();
+    const dataPack = (json.addons || []).find((a: any) => a.id === 'data_pack_500');
+    expect(dataPack).toBeDefined();
+    expect(dataPack.monthly_price_pence).toBe(499);
+    expect(dataPack.name).toContain('Extra Knowledge');
+  });
 });
 
 

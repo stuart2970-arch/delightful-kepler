@@ -69,7 +69,7 @@ export type CapacityThreshold = {
 const FEATURE_TO_UPGRADE_MAP: Record<string, { category: string; addonId: string; addonName: string; pricePence: number }> = {
   voice_minutes: { category: 'voice_pack', addonId: 'voice_pack_20', addonName: '20 Voice Minutes Pack', pricePence: 1500 },
   sms_messages: { category: 'sms_pack', addonId: 'sms_pack_100', addonName: '100 SMS Pack', pricePence: 599 },
-  knowledge_data_chunks: { category: 'data_pack', addonId: 'data_pack_500', addonName: '500 Knowledge Base Chunks', pricePence: 999 },
+  knowledge_data_chunks: { category: 'data_pack', addonId: 'data_pack_500', addonName: 'Extra Knowledge (500 Knowledge Items)', pricePence: 499 },
   whatsapp_messages: { category: 'whatsapp', addonId: 'whatsapp_addon', addonName: 'WhatsApp (Add-on)', pricePence: 999 },
   google_calendar: { category: 'google_calendar', addonId: 'google_calendar_addon', addonName: 'Google Calendar Integration', pricePence: 499 },
   microsoft_calendar: { category: 'microsoft_calendar', addonId: 'microsoft_calendar_addon', addonName: 'Microsoft Outlook Calendar Integration', pricePence: 499 },
@@ -402,7 +402,7 @@ export async function checkCapacityThresholds(
   const thresholds: CapacityThreshold[] = [];
 
   const meteredFeatures = [
-    { id: 'knowledge_data_chunks', name: 'Knowledge Base Data Chunks' },
+    { id: 'knowledge_data_chunks', name: 'Knowledge Items' },
     { id: 'voice_minutes', name: 'Shared Voice Minutes' },
     { id: 'sms_messages', name: 'SMS Messages' },
     { id: 'message_allowance', name: 'Monthly Chat Messages' },
@@ -457,8 +457,8 @@ export async function checkCapacityThresholds(
       const upgradeInfo = FEATURE_TO_UPGRADE_MAP[feature.id] || {
         category: 'data_pack',
         addonId: 'data_pack_500',
-        addonName: '500 Knowledge Base Chunks',
-        pricePence: 999,
+        addonName: 'Extra Knowledge (500 Knowledge Items)',
+        pricePence: 499,
       };
 
       thresholds.push({

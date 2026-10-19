@@ -19,7 +19,7 @@ function RegisterContent() {
   const MODULAR_ADDONS: Record<string, { name: string; price: number }> = {
     google_calendar_addon: { name: 'Google Calendar Integration', price: 4.99 },
     microsoft_calendar_addon: { name: 'Microsoft Outlook Calendar Integration', price: 4.99 },
-    data_pack_500: { name: 'Knowledgebase Storage (500 Chunks)', price: 9.99 },
+    data_pack_500: { name: 'Extra Knowledge (500 Knowledge Items)', price: 4.99 },
     landline_addon: { name: 'Local Landline Number', price: 8.99 },
     mobile_addon: { name: 'Mobile Number', price: 10.99 },
   };

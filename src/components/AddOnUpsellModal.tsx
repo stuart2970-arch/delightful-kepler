@@ -709,7 +709,7 @@ export default function AddOnUpsellModal({ isOpen, onClose, category, tenantId }
                                   <span className="inline-block bg-[var(--awb-color3)] text-[#212326] text-xs font-semibold px-2 py-1 rounded">💬 {addon.included_messages} messages</span>
                                 )}
                                 {addon.included_data_chunks > 0 && (
-                                  <span className="inline-block bg-[var(--awb-color3)] text-[#212326] text-xs font-semibold px-2 py-1 rounded">📦 {addon.included_data_chunks} data chunks</span>
+                                  <span className="inline-block bg-[var(--awb-color3)] text-[#212326] text-xs font-semibold px-2 py-1 rounded">📦 {addon.included_data_chunks} knowledge items</span>
                                 )}
                               </div>
                             )}

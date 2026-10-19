@@ -832,7 +832,7 @@ export default function PricingMatrixView() {
           {dataPack && formState[dataPack.id] && (
             <div className="bg-gray-950 border border-gray-800 p-4 rounded-xl space-y-3">
               <div className="flex justify-between items-center">
-                <span className="text-xs font-bold text-white">📚 Knowledge Base Chunks</span>
+                <span className="text-xs font-bold text-white">📚 Extra Knowledge (Knowledge Items)</span>
                 <span className="text-[10px] text-gray-400 font-mono">{dataPack.id}</span>
               </div>
               <div>
@@ -849,7 +849,7 @@ export default function PricingMatrixView() {
                 </div>
               </div>
               <div>
-                <label className="block text-[10px] text-gray-400 mb-1">Included Chunks</label>
+                <label className="block text-[10px] text-gray-400 mb-1">Included Knowledge Items</label>
                 <input
                   type="number"
                   value={formState[dataPack.id].lowerAllowance}
@@ -858,7 +858,7 @@ export default function PricingMatrixView() {
                 />
               </div>
               <button
-                onClick={() => handleSaveFixedAddon(dataPack.id, 'Knowledge Base Chunks', formState[dataPack.id].lowerCostGBP, formState[dataPack.id].lowerAllowance, 'included_data_chunks')}
+                onClick={() => handleSaveFixedAddon(dataPack.id, 'Extra Knowledge (500 Knowledge Items)', formState[dataPack.id].lowerCostGBP, formState[dataPack.id].lowerAllowance, 'included_data_chunks')}
                 disabled={savingId === dataPack.id}
                 className="w-full py-1.5 bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 text-white text-[11px] font-bold rounded-lg transition-colors cursor-pointer"
               >

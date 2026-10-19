@@ -199,7 +199,7 @@ export default function KnowledgeBaseView() {
   };
 
   const handleDeleteUrl = async (url: string) => {
-    if (!crawlBotId || !confirm(`Are you sure you want to delete all chunks for ${url}?`)) return;
+    if (!crawlBotId || !confirm(`Are you sure you want to delete all knowledge items for ${url}?`)) return;
     
     try {
       const res = await fetch(`/api/ingest/urls?chatbotId=${encodeURIComponent(crawlBotId)}&sourceUrl=${encodeURIComponent(url)}`, {
@@ -341,7 +341,7 @@ export default function KnowledgeBaseView() {
         const data = await response.json();
 
         if (response.ok) {
-          setCrawlLogs((prev) => [...prev, `[Supabase] Ingested ${data.chunksCount} chunks from ${currentUrl}.`]);
+          setCrawlLogs((prev) => [...prev, `[Supabase] Ingested ${data.chunksCount} knowledge items from ${currentUrl}.`]);
           totalChunks += data.chunksCount;
         } else {
           hasError = true;
@@ -355,10 +355,10 @@ export default function KnowledgeBaseView() {
     }
 
     if (!hasError) {
-      setCrawlLogs((prev) => [...prev, `[Success] Batch crawl finished! Total chunks ingested: ${totalChunks}.`]);
+      setCrawlLogs((prev) => [...prev, `[Success] Batch crawl finished! Total knowledge items ingested: ${totalChunks}.`]);
       setCrawlResult({
         success: true,
-        message: `Successfully crawled and ingested ${totalChunks} content chunks.`,
+        message: `Successfully crawled and ingested ${totalChunks} knowledge items.`,
       });
       setMetrics(prev => ({
         ...prev,
@@ -370,7 +370,7 @@ export default function KnowledgeBaseView() {
     } else {
       setCrawlResult({
         success: false,
-        message: `Crawling finished with errors. Ingested ${totalChunks} chunks. See logs.`,
+        message: `Crawling finished with errors. Ingested ${totalChunks} knowledge items. See logs.`,
       });
     }
 
@@ -399,7 +399,7 @@ export default function KnowledgeBaseView() {
 
       const data = await response.json();
       if (response.ok) {
-        setCrawlLogs((prev) => [...prev, `[Success] Ingested ${data.chunksCount} chunks from text.`]);
+        setCrawlLogs((prev) => [...prev, `[Success] Ingested ${data.chunksCount} knowledge items from text.`]);
         setCrawlResult({ success: true, message: data.message });
         setMetrics(prev => ({ ...prev, chunksCount: prev.chunksCount + data.chunksCount }));
         setRawTextContent('');
@@ -448,7 +448,7 @@ export default function KnowledgeBaseView() {
       }
 
       if (response.ok && data.success) {
-        setCrawlLogs((prev) => [...prev, `[Success] Ingested ${data.chunksCount} chunks from file.`]);
+        setCrawlLogs((prev) => [...prev, `[Success] Ingested ${data.chunksCount} knowledge items from file.`]);
         setCrawlResult({ success: true, message: data.message });
         setMetrics(prev => ({ ...prev, chunksCount: prev.chunksCount + data.chunksCount }));
         setSelectedFile(null);
@@ -731,14 +731,14 @@ export default function KnowledgeBaseView() {
                     We found a structured Shopify catalog at <strong className="text-gray-200">{shopifyAnalysis?.storeUrl}</strong>.
                     <br/>
                     Total Products: <span className="text-[var(--awb-color8)] font-mono">{shopifyAnalysis?.totalProducts}</span> <br/>
-                    Estimated Data Chunks Required: <span className="text-[var(--awb-color8)] font-mono">{shopifyAnalysis?.estimatedChunks}</span>
+                    Estimated Knowledge Items Required: <span className="text-[var(--awb-color8)] font-mono">{shopifyAnalysis?.estimatedChunks}</span>
                   </p>
                   
                   {shopifyAnalysis?.willHitLimit && (
                     <div className="bg-orange-500/10 border border-orange-500/30 p-4 rounded-xl mt-2">
                       <p className="text-xs font-bold text-orange-400 mb-1">⚠️ Data Limit Warning</p>
                       <p className="text-xs text-orange-300">
-                        {shopifyAnalysis.limitError || `This store has more products than your current plan allows. We will ingest as much data as possible up to your limit of ${shopifyAnalysis.limitLimit} chunks. Please upgrade your plan to capture the entire store.`}
+                        {shopifyAnalysis.limitError || `This store has more products than your current plan allows. We will ingest as much data as possible up to your limit of ${shopifyAnalysis.limitLimit} knowledge items. Please upgrade your plan to capture the entire store.`}
                       </p>
                     </div>
                   )}

@@ -1421,7 +1421,7 @@ export default function WhatsAppMetaView() {
                   </div>
                   {entry.chunksCount !== undefined && (
                     <span className="text-[9px] text-gray-400 mt-1 px-1">
-                      📚 {entry.chunksCount} knowledge chunks retrieved
+                      📚 {entry.chunksCount} knowledge items retrieved
                     </span>
                   )}
                 </div>

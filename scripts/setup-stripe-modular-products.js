@@ -112,12 +112,12 @@ async function main() {
       annualPricePence: null,
       catalogId: 'sms_pack_500',
     },
-    // Data Pack
+    // Data Pack (Extra Knowledge)
     {
-      name: 'StyleFlo 500 Knowledge Base Chunks',
-      description: '500 additional knowledge base data chunks for your AI agent.',
+      name: 'StyleFlo Extra Knowledge (500 Knowledge Items)',
+      description: '500 additional knowledge items for your AI agent.',
       metadata: { type: 'addon', catalog_id: 'data_pack_500' },
-      monthlyPricePence: 999,
+      monthlyPricePence: 499,
       annualPricePence: null,
       catalogId: 'data_pack_500',
     },

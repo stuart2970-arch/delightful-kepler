@@ -24,9 +24,9 @@ const MODULAR_ADDON_DEFINITIONS: Record<string, { name: string; description: str
     category: 'microsoft_calendar',
   },
   data_pack_500: {
-    name: 'Knowledgebase Storage - 500 Chunks (£9.99/mo)',
-    description: '500 additional knowledge vector chunks for rich business rules and menus',
-    unit_amount: 999,
+    name: 'Extra Knowledge (500 Knowledge Items) (£4.99/mo)',
+    description: '500 additional knowledge items for rich business rules and menus',
+    unit_amount: 499,
     category: 'data_pack',
   },
   landline_addon: {
@@ -106,8 +106,36 @@ export async function GET(req: Request) {
       },
     ];
 
+    // Query addon_catalog in Supabase to ensure prices are driven from /superadmin values
+    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+    const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+    const catalogMap: Record<string, { name: string; description: string; unit_amount: number; category: string }> = {};
+
+    if (supabaseUrl && supabaseKey && selectedAddonIds.length > 0) {
+      try {
+        const supabase = createClient(supabaseUrl, supabaseKey);
+        const { data: dbAddons } = await supabase
+          .from('addon_catalog')
+          .select('id, name, description, monthly_price_pence, category')
+          .in('id', selectedAddonIds);
+
+        if (dbAddons && dbAddons.length > 0) {
+          for (const item of dbAddons) {
+            catalogMap[item.id] = {
+              name: item.name ? `${item.name} (£${(item.monthly_price_pence / 100).toFixed(2)}/mo)` : (MODULAR_ADDON_DEFINITIONS[item.id]?.name || item.name),
+              description: item.description || MODULAR_ADDON_DEFINITIONS[item.id]?.description || '',
+              unit_amount: item.monthly_price_pence,
+              category: item.category,
+            };
+          }
+        }
+      } catch (e) {
+        console.warn('Failed to query addon_catalog for checkout:', e);
+      }
+    }
+
     selectedAddonIds.forEach(addonId => {
-      const def = MODULAR_ADDON_DEFINITIONS[addonId];
+      const def = catalogMap[addonId] || MODULAR_ADDON_DEFINITIONS[addonId];
       if (def) {
         lineItems.push({
           price_data: {
@@ -464,8 +492,32 @@ export async function POST(req: Request) {
       const rawAddons = body.addons || body.addonCatalogIds;
       const selectedAddonIds = parseSelectedAddons(rawAddons);
 
+      const catalogMap: Record<string, { name: string; description: string; unit_amount: number; category: string }> = {};
+
+      if (selectedAddonIds.length > 0) {
+        try {
+          const { data: dbAddons } = await supabase
+            .from('addon_catalog')
+            .select('id, name, description, monthly_price_pence, category')
+            .in('id', selectedAddonIds);
+
+          if (dbAddons && dbAddons.length > 0) {
+            for (const item of dbAddons) {
+              catalogMap[item.id] = {
+                name: item.name ? `${item.name} (£${(item.monthly_price_pence / 100).toFixed(2)}/mo)` : (MODULAR_ADDON_DEFINITIONS[item.id]?.name || item.name),
+                description: item.description || MODULAR_ADDON_DEFINITIONS[item.id]?.description || '',
+                unit_amount: item.monthly_price_pence,
+                category: item.category,
+              };
+            }
+          }
+        } catch (e) {
+          console.warn('Failed to query addon_catalog for checkout POST:', e);
+        }
+      }
+
       selectedAddonIds.forEach(addonId => {
-        const def = MODULAR_ADDON_DEFINITIONS[addonId];
+        const def = catalogMap[addonId] || MODULAR_ADDON_DEFINITIONS[addonId];
         if (def) {
           lineItems.push({
             price_data: {

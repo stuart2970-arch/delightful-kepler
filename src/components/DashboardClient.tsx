@@ -1298,7 +1298,7 @@ const globalBotId = '00000000-0000-0000-0000-000000000000';
                       );
                     })()}
 
-                    {/* 7. Knowledge Chunks */}
+                    {/* 7. Extra Knowledge (Knowledge Items) */}
                     {(() => {
                       const item = billingData?.catalog?.find((c: any) => c.category === 'data_pack' || c.id === 'data_pack_500');
                       const priceStr = item ? `${item.is_sliding ? 'From ' : ''}£${(item.monthly_price_pence / 100).toFixed(2)}/mo` : 'From £4.99/mo';
@@ -1308,12 +1308,12 @@ const globalBotId = '00000000-0000-0000-0000-000000000000';
                             <div className="flex items-center justify-between mb-2">
                               <div className="flex items-center gap-2">
                                 <span className="text-xl">📦</span>
-                                <h5 className="text-xs font-extrabold text-[var(--awb-color8)]">{item?.name || 'Knowledge Base Chunks'}</h5>
+                                <h5 className="text-xs font-extrabold text-[var(--awb-color8)]">{item?.name || 'Extra Knowledge (500 Knowledge Items)'}</h5>
                               </div>
                               <span className="text-[11px] font-bold text-[var(--awb-color5)]">{priceStr}</span>
                             </div>
                             <p className="text-[11px] text-[var(--awb-color6)] mb-3 leading-relaxed">
-                              {item?.description || 'Additional vector database capacity for large PDF catalogs, menus, and site crawls.'}
+                              {item?.description || '500 additional knowledge items for rich product catalogs, complex menus, and business rules.'}
                             </p>
                           </div>
                           <button

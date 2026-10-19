@@ -516,10 +516,10 @@ export default async function DashboardPage(props: { searchParams?: Promise<{ [k
       // Compute 85% capacity thresholds
       const thresholds: any[] = [];
       const featureUpgradeMap: Record<string, { category: string; addonId: string; addonName: string; pricePence: number }> = {
-        knowledge_data_chunks: { category: 'data_pack', addonId: 'data_pack_500', addonName: '500 Knowledge Base Chunks', pricePence: 999 },
+        knowledge_data_chunks: { category: 'data_pack', addonId: 'data_pack_500', addonName: 'Extra Knowledge (500 Knowledge Items)', pricePence: 499 },
         voice_minutes: { category: 'voice_pack', addonId: 'voice_pack_20', addonName: '20 Voice Minutes Pack', pricePence: 1500 },
         sms_messages: { category: 'sms_pack', addonId: 'sms_pack_100', addonName: '100 SMS Pack', pricePence: 599 },
-        message_allowance: { category: 'data_pack', addonId: 'data_pack_500', addonName: '500 Knowledge Base Chunks', pricePence: 999 },
+        message_allowance: { category: 'data_pack', addonId: 'data_pack_500', addonName: 'Extra Knowledge (500 Knowledge Items)', pricePence: 499 },
       };
 
       for (const ent of (billingData.entitlements || [])) {

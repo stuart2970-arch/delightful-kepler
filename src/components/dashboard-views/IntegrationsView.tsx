@@ -210,7 +210,7 @@ export default function IntegrationsView() {
         const data = await response.json();
 
         if (response.ok) {
-          setCrawlLogs((prev) => [...prev, `[Supabase] Ingested ${data.chunksCount} chunks from ${currentUrl}.`]);
+          setCrawlLogs((prev) => [...prev, `[Supabase] Ingested ${data.chunksCount} knowledge items from ${currentUrl}.`]);
           totalChunks += data.chunksCount;
         } else {
           hasError = true;
@@ -224,10 +224,10 @@ export default function IntegrationsView() {
     }
 
     if (!hasError) {
-      setCrawlLogs((prev) => [...prev, `[Success] Batch crawl finished! Total chunks ingested: ${totalChunks}.`]);
+      setCrawlLogs((prev) => [...prev, `[Success] Batch crawl finished! Total knowledge items ingested: ${totalChunks}.`]);
       console.log({
         success: true,
-        message: `Successfully crawled and ingested ${totalChunks} content chunks.`,
+        message: `Successfully crawled and ingested ${totalChunks} knowledge items.`,
       });
       console.log((prev) => ({
         ...prev,
@@ -237,7 +237,7 @@ export default function IntegrationsView() {
     } else {
       console.log({
         success: false,
-        message: `Crawling finished with errors. Ingested ${totalChunks} chunks. See logs.`,
+        message: `Crawling finished with errors. Ingested ${totalChunks} knowledge items. See logs.`,
       });
     }
 

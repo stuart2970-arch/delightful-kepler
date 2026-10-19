@@ -3292,3 +3292,26 @@ Highlighted adjustments in the modal:
     8. **Database Migration**: Created `supabase/migrations/20261017195500_rename_base_tier_to_foundation.sql` to update `subscription_tiers.name` to `'Foundation Subscription'`, add `'foundation'` with mirrored entitlements, and log the change in `addon_audit_log`.
     9. **Verification**: Executed Next.js 16.3.5 Turbopack production build (`npm run build`) and verified 100% success with 0 errors across all 43 routes. Executed Playwright billing tests (`tests/addons-sliding-scale.spec.ts`) with new Foundation tests, passing 16/16 tests (100%).
 
+---
+
+### Session 64 (October 18, 2026)
+* **User**: "do you have access to jira" -> "where do i create api access" -> Atlassian API token & Site URL (`https://stuart2970.atlassian.net`) & Email (`stuart2970@gmail.com`)
+  * **Actions Completed**:
+    1. **Jira Integration Setup**: Configured Atlassian Jira Cloud REST API integration with basic auth credentials for `stuart2970.atlassian.net`.
+    2. **Environment Configuration**: Stored Jira credentials (`JIRA_BASE_URL`, `JIRA_EMAIL`, `JIRA_API_TOKEN`) securely in `.env.local` (gitignored).
+    3. **Connection & Project Verification**: Verified API authentication via `GET /rest/api/3/myself` (User: Stuart Magowan) and retrieved projects:
+       - `[STYL] Styleflo` (id: 10033)
+       - `[SCRUM] Team Astro` (id: 10000)
+    4. **Issue Querying Verification**: Tested bounded JQL search endpoint (`/rest/api/3/search/jql`) and verified real-time access to active tickets (e.g. STYL-166 down through STYL-157).
+    5. **Jira Task Guardrail Directive**: Enforced and codified a project rule in `GEMINI.md` requiring that no work be undertaken unless backed by an active Jira ticket matching JQL `status in ("In Progress", "in-progress") AND labels = "antigravity"`.
+    6. **Automated 30-Minute Polling Cron**: Implemented `scripts/check-jira.mjs` and scheduled an automated 30-minute background job (`*/30 * * * *`) to continuously monitor Jira for tickets in progress labeled `antigravity`.
+    7. **STYL-170 Resolution (Extra Knowledge Pricing & Terminology)**:
+       - User instructions: "dont tough the landing page its no longer in use" -> Strictly preserved `public/styleflo_landing_page.html` and `public/template-styleflo-landing.php` completely untouched.
+       - **Checkout Pricing**: Aligned Extra Knowledge (`data_pack_500`) default price to £4.99/mo (499 pence) instead of £9.99 in `src/app/api/billing/checkout/route.ts` and `src/app/register/page.tsx`.
+       - **Dynamic Superadmin-Driven Checkout**: Enhanced GET and POST Mode 1 checkout to dynamically query `addon_catalog` in Supabase for selected add-on IDs so that prices and names are strictly driven from `/superadmin` database values.
+       - **Customer-Facing Terminology**: Replaced all customer-facing occurrences of `'chunks'` with **`'knowledge items'`** across `register/page.tsx`, `DashboardClient.tsx`, `dashboard-views/BillingView.tsx`, `dashboard-views/KnowledgeBaseView.tsx`, `dashboard-views/IntegrationsView.tsx`, `dashboard-views/WhatsAppMetaView.tsx`, `AddOnUpsellModal.tsx`, `dashboard/page.tsx`, and `lib/entitlements.ts`.
+       - **Database & Script Synchronization**: Updated `data_pack_500` in `addon_catalog` in Supabase (both cloud and local test DB) to `Extra Knowledge (500 Knowledge Items)` at £4.99 (499 pence), created migration `supabase/migrations/20261019193500_update_extra_knowledge_addon.sql`, and synchronized `scripts/setup-stripe-modular-products.js`.
+       - **Bolt-On Price Audit**: Confirmed all checkout bolt-on prices match `/superadmin`: Landline (£8.99), Mobile (£10.99), Google Calendar (£4.99), Microsoft Calendar (£4.99), Extra Knowledge (£4.99).
+       - **Stripe Test Mode Safety**: Verified `STRIPE_SECRET_KEY` and `NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY` remain in test mode (`pk_test_...` / `sk_test_...`).
+       - **Verification**: Ran Playwright tests (`tests/addons-sliding-scale.spec.ts`) passing 18/18 (100%), and compiled Next.js 16.3.5 Turbopack production build with 0 errors across 43 routes.
+

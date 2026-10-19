@@ -5,3 +5,8 @@ At the beginning of each session, you MUST run a check (e.g. `git pull` or `git 
 
 ## 2. End of Session Documentation
 At the end of each session, you MUST document all changes made to the codebase in the root `README.md` file under the "Session Enhancements & Runbook" section.
+
+## 3. Jira Task Guardrail
+You MUST NOT work on any task, bug, or feature unless it corresponds to a Jira ticket matching the following JQL:
+`status in ("In Progress", "in-progress") AND labels = "antigravity"`
+Before implementing any work, verify against Jira that an authorized ticket exists in progress with the `antigravity` label.

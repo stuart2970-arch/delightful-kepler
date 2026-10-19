@@ -96,7 +96,7 @@ export default function BillingView() {
 
             <div>
               <div className="flex justify-between text-xs mb-1">
-                <span className="text-[var(--awb-color6)] font-semibold">Knowledge Base Chunks</span>
+                <span className="text-[var(--awb-color6)] font-semibold">Knowledge Items</span>
                 <span className="text-[var(--awb-color8)] font-mono">{chunksUsed.toLocaleString()}</span>
               </div>
               <div className="w-full bg-[var(--awb-color3)] rounded-full h-2.5 overflow-hidden">
