@@ -1,5 +1,6 @@
-import { NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
+import { requireUser, withSuperAdmin } from '@/lib/auth/require-superadmin';
 
 function getSupabaseAdmin() {
   return createClient(
@@ -8,7 +9,12 @@ function getSupabaseAdmin() {
   );
 }
 
-export async function GET(request: Request) {
+export async function GET(request: NextRequest) {
+  const auth = await requireUser(request);
+  if (!auth.ok) {
+    return auth.response;
+  }
+
   try {
     const supabaseAdmin = getSupabaseAdmin();
     const { data, error } = await supabaseAdmin
@@ -24,7 +30,7 @@ export async function GET(request: Request) {
   }
 }
 
-export async function POST(request: Request) {
+export const POST = withSuperAdmin(async (request: NextRequest) => {
   try {
     const body = await request.json();
     const { countries, date, name } = body;
@@ -46,9 +52,9 @@ export async function POST(request: Request) {
     console.error('Error creating global holiday:', err);
     return NextResponse.json({ error: err.message }, { status: 500 });
   }
-}
+});
 
-export async function DELETE(request: Request) {
+export const DELETE = withSuperAdmin(async (request: NextRequest) => {
   try {
     const { searchParams } = new URL(request.url);
     const id = searchParams.get('id');
@@ -69,4 +75,4 @@ export async function DELETE(request: Request) {
     console.error('Error deleting global holiday:', err);
     return NextResponse.json({ error: err.message }, { status: 500 });
   }
-}
+});

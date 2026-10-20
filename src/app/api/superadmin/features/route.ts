@@ -1,5 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
+import { withSuperAdmin } from '@/lib/auth/require-superadmin';
+
+export const dynamic = 'force-dynamic';
 
 function createAdminClient() {
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.SUPABASE_URL;
@@ -8,7 +11,7 @@ function createAdminClient() {
   return createClient(supabaseUrl, serviceRoleKey);
 }
 
-export async function GET() {
+export const GET = withSuperAdmin(async () => {
   try {
     const supabase = createAdminClient();
     const { data, error } = await supabase
@@ -20,9 +23,9 @@ export async function GET() {
   } catch (err: any) {
     return NextResponse.json({ error: err.message }, { status: 500 });
   }
-}
+});
 
-export async function POST(req: NextRequest) {
+export const POST = withSuperAdmin(async (req: NextRequest) => {
   try {
     const supabase = createAdminClient();
     const { id, name, category_id, is_metered, value_type } = await req.json();
@@ -79,9 +82,9 @@ export async function POST(req: NextRequest) {
     console.error('[Create Feature]', err);
     return NextResponse.json({ error: err.message }, { status: 500 });
   }
-}
+});
 
-export async function PATCH(req: NextRequest) {
+export const PATCH = withSuperAdmin(async (req: NextRequest) => {
   try {
     const supabase = createAdminClient();
     const { id, name, value_type, is_metered, display_order } = await req.json();
@@ -114,9 +117,9 @@ export async function PATCH(req: NextRequest) {
     console.error('[Update Feature]', err);
     return NextResponse.json({ error: err.message }, { status: 500 });
   }
-}
+});
 
-export async function DELETE(req: NextRequest) {
+export const DELETE = withSuperAdmin(async (req: NextRequest) => {
   try {
     const supabase = createAdminClient();
     const url = new URL(req.url);
@@ -147,4 +150,4 @@ export async function DELETE(req: NextRequest) {
     console.error('[Delete Feature]', err);
     return NextResponse.json({ error: err.message }, { status: 500 });
   }
-}
+});

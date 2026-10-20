@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { withSuperAdmin } from '@/lib/auth/require-superadmin';
 import { createClient } from '@supabase/supabase-js';
 
 export const dynamic = 'force-dynamic';
@@ -14,42 +15,8 @@ function getSupabaseAdmin() {
   });
 }
 
-// Helper to verify superadmin status
-async function verifySuperadmin(req: NextRequest) {
-  const authHeader = req.headers.get('authorization');
-  const supabaseAdmin = getSupabaseAdmin();
-
-  // If request contains Bearer token, verify user
-  if (authHeader?.startsWith('Bearer ')) {
-    const token = authHeader.substring(7);
-    const { data: { user }, error } = await supabaseAdmin.auth.getUser(token);
-    if (!error && user) {
-      const { data: profile } = await supabaseAdmin
-        .from('profiles')
-        .select('is_super_admin')
-        .eq('id', user.id)
-        .maybeSingle();
-      if (profile?.is_super_admin) return true;
-    }
-  }
-
-  // Check cookies for session
-  const cookieHeader = req.headers.get('cookie') || '';
-  if (cookieHeader.includes('sb-')) {
-    // Session exists, allow server-side superadmin check
-    // In production, middleware/session validates superadmin
-    return true;
-  }
-
-  return true; // Allow superadmin API calls with service credentials
-}
-
-export async function POST(req: NextRequest) {
+export const POST = withSuperAdmin(async (req: NextRequest) => {
   try {
-    const isAuthorized = await verifySuperadmin(req);
-    if (!isAuthorized) {
-      return NextResponse.json({ error: 'Unauthorized. Superadmin access required.' }, { status: 403 });
-    }
 
     const body = await req.json();
     const { action, tenantId, searchQuery, deletionType = 'hard_delete', confirmDelete = false } = body;
@@ -299,4 +266,4 @@ export async function POST(req: NextRequest) {
     console.error('[Superadmin GDPR API] Error:', error);
     return NextResponse.json({ error: error.message || 'Internal server error processing GDPR request.' }, { status: 500 });
   }
-}
+});

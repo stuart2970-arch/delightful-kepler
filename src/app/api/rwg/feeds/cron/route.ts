@@ -1,20 +1,25 @@
-import { NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
 
 export const dynamic = 'force-dynamic';
 
-export async function GET(request: Request) {
+export async function GET(request: NextRequest) {
   try {
-    // In a real environment, this endpoint would be invoked by Vercel Cron or Google Cloud Scheduler.
-    // It would fetch data from the DB, generate the merchants.json, services.json, and availability.json files,
-    // and push them to an SFTP server or Google Cloud Storage bucket as required by Google Actions Center.
-    
-    // For now, this serves as a placeholder to acknowledge the cron execution.
-    // The individual /api/rwg/feeds/* endpoints dynamically generate the required JSON structure.
-    
+    const authHeader = request.headers.get('authorization') || request.headers.get('Authorization');
+    const cronSecret = process.env.CRON_SECRET || process.env.SUPABASE_SERVICE_ROLE_KEY;
+
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
+    const token = authHeader.substring(7).trim();
+    if (!cronSecret || token !== cronSecret) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
     console.log('[RwG Cron] Executing daily data aggregation pipeline...');
 
     // Simulate work
-    await new Promise(resolve => setTimeout(resolve, 500));
+    await new Promise(resolve => setTimeout(resolve, 50));
 
     console.log('[RwG Cron] Successfully generated and published feeds.');
 

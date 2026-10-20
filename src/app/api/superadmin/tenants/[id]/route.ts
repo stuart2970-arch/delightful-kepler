@@ -1,36 +1,8 @@
-import { NextResponse } from 'next/server';
-import { createServerClient } from '@supabase/ssr';
+import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
-import { cookies } from 'next/headers';
+import { withSuperAdmin } from '@/lib/auth/require-superadmin';
 
 export const dynamic = 'force-dynamic';
-
-async function getSupabaseAuthClient() {
-  const cookieStore = await cookies();
-  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
-
-  if (!supabaseUrl || !anonKey) {
-    throw new Error('Supabase environment variables are missing');
-  }
-
-  return createServerClient(supabaseUrl, anonKey, {
-    cookies: {
-      getAll() {
-        return cookieStore.getAll();
-      },
-      setAll(cookiesToSet) {
-        try {
-          cookiesToSet.forEach(({ name, value, options }) =>
-            cookieStore.set(name, value, options)
-          );
-        } catch {
-          // Safe to ignore in Server Components
-        }
-      },
-    },
-  });
-}
 
 function getSupabaseAdminClient() {
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.SUPABASE_URL!;
@@ -41,29 +13,11 @@ function getSupabaseAdminClient() {
   return createClient(supabaseUrl, serviceRoleKey);
 }
 
-export async function DELETE(
-  request: Request,
+export const DELETE = withSuperAdmin(async (
+  request: NextRequest,
   { params }: { params: Promise<{ id: string }> | { id: string } }
-) {
+) => {
   try {
-    const supabaseAuth = await getSupabaseAuthClient();
-    const { data: { user } } = await supabaseAuth.auth.getUser();
-
-    if (!user) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
-
-    // Check if user is superadmin
-    const { data: profile } = await supabaseAuth
-      .from('profiles')
-      .select('is_super_admin')
-      .eq('id', user.id)
-      .single();
-
-    if (!profile?.is_super_admin) {
-      return NextResponse.json({ error: 'Forbidden: Superadmin access required' }, { status: 403 });
-    }
-
     const resolvedParams = await params;
     let tenantId = resolvedParams?.id;
     if (!tenantId && request.url) {
@@ -140,4 +94,4 @@ export async function DELETE(
     console.error('[Tenant DELETE API] Unexpected failure:', err);
     return NextResponse.json({ error: err.message || 'Internal server error' }, { status: 500 });
   }
-}
+});

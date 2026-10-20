@@ -1,45 +1,44 @@
-import { NextResponse } from 'next/server';
-import { createServerClient } from '@supabase/ssr';
-import { cookies } from 'next/headers';
+import { NextRequest, NextResponse } from 'next/server';
+import { createClient } from '@supabase/supabase-js';
+import { withSuperAdmin } from '@/lib/auth/require-superadmin';
 
 export const dynamic = 'force-dynamic';
 
-export async function PATCH(
-  request: Request,
+function getSupabaseAdmin() {
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.SUPABASE_URL!;
+  const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
+  return createClient(supabaseUrl, serviceRoleKey);
+}
+
+export const PATCH = withSuperAdmin(async (
+  request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
-) {
+) => {
   try {
     const { id } = await params;
-    const cookieStore = await cookies();
-    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
-    const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
-
-    const supabase = createServerClient(supabaseUrl, anonKey, {
-      cookies: {
-        getAll() {
-          return cookieStore.getAll();
-        },
-        setAll(cookiesToSet) {
-          try {
-            cookiesToSet.forEach(({ name, value, options }) =>
-              cookieStore.set(name, value, options)
-            );
-          } catch {}
-        },
-      },
-    });
-
-    const { data: { user } } = await supabase.auth.getUser();
-
-    if (!user) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
-
     const body = await request.json();
 
-    const { data: persona, error } = await supabase
+    const allowedFields = [
+      'external_voice_id',
+      'name',
+      'role',
+      'gender',
+      'nationality',
+      'provider',
+      'preview_url'
+    ];
+
+    const sanitizedData: Record<string, any> = {};
+    for (const field of allowedFields) {
+      if (body[field] !== undefined) {
+        sanitizedData[field] = body[field];
+      }
+    }
+
+    const supabaseAdmin = getSupabaseAdmin();
+    const { data: persona, error } = await supabaseAdmin
       .from('voice_personas')
-      .update(body)
+      .update(sanitizedData)
       .eq('id', id)
       .select()
       .single();
@@ -54,40 +53,17 @@ export async function PATCH(
     console.error('Failed to update voice persona:', err);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
-}
+});
 
-export async function DELETE(
-  request: Request,
+export const DELETE = withSuperAdmin(async (
+  _request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
-) {
+) => {
   try {
     const { id } = await params;
-    const cookieStore = await cookies();
-    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
-    const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
+    const supabaseAdmin = getSupabaseAdmin();
 
-    const supabase = createServerClient(supabaseUrl, anonKey, {
-      cookies: {
-        getAll() {
-          return cookieStore.getAll();
-        },
-        setAll(cookiesToSet) {
-          try {
-            cookiesToSet.forEach(({ name, value, options }) =>
-              cookieStore.set(name, value, options)
-            );
-          } catch {}
-        },
-      },
-    });
-
-    const { data: { user } } = await supabase.auth.getUser();
-
-    if (!user) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
-
-    const { error } = await supabase
+    const { error } = await supabaseAdmin
       .from('voice_personas')
       .delete()
       .eq('id', id);
@@ -102,4 +78,4 @@ export async function DELETE(
     console.error('Failed to delete voice persona:', err);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
-}
+});

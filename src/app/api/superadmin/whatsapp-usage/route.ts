@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { withSuperAdmin } from '@/lib/auth/require-superadmin';
 import { createServerClient } from '@supabase/ssr';
 import { cookies } from 'next/headers';
 import { createClient } from '@supabase/supabase-js';
@@ -20,51 +21,9 @@ function getSupabaseAdmin() {
  * Superadmin WhatsApp Usage & Connected Accounts API
  * Returns multi-tenant aggregated WhatsApp metrics, active accounts, daily breakdown, and CSV export.
  */
-export async function GET(req: NextRequest) {
+export const GET = withSuperAdmin(async (req: NextRequest) => {
   try {
-    const cookieStore = await cookies();
-    const supabaseUrl = process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL;
-    const anonKey = process.env.SUPABASE_ANON_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
-
-    if (!supabaseUrl || !anonKey) {
-      return NextResponse.json({ error: 'Database credentials missing' }, { status: 500 });
-    }
-
-    const supabase = createServerClient(supabaseUrl, anonKey, {
-      cookies: {
-        getAll() {
-          return cookieStore.getAll();
-        },
-        setAll() {},
-      },
-    });
-
     const supabaseAdmin = getSupabaseAdmin();
-    let user = (await supabase.auth.getUser()).data?.user;
-    if (!user) {
-      const authHeader = req.headers.get('Authorization') || req.headers.get('authorization');
-      if (authHeader && authHeader.startsWith('Bearer ')) {
-        const token = authHeader.replace('Bearer ', '').trim();
-        const { data: userData } = await supabaseAdmin.auth.getUser(token);
-        if (userData?.user) {
-          user = userData.user;
-        }
-      }
-    }
-
-    if (!user) {
-      return NextResponse.json({ error: 'Authentication required' }, { status: 401 });
-    }
-    const { data: profile } = await supabaseAdmin
-      .from('profiles')
-      .select('is_super_admin')
-      .eq('id', user.id)
-      .maybeSingle();
-
-    if (!profile?.is_super_admin) {
-      return NextResponse.json({ error: 'Superadmin privileges required' }, { status: 403 });
-    }
-
     const searchParams = req.nextUrl.searchParams;
     const format = searchParams.get('format') || searchParams.get('export');
     const tenantIdFilter = searchParams.get('tenantId');
@@ -247,4 +206,4 @@ export async function GET(req: NextRequest) {
     console.error('[Superadmin WhatsApp Usage API] Error:', err);
     return NextResponse.json({ error: err.message || 'Error fetching WhatsApp usage' }, { status: 500 });
   }
-}
+});

@@ -3339,6 +3339,41 @@ Highlighted adjustments in the modal:
   - **Automated Test Suite (`tests/chatbot.spec.ts`)**:
     - Comprehensive 14-test suite validating all security boundaries (unauthenticated 401, fake tokens, body-only rejection, missing/invalid Turnstile, token expiration, claim mismatch, message size limits, rate limits, and shadow DOM widget integration). 14/14 tests passing (100%).
 
+### 65. Superadmin Endpoint Lockdown & Privilege Escalation Prevention (STYL-178)
+* **Goal**: Lock down all `/api/superadmin/*` routes and sensitive administrative endpoints on `app.styleflo.ai` with strict server-side authentication, default-deny posture, privilege escalation prevention, and zero reliance on client-side state.
+* **Key Enhancements**:
+  - **Shared Superadmin Auth Helper (`src/lib/auth/require-superadmin.ts`)**:
+    - Centralized superadmin verification engine: `requireSuperAdmin(req)`, `withSuperAdmin(handler)`, `checkIsSuperAdmin(userId)`, and `requireUser(req)`.
+    - Authenticates requests via `@supabase/ssr` cookies or `Authorization: Bearer <jwt>` bearer token.
+    - Validates caller identity against `public.profiles` with `is_super_admin === true` directly via Supabase Service Role client (`createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY)`), safely bypassing RLS.
+    - Returns standardized HTTP 401 for unauthenticated calls and HTTP 403 for authenticated non-superadmins.
+    - Injects verified `admin.userId` into route handlers for audit logging (`performed_by`).
+  - **Database Privilege Escalation Defense (`supabase/migrations/20261020180000_styl178_protect_super_admin_flag.sql`)**:
+    - Revoked column update permissions: `REVOKE UPDATE (is_super_admin) ON public.profiles FROM authenticated, anon;`.
+    - Added trigger `tr_protect_super_admin_flag` invoking `protect_super_admin_flag()` on `BEFORE INSERT OR UPDATE ON public.profiles`.
+    - Enforces database-level block preventing any non-service-role caller (`auth.role() <> 'service_role'`) from setting or modifying `is_super_admin = true`.
+  - **Defense-in-Depth Proxy Protection (`src/proxy.ts`)**:
+    - Added Step 3 route gate in middleware denying unauthenticated requests to `/api/superadmin/*` with HTTP 401 before hitting server route handlers.
+  - **Endpoint Lockdown Across All Administrative Routes**:
+    - All 13 routes under `/api/superadmin/*` (`addon-catalog`, `tiers`, `entitlements`, `features`, `features/reorder`, `pricing-matrix`, `gemini-models`, `gdpr`, `connected-accounts`, `global-settings`, `impersonate/search`, `tenants/[id]`, `whatsapp-usage`) wrapped with `withSuperAdmin`. Fixed `impersonate/search` to authenticate prior to query string checks. Replaced deprecated `verifySuperadmin` in `gdpr/route.ts`.
+    - `/api/voice-personas`: GET requires `requireUser`; POST wrapped with `withSuperAdmin` and whitelists only schema columns.
+    - `/api/voice-personas/[id]`: PATCH and DELETE wrapped with `withSuperAdmin`.
+    - `/api/global-holidays`: GET requires `requireUser`; POST and DELETE wrapped with `withSuperAdmin`.
+    - `/api/billing/override`: POST wrapped with `withSuperAdmin`.
+    - `/api/tenants/settings/sync-cache`: POST requires `requireSuperAdmin` or valid `x-styleflo-wp-secret`.
+    - `/api/rwg/feeds/cron`: GET requires `Authorization: Bearer ${CRON_SECRET}`.
+    - Admin UI pages (`/superadmin`, `/dashboard`) updated to use `checkIsSuperAdmin`.
+  - **Post-Deploy Smoke Check (`scripts/smoke-check-superadmin.mjs` & `.github/workflows/deploy.yml`)**:
+    - Probes all 31 admin endpoints and HTTP methods without login.
+    - Fails CI/CD pipeline immediately if any admin route returns status other than 401 or 405.
+  - **Developer Directives (`AGENTS.md`)**:
+    - Documented mandatory `withSuperAdmin`, `requireSuperAdmin`, and `requireUser` usage rules for STYL-177 and future admin routes.
+  - **Automated Verification**:
+    - Provisioned `tests/test-auth-helper.ts` for automated test superadmin/user session management.
+    - Built comprehensive 35-test suite `tests/superadmin-auth.spec.ts` testing proxy rejection, garbage token rejection, privilege escalation prevention, deny-by-default code structure audit, and all 31 route/method endpoints with no login, normal user, and superadmin sessions.
+    - Full E2E suite (`npm run test:e2e`): **145/145 passed (100%)**.
+    - Production build (`npm run build`): Compiled 100% cleanly across all 43 routes.
+
 ---
 
 ---
@@ -3431,3 +3466,28 @@ Highlighted adjustments in the modal:
     7. **Widget Front-Door Turnstile Integration**: Updated `src/widget/index.ts` and `src/widget/embed.ts` to automatically fetch Turnstile tokens and exchange them for signed session tokens, caching them in `localStorage` with automatic 401 refresh. Recompiled `public/widget.js` and `public/embed.js`.
     8. **Terraform & CI/CD Protection**: Added `turnstile_secret_key` Secret Manager resource and IAM bindings in `terraform/main.tf` to prevent secret wiping during Terraform apply. Added automated post-deploy smoke checks in `.github/workflows/deploy.yml`.
     9. **Full Test Suite & Production Build**: Ran full Playwright test suite (`npm run test:e2e`), passing all 110/110 tests (100%), including 14/14 chatbot security tests. Successfully compiled Next.js 16.3.5 Turbopack production build (`npm run build`) with 0 errors across 43 routes.
+
+---
+
+### Session 68 (October 20, 2026)
+* **User**: "Please pick up STYL-178 now (Highest priority, live security hole, do it before STYL-177). Read the ticket description and the plan comment in Jira first. Acceptance criteria: every /api/superadmin/* route (and other admin-only routes such as /api/voice-personas and /api/global-holidays if admin-only) requires a logged-in super admin checked on the server for reads and writes, default deny; one shared admin check replaces verifySuperadmin (STYL-177 will reuse it); no login gives 401, non-admin gives 403; users can't set their own super-admin flag; tests for no login, normal user and super admin on each route, reads and writes; a post-deploy smoke check that fails the deploy if any admin endpoint answers without a login; read-only log check for unexpected calls and catalogue change-log changes, report counts and ids only. Guardrails: Stripe stays in test mode, no data deletion, never use --no-verify. Deploy is pre-approved for this ticket only: push to main and deploy once the full test suite and pre-push hook pass, then confirm the post-deploy smoke checks pass; if anything fails, stop and report, don't force it. After STYL-178 is done, move on to STYL-177."
+  * **Actions Completed**:
+    1. **Jira Verification & Guardrails**: Confirmed ticket STYL-178 in Jira Cloud (`In Progress`, `antigravity`). Preserved Stripe strictly in test mode, add-only database migrations, landing page files untouched, no secrets logged or printed, `--no-verify` never used.
+    2. **Privilege Escalation Prevention Migration**: Created and applied `supabase/migrations/20261020180000_styl178_protect_super_admin_flag.sql` revoking `UPDATE (is_super_admin)` from authenticated/anon and adding database trigger `tr_protect_super_admin_flag` blocking non-service-role callers from modifying `is_super_admin = true`.
+    3. **Centralized Auth Engine (`src/lib/auth/require-superadmin.ts`)**: Implemented `requireSuperAdmin`, `withSuperAdmin`, `checkIsSuperAdmin`, and `requireUser` with cookie and bearer token parsing, service-role profile validation, 401/403 status enforcement, and user ID injection for audit trails.
+    4. **Defense-in-Depth Middleware (`src/proxy.ts`)**: Added pre-route gate rejecting unauthenticated requests to `/api/superadmin/*` with HTTP 401.
+    5. **Administrative Route Lockdown**:
+       - Locked down all 13 `/api/superadmin/*` routes with `withSuperAdmin`.
+       - Gated `/api/global-holidays` (GET: `requireUser`, POST/DELETE: `withSuperAdmin`).
+       - Gated `/api/voice-personas` and `[id]` (GET: `requireUser`, POST/PATCH/DELETE: `withSuperAdmin`).
+       - Gated `/api/billing/override` (POST: `withSuperAdmin`).
+       - Gated `/api/tenants/settings/sync-cache` (POST: `requireSuperAdmin` or WP webhook secret).
+       - Gated `/api/rwg/feeds/cron` (GET: `CRON_SECRET` bearer check).
+       - Switched `/superadmin` and `/dashboard` pages to `checkIsSuperAdmin`.
+    6. **CI/CD Smoke Check**: Implemented `scripts/smoke-check-superadmin.mjs` and updated `.github/workflows/deploy.yml` Step 9 to fail the deploy if any unauthenticated admin endpoint responds with anything other than 401 or 405.
+    7. **Read-Only Production Security Audit**: Verified live database state. Confirmed exactly 1 legitimate superadmin profile exists (`id: a586289f-0322-4988-a98b-e883fc6e5c75`). Verified 0 rogue superadmins, zero unauthorized catalog modifications, and full consistency across tiers, features, and settings.
+    8. **Full Test Suite & Production Build**:
+       - Created `tests/test-auth-helper.ts` and 35 automated security tests in `tests/superadmin-auth.spec.ts`.
+       - Updated `tests/addons-sliding-scale.spec.ts` with authenticated superadmin requests (23/23 passing).
+       - Full Playwright E2E suite (`npm run test:e2e`): **145/145 passed (100%)**.
+       - Next.js 16.3.5 Turbopack production build (`npm run build`): compiled 100% cleanly across all 43 routes.

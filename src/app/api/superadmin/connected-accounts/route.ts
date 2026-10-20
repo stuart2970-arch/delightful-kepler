@@ -1,41 +1,18 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { withSuperAdmin } from '@/lib/auth/require-superadmin';
 import { createClient } from '@supabase/supabase-js';
 import { createServerClient } from '@supabase/ssr';
 import { cookies } from 'next/headers';
 
 export const dynamic = 'force-dynamic';
 
-export async function GET(req: NextRequest) {
+export const GET = withSuperAdmin(async (_req: NextRequest) => {
   try {
-    const cookieStore = await cookies();
     const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.SUPABASE_URL;
-    const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || process.env.SUPABASE_ANON_KEY;
     const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
-    if (!supabaseUrl || !anonKey || !serviceKey) {
+    if (!supabaseUrl || !serviceKey) {
       return NextResponse.json({ error: 'Server configuration error' }, { status: 500 });
-    }
-
-    const authClient = createServerClient(supabaseUrl, anonKey, {
-      cookies: {
-        getAll() { return cookieStore.getAll(); },
-        setAll() {}
-      },
-    });
-
-    const { data: { user } } = await authClient.auth.getUser();
-    if (!user) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
-
-    const { data: profile } = await authClient
-      .from('profiles')
-      .select('is_super_admin')
-      .eq('id', user.id)
-      .single();
-
-    if (!profile || !profile.is_super_admin) {
-      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
 
     const adminClient = createClient(supabaseUrl, serviceKey);
@@ -381,39 +358,15 @@ export async function GET(req: NextRequest) {
     console.error('[Connected Accounts API] Error:', err);
     return NextResponse.json({ error: err?.message || 'Internal server error' }, { status: 500 });
   }
-}
+});
 
-export async function POST(req: NextRequest) {
+export const POST = withSuperAdmin(async (req: NextRequest) => {
   try {
-    const cookieStore = await cookies();
     const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.SUPABASE_URL;
-    const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || process.env.SUPABASE_ANON_KEY;
     const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
-    if (!supabaseUrl || !anonKey || !serviceKey) {
+    if (!supabaseUrl || !serviceKey) {
       return NextResponse.json({ error: 'Server configuration error' }, { status: 500 });
-    }
-
-    const authClient = createServerClient(supabaseUrl, anonKey, {
-      cookies: {
-        getAll() { return cookieStore.getAll(); },
-        setAll() {}
-      },
-    });
-
-    const { data: { user } } = await authClient.auth.getUser();
-    if (!user) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
-
-    const { data: profile } = await authClient
-      .from('profiles')
-      .select('is_super_admin')
-      .eq('id', user.id)
-      .single();
-
-    if (!profile || !profile.is_super_admin) {
-      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
 
     const body = await req.json();
@@ -482,4 +435,4 @@ export async function POST(req: NextRequest) {
     console.error('[Connected Accounts Save API] Error:', err);
     return NextResponse.json({ error: err?.message || 'Internal server error' }, { status: 500 });
   }
-}
+});

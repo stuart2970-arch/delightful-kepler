@@ -1,5 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
+import { withSuperAdmin } from '@/lib/auth/require-superadmin';
+
+export const dynamic = 'force-dynamic';
 
 function createAdminClient() {
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.SUPABASE_URL;
@@ -8,7 +11,7 @@ function createAdminClient() {
   return createClient(supabaseUrl, serviceRoleKey);
 }
 
-export async function GET() {
+export const GET = withSuperAdmin(async () => {
   try {
     const supabase = createAdminClient();
     const { data, error } = await supabase.from('subscription_tiers').select('*').eq('is_active', true).order('created_at');
@@ -17,9 +20,9 @@ export async function GET() {
   } catch (err: any) {
     return NextResponse.json({ error: err.message }, { status: 500 });
   }
-}
+});
 
-export async function PATCH(req: NextRequest) {
+export const PATCH = withSuperAdmin(async (req: NextRequest) => {
   try {
     const supabase = createAdminClient();
     const { id, monthly_price, yearly_price } = await req.json();
@@ -45,4 +48,4 @@ export async function PATCH(req: NextRequest) {
     console.error('[Update Tier Pricing]', err);
     return NextResponse.json({ error: err.message }, { status: 500 });
   }
-}
+});

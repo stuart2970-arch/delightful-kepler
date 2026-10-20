@@ -10,3 +10,48 @@ This block is written and re-added by `next dev` — verify at `node_modules/nex
 
 # Project Session Logging Rule
 Always read and digest the `README.md` file each time a new session starts. After each code change or significant session milestone, append a log of the update and a summary of the conversation to the `## Session Chat History Log` section at the end of the `README.md` file.
+
+# Superadmin Endpoint Authorization (STYL-178 Directive)
+All endpoints under `/api/superadmin/*` (and any other admin-only endpoints) MUST be protected by the shared superadmin auth helper in `src/lib/auth/require-superadmin.ts`.
+
+### Usage Patterns:
+1. **Route Handler Wrapper (`withSuperAdmin`)**:
+   ```typescript
+   import { withSuperAdmin } from '@/lib/auth/require-superadmin';
+
+   // Wrap exported route handlers (GET, POST, PATCH, DELETE)
+   export const GET = withSuperAdmin(async (req, ctx, admin) => {
+     // admin.userId is the verified superadmin user ID
+     return NextResponse.json({ success: true });
+   });
+
+   export const PATCH = withSuperAdmin(async (req, ctx, admin) => {
+     // Always use admin.userId as performed_by for audit logging
+     const body = await req.json();
+     return NextResponse.json({ success: true });
+   });
+   ```
+
+2. **Inline Gate (`requireSuperAdmin`)**:
+   ```typescript
+   import { requireSuperAdmin } from '@/lib/auth/require-superadmin';
+
+   export async function POST(req: NextRequest) {
+     const auth = await requireSuperAdmin(req);
+     if (!auth.ok) {
+       return auth.response; // Returns 401 (no login) or 403 (non-superadmin)
+     }
+     // Safe to proceed: auth.userId is verified
+   }
+   ```
+
+3. **User Authentication Gate (`requireUser`)**:
+   For routes accessible to any authenticated user (e.g., `GET /api/global-holidays`):
+   ```typescript
+   import { requireUser } from '@/lib/auth/require-superadmin';
+
+   export async function GET(req: NextRequest) {
+     const auth = await requireUser(req);
+     if (!auth.ok) return auth.response; // 401
+   }
+   ```

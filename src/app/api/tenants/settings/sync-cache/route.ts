@@ -1,43 +1,27 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createServerClient } from '@supabase/ssr';
-import { cookies } from 'next/headers';
 import crypto from 'crypto';
+import { requireSuperAdmin } from '@/lib/auth/require-superadmin';
+
+export const dynamic = 'force-dynamic';
 
 export async function POST(req: NextRequest) {
   try {
-    const cookieStore = await cookies();
-    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.SUPABASE_URL;
-    const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || process.env.SUPABASE_ANON_KEY;
+    const wpHeader = req.headers.get('x-styleflo-wp-secret') || req.headers.get('x-wp-secret');
+    const expectedSecret = process.env.STYLEFLO_WP_API_SECRET;
+    const isWpAuthorized = Boolean(
+      expectedSecret &&
+      wpHeader &&
+      wpHeader.length === expectedSecret.length &&
+      crypto.timingSafeEqual(Buffer.from(wpHeader), Buffer.from(expectedSecret))
+    );
 
-    if (!supabaseUrl || !anonKey) {
-      return NextResponse.json({ error: 'Server configuration error' }, { status: 500 });
+    if (!isWpAuthorized) {
+      const auth = await requireSuperAdmin(req);
+      if (!auth.ok) {
+        return auth.response;
+      }
     }
 
-    // 1. Authenticate user session
-    const authClient = createServerClient(supabaseUrl, anonKey, {
-      cookies: {
-        getAll() { return cookieStore.getAll(); },
-        setAll() {}
-      },
-    });
-
-    const { data: { user } } = await authClient.auth.getUser();
-    if (!user) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
-
-    // 2. Authorize: Only Superadmins can access global platform settings
-    const { data: profile } = await authClient
-      .from('profiles')
-      .select('is_super_admin')
-      .eq('id', user.id)
-      .single();
-
-    if (!profile || !profile.is_super_admin) {
-      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
-    }
-
-    // 3. Parse request payload
     const body = await req.json();
     const { tenant_slug } = body;
 
@@ -54,13 +38,11 @@ export async function POST(req: NextRequest) {
     
     const payload = JSON.stringify({ tenant_slug });
 
-    // 4. Generate HMAC signature to verify authorization
     const signature = crypto
       .createHmac('sha256', sharedSecret)
       .update(payload)
       .digest('hex');
 
-    // 5. Dispatch the authenticated flush command to WordPress
     const wpResponse = await fetch(wpApiUrl, {
       method: 'POST',
       headers: {

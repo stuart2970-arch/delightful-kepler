@@ -1,5 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
+import { withSuperAdmin } from '@/lib/auth/require-superadmin';
+
+export const dynamic = 'force-dynamic';
 
 function createAdminClient() {
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.SUPABASE_URL;
@@ -10,7 +13,7 @@ function createAdminClient() {
   return createClient(supabaseUrl, serviceRoleKey);
 }
 
-export async function GET() {
+export const GET = withSuperAdmin(async () => {
   try {
     const supabase = createAdminClient();
     
@@ -29,9 +32,9 @@ export async function GET() {
   } catch (error: any) {
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
-}
+});
 
-export async function PATCH(request: NextRequest) {
+export const PATCH = withSuperAdmin(async (request: NextRequest) => {
   try {
     const supabase = createAdminClient();
     const { tier_id, feature_id, limit_value } = await request.json();
@@ -113,4 +116,4 @@ export async function PATCH(request: NextRequest) {
   } catch (error: any) {
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
-}
+});

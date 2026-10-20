@@ -202,6 +202,33 @@ export async function proxy(request: NextRequest) {
     data: { user },
   } = await supabase.auth.getUser();
 
+  // 3. SUPERADMIN DEFENCE-IN-DEPTH: Deny unauthenticated access to all /api/superadmin/* endpoints
+  if (pathname.startsWith('/api/superadmin')) {
+    let effectiveUser = user;
+    if (!effectiveUser) {
+      const authHeader = request.headers.get('authorization') || request.headers.get('Authorization');
+      if (authHeader?.startsWith('Bearer ')) {
+        const token = authHeader.substring(7).trim();
+        if (token) {
+          const { data: jwtData } = await supabase.auth.getUser(token);
+          if (jwtData?.user) {
+            effectiveUser = jwtData.user;
+          }
+        }
+      }
+    }
+
+    if (!effectiveUser) {
+      return new NextResponse(
+        JSON.stringify({ error: 'Authentication required' }),
+        {
+          status: 401,
+          headers: { 'Content-Type': 'application/json', ...corsHeaders },
+        }
+      );
+    }
+  }
+
   const {
     data: { session },
   } = await supabase.auth.getSession();

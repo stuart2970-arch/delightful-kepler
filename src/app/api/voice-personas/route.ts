@@ -1,5 +1,6 @@
-import { NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
+import { requireUser, withSuperAdmin } from '@/lib/auth/require-superadmin';
 
 export const dynamic = 'force-dynamic';
 
@@ -71,7 +72,12 @@ const DEFAULT_PERSONAS = [
   }
 ];
 
-export async function GET() {
+export async function GET(request: NextRequest) {
+  const auth = await requireUser(request);
+  if (!auth.ok) {
+    return auth.response;
+  }
+
   try {
     const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
     const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
@@ -116,7 +122,7 @@ export async function GET() {
   }
 }
 
-export async function POST(request: Request) {
+export const POST = withSuperAdmin(async (request: NextRequest) => {
   try {
     const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
     const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
@@ -124,9 +130,34 @@ export async function POST(request: Request) {
 
     const body = await request.json();
 
+    // Whitelist only known columns
+    const allowedFields = [
+      'external_voice_id',
+      'name',
+      'role',
+      'gender',
+      'nationality',
+      'provider',
+      'preview_url'
+    ];
+
+    const sanitizedData: Record<string, any> = {};
+    for (const field of allowedFields) {
+      if (body[field] !== undefined) {
+        sanitizedData[field] = body[field];
+      }
+    }
+
+    if (!sanitizedData.name || !sanitizedData.external_voice_id) {
+      return NextResponse.json(
+        { error: 'Missing required fields (name, external_voice_id)' },
+        { status: 400, headers: corsHeaders }
+      );
+    }
+
     const { data: persona, error } = await supabaseAdmin
       .from('voice_personas')
-      .insert([body])
+      .insert([sanitizedData])
       .select()
       .single();
 
@@ -140,4 +171,4 @@ export async function POST(request: Request) {
     console.error('Failed to create voice persona:', err);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500, headers: corsHeaders });
   }
-}
+});

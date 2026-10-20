@@ -1,5 +1,8 @@
-import { NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
+import { withSuperAdmin } from '@/lib/auth/require-superadmin';
+
+export const dynamic = 'force-dynamic';
 
 function getSupabaseAdmin() {
   return createClient(
@@ -8,7 +11,7 @@ function getSupabaseAdmin() {
   );
 }
 
-export async function GET(request: Request) {
+export const GET = withSuperAdmin(async () => {
   try {
     const supabaseAdmin = getSupabaseAdmin();
     
@@ -32,9 +35,9 @@ export async function GET(request: Request) {
     console.error('Error fetching pricing matrix:', err);
     return NextResponse.json({ error: err.message }, { status: 500 });
   }
-}
+});
 
-export async function POST(request: Request) {
+export const POST = withSuperAdmin(async (request: NextRequest) => {
   try {
     const body = await request.json();
     const { action, payload } = body;
@@ -102,4 +105,4 @@ export async function POST(request: Request) {
     console.error('Error modifying pricing matrix:', err);
     return NextResponse.json({ error: err.message }, { status: 500 });
   }
-}
+});

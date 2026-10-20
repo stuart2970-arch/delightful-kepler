@@ -1,11 +1,10 @@
-import { NextResponse } from 'next/server';
-import { createServerClient } from '@supabase/ssr';
+import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
-import { cookies } from 'next/headers';
+import { withSuperAdmin } from '@/lib/auth/require-superadmin';
 
 export const dynamic = 'force-dynamic';
 
-export async function GET(request: Request) {
+export const GET = withSuperAdmin(async (request: NextRequest) => {
   try {
     const { searchParams } = new URL(request.url);
     const query = searchParams.get('q');
@@ -14,43 +13,7 @@ export async function GET(request: Request) {
       return NextResponse.json({ results: [] });
     }
 
-    const cookieStore = await cookies();
     const supabaseUrl = process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL!;
-    const anonKey = process.env.SUPABASE_ANON_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
-
-    const supabase = createServerClient(supabaseUrl, anonKey, {
-      cookies: {
-        getAll() {
-          return cookieStore.getAll();
-        },
-        setAll(cookiesToSet) {
-          try {
-            cookiesToSet.forEach(({ name, value, options }) =>
-              cookieStore.set(name, value, options)
-            );
-          } catch {}
-        },
-      },
-    });
-
-    const { data: { user } } = await supabase.auth.getUser();
-
-    if (!user) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
-
-    // Verify superadmin status
-    const { data: profile } = await supabase
-      .from('profiles')
-      .select('is_super_admin')
-      .eq('id', user.id)
-      .single();
-
-    if (!profile || !profile.is_super_admin) {
-      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
-    }
-
-    // Create a service role client to bypass RLS since we verified superadmin
     const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
     const supabaseAdmin = createClient(supabaseUrl, serviceRoleKey);
 
@@ -105,4 +68,4 @@ export async function GET(request: Request) {
     console.error('[Impersonate Search API] Error:', err);
     return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 });
   }
-}
+});

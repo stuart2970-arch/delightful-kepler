@@ -1,3 +1,4 @@
+import { checkIsSuperAdmin } from '@/lib/auth/require-superadmin';
 import { createServerClient } from '@supabase/ssr';
 import { createClient } from '@supabase/supabase-js';
 import { cookies } from 'next/headers';
@@ -127,7 +128,7 @@ export default async function DashboardPage(props: { searchParams?: Promise<{ [k
       console.warn(`[Dashboard] No tenant provisioned for user ${user.id}.`);
     } else {
       tenantId = profile.tenant_id;
-      isSuperAdmin = !!profile.is_super_admin;
+      isSuperAdmin = await checkIsSuperAdmin(user.id);
       userRole = (profile.role as 'owner' | 'admin' | 'member') || 'owner';
       
       const { data: tenant } = await supabase

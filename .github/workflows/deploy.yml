@@ -119,3 +119,9 @@ jobs:
             exit 1
           fi
           echo "PASS: /api/chat/public-init rejected dummy test token with 403 (confirmed production secret is active)."
+
+      # 9. Post-Deploy Superadmin Security Smoke Checks (STYL-178)
+      - name: Post-Deploy Superadmin Lockdown Smoke Check
+        run: |
+          APP_URL="${{ steps.deploy.outputs.url }}"
+          node scripts/smoke-check-superadmin.mjs "$APP_URL"

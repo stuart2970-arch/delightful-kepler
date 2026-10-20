@@ -1,9 +1,10 @@
-import { NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
+import { withSuperAdmin } from '@/lib/auth/require-superadmin';
 
 export const dynamic = 'force-dynamic';
 
-export async function GET() {
+export const GET = withSuperAdmin(async () => {
   try {
     const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
     const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
@@ -31,9 +32,9 @@ export async function GET() {
     console.error('Error fetching addon catalog:', error);
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
-}
+});
 
-export async function PATCH(req: Request) {
+export const PATCH = withSuperAdmin(async (req: NextRequest, _ctx: any, admin: { user: any; userId: string }) => {
   try {
     const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
     const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
@@ -51,14 +52,7 @@ export async function PATCH(req: Request) {
       return NextResponse.json({ error: 'Missing required fields (id, updates)' }, { status: 400 });
     }
 
-    // Try to get auth user
-    const authHeader = req.headers.get('Authorization');
-    let performedBy = 'system';
-    if (authHeader) {
-      const token = authHeader.replace('Bearer ', '');
-      const { data: { user } } = await supabase.auth.getUser(token);
-      if (user) performedBy = user.email || user.id;
-    }
+    const performedBy = admin.userId;
 
     let oldValues = null;
     let tableName = '';
@@ -83,7 +77,7 @@ export async function PATCH(req: Request) {
 
     if (updateError) throw updateError;
 
-    // Write audit log
+    // Write audit log with authenticated superadmin userId
     const summaryText = body.summary || `Updated ${type} (${id}): ${Object.keys(updates).join(', ')}`;
     const auditInsert: Record<string, any> = {
       addon_catalog_id: id,
@@ -91,13 +85,10 @@ export async function PATCH(req: Request) {
       old_value: oldValues,
       new_value: updates,
       summary: summaryText,
+      performed_by: performedBy,
     };
-    // performed_by expects uuid if set
-    if (performedBy && performedBy !== 'system' && performedBy.match(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i)) {
-      auditInsert.performed_by = performedBy;
-    }
-    const { error: auditError } = await supabase.from('addon_audit_log').insert(auditInsert);
 
+    const { error: auditError } = await supabase.from('addon_audit_log').insert(auditInsert);
     if (auditError) {
       console.error('Failed to write audit log:', auditError);
     }
@@ -107,4 +98,4 @@ export async function PATCH(req: Request) {
     console.error('Error updating catalog:', error);
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
-}
+});

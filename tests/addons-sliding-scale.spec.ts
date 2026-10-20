@@ -1,6 +1,16 @@
+import { createTestSuperadminUser, TestUserSession } from './test-auth-helper';
 import { test, expect } from '@playwright/test';
 
 test.describe('Modular Add-Ons & Sliding Scale Checkout API', () => {
+  let superadminSession: TestUserSession;
+
+  test.beforeAll(async () => {
+    superadminSession = await createTestSuperadminUser();
+  });
+
+  test.afterAll(async () => {
+    if (superadminSession) await superadminSession.cleanup();
+  });
   test('GET /api/billing/addons?category=landline returns landline bolt-on', async ({ request }) => {
     const res = await request.get('/api/billing/addons?category=landline');
     expect(res.status()).toBe(200);
@@ -82,7 +92,9 @@ test.describe('Modular Add-Ons & Sliding Scale Checkout API', () => {
   });
 
   test('GET /api/superadmin/features returns features list including ai_agent', async ({ request }) => {
-    const res = await request.get('/api/superadmin/features');
+    const res = await request.get('/api/superadmin/features', {
+      headers: { Authorization: `Bearer ${superadminSession.token}` },
+    });
     expect(res.status()).toBe(200);
     const data = await res.json();
     const features = Array.isArray(data.data) ? data.data : [];
@@ -94,7 +106,10 @@ test.describe('Modular Add-Ons & Sliding Scale Checkout API', () => {
 
   test('PATCH /api/superadmin/entitlements successfully updates and saves ai_agent on base_tier', async ({ request }) => {
     const res = await request.patch('/api/superadmin/entitlements', {
-      headers: { 'Content-Type': 'application/json' },
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${superadminSession.token}`,
+      },
       data: {
         tier_id: 'base_tier',
         feature_id: 'ai_agent',
@@ -106,7 +121,9 @@ test.describe('Modular Add-Ons & Sliding Scale Checkout API', () => {
     expect(json.success).toBe(true);
 
     // Verify GET reflects the saved entitlement
-    const getRes = await request.get('/api/superadmin/entitlements');
+    const getRes = await request.get('/api/superadmin/entitlements', {
+      headers: { Authorization: `Bearer ${superadminSession.token}` },
+    });
     expect(getRes.status()).toBe(200);
     const getData = await getRes.json();
     const entList = Array.isArray(getData.data) ? getData.data : [];
@@ -211,7 +228,9 @@ test.describe('Modular Add-Ons & Sliding Scale Checkout API', () => {
   });
 
   test('GET /api/superadmin/addon-catalog returns data_pack_500 at 499 pence and Extra Knowledge title', async ({ request }) => {
-    const res = await request.get('/api/superadmin/addon-catalog');
+    const res = await request.get('/api/superadmin/addon-catalog', {
+      headers: { Authorization: `Bearer ${superadminSession.token}` },
+    });
     expect(res.status()).toBe(200);
     const json = await res.json();
     const dataPack = (json.addons || []).find((a: any) => a.id === 'data_pack_500');

@@ -1,3 +1,4 @@
+import { checkIsSuperAdmin } from '@/lib/auth/require-superadmin';
 import { createServerClient } from '@supabase/ssr';
 import { cookies } from 'next/headers';
 import { redirect } from 'next/navigation';
@@ -57,14 +58,9 @@ export default async function SuperadminPage() {
     auth: { persistSession: false, autoRefreshToken: false }
   });
 
-  // Check if superadmin using admin client to bypass any RLS locks
-  const { data: profile } = await adminSupabase
-    .from('profiles')
-    .select('is_super_admin')
-    .eq('id', user.id)
-    .maybeSingle();
-
-  if (!profile || !profile.is_super_admin) {
+  // Authoritative superadmin check using shared helper
+  const isSuper = await checkIsSuperAdmin(user.id);
+  if (!isSuper) {
     redirect('/dashboard');
   }
 

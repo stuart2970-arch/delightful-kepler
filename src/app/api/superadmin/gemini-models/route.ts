@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { withSuperAdmin } from '@/lib/auth/require-superadmin';
 
 export const dynamic = 'force-dynamic';
 
@@ -12,7 +13,7 @@ export async function OPTIONS() {
   return NextResponse.json({}, { headers: corsHeaders });
 }
 
-export async function GET() {
+export const GET = withSuperAdmin(async () => {
   const apiKey = process.env.GEMINI_API_KEY || process.env.GOOGLE_GENERATIVE_AI_API_KEY;
 
   const fallbackPresets = [
@@ -69,4 +70,4 @@ export async function GET() {
     console.error('[Gemini Models API] Error querying Google models:', err);
     return NextResponse.json({ models: fallbackPresets, live: false }, { headers: corsHeaders });
   }
-}
+});
