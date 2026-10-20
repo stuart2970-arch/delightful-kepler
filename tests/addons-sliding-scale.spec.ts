@@ -220,10 +220,10 @@ test.describe('Modular Add-Ons & Sliding Scale Checkout API', () => {
     }
   });
 
-  test('Registration page renders Extra Knowledge (500 Knowledge Items) at dynamic price', async ({ page }) => {
+  test('Registration page renders Extra Knowledge at dynamic price', async ({ page }) => {
     await page.goto('/register?plan=foundation&addons=data_pack_500');
-    await expect(page.locator('body')).toContainText('Extra Knowledge (500 Knowledge Items)');
-    await expect(page.locator('body')).toContainText('£14.98/mo'); // £9.99 base + £4.99 extra knowledge
+    await expect(page.locator('body')).toContainText('Extra Knowledge');
+    await expect(page.locator('body')).toContainText('£14.98'); // £9.99 base + £4.99 extra knowledge
     await expect(page.locator('body')).not.toContainText('Knowledgebase Storage (500 Chunks)');
   });
 
@@ -249,7 +249,7 @@ test.describe('Modular Add-Ons & Sliding Scale Checkout API', () => {
     const dataPack = json.addons.find((a: any) => a.id === 'data_pack_500');
     expect(dataPack).toBeDefined();
     expect(dataPack.monthly_price_pence).toBe(499);
-    expect(dataPack.name).toBe('Extra Knowledge (500 Knowledge Items)');
+    expect(dataPack.name).toBe('Extra Knowledge');
   });
 
   test('POST /api/billing/checkout rejects customPricePence below minimum with HTTP 400', async ({ request }) => {

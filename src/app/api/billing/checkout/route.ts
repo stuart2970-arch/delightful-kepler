@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import Stripe from 'stripe';
 import { createClient } from '@supabase/supabase-js';
+import { buildCheckoutLineDescription } from '@/lib/addon-text';
 
 export const dynamic = 'force-dynamic';
 
@@ -118,12 +119,16 @@ export async function GET(req: Request) {
           return NextResponse.json({ error: `Add-on not found in catalog: ${addonId}` }, { status: 400, headers: corsHeaders });
         }
 
+        if (addon.category === 'voice_pack' || addon.category === 'sms_pack' || addon.id.startsWith('voice_pack') || addon.id.startsWith('sms_pack')) {
+          return NextResponse.json({ error: 'This pack can be bought from your dashboard after you sign up' }, { status: 400, headers: corsHeaders });
+        }
+
         lineItems.push({
           price_data: {
             currency: 'gbp',
             product_data: {
               name: addon.name,
-              description: addon.description || '',
+              description: buildCheckoutLineDescription(addon),
               metadata: {
                 addon_catalog_id: addon.id,
                 category: addon.category,
@@ -259,6 +264,8 @@ export async function POST(req: Request) {
         .from('addon_catalog')
         .select('*')
         .eq('id', addonCatalogId)
+        .eq('is_active', true)
+        .neq('id', 'whatsapp_primary')
         .single();
 
       if (addonError || !addon) {
@@ -313,20 +320,10 @@ export async function POST(req: Request) {
         addonCatalogId?.startsWith('voice_pack');
 
       // Option 1: Always use price_data with unit_amount from addon_catalog
-      let lineDescription = addon.description || addon.name;
-      if (addon.category === 'mobile' || addonCatalogId === 'mobile_addon') {
-        lineDescription = `Includes dedicated UK mobile number (07) for WhatsApp and ${finalSms} SMS messages`;
-      } else if (addon.category === 'voice_pack' || addonCatalogId?.startsWith('voice_pack')) {
-        lineDescription = `One-off pack of ${finalVoiceMinutes} voice minutes (Valid for 3 months from purchase)`;
-      } else if (finalVoiceMinutes > 0 && finalSms > 0) {
-        lineDescription = `Includes ${finalVoiceMinutes} shared voice mins + ${finalSms} SMS messages`;
-      } else if (finalVoiceMinutes > 0) {
-        lineDescription = `Includes dedicated number + ${finalVoiceMinutes} shared voice mins`;
-      } else if (finalSms > 0) {
-        lineDescription = isOneOff
-          ? `One-off pack of ${finalSms} SMS messages (Valid for 3 months from purchase)`
-          : `Includes ${finalSms} SMS messages`;
-      }
+      const lineDescription = buildCheckoutLineDescription(addon, {
+        voiceMinutes: finalVoiceMinutes,
+        sms: finalSms,
+      });
 
       const priceData: Stripe.Checkout.SessionCreateParams.LineItem.PriceData = {
         currency: 'gbp',
@@ -510,12 +507,16 @@ export async function POST(req: Request) {
             return NextResponse.json({ error: `Add-on not found in catalog: ${addonId}` }, { status: 400, headers: corsHeaders });
           }
 
+          if (addon.category === 'voice_pack' || addon.category === 'sms_pack' || addon.id.startsWith('voice_pack') || addon.id.startsWith('sms_pack')) {
+            return NextResponse.json({ error: 'This pack can be bought from your dashboard after you sign up' }, { status: 400, headers: corsHeaders });
+          }
+
           lineItems.push({
             price_data: {
               currency: 'gbp',
               product_data: {
                 name: addon.name,
-                description: addon.description || '',
+                description: buildCheckoutLineDescription(addon),
                 metadata: {
                   addon_catalog_id: addon.id,
                   category: addon.category,

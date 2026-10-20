@@ -67,9 +67,9 @@ export type CapacityThreshold = {
 
 // Feature ID mapping for bolt-on categories
 const FEATURE_TO_UPGRADE_MAP: Record<string, { category: string; addonId: string; defaultName: string }> = {
-  voice_minutes: { category: 'voice_pack', addonId: 'voice_pack_20', defaultName: '20 Voice Minutes Pack' },
-  sms_messages: { category: 'sms_pack', addonId: 'sms_pack_100', defaultName: '100 SMS Pack' },
-  knowledge_data_chunks: { category: 'data_pack', addonId: 'data_pack_500', defaultName: 'Extra Knowledge (500 Knowledge Items)' },
+  voice_minutes: { category: 'voice_pack', addonId: 'voice_pack_20', defaultName: 'Voice Minutes Pack' },
+  sms_messages: { category: 'sms_pack', addonId: 'sms_pack_100', defaultName: 'SMS Text Pack' },
+  knowledge_data_chunks: { category: 'data_pack', addonId: 'data_pack_500', defaultName: 'Extra Knowledge' },
   whatsapp_messages: { category: 'whatsapp', addonId: 'whatsapp_addon', defaultName: 'WhatsApp (Add-on)' },
   google_calendar: { category: 'google_calendar', addonId: 'google_calendar_addon', defaultName: 'Google Calendar Integration' },
   microsoft_calendar: { category: 'microsoft_calendar', addonId: 'microsoft_calendar_addon', defaultName: 'Microsoft Outlook Calendar Integration' },

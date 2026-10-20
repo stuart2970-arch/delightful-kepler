@@ -517,10 +517,10 @@ export default async function DashboardPage(props: { searchParams?: Promise<{ [k
       // Compute 85% capacity thresholds
       const thresholds: any[] = [];
       const featureUpgradeMap: Record<string, { category: string; addonId: string; defaultName: string }> = {
-        knowledge_data_chunks: { category: 'data_pack', addonId: 'data_pack_500', defaultName: 'Extra Knowledge (500 Knowledge Items)' },
-        voice_minutes: { category: 'voice_pack', addonId: 'voice_pack_20', defaultName: '20 Voice Minutes Pack' },
-        sms_messages: { category: 'sms_pack', addonId: 'sms_pack_100', defaultName: '100 SMS Pack' },
-        message_allowance: { category: 'data_pack', addonId: 'data_pack_500', defaultName: 'Extra Knowledge (500 Knowledge Items)' },
+        knowledge_data_chunks: { category: 'data_pack', addonId: 'data_pack_500', defaultName: 'Extra Knowledge' },
+        voice_minutes: { category: 'voice_pack', addonId: 'voice_pack_20', defaultName: 'Voice Minutes Pack' },
+        sms_messages: { category: 'sms_pack', addonId: 'sms_pack_100', defaultName: 'SMS Text Pack' },
+        message_allowance: { category: 'data_pack', addonId: 'data_pack_500', defaultName: 'Extra Knowledge' },
       };
       const catalogMap = new Map((billingData.catalog || []).map((c: any) => [c.id, c]));
 

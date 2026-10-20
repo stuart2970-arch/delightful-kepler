@@ -3376,6 +3376,43 @@ Highlighted adjustments in the modal:
 
 ---
 
+### 66. Bolt-On & Pack Text Modernisation, Legacy Pack Retirement, and Superadmin In-Place Editing (STYL-177)
+* **Goal**: Modernise customer-facing bolt-on and pack copy across the app to pure, dynamic British English, retire legacy fixed packs (`voice_pack_50`, `voice_pack_100`, `sms_pack_500`), make pack names and descriptions directly editable in `/superadmin`, and eliminate all hardcoded price and allowance figures.
+* **Key Enhancements**:
+  - **Zero Customer Impact Pre-Flight Verification**:
+    - Performed comprehensive read-only checks across both local and live production Supabase environments.
+    - Confirmed exactly 0 rows in `tenant_active_addons`, `usage_ledger`, and `addon_audit_log` reference the retired legacy pack IDs.
+    - Verified zero active Stripe customer subscriptions or checkout sessions depend on the retired packs.
+  - **Local Add-Only Database Migration (`supabase/migrations/20261020190000_styl177_pack_text_and_retire_legacy.sql`)**:
+    - Added `retired_at timestamptz NULL` column to `addon_catalog`.
+    - Soft-retired legacy packs `voice_pack_50`, `voice_pack_100`, and `sms_pack_500` by setting `is_active = false` and `retired_at = now()`.
+    - Applied generic British English naming and descriptions free of hardcoded currency (£) and allowance numbers to active catalog rows (`landline_addon`, `mobile_addon`, `voice_pack_20`, `sms_pack_100`, `data_pack_500`).
+    - Recorded auditable update entries in `addon_audit_log` with system attribution.
+  - **Pure Text Formatters & Server Validation (`src/lib/addon-text.ts`)**:
+    - `formatAllowanceRange(addon)`: Dynamically generates allowance descriptions (e.g., "From 20 mins to 100 mins a month", "From 100 texts to 500 texts a month", "500 extra knowledge chunks") derived strictly from catalog min/max/step columns.
+    - `buildCheckoutLineDescription(addon, opts)`: Generates clean Stripe checkout line item descriptions enforcing British English ("texts", not SMS messages), 3-month expiry notices on one-off packs, and zero VAT mentions.
+    - `validateAddonText({ name, description })`: Validates customer-facing text integrity: ensures name is 3–60 chars, description <= 300 chars, rejects HTML tags, control chars, explicit currency amounts (£ followed by digits), and any VAT mentions.
+  - **Superadmin Catalog API & In-Place Editing (`src/app/api/superadmin/addon-catalog/route.ts` & `src/components/superadmin/PricingMatrixView.tsx`)**:
+    - Replaced old permissive PATCH handler with `withSuperAdmin` gated handler enforcing strict column whitelist (`ALLOWED_ADDON_FIELDS`).
+    - Validates submitted text server-side using `validateAddonText` and records `performed_by` with verified superadmin `admin.userId`.
+    - Enhanced `/superadmin` Pricing Matrix cards with customer-facing Name (`maxLength={60}`) and Description (`maxLength={300}`) inputs, live character counters, dynamic allowance preview box, and soft warning on digits.
+    - Replaced all hardcoded pack name strings in buttons and actions with dynamic `item.name`.
+  - **Checkout & Dashboard Hardening**:
+    - `src/app/api/billing/checkout/route.ts`: Mode 2 now filters `is_active = true` (retired packs return 404). Mode 1 / GET signup rejects one-off packs (`voice_pack`, `sms_pack`) with HTTP 400 (`"This pack can be bought from your dashboard after you sign up"`).
+    - `src/components/DashboardClient.tsx` & `src/components/AddOnUpsellModal.tsx`: Updated to filter `is_active !== false`, use `formatAllowanceRange(item)`, prefer exact IDs `voice_pack_20` and `sms_pack_100`, and display "Unavailable" if unconfigured.
+    - `src/app/api/webhooks/stripe/route.ts`: Added non-blocking warning log if a payment event for a retired addon arrives.
+    - `scripts/setup-stripe-modular-products.js`: Deprecated legacy product IDs (`voice_pack_50`, `voice_pack_100`, `sms_pack_500`).
+  - **CI/CD Deployment Guardrail (`.github/workflows/deploy.yml`)**:
+    - Added post-deploy smoke check asserting `$APP_URL/api/billing/prices` returns 200 and contains zero retired pack IDs.
+  - **Automated Verification**:
+    - Added 8 unit tests in `tests/addon-text.spec.ts` for text helpers and validators.
+    - Added 8 integration tests in `tests/styl-177-pack-text.spec.ts` testing checkout rejection of retired packs, mode 1 signup pack rejection, server text validation, superadmin PATCH updates, and dynamic allowance generation.
+    - Updated `tests/addons-sliding-scale.spec.ts` assertions for dynamic naming.
+    - Full E2E suite (`npm run test:e2e`): **161/161 passed (100%)**.
+    - Turbopack production build (`npm run build`): compiled 100% cleanly across all 43 routes.
+
+---
+
 ---
 
 ### Session 62 (October 14, 2026)
@@ -3491,3 +3528,22 @@ Highlighted adjustments in the modal:
        - Updated `tests/addons-sliding-scale.spec.ts` with authenticated superadmin requests (23/23 passing).
        - Full Playwright E2E suite (`npm run test:e2e`): **145/145 passed (100%)**.
        - Next.js 16.3.5 Turbopack production build (`npm run build`): compiled 100% cleanly across all 43 routes.
+
+---
+
+### Session 69 (October 20, 2026)
+* **User**: "Please pick up STYL-178 now (Highest priority, live security hole, do it before STYL-177)... After STYL-178 is done, move on to STYL-177."
+  * **Actions Completed**:
+    1. **Guardrails & Constraints**: Confirmed strict guardrails for STYL-177: Stripe remains strictly in test mode, no data deletion, add-only database migration applied locally only (no production deploy without Stuart's explicit yes), landing page files untouched, never use `--no-verify`.
+    2. **Section 1 Pre-Flight Check**: Verified both local and live production database state: confirmed 0 rows in `tenant_active_addons`, `usage_ledger`, and `addon_audit_log` holding `voice_pack_50`, `voice_pack_100`, or `sms_pack_500`. Confirmed zero live customer impact.
+    3. **Local Database Migration**: Created `supabase/migrations/20261020190000_styl177_pack_text_and_retire_legacy.sql` adding `retired_at` column, retiring legacy packs with `is_active = false`, updating names and descriptions to clean British English, and logging audit events. Applied locally via `npx supabase migration up`.
+    4. **Pure Text Helpers & Validation**: Implemented `src/lib/addon-text.ts` with `formatAllowanceRange`, `buildCheckoutLineDescription`, and `validateAddonText`.
+    5. **Checkout & Billing Route Hardening**: Updated `src/app/api/billing/checkout/route.ts` to reject retired packs with 404, block one-off packs on signup checkout with 400, and format checkout descriptions dynamically.
+    6. **Superadmin API & Pricing Matrix View**: Updated `src/app/api/superadmin/addon-catalog/route.ts` with `withSuperAdmin`, field whitelisting, text validation, and audit logging. Enhanced `src/components/superadmin/PricingMatrixView.tsx` with editable name/description fields, live counters, preview, and dynamic buttons.
+    7. **Dashboard & Upsell Modal Synchronization**: Updated `DashboardClient.tsx`, `AddOnUpsellModal.tsx`, `entitlements.ts`, and `dashboard/page.tsx` with dynamic allowance ranges and retired item filtering.
+    8. **CI/CD Guardrail**: Added retired pack check to `.github/workflows/deploy.yml` Step 10 post-deploy smoke checks.
+    9. **Full Automated Test Suite & Build Verification**:
+       - Added 8 unit tests in `tests/addon-text.spec.ts` and 8 API tests in `tests/styl-177-pack-text.spec.ts`.
+       - Fixed `PricingMatrixView.tsx` client directive ordering.
+       - Executed full Playwright test suite (`npm run test:e2e`): **161/161 passed (100%)**.
+       - Successfully executed Next.js 16.3.5 Turbopack production build (`npm run build`) with 0 errors across 43 routes.

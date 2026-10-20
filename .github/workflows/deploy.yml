@@ -125,3 +125,14 @@ jobs:
         run: |
           APP_URL="${{ steps.deploy.outputs.url }}"
           node scripts/smoke-check-superadmin.mjs "$APP_URL"
+
+      # 10. Post-Deploy Bolt-On & Pack Text Smoke Checks (STYL-177)
+      - name: Post-Deploy Bolt-On & Pack Text Smoke Check
+        run: |
+          APP_URL="${{ steps.deploy.outputs.url }}"
+          PRICES_RESP=$(curl -s "$APP_URL/api/billing/prices")
+          if echo "$PRICES_RESP" | grep -qE "voice_pack_50|voice_pack_100|sms_pack_500"; then
+            echo "::error::Post-deploy smoke check FAILED: /api/billing/prices returned retired legacy packs!"
+            exit 1
+          fi
+          echo "PASS: /api/billing/prices contains no retired legacy packs."

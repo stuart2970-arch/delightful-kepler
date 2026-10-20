@@ -1,5 +1,6 @@
 'use client';
 
+import { formatAllowanceRange } from '@/lib/addon-text';
 import React, { useState, useEffect } from 'react';
 
 export type AddonItem = {
@@ -41,6 +42,8 @@ export default function PricingMatrixView() {
   // Form state for each editable add-on
   const [formState, setFormState] = useState<{
     [key: string]: {
+      name?: string;
+      description?: string;
       lowerCostGBP: string;
       upperCostGBP: string;
       lowerAllowance: string;
@@ -100,6 +103,8 @@ export default function PricingMatrixView() {
         }
 
         stateObj[item.id] = {
+          name: item.name || '',
+          description: item.description || '',
           lowerCostGBP: lowerCost,
           upperCostGBP: upperCost,
           lowerAllowance: lowerAllow,
@@ -160,6 +165,8 @@ export default function PricingMatrixView() {
       is_sliding: true,
       price_step_pence: stepPence > 0 ? stepPence : 100,
     };
+    if (values.name !== undefined) updates.name = values.name.trim();
+    if (values.description !== undefined) updates.description = values.description.trim();
 
     let summary = '';
     if (category === 'landline') {
@@ -231,11 +238,14 @@ export default function PricingMatrixView() {
     const pricePence = Math.round(parseFloat(priceGBP || '0') * 100);
     const allowVal = parseInt(allowance || '0', 10);
 
+    const values = formState[id];
     const updates: Record<string, any> = {
       monthly_price_pence: pricePence,
       max_price_pence: pricePence,
       [allowKey]: allowVal,
     };
+    if (values?.name !== undefined) updates.name = values.name.trim();
+    if (values?.description !== undefined) updates.description = values.description.trim();
 
     const summary = `Updated fixed ${name}: £${priceGBP} (${allowVal} ${allowKey.replace('included_', '')})`;
 
@@ -291,14 +301,72 @@ export default function PricingMatrixView() {
     );
   }
 
-  const landlineItem = addons.find((a) => a.id === 'landline_addon' || a.category === 'landline');
-  const mobileItem = addons.find((a) => a.id === 'mobile_addon' || a.category === 'mobile');
-  const voicePackItem = addons.find((a) => a.id === 'voice_pack_20' || a.category === 'voice_pack');
-  const smsPackItem = addons.find((a) => a.id === 'sms_pack_100' || a.category === 'sms_pack');
-  const whatsappAddon = addons.find((a) => a.id === 'whatsapp_addon');
-  const dataPack = addons.find((a) => a.id === 'data_pack_500' || a.category === 'data_pack');
-  const googleCalendarItem = addons.find((a) => a.id === 'google_calendar_addon' || a.category === 'google_calendar');
-  const microsoftCalendarItem = addons.find((a) => a.id === 'microsoft_calendar_addon' || a.category === 'microsoft_calendar');
+  const activeAddons = addons.filter((a) => a.is_active !== false);
+  const landlineItem = activeAddons.find((a) => a.id === 'landline_addon') || activeAddons.find((a) => a.category === 'landline');
+  const mobileItem = activeAddons.find((a) => a.id === 'mobile_addon') || activeAddons.find((a) => a.category === 'mobile');
+  const voicePackItem = activeAddons.find((a) => a.id === 'voice_pack_20') || activeAddons.find((a) => a.category === 'voice_pack');
+  const smsPackItem = activeAddons.find((a) => a.id === 'sms_pack_100') || activeAddons.find((a) => a.category === 'sms_pack');
+  const whatsappAddon = activeAddons.find((a) => a.id === 'whatsapp_addon');
+  const dataPack = activeAddons.find((a) => a.id === 'data_pack_500') || activeAddons.find((a) => a.category === 'data_pack');
+  const googleCalendarItem = activeAddons.find((a) => a.id === 'google_calendar_addon') || activeAddons.find((a) => a.category === 'google_calendar');
+  const microsoftCalendarItem = activeAddons.find((a) => a.id === 'microsoft_calendar_addon') || activeAddons.find((a) => a.category === 'microsoft_calendar');
+
+  const renderWordingControls = (item: AddonItem) => {
+    const currentName = formState[item.id]?.name ?? item.name ?? '';
+    const currentDesc = formState[item.id]?.description ?? item.description ?? '';
+    const hasDigits = /\d/.test(currentName) || /\d/.test(currentDesc);
+    const previewAllowance = formatAllowanceRange(item);
+
+    return (
+      <div className="space-y-3 pt-3 border-t border-gray-800">
+        <div>
+          <div className="flex justify-between items-center mb-1">
+            <label className="text-[11px] font-semibold text-gray-300">Customer-Facing Name</label>
+            <span className="text-[10px] text-gray-500 font-mono">{currentName.length}/60</span>
+          </div>
+          <input
+            type="text"
+            maxLength={60}
+            value={currentName}
+            onChange={(e) => handleFieldChange(item.id, 'name', e.target.value)}
+            className="w-full bg-gray-950 border border-gray-700 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-indigo-500"
+            placeholder="Customer-facing name"
+          />
+        </div>
+
+        <div>
+          <div className="flex justify-between items-center mb-1">
+            <label className="text-[11px] font-semibold text-gray-300">Customer-Facing Description</label>
+            <span className="text-[10px] text-gray-500 font-mono">{currentDesc.length}/300</span>
+          </div>
+          <textarea
+            rows={2}
+            maxLength={300}
+            value={currentDesc}
+            onChange={(e) => handleFieldChange(item.id, 'description', e.target.value)}
+            className="w-full bg-gray-950 border border-gray-700 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-indigo-500 resize-none leading-relaxed"
+            placeholder="Customer-facing description"
+          />
+        </div>
+
+        {hasDigits && (
+          <div className="p-2 bg-amber-950/40 border border-amber-600/30 text-amber-300 text-[11px] rounded-lg flex items-center gap-2">
+            <span>⚠️</span>
+            <span>Allowances are shown automatically from the values above. Avoid typing numbers here.</span>
+          </div>
+        )}
+
+        <div className="p-3 bg-gray-950/80 rounded-xl border border-dashed border-gray-700 text-[11px] space-y-1">
+          <span className="text-[10px] uppercase font-bold tracking-wider text-indigo-400">Customer Checkout Preview:</span>
+          <div className="font-bold text-white text-xs">{currentName || item.name}</div>
+          <div className="text-gray-400 leading-relaxed">{currentDesc || item.description}</div>
+          {previewAllowance && (
+            <div className="text-emerald-400 font-mono text-[10px] pt-0.5">✦ Includes: {previewAllowance}</div>
+          )}
+        </div>
+      </div>
+    );
+  };
 
   return (
     <div className="space-y-6 mt-6">
@@ -425,6 +493,8 @@ export default function PricingMatrixView() {
               </div>
             </div>
 
+            {renderWordingControls(landlineItem)}
+
             {/* Steps calculation preview */}
             <div className="p-3 bg-gray-950 rounded-xl border border-gray-800 text-[11px] text-gray-400">
               <span className="font-semibold text-indigo-300">Live Scale Projection: </span>
@@ -538,6 +608,8 @@ export default function PricingMatrixView() {
               </div>
             </div>
 
+            {renderWordingControls(mobileItem)}
+
             {/* Steps calculation preview */}
             <div className="p-3 bg-gray-950 rounded-xl border border-gray-800 text-[11px] text-gray-400">
               <span className="font-semibold text-indigo-300">Live Scale Projection: </span>
@@ -645,6 +717,8 @@ export default function PricingMatrixView() {
               </div>
             </div>
 
+            {renderWordingControls(voicePackItem)}
+
             {/* Steps calculation preview */}
             <div className="p-3 bg-gray-950 rounded-xl border border-gray-800 text-[11px] text-gray-400">
               <span className="font-semibold text-indigo-300">Live Scale Projection: </span>
@@ -660,7 +734,7 @@ export default function PricingMatrixView() {
 
             <div className="flex justify-end pt-2">
               <button
-                onClick={() => handleSaveSlidingAddon(voicePackItem.id, 'voice_pack', 'Voice Minutes Pack')}
+                onClick={() => handleSaveSlidingAddon(voicePackItem.id, 'voice_pack', voicePackItem.name)}
                 disabled={savingId === voicePackItem.id}
                 className="px-5 py-2 bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 text-white text-xs font-bold rounded-xl shadow-lg transition-colors flex items-center gap-2 cursor-pointer"
               >
@@ -752,6 +826,8 @@ export default function PricingMatrixView() {
               </div>
             </div>
 
+            {renderWordingControls(smsPackItem)}
+
             {/* Steps calculation preview */}
             <div className="p-3 bg-gray-950 rounded-xl border border-gray-800 text-[11px] text-gray-400">
               <span className="font-semibold text-indigo-300">Live Scale Projection: </span>
@@ -767,7 +843,7 @@ export default function PricingMatrixView() {
 
             <div className="flex justify-end pt-2">
               <button
-                onClick={() => handleSaveSlidingAddon(smsPackItem.id, 'sms_pack', 'SMS Messages Pack')}
+                onClick={() => handleSaveSlidingAddon(smsPackItem.id, 'sms_pack', smsPackItem.name)}
                 disabled={savingId === smsPackItem.id}
                 className="px-5 py-2 bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 text-white text-xs font-bold rounded-xl shadow-lg transition-colors flex items-center gap-2 cursor-pointer"
               >
@@ -858,7 +934,7 @@ export default function PricingMatrixView() {
                 />
               </div>
               <button
-                onClick={() => handleSaveFixedAddon(dataPack.id, 'Extra Knowledge (500 Knowledge Items)', formState[dataPack.id].lowerCostGBP, formState[dataPack.id].lowerAllowance, 'included_data_chunks')}
+                onClick={() => handleSaveFixedAddon(dataPack.id, dataPack.name, formState[dataPack.id].lowerCostGBP, formState[dataPack.id].lowerAllowance, 'included_data_chunks')}
                 disabled={savingId === dataPack.id}
                 className="w-full py-1.5 bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 text-white text-[11px] font-bold rounded-lg transition-colors cursor-pointer"
               >
@@ -902,7 +978,7 @@ export default function PricingMatrixView() {
                 />
               </div>
               <button
-                onClick={() => handleSaveFixedAddon(googleCalendarItem.id, 'Google Calendar Integration', formState[googleCalendarItem.id].lowerCostGBP, '1', 'display_order')}
+                onClick={() => handleSaveFixedAddon(googleCalendarItem.id, googleCalendarItem.name, formState[googleCalendarItem.id].lowerCostGBP, '1', 'display_order')}
                 disabled={savingId === googleCalendarItem.id}
                 className="w-full py-1.5 bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 text-white text-[11px] font-bold rounded-lg transition-colors cursor-pointer"
               >
@@ -946,7 +1022,7 @@ export default function PricingMatrixView() {
                 />
               </div>
               <button
-                onClick={() => handleSaveFixedAddon(microsoftCalendarItem.id, 'Microsoft Outlook Calendar Integration', formState[microsoftCalendarItem.id].lowerCostGBP, '1', 'display_order')}
+                onClick={() => handleSaveFixedAddon(microsoftCalendarItem.id, microsoftCalendarItem.name, formState[microsoftCalendarItem.id].lowerCostGBP, '1', 'display_order')}
                 disabled={savingId === microsoftCalendarItem.id}
                 className="w-full py-1.5 bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 text-white text-[11px] font-bold rounded-lg transition-colors cursor-pointer"
               >

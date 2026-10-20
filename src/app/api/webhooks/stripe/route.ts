@@ -403,6 +403,9 @@ export async function POST(req: Request) {
             .maybeSingle();
 
           if (addon) {
+            if (!addon.is_active) {
+              console.warn(`[Stripe Webhook] Notice: Processing fulfillment for retired addon_catalog item: ${addonCatalogId}`);
+            }
             const voiceMinutes = customVoiceMinutes !== null ? customVoiceMinutes : (addon.included_voice_minutes || 0);
             const smsCount = customSms !== null ? customSms : (addon.included_sms || 0);
             const messagesCount = addon.included_messages || 0;

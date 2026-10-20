@@ -1,8 +1,32 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import { withSuperAdmin } from '@/lib/auth/require-superadmin';
+import { validateAddonText } from '@/lib/addon-text';
 
 export const dynamic = 'force-dynamic';
+
+const ALLOWED_ADDON_FIELDS = new Set([
+  'name',
+  'description',
+  'monthly_price_pence',
+  'max_price_pence',
+  'price_step_pence',
+  'is_sliding',
+  'included_voice_minutes',
+  'max_voice_minutes',
+  'included_sms',
+  'max_sms',
+  'included_data_chunks',
+  'display_order',
+]);
+
+const ALLOWED_BASE_TIER_FIELDS = new Set([
+  'name',
+  'description',
+  'monthly_price_pence',
+  'price_pence_annual',
+  'is_active',
+]);
 
 export const GET = withSuperAdmin(async () => {
   try {
@@ -50,6 +74,34 @@ export const PATCH = withSuperAdmin(async (req: NextRequest, _ctx: any, admin: {
 
     if (!id || Object.keys(updates).length === 0) {
       return NextResponse.json({ error: 'Missing required fields (id, updates)' }, { status: 400 });
+    }
+
+    if (type === 'addon') {
+      for (const key of Object.keys(updates)) {
+        if (!ALLOWED_ADDON_FIELDS.has(key)) {
+          return NextResponse.json({ error: `Disallowed field in updates: ${key}` }, { status: 400 });
+        }
+      }
+
+      if (updates.name !== undefined || updates.description !== undefined) {
+        const textVal = validateAddonText({
+          name: updates.name,
+          description: updates.description,
+        });
+        if (!textVal.valid) {
+          return NextResponse.json({ error: textVal.error }, { status: 400 });
+        }
+        if (updates.name) updates.name = updates.name.trim();
+        if (updates.description !== undefined && updates.description !== null) {
+          updates.description = updates.description.trim();
+        }
+      }
+    } else if (type === 'base_tier') {
+      for (const key of Object.keys(updates)) {
+        if (!ALLOWED_BASE_TIER_FIELDS.has(key)) {
+          return NextResponse.json({ error: `Disallowed field in updates: ${key}` }, { status: 400 });
+        }
+      }
     }
 
     const performedBy = admin.userId;

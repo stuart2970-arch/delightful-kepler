@@ -155,10 +155,11 @@ export default function AddOnUpsellModal({ isOpen, onClose, category, tenantId }
   };
 
   // Extract catalog items
-  const landlineItem = addOns.find((a) => a.id === 'landline_addon' || a.category === 'landline');
-  const mobileItem = addOns.find((a) => a.id === 'mobile_addon' || a.category === 'mobile');
-  const voiceItem = addOns.find((a) => a.id === 'voice_pack_20' || a.category === 'voice_pack');
-  const smsItem = addOns.find((a) => a.id === 'sms_pack_100' || a.category === 'sms_pack');
+  const activeAddOns = addOns.filter((a: any) => a.is_active !== false);
+  const landlineItem = activeAddOns.find((a) => a.id === 'landline_addon') || activeAddOns.find((a) => a.category === 'landline');
+  const mobileItem = activeAddOns.find((a) => a.id === 'mobile_addon') || activeAddOns.find((a) => a.category === 'mobile');
+  const voiceItem = activeAddOns.find((a) => a.id === 'voice_pack_20') || activeAddOns.find((a) => a.category === 'voice_pack');
+  const smsItem = activeAddOns.find((a) => a.id === 'sms_pack_100') || activeAddOns.find((a) => a.category === 'sms_pack');
 
   // Dynamic Landline Computations:
   const isLandlineAvailable = Boolean(landlineItem && landlineItem.monthly_price_pence != null && landlineItem.max_price_pence != null);

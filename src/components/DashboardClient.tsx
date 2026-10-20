@@ -19,6 +19,7 @@ import SetPasswordBanner from './SetPasswordBanner';
 import CapacityThresholdBanner from './CapacityThresholdBanner';
 import AddOnUpsellModal, { AddOnCategory } from './AddOnUpsellModal';
 import { useDashboardStore } from '../lib/store';
+import { formatAllowanceRange } from '@/lib/addon-text';
 
 interface Chatbot {
   id: string;
@@ -1244,20 +1245,29 @@ const globalBotId = '00000000-0000-0000-0000-000000000000';
 
                     {/* 5. Voice Minutes */}
                     {(() => {
-                      const item = billingData?.catalog?.find((c: any) => c.category === 'voice_pack' || c.id === 'voice_pack_20');
-                      const priceStr = item ? `${item.is_sliding ? 'From ' : ''}£${(item.monthly_price_pence / 100).toFixed(2)}` : 'Price unavailable';
+                      const item = billingData?.catalog?.find((c: any) => c.is_active !== false && (c.id === 'voice_pack_20' || c.category === 'voice_pack'));
+                      if (!item) {
+                        return (
+                          <div className="bg-[var(--awb-color2)] border border-[var(--awb-color3)] rounded-xl p-4 flex flex-col justify-between shadow-sm opacity-60">
+                            <h5 className="text-xs font-extrabold text-[var(--awb-color8)]">Voice Minutes Pack</h5>
+                            <p className="text-[11px] text-[var(--awb-color6)]">Unavailable</p>
+                          </div>
+                        );
+                      }
+                      const priceStr = `${item.is_sliding ? 'From ' : ''}£${(item.monthly_price_pence / 100).toFixed(2)}`;
+                      const allowanceStr = formatAllowanceRange(item);
                       return (
                         <div className="bg-[var(--awb-color2)] border border-[var(--awb-color3)] hover:border-[#9333ea] rounded-xl p-4 flex flex-col justify-between transition-colors shadow-sm">
                           <div>
                             <div className="flex items-center justify-between mb-2">
                               <div className="flex items-center gap-2">
                                 <span className="text-xl">🎙️</span>
-                                <h5 className="text-xs font-extrabold text-[var(--awb-color8)]">{item?.name || 'Voice Minutes Pack'}</h5>
+                                <h5 className="text-xs font-extrabold text-[var(--awb-color8)]">{item.name || 'Voice Minutes Pack'}</h5>
                               </div>
                               <span className="text-[11px] font-bold text-[#9333ea]">{priceStr}</span>
                             </div>
                             <p className="text-[11px] text-[var(--awb-color6)] mb-3 leading-relaxed">
-                              {item?.description || 'One-off pack of 20–100 voice minutes valid for 3 months from purchase.'}
+                              {item.description ? (allowanceStr ? `${item.description} (${allowanceStr})` : item.description) : `One-off pack of ${allowanceStr}. Expires 3 months after purchase.`}
                             </p>
                           </div>
                           <button
@@ -1272,20 +1282,29 @@ const globalBotId = '00000000-0000-0000-0000-000000000000';
 
                     {/* 6. SMS Pack */}
                     {(() => {
-                      const item = billingData?.catalog?.find((c: any) => c.category === 'sms_pack' || c.id === 'sms_pack_100');
-                      const priceStr = item ? `${item.is_sliding ? 'From ' : ''}£${(item.monthly_price_pence / 100).toFixed(2)}` : 'Price unavailable';
+                      const item = billingData?.catalog?.find((c: any) => c.is_active !== false && (c.id === 'sms_pack_100' || c.category === 'sms_pack'));
+                      if (!item) {
+                        return (
+                          <div className="bg-[var(--awb-color2)] border border-[var(--awb-color3)] rounded-xl p-4 flex flex-col justify-between shadow-sm opacity-60">
+                            <h5 className="text-xs font-extrabold text-[var(--awb-color8)]">SMS Text Pack</h5>
+                            <p className="text-[11px] text-[var(--awb-color6)]">Unavailable</p>
+                          </div>
+                        );
+                      }
+                      const priceStr = `${item.is_sliding ? 'From ' : ''}£${(item.monthly_price_pence / 100).toFixed(2)}`;
+                      const allowanceStr = formatAllowanceRange(item);
                       return (
                         <div className="bg-[var(--awb-color2)] border border-[var(--awb-color3)] hover:border-[#198fd9] rounded-xl p-4 flex flex-col justify-between transition-colors shadow-sm">
                           <div>
                             <div className="flex items-center justify-between mb-2">
                               <div className="flex items-center gap-2">
                                 <span className="text-xl">✉️</span>
-                                <h5 className="text-xs font-extrabold text-[var(--awb-color8)]">{item?.name || 'SMS Message Credits'}</h5>
+                                <h5 className="text-xs font-extrabold text-[var(--awb-color8)]">{item.name || 'SMS Text Pack'}</h5>
                               </div>
                               <span className="text-[11px] font-bold text-[var(--awb-color5)]">{priceStr}</span>
                             </div>
                             <p className="text-[11px] text-[var(--awb-color6)] mb-3 leading-relaxed">
-                              {item?.description || 'One-off pack of 100–500 SMS text message credits valid for 3 months from purchase.'}
+                              {item.description ? (allowanceStr ? `${item.description} (${allowanceStr})` : item.description) : `One-off pack of ${allowanceStr}. Expires 3 months after purchase.`}
                             </p>
                           </div>
                           <button
@@ -1300,20 +1319,29 @@ const globalBotId = '00000000-0000-0000-0000-000000000000';
 
                     {/* 7. Extra Knowledge (Knowledge Items) */}
                     {(() => {
-                      const item = billingData?.catalog?.find((c: any) => c.category === 'data_pack' || c.id === 'data_pack_500');
-                      const priceStr = item ? `${item.is_sliding ? 'From ' : ''}£${(item.monthly_price_pence / 100).toFixed(2)}/mo` : 'Price unavailable';
+                      const item = billingData?.catalog?.find((c: any) => c.is_active !== false && (c.id === 'data_pack_500' || c.category === 'data_pack'));
+                      if (!item) {
+                        return (
+                          <div className="bg-[var(--awb-color2)] border border-[var(--awb-color3)] rounded-xl p-4 flex flex-col justify-between shadow-sm opacity-60">
+                            <h5 className="text-xs font-extrabold text-[var(--awb-color8)]">Extra Knowledge</h5>
+                            <p className="text-[11px] text-[var(--awb-color6)]">Unavailable</p>
+                          </div>
+                        );
+                      }
+                      const priceStr = `${item.is_sliding ? 'From ' : ''}£${(item.monthly_price_pence / 100).toFixed(2)}/mo`;
+                      const allowanceStr = formatAllowanceRange(item);
                       return (
                         <div className="bg-[var(--awb-color2)] border border-[var(--awb-color3)] hover:border-[#198fd9] rounded-xl p-4 flex flex-col justify-between transition-colors shadow-sm">
                           <div>
                             <div className="flex items-center justify-between mb-2">
                               <div className="flex items-center gap-2">
                                 <span className="text-xl">📦</span>
-                                <h5 className="text-xs font-extrabold text-[var(--awb-color8)]">{item?.name || 'Extra Knowledge (500 Knowledge Items)'}</h5>
+                                <h5 className="text-xs font-extrabold text-[var(--awb-color8)]">{item.name || 'Extra Knowledge'}</h5>
                               </div>
                               <span className="text-[11px] font-bold text-[var(--awb-color5)]">{priceStr}</span>
                             </div>
                             <p className="text-[11px] text-[var(--awb-color6)] mb-3 leading-relaxed">
-                              {item?.description || '500 additional knowledge items for rich product catalogs, complex menus, and business rules.'}
+                              {item.description ? (allowanceStr ? `${item.description} (${allowanceStr})` : item.description) : `Includes ${allowanceStr}.`}
                             </p>
                           </div>
                           <button
