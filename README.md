@@ -3415,6 +3415,43 @@ Highlighted adjustments in the modal:
 
 ---
 
+### 67. Public Homepage Chat Authorization Recovery: Cloudflare Turnstile Cross-Origin Iframe Bridge & Hardened Session Handshake (STYL-180)
+* **Goal**: Resolve live production failure on `https://styleflo.ai/` where public text chat failed after 25–30s with `"⚠️ Unauthorized. Valid signed session token or JWT required to access chat stream."` without weakening any of the cryptographic token checks, rate limits, or Turnstile verification enforced in STYL-176.
+* **Root Cause Analysis**:
+  - Live browser reproduction via Playwright (`scripts/diagnose-homepage-widget.js`) captured `[Cloudflare Turnstile] Error: 110200` (`Domain not allowed`).
+  - Turnstile Sitekey `0x4AAAAAAEcGPat6Ll-AhKbf` was configured in Cloudflare to restrict executions to `app.styleflo.ai` (excluding `styleflo.ai` and third-party customer salon domains embedding `https://app.styleflo.ai/widget.js`).
+  - Upon receiving Error 110200, the widget script resolved Turnstile with Cloudflare's fallback test dummy token (`1x0000000000000000000000000000000AA`).
+  - The widget sent this test token to `https://app.styleflo.ai/api/chat/public-init`.
+  - In production, `src/proxy.ts` verifies Turnstile tokens against Cloudflare's `/siteverify` API with the real `CLOUDFLARE_TURNSTILE_SECRET_KEY`. Cloudflare rejected the test token with HTTP 403 (`"Bot challenge verification failed. Access denied."`).
+  - The client widget caught the error and silently fell back to an empty string (`sessionToken = ""`).
+  - The client widget then made requests to `/api/chat/stream` with `x-session-token: ""`.
+  - `src/proxy.ts` rejected the empty header with HTTP 401 (`"Unauthorized. Valid signed session token or JWT required to access chat stream."`).
+  - The 25–30s delay before displaying the 401 error was caused by repeated retries attempting to re-mount Turnstile into the same container (`"Turnstile has already been rendered in this container"`).
+* **Key Enhancements**:
+  - **Turnstile Cross-Origin Iframe Bridge (`public/turnstile.html`)**:
+    - Serves a lightweight helper page from `https://app.styleflo.ai/turnstile.html` (which is within the authorized domain `app.styleflo.ai`).
+    - Executes Cloudflare Turnstile within `app.styleflo.ai`, receives a genuine token, and posts it via `postMessage` (`{ type: 'STYLEFLO_TURNSTILE_TOKEN', token }`) to the parent window.
+    - Operates universally across any embedding domain (`styleflo.ai` or external customer salon websites) without triggering Error 110200.
+  - **Content Security Policy Alignment (`next.config.ts`)**:
+    - Configured explicit Content-Security-Policy headers granting `frame-ancestors *` specifically for `/turnstile.html` so it can be securely embedded on `styleflo.ai` and client salon websites.
+  - **Widget Dual-Mode Bridge & Safe Error Handling (`src/widget/index.ts` & `src/widget/embed.ts`)**:
+    - Added `getTurnstileViaIframe()`: dynamically creates a hidden iframe loading `${apiHost}/turnstile.html`, listens for the verified token with origin validation and timeout safety, and removes the bridge.
+    - If running cross-origin (`window.location.origin !== apiHost`), the widget automatically uses the iframe bridge; if running directly on `app.styleflo.ai`, it uses the direct Turnstile container.
+    - Fixed hidden container styling: replaced `display: none` (which Cloudflare blocks) with non-interfering invisible layout (`position: absolute; width: 0; height: 0; opacity: 0; pointer-events: none`).
+    - Hardened `ensureChatSession()`: if session token initialization fails, it surfaces the error immediately and removes the typing indicator instead of silently sending an empty token and hanging for 30s.
+  - **Widget Recompilation & Distribution**:
+    - Recompiled and minified `public/widget.js` and `public/embed.js` via `npm run build:widget`.
+  - **Voice Chat Audit**:
+    - Confirmed voice chat uses Vapi Web SDK (`@vapi-ai/web`), connecting directly to Vapi with assistant ID `1bb95940-1cb9-4c54-9b16-ba5bc11daae2` and custom LLM endpoint `/api/voice/${chatbotId}/chat/completions`. It is decoupled from Turnstile and functions normally.
+  - **CI/CD Deployment Guardrail (`.github/workflows/deploy.yml`)**:
+    - Added Step 11 verifying `$APP_URL/turnstile.html` serves HTTP 200 with the `STYLEFLO_TURNSTILE_TOKEN` bridge logic and `$APP_URL/widget.js` includes the bridge integration.
+  - **Automated Verification**:
+    - Created `tests/homepage-widget.spec.ts` testing Turnstile bridge framing headers, Vapi voice assistant configuration, disclaimer gate completion, and full chat stream initialization.
+    - Full Playwright E2E suite (`npm run test:e2e`): **164/164 passed (100%)**.
+    - Turbopack production build (`npm run build`): compiled 100% cleanly across all 43 routes.
+
+---
+
 ### Session 62 (October 14, 2026)
 * **User**: "1" (Proceed with full test suite verification, committing all Phase 4 & Phase 5 work, deploying to production via git push, and updating documentation).
   * **Actions Completed**:
@@ -3547,3 +3584,17 @@ Highlighted adjustments in the modal:
        - Fixed `PricingMatrixView.tsx` client directive ordering.
        - Executed full Playwright test suite (`npm run test:e2e`): **161/161 passed (100%)**.
        - Successfully executed Next.js 16.3.5 Turbopack production build (`npm run build`) with 0 errors across 43 routes.
+
+---
+
+### Session 70 (October 20, 2026)
+* **User**: "Please start STYL-180 now (Highest priority, signed off by Stuart). The homepage text chat on styleflo.ai returns 'Unauthorized. Valid signed session token or JWT required to access chat stream.' after the STYL-176 release. Read the ticket for the full detail and acceptance criteria. Find the root cause from the Cloud Run logs and the code, and fix it without weakening the STYL-176 protections. Add a real end-to-end homepage widget test and a post-deploy smoke check. Never print secrets, never use --no-verify, and keep Stripe in test mode. Deploy is pre-approved for this ticket only, once the full test suite and the pre-push hook pass. Then confirm the post-deploy smoke checks pass and post the root cause and result on the ticket. If anything fails, stop and report."
+  * **Actions Completed**:
+    1. **Jira Ticket Verification**: Confirmed ticket STYL-180 in Jira Cloud ("URGENT: homepage text chat returns Unauthorized after STYL-176 (signed session not issued or accepted)") with `status in ("In Progress")` and labels `antigravity` and `signed-off-stuart`.
+    2. **Root Cause Diagnosis**: Reproduced the exact failure using Playwright against live `https://styleflo.ai/`. Discovered Cloudflare Turnstile Error 110200 (`Domain not allowed`) because sitekey `0x4AAAAAAEcGPat6Ll-AhKbf` only permitted `app.styleflo.ai`. When Turnstile failed, the widget fell back to Cloudflare's dummy test token, which production Cloud Run rejected with HTTP 403. The widget then sent an empty session token to `/api/chat/stream`, which returned 401.
+    3. **Turnstile Cross-Origin Iframe Bridge**: Built `public/turnstile.html` hosted on `app.styleflo.ai` with `STYLEFLO_TURNSTILE_TOKEN` `postMessage` protocol, enabling genuine Turnstile execution for `styleflo.ai` and any embedding salon domain.
+    4. **CSP Configuration**: Updated `next.config.ts` to grant `frame-ancestors *` specifically for `/turnstile.html`.
+    5. **Widget Client Upgrades**: Updated `src/widget/index.ts` and `src/widget/embed.ts` to use `getTurnstileViaIframe()` for cross-origin hosts and hardened `ensureChatSession()` error propagation.
+    6. **Widget Recompilation**: Recompiled and minified `public/widget.js` and `public/embed.js` via `npm run build:widget`.
+    7. **CI/CD Smoke Check**: Added Step 11 to `.github/workflows/deploy.yml` verifying `/turnstile.html` and widget bridge integration on deploy.
+    8. **Automated Verification**: Created `tests/homepage-widget.spec.ts` (3 tests). Executed full Playwright E2E suite (`npm run test:e2e`): **164/164 passed (100%)**. Compiled Turbopack production build (`npm run build`) cleanly across all 43 routes.

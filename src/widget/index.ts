@@ -35,12 +35,69 @@ import Vapi from '@vapi-ai/web';
   }
   const turnstileSiteKey = scriptEl.getAttribute('data-turnstile-sitekey') || '0x4AAAAAAEcGPat6Ll-AhKbf';
 
+  async function getTurnstileViaIframe(): Promise<string> {
+    return new Promise((resolve, reject) => {
+      const frameId = 'styleflo-turnstile-frame';
+      let existingFrame = document.getElementById(frameId) as HTMLIFrameElement | null;
+      if (existingFrame) existingFrame.remove();
+
+      const iframe = document.createElement('iframe');
+      iframe.id = frameId;
+      iframe.src = `${apiHost}/turnstile.html?sitekey=${encodeURIComponent(turnstileSiteKey)}`;
+      iframe.style.position = 'fixed';
+      iframe.style.bottom = '0';
+      iframe.style.right = '0';
+      iframe.style.width = '0px';
+      iframe.style.height = '0px';
+      iframe.style.border = 'none';
+      iframe.style.opacity = '0';
+      iframe.style.pointerEvents = 'none';
+      iframe.style.zIndex = '999999';
+
+      const timeout = setTimeout(() => {
+        window.removeEventListener('message', messageHandler);
+        if (iframe.parentNode) iframe.remove();
+        reject(new Error('Turnstile verification timed out.'));
+      }, 10000);
+
+      function messageHandler(event: MessageEvent) {
+        if (!event.data || typeof event.data !== 'object') return;
+        if (event.data.type === 'STYLEFLO_TURNSTILE_TOKEN' && event.data.token) {
+          clearTimeout(timeout);
+          window.removeEventListener('message', messageHandler);
+          if (iframe.parentNode) iframe.remove();
+          resolve(event.data.token);
+        } else if (event.data.type === 'STYLEFLO_TURNSTILE_ERROR') {
+          clearTimeout(timeout);
+          window.removeEventListener('message', messageHandler);
+          if (iframe.parentNode) iframe.remove();
+          reject(new Error(`Turnstile bridge error: ${event.data.code || event.data.error || 'unknown'}`));
+        }
+      }
+
+      window.addEventListener('message', messageHandler);
+      document.body.appendChild(iframe);
+    });
+  }
+
   async function getTurnstileToken(): Promise<string> {
     if (typeof window !== 'undefined' && (window as any).__STYLEFLO_TEST_TURNSTILE_TOKEN__) {
       return (window as any).__STYLEFLO_TEST_TURNSTILE_TOKEN__;
     }
     const scriptTestToken = scriptEl?.getAttribute('data-turnstile-token');
     if (scriptTestToken) return scriptTestToken;
+
+    // When running cross-origin (e.g. on styleflo.ai or client sites), use the iframe bridge on apiHost
+    const isDifferentOrigin = typeof window !== 'undefined' && window.location.origin !== apiHost;
+
+    if (isDifferentOrigin) {
+      try {
+        const token = await getTurnstileViaIframe();
+        if (token) return token;
+      } catch (e) {
+        console.warn('[StyleFlo Widget] Turnstile iframe bridge failed, falling back to direct:', e);
+      }
+    }
 
     return new Promise((resolve) => {
       const ensureScript = () => {
@@ -58,27 +115,47 @@ import Vapi from '@vapi-ai/web';
 
       ensureScript().then(() => {
         const turnstile = (window as any).turnstile;
-        if (!turnstile) return resolve('1x0000000000000000000000000000000AA');
+        if (!turnstile) {
+          return getTurnstileViaIframe().then(resolve).catch(() => resolve(''));
+        }
 
         let container = document.getElementById('styleflo-turnstile-container');
-        if (!container) {
-          container = document.createElement('div');
-          container.id = 'styleflo-turnstile-container';
-          container.style.display = 'none';
-          document.body.appendChild(container);
+        if (container) {
+          container.remove();
         }
+        container = document.createElement('div');
+        container.id = 'styleflo-turnstile-container';
+        // Note: Do NOT use display: none, as Turnstile refuses to render inside display: none elements
+        container.style.position = 'fixed';
+        container.style.bottom = '0';
+        container.style.right = '0';
+        container.style.width = '0px';
+        container.style.height = '0px';
+        container.style.opacity = '0';
+        container.style.pointerEvents = 'none';
+        container.style.overflow = 'hidden';
+        document.body.appendChild(container);
+
         try {
           turnstile.render(container, {
             sitekey: turnstileSiteKey,
             action: 'chat_init',
             callback: (token: string) => resolve(token),
-            'error-callback': () => resolve('1x0000000000000000000000000000000AA'),
-            'expired-callback': () => turnstile.reset(container),
+            'error-callback': (code: any) => {
+              console.warn('[StyleFlo Widget] Direct Turnstile error:', code, '- falling back to bridge');
+              getTurnstileViaIframe().then(resolve).catch(() => resolve(''));
+            },
+            'expired-callback': () => {
+              if (container) turnstile.reset(container);
+            },
           });
-        } catch {
-          resolve('1x0000000000000000000000000000000AA');
+        } catch (err) {
+          console.warn('[StyleFlo Widget] Direct Turnstile render failed, falling back to bridge:', err);
+          getTurnstileViaIframe().then(resolve).catch(() => resolve(''));
         }
-      }).catch(() => resolve('1x0000000000000000000000000000000AA'));
+      }).catch(() => {
+        getTurnstileViaIframe().then(resolve).catch(() => resolve(''));
+      });
     });
   }
 
@@ -97,38 +174,38 @@ import Vapi from '@vapi-ai/web';
       }
     }
 
-    try {
-      const turnstileToken = await getTurnstileToken();
-      const res = await fetch(`${apiHost}/api/chat/public-init`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'x-turnstile-token': turnstileToken,
-        },
-        body: JSON.stringify({ chatbotId }),
-      });
-
-      if (!res.ok) {
-        throw new Error(`Session init failed HTTP ${res.status}`);
-      }
-
-      const data = await res.json();
-      if (data.sessionToken && data.sessionId) {
-        const expTime = Date.now() + (data.expiresInSeconds || 3600) * 1000;
-        localStorage.setItem(tokenKey, data.sessionToken);
-        localStorage.setItem('styleflo_session_token', data.sessionToken);
-        localStorage.setItem(sessIdKey, data.sessionId);
-        localStorage.setItem(sessionKey, data.sessionId);
-        localStorage.setItem(expKey, String(expTime));
-        return { sessionToken: data.sessionToken, sessionId: data.sessionId };
-      }
-    } catch (err) {
-      console.warn('[StyleFlo Widget] Session token refresh failed:', err);
+    const turnstileToken = await getTurnstileToken();
+    if (!turnstileToken) {
+      throw new Error('Security verification failed. Please refresh the page and try again.');
     }
 
-    const fallbackId = localStorage.getItem(sessIdKey) || localStorage.getItem(sessionKey) || `session_${crypto.randomUUID()}`;
-    const fallbackToken = localStorage.getItem(tokenKey) || localStorage.getItem('styleflo_session_token') || '';
-    return { sessionToken: fallbackToken, sessionId: fallbackId };
+    const res = await fetch(`${apiHost}/api/chat/public-init`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-turnstile-token': turnstileToken,
+      },
+      body: JSON.stringify({ chatbotId }),
+    });
+
+    if (!res.ok) {
+      const errJson = await res.json().catch(() => ({}));
+      const msg = errJson.error || `Security verification failed with HTTP ${res.status}.`;
+      throw new Error(msg);
+    }
+
+    const data = await res.json();
+    if (data.sessionToken && data.sessionId) {
+      const expTime = Date.now() + (data.expiresInSeconds || 3600) * 1000;
+      localStorage.setItem(tokenKey, data.sessionToken);
+      localStorage.setItem('styleflo_session_token', data.sessionToken);
+      localStorage.setItem(sessIdKey, data.sessionId);
+      localStorage.setItem(sessionKey, data.sessionId);
+      localStorage.setItem(expKey, String(expTime));
+      return { sessionToken: data.sessionToken, sessionId: data.sessionId };
+    }
+
+    throw new Error('Invalid session response from security gateway.');
   }
 
 
@@ -1383,10 +1460,9 @@ import Vapi from '@vapi-ai/web';
       // 2. Add typing indicator
       const typingIndicator = showTypingIndicator();
 
-      const session = await ensureChatSession();
-
       // 3. Initiate fetch streaming call
       try {
+        const session = await ensureChatSession();
         let response = await fetch(`${apiHost}/api/chat/stream`, {
           method: 'POST',
           headers: {

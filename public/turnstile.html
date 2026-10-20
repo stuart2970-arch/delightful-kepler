@@ -1,0 +1,87 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>StyleFlo Security Verification</title>
+  <style>
+    body, html { margin: 0; padding: 0; overflow: hidden; }
+    #cf-container { display: flex; justify-content: center; align-items: center; }
+  </style>
+  <script src="https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit" async defer></script>
+</head>
+<body>
+  <div id="cf-container"></div>
+  <script>
+    (function() {
+      var urlParams = new URLSearchParams(window.location.search);
+      var sitekey = urlParams.get('sitekey') || '0x4AAAAAAEcGPat6Ll-AhKbf';
+      var widgetId = null;
+
+      function notifyParent(payload) {
+        try {
+          if (window.parent && window.parent !== window) {
+            window.parent.postMessage(payload, '*');
+          }
+        } catch (e) {
+          console.error('[StyleFlo Turnstile Bridge] postMessage failed:', e);
+        }
+      }
+
+      function initTurnstile() {
+        if (!window.turnstile) {
+          setTimeout(initTurnstile, 100);
+          return;
+        }
+
+        var container = document.getElementById('cf-container');
+        try {
+          widgetId = window.turnstile.render(container, {
+            sitekey: sitekey,
+            action: 'chat_init',
+            size: 'normal',
+            callback: function(token) {
+              notifyParent({
+                type: 'STYLEFLO_TURNSTILE_TOKEN',
+                token: token
+              });
+            },
+            'error-callback': function(code) {
+              notifyParent({
+                type: 'STYLEFLO_TURNSTILE_ERROR',
+                code: code
+              });
+            },
+            'expired-callback': function() {
+              if (widgetId !== null) {
+                window.turnstile.reset(widgetId);
+              }
+              notifyParent({
+                type: 'STYLEFLO_TURNSTILE_EXPIRED'
+              });
+            }
+          });
+        } catch (err) {
+          notifyParent({
+            type: 'STYLEFLO_TURNSTILE_ERROR',
+            error: err ? err.message : 'Render failed'
+          });
+        }
+      }
+
+      window.addEventListener('message', function(event) {
+        if (event.data && event.data.type === 'STYLEFLO_RESET_TURNSTILE') {
+          if (widgetId !== null && window.turnstile) {
+            window.turnstile.reset(widgetId);
+          }
+        }
+      });
+
+      if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', initTurnstile);
+      } else {
+        initTurnstile();
+      }
+    })();
+  </script>
+</body>
+</html>

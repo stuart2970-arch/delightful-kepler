@@ -136,3 +136,25 @@ jobs:
             exit 1
           fi
           echo "PASS: /api/billing/prices contains no retired legacy packs."
+
+      # 11. Post-Deploy Homepage Widget & Turnstile Bridge Smoke Check (STYL-180)
+      - name: Post-Deploy Widget & Turnstile Bridge Smoke Check
+        run: |
+          APP_URL="${{ steps.deploy.outputs.url }}"
+          echo "Verifying Turnstile bridge and widget bundle on $APP_URL..."
+
+          # Probe 1: /turnstile.html must be served with 200 and contain the postMessage bridge
+          BRIDGE_RESP=$(curl -s -L "$APP_URL/turnstile.html")
+          if ! echo "$BRIDGE_RESP" | grep -q "STYLEFLO_TURNSTILE_TOKEN"; then
+            echo "::error::Post-deploy smoke check FAILED: /turnstile.html is missing or does not contain STYLEFLO_TURNSTILE_TOKEN bridge logic!"
+            exit 1
+          fi
+          echo "PASS: /turnstile.html is deployed and contains Turnstile bridge."
+
+          # Probe 2: /widget.js must contain the iframe bridge logic
+          WIDGET_RESP=$(curl -s -L "$APP_URL/widget.js")
+          if ! echo "$WIDGET_RESP" | grep -q "turnstile.html"; then
+            echo "::error::Post-deploy smoke check FAILED: /widget.js does not contain turnstile.html bridge integration!"
+            exit 1
+          fi
+          echo "PASS: /widget.js contains Turnstile bridge integration."

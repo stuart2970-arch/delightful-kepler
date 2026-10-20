@@ -14,7 +14,16 @@ const nextConfig: any = {
   async headers() {
     return [
       {
-        source: '/(.*)',
+        source: '/turnstile.html',
+        headers: [
+          {
+            key: 'Content-Security-Policy',
+            value: "frame-ancestors *"
+          }
+        ],
+      },
+      {
+        source: '/:path((?!turnstile\\.html).*)',
         headers: [
           {
             key: 'Content-Security-Policy',
