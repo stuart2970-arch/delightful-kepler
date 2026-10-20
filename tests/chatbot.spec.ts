@@ -73,4 +73,94 @@ test.describe('Chatbot & Widget Functionality', () => {
     expect(uiVerification.hasVapiBtn).toBeTruthy();
     expect(uiVerification.agentHeader).toBe('Acme Support Bot');
   });
+
+  test('proxy blocks chat stream when missing auth headers and valid payload', async ({ request }) => {
+    const response = await request.post('/api/chat/stream', {
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      data: {
+        message: 'Hello bot',
+      },
+    });
+    expect(response.status()).toBe(401);
+  });
+
+  test('proxy allows chat stream with x-session-token header', async ({ request }) => {
+    const response = await request.post('/api/chat/stream', {
+      headers: {
+        'Content-Type': 'application/json',
+        'x-session-token': 'session_test_123',
+      },
+      data: {
+        message: 'Hello bot',
+        chatbotId: testChatbotId,
+        sessionId: 'session_test_123',
+      },
+    });
+    // Proxy auth passes (status should not be 401)
+    expect(response.status()).not.toBe(401);
+  });
+
+  test('proxy defense-in-depth fallback allows public chat stream with valid chatbotId and sessionId', async ({ request }) => {
+    const response = await request.post('/api/chat/stream', {
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      data: {
+        message: 'Hello bot',
+        chatbotId: testChatbotId,
+        sessionId: 'session_public_fallback_123',
+      },
+    });
+    // Proxy auth passes (status should not be 401)
+    expect(response.status()).not.toBe(401);
+  });
+
+  test('widget chat form submission sends x-session-token header to chat stream', async ({ page }) => {
+    await page.goto('/login');
+
+    let streamRequestHeaders: Record<string, string> = {};
+    let streamRequestIntercepted = false;
+
+    await page.route('**/api/chat/stream', async (route) => {
+      streamRequestIntercepted = true;
+      streamRequestHeaders = route.request().headers();
+      await route.fulfill({
+        status: 200,
+        contentType: 'text/event-stream',
+        body: 'data: Hello from mock stream\n\n',
+      });
+    });
+
+    // Inject widget script
+    await page.evaluate((botId) => {
+      return new Promise<void>((resolve, reject) => {
+        const s = document.createElement('script');
+        s.src = '/widget.js';
+        s.setAttribute('data-bot-id', botId);
+        s.onload = () => resolve();
+        s.onerror = (e) => reject(e);
+        document.body.appendChild(s);
+      });
+    }, testChatbotId);
+
+    // Open chat window
+    await page.evaluate(() => {
+      const root = document.querySelector('#styleflo-chat-widget')?.shadowRoot;
+      const bubble = root?.querySelector('button');
+      if (bubble) bubble.click();
+    });
+
+    // Wait for input inside shadow DOM
+    const input = page.locator('#styleflo-chat-widget').locator('#styleflo-input');
+    await expect(input).toBeVisible({ timeout: 10000 });
+
+    // Submit a chat message via Playwright keyboard interaction
+    await input.fill('Can I book an appointment?');
+    await input.press('Enter');
+
+    await expect.poll(() => streamRequestIntercepted).toBe(true);
+    expect(streamRequestHeaders['x-session-token']).toBeTruthy();
+  });
 });

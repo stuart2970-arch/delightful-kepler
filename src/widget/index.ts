@@ -1285,12 +1285,15 @@ import Vapi from '@vapi-ai/web';
       // 2. Add typing indicator
       const typingIndicator = showTypingIndicator();
 
+      const activeToken = localStorage.getItem('styleflo_session_token') || sessionId || '';
+
       // 3. Initiate fetch streaming call
       try {
         const response = await fetch(`${apiHost}/api/chat/stream`, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
+            'x-session-token': activeToken,
           },
           body: JSON.stringify({
             message: messageText,

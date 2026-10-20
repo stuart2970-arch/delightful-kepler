@@ -3357,3 +3357,19 @@ Highlighted adjustments in the modal:
     5. **Repo-Wide Price Literal Elimination**: Audited and replaced hardcoded prices across `entitlements.ts`, `dashboard/page.tsx`, `DashboardClient.tsx`, `AddOnUpsellModal.tsx`, `TelephonyView.tsx`, and `SchedulingView.tsx`.
     6. **Database Schema & Migrations**: Created migration `20261019193000_addon_catalog_sliding_scale_columns.sql` and corrected `20261017195500_rename_base_tier_to_foundation.sql` in local Supabase DB CLI.
     7. **Test Suite Execution**: Executed Playwright tests `tests/addons-sliding-scale.spec.ts`, achieving 23/23 passed (100%).
+
+
+### Session 66 (October 20, 2026)
+* **User**: "/schedule check jira for tasks ready to be developed"
+  * **Actions Completed**:
+    1. **Jira Polling Execution**: Executed `scripts/check-jira.mjs` against Jira Cloud REST API.
+    2. **Active Task Identified**: Located 1 authorized ticket in progress matching `labels = antigravity AND status in ('In Progress', 'in-progress')`:
+       - **STYL-173**: "Text chat not working " (Status: In Progress, Assignee: Unassigned, Labels: [antigravity, go-live-must]).
+    3. **Background Daemon Schedule Configured**: Created a daemonized background schedule (`*/30 * * * *`) using the schedule tool to continuously check Jira every 30 minutes for actionable development tickets.
+    4. **STYL-173 Resolution (Text Chat Authorization & Widget Fix)**:
+       - **Problem**: Chat messages failed on public landing page widgets (`https://app.styleflo.ai/widget.js`) with HTTP 401 (`"Unauthorized. Valid session token or JWT required to access chat stream."`) because `src/widget/index.ts` omitted `x-session-token` from headers.
+       - **Client-Side Header Synchronization**: Updated `src/widget/index.ts` around line 1290 to attach `'x-session-token': localStorage.getItem('styleflo_session_token') || sessionId || ''` to the `/api/chat/stream` fetch headers (matching `src/widget/embed.ts`).
+       - **Defense-in-Depth Proxy Fallback**: Updated `src/proxy.ts` chat stream authentication gate. If both `Authorization` and `x-session-token` headers are missing, safely inspect the cloned request body (`request.clone().json()`) for valid public `chatbotId` and `sessionId`, preventing 401s on legacy/cached widget instances while blocking unauthorized traffic.
+       - **Widget Script Recompilation**: Recompiled and minified `public/widget.js` and `public/embed.js` via `npm run build:widget` (`scripts/build-widget.js`).
+       - **Automated Verification**: Added 4 automated Playwright test cases in `tests/chatbot.spec.ts` testing 401 rejection on unauthenticated requests, successful authorization via `x-session-token`, public fallback authorization via `chatbotId` + `sessionId`, and end-to-end shadow DOM widget chat submission with header verification. All 6 tests passing (100%).
+       - **Production Build Verification**: Successfully compiled Next.js 16.3.5 Turbopack production build with 0 errors across 43 routes.

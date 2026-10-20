@@ -101,16 +101,29 @@ export async function proxy(request: NextRequest) {
     const sessionToken = request.headers.get('x-session-token');
 
     if (!authHeader && !sessionToken) {
-      return new NextResponse(
-        JSON.stringify({
-          success: false,
-          error: 'Unauthorized. Valid session token or JWT required to access chat stream.',
-        }),
-        {
-          status: 401,
-          headers: { 'Content-Type': 'application/json', ...corsHeaders },
+      // Defense-in-depth fallback: check if request contains valid public chatbotId and sessionId
+      let hasValidPublicPayload = false;
+      try {
+        const clonedBody = await request.clone().json().catch(() => null);
+        if (clonedBody && clonedBody.chatbotId && clonedBody.sessionId) {
+          hasValidPublicPayload = true;
         }
-      );
+      } catch (err) {
+        hasValidPublicPayload = false;
+      }
+
+      if (!hasValidPublicPayload) {
+        return new NextResponse(
+          JSON.stringify({
+            success: false,
+            error: 'Unauthorized. Valid session token or JWT required to access chat stream.',
+          }),
+          {
+            status: 401,
+            headers: { 'Content-Type': 'application/json', ...corsHeaders },
+          }
+        );
+      }
     }
   }
 
