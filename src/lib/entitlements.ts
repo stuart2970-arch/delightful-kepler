@@ -66,13 +66,13 @@ export type CapacityThreshold = {
 };
 
 // Feature ID mapping for bolt-on categories
-const FEATURE_TO_UPGRADE_MAP: Record<string, { category: string; addonId: string; addonName: string; pricePence: number }> = {
-  voice_minutes: { category: 'voice_pack', addonId: 'voice_pack_20', addonName: '20 Voice Minutes Pack', pricePence: 1500 },
-  sms_messages: { category: 'sms_pack', addonId: 'sms_pack_100', addonName: '100 SMS Pack', pricePence: 599 },
-  knowledge_data_chunks: { category: 'data_pack', addonId: 'data_pack_500', addonName: 'Extra Knowledge (500 Knowledge Items)', pricePence: 499 },
-  whatsapp_messages: { category: 'whatsapp', addonId: 'whatsapp_addon', addonName: 'WhatsApp (Add-on)', pricePence: 999 },
-  google_calendar: { category: 'google_calendar', addonId: 'google_calendar_addon', addonName: 'Google Calendar Integration', pricePence: 499 },
-  microsoft_calendar: { category: 'microsoft_calendar', addonId: 'microsoft_calendar_addon', addonName: 'Microsoft Outlook Calendar Integration', pricePence: 499 },
+const FEATURE_TO_UPGRADE_MAP: Record<string, { category: string; addonId: string; defaultName: string }> = {
+  voice_minutes: { category: 'voice_pack', addonId: 'voice_pack_20', defaultName: '20 Voice Minutes Pack' },
+  sms_messages: { category: 'sms_pack', addonId: 'sms_pack_100', defaultName: '100 SMS Pack' },
+  knowledge_data_chunks: { category: 'data_pack', addonId: 'data_pack_500', defaultName: 'Extra Knowledge (500 Knowledge Items)' },
+  whatsapp_messages: { category: 'whatsapp', addonId: 'whatsapp_addon', defaultName: 'WhatsApp (Add-on)' },
+  google_calendar: { category: 'google_calendar', addonId: 'google_calendar_addon', defaultName: 'Google Calendar Integration' },
+  microsoft_calendar: { category: 'microsoft_calendar', addonId: 'microsoft_calendar_addon', defaultName: 'Microsoft Outlook Calendar Integration' },
 };
 
 // =========================================================================
@@ -414,6 +414,12 @@ export async function checkCapacityThresholds(
   firstDay.setDate(1);
   firstDay.setHours(0, 0, 0, 0);
 
+  // Query addon_catalog dynamically for up-to-date pricing
+  const { data: catalogAddons } = await supabase
+    .from('addon_catalog')
+    .select('id, name, monthly_price_pence');
+  const catalogMap = new Map((catalogAddons || []).map((a: any) => [a.id, a]));
+
   for (const feature of meteredFeatures) {
     const limit = await getTenantEffectiveLimit(tenantId, feature.id);
     if (limit === null || limit === 0) continue;
@@ -457,9 +463,12 @@ export async function checkCapacityThresholds(
       const upgradeInfo = FEATURE_TO_UPGRADE_MAP[feature.id] || {
         category: 'data_pack',
         addonId: 'data_pack_500',
-        addonName: 'Extra Knowledge (500 Knowledge Items)',
-        pricePence: 499,
+        defaultName: 'Extra Knowledge (500 Knowledge Items)',
       };
+
+      const catalogItem = catalogMap.get(upgradeInfo.addonId);
+      const upgradePricePence = catalogItem?.monthly_price_pence ?? 0;
+      const upgradeAddonName = catalogItem?.name || upgradeInfo.defaultName;
 
       thresholds.push({
         featureId: feature.id,
@@ -469,8 +478,8 @@ export async function checkCapacityThresholds(
         limit,
         upgradeCategory: upgradeInfo.category,
         upgradeAddonId: upgradeInfo.addonId,
-        upgradeAddonName: upgradeInfo.addonName,
-        upgradePricePence: upgradeInfo.pricePence,
+        upgradeAddonName,
+        upgradePricePence,
       });
     }
   }

@@ -3267,6 +3267,35 @@ Highlighted adjustments in the modal:
   - Verified 100% pass rate across all 20 WhatsApp tests (4/4 in `tests/whatsapp-ui.spec.ts`, 6/6 in `tests/whatsapp-onboard-webhook.spec.ts`, 4/4 in `tests/twilio-whatsapp-verification.spec.ts`, 5/5 in `tests/crypto.spec.ts`, 1/1 in `tests/whatsapp-purge.spec.ts`).
   - Verified Next.js 16.3.5 Turbopack production build succeeded cleanly with 0 errors across all 43 routes.
 
+### 63. Dynamic Pricing Architecture & Checkout Security Hardening (STYL-174)
+* **Goal**: Read all subscription and bolt-on prices from `/superadmin` Supabase tables (`subscription_tiers` and `addon_catalog`) dynamically, eliminating hardcoded price literals and fallbacks across the codebase. Stop client-supplied `customPricePence` tampering at checkout by enforcing server-side range and step validation, and recalculating voice minutes/SMS server-side.
+* **Key Enhancements**:
+  - **Dynamic Pricing Endpoint (`/api/billing/prices`)**:
+    - Created a read-only endpoint returning the active Foundation plan price from `subscription_tiers` and all active bolt-on products from `addon_catalog`.
+    - Returns HTTP 503 "Pricing unavailable" if database credentials or pricing tables cannot be queried.
+  - **Checkout Hardening (`/api/billing/checkout`)**:
+    - Replaced hardcoded `unit_amount: 999` and fallbacks with dynamic lookup from `subscription_tiers` (`id='foundation'`, fallback `base_tier`). If unreadable, returns HTTP 503.
+    - Added strict validation for unknown or inactive add-ons (returns HTTP 400).
+    - **Security exploit patched**: In Mode 2 (sliding scale add-ons), browser-supplied `customPricePence` is validated to ensure it falls within `monthly_price_pence` and `max_price_pence`, and is an exact multiple of `price_step_pence`. Any out-of-range or invalid step value is rejected with HTTP 400. Voice minutes and SMS allocations are recalculated strictly server-side from `addon_catalog`.
+    - Switched Mode 2 to always construct `price_data` dynamically using `unit_amount` from `addon_catalog` (Option 1).
+  - **Registration Page Dynamic Loading (`src/app/register/page.tsx`)**:
+    - Removed hardcoded prices (`basePrice = 9.99`, `MODULAR_ADDONS` prices).
+    - On mount, fetches dynamic prices via `/api/billing/prices` and renders the total with copy rule "Foundation £X a month" (no VAT wording).
+  - **Elimination of Hardcoded Price Literals**:
+    - `src/lib/entitlements.ts`: Removed static `pricePence` mappings and dynamically loads upgrade prices from `addon_catalog`.
+    - `src/app/dashboard/page.tsx`: Dynamically sets `upgradePricePence` using `billingData.catalog`.
+    - `src/components/DashboardClient.tsx`: Replaced all hardcoded fallback prices with `'Price unavailable'`.
+    - `src/components/AddOnUpsellModal.tsx`: Replaced hardcoded price constants with dynamic availability flags and `'Price unavailable'`.
+    - `src/components/dashboard-views/TelephonyView.tsx`: Landline and Mobile prices dynamically rendered from `billingData.catalog`.
+    - `src/components/dashboard-views/SchedulingView.tsx`: Google and Microsoft calendar add-on prices dynamically rendered from `billingData.catalog`.
+    - `scripts/setup-stripe-modular-products.js`: Added deprecation notice documenting Option 1 dynamic checkout pricing via `price_data`.
+  - **Database Migration**:
+    - Added `supabase/migrations/20261019193000_addon_catalog_sliding_scale_columns.sql` to ensure `max_price_pence`, `max_voice_minutes`, `max_sms`, `is_sliding`, and `price_step_pence` exist and are populated.
+    - Fixed `20261017195500_rename_base_tier_to_foundation.sql` to remove non-existent `text_value` column.
+  - **Automated Testing (`tests/addons-sliding-scale.spec.ts`)**:
+    - Added tests for `GET /api/billing/prices`, dynamic registration page rendering, and checkout validation (rejecting out-of-range `customPricePence`, rejecting non-step increments, and rejecting unknown add-on IDs).
+    - 23/23 tests passing (100%).
+
 ---
 
 ### Session 62 (October 14, 2026)
@@ -3315,3 +3344,16 @@ Highlighted adjustments in the modal:
        - **Stripe Test Mode Safety**: Verified `STRIPE_SECRET_KEY` and `NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY` remain in test mode (`pk_test_...` / `sk_test_...`).
        - **Verification**: Ran Playwright tests (`tests/addons-sliding-scale.spec.ts`) passing 18/18 (100%), and compiled Next.js 16.3.5 Turbopack production build with 0 errors across 43 routes.
 
+
+---
+
+### Session 65 (October 20, 2026)
+* **User**: "Check for jiras" -> "174" -> "Update" (STYL-174: Read all prices from /superadmin and stop client-set bolt-on prices at checkout)
+  * **Actions Completed**:
+    1. **Jira Verification**: Confirmed STYL-174 in Jira Cloud with `status in ("In Progress")` and label `antigravity`.
+    2. **Public Endpoint for Dynamic Prices**: Built `GET /api/billing/prices` returning live `subscription_tiers` and `addon_catalog` data with 503 fallback when database unavailable.
+    3. **Checkout Security Fix & Dynamic Lookup**: Updated `/api/billing/checkout` to query `subscription_tiers` for Foundation base tier, reject client-set `customPricePence` outside `[monthly_price_pence, max_price_pence]` or off-step increments with HTTP 400, recalculate voice mins and SMS server-side, and dynamically construct `price_data` for all add-ons.
+    4. **Register Page Dynamic Prices**: Connected `register/page.tsx` to `/api/billing/prices`, displaying "Foundation £X a month" with dynamic add-on totals.
+    5. **Repo-Wide Price Literal Elimination**: Audited and replaced hardcoded prices across `entitlements.ts`, `dashboard/page.tsx`, `DashboardClient.tsx`, `AddOnUpsellModal.tsx`, `TelephonyView.tsx`, and `SchedulingView.tsx`.
+    6. **Database Schema & Migrations**: Created migration `20261019193000_addon_catalog_sliding_scale_columns.sql` and corrected `20261017195500_rename_base_tier_to_foundation.sql` in local Supabase DB CLI.
+    7. **Test Suite Execution**: Executed Playwright tests `tests/addons-sliding-scale.spec.ts`, achieving 23/23 passed (100%).

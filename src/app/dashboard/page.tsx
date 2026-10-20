@@ -515,12 +515,13 @@ export default async function DashboardPage(props: { searchParams?: Promise<{ [k
 
       // Compute 85% capacity thresholds
       const thresholds: any[] = [];
-      const featureUpgradeMap: Record<string, { category: string; addonId: string; addonName: string; pricePence: number }> = {
-        knowledge_data_chunks: { category: 'data_pack', addonId: 'data_pack_500', addonName: 'Extra Knowledge (500 Knowledge Items)', pricePence: 499 },
-        voice_minutes: { category: 'voice_pack', addonId: 'voice_pack_20', addonName: '20 Voice Minutes Pack', pricePence: 1500 },
-        sms_messages: { category: 'sms_pack', addonId: 'sms_pack_100', addonName: '100 SMS Pack', pricePence: 599 },
-        message_allowance: { category: 'data_pack', addonId: 'data_pack_500', addonName: 'Extra Knowledge (500 Knowledge Items)', pricePence: 499 },
+      const featureUpgradeMap: Record<string, { category: string; addonId: string; defaultName: string }> = {
+        knowledge_data_chunks: { category: 'data_pack', addonId: 'data_pack_500', defaultName: 'Extra Knowledge (500 Knowledge Items)' },
+        voice_minutes: { category: 'voice_pack', addonId: 'voice_pack_20', defaultName: '20 Voice Minutes Pack' },
+        sms_messages: { category: 'sms_pack', addonId: 'sms_pack_100', defaultName: '100 SMS Pack' },
+        message_allowance: { category: 'data_pack', addonId: 'data_pack_500', defaultName: 'Extra Knowledge (500 Knowledge Items)' },
       };
+      const catalogMap = new Map((billingData.catalog || []).map((c: any) => [c.id, c]));
 
       for (const ent of (billingData.entitlements || [])) {
         if (!ent.limit_value || ent.limit_value <= 0) continue;
@@ -540,6 +541,10 @@ export default async function DashboardPage(props: { searchParams?: Promise<{ [k
         if (percentUsed >= 85) {
           const upgrade = featureUpgradeMap[ent.feature_id];
           if (upgrade) {
+            const catalogItem: any = catalogMap.get(upgrade.addonId);
+            const upgradePricePence = catalogItem?.monthly_price_pence ?? 0;
+            const upgradeAddonName = catalogItem?.name || upgrade.defaultName;
+
             thresholds.push({
               featureId: ent.feature_id,
               featureName: ent.features?.name || ent.feature_id,
@@ -548,8 +553,8 @@ export default async function DashboardPage(props: { searchParams?: Promise<{ [k
               limit: ent.limit_value,
               upgradeCategory: upgrade.category,
               upgradeAddonId: upgrade.addonId,
-              upgradeAddonName: upgrade.addonName,
-              upgradePricePence: upgrade.pricePence,
+              upgradeAddonName,
+              upgradePricePence,
             });
           }
         }

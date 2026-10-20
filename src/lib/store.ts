@@ -126,6 +126,8 @@ export interface BillingData {
   channelFlags: { has_landline: boolean; has_mobile: boolean; has_whatsapp: boolean; has_google_calendar?: boolean };
   rolloverUsage: { voice_minutes_allocated: number; voice_minutes_consumed: number; voice_minutes_remaining: number; sms_allocated: number; sms_consumed: number; sms_remaining: number };
   thresholds: Array<{ featureId: string; featureName: string; percentUsed: number; currentUsage: number; limit: number; upgradeCategory: string; upgradeAddonId: string; upgradeAddonName: string; upgradePricePence: number }>;
+  catalog?: any[];
+  foundationMonthlyPrice?: number | null;
 }
 
 export interface DashboardState {

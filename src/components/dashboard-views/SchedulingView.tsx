@@ -33,8 +33,14 @@ export default function SchedulingView() {
     openPublicHolidays,
     setOpenPublicHolidays,
     appointments,
-    setAppointments
+    setAppointments,
+    billingData
   } = useDashboardStore();
+
+  const googleAddon = billingData?.catalog?.find((c: any) => c.id === 'google_calendar_addon' || c.category === 'google_calendar');
+  const microsoftAddon = billingData?.catalog?.find((c: any) => c.id === 'microsoft_calendar_addon' || c.category === 'microsoft_calendar');
+  const googlePriceText = googleAddon ? `£${(googleAddon.monthly_price_pence / 100).toFixed(2)}/mo` : 'Price unavailable';
+  const microsoftPriceText = microsoftAddon ? `£${(microsoftAddon.monthly_price_pence / 100).toFixed(2)}/mo` : 'Price unavailable';
 
   const [mounted, setMounted] = useState(false);
   const [showCalendarUpsellModal, setShowCalendarUpsellModal] = useState(false);
@@ -588,7 +594,7 @@ export default function SchedulingView() {
   return (
     <>
       <div className="space-y-6">
-        {/* Calendar Integration Choice Banner (Mutually Exclusive £4.99/mo Bolt-ons) */}
+        {/* Calendar Integration Choice Banner (Mutually Exclusive Bolt-ons) */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
           {/* Google Calendar Card */}
           <div className="bg-gradient-to-r from-slate-900 to-indigo-950 p-6 rounded-2xl text-white shadow-xl flex flex-col justify-between gap-5">
@@ -599,7 +605,7 @@ export default function SchedulingView() {
                   <h3 className="text-base font-bold text-white tracking-tight">Google Calendar Sync</h3>
                 </div>
                 <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider bg-indigo-500/20 text-indigo-300 border border-indigo-500/30">
-                  £4.99/mo
+                  {googlePriceText}
                 </span>
               </div>
               <p className="text-xs text-slate-300 leading-relaxed">
@@ -651,7 +657,7 @@ export default function SchedulingView() {
                 }}
                 className="w-full px-4 py-2.5 bg-gradient-to-r from-indigo-500 to-indigo-600 hover:from-indigo-400 hover:to-indigo-500 text-white font-bold rounded-xl shadow-lg transition-all flex items-center justify-center gap-2 text-xs text-center cursor-pointer"
               >
-                <span>⚡ Select Google Calendar (£4.99/mo)</span>
+                <span>⚡ Select Google Calendar ({googlePriceText})</span>
               </button>
             )}
           </div>
@@ -665,7 +671,7 @@ export default function SchedulingView() {
                   <h3 className="text-base font-bold text-white tracking-tight">Microsoft Calendar</h3>
                 </div>
                 <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider bg-blue-500/20 text-blue-300 border border-blue-500/30">
-                  £4.99/mo
+                  {microsoftPriceText}
                 </span>
               </div>
               <p className="text-xs text-slate-300 leading-relaxed">
@@ -717,7 +723,7 @@ export default function SchedulingView() {
                 }}
                 className="w-full px-4 py-2.5 bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-400 hover:to-blue-500 text-white font-bold rounded-xl shadow-lg transition-all flex items-center justify-center gap-2 text-xs text-center cursor-pointer"
               >
-                <span>⚡ Select Microsoft Outlook (£4.99/mo)</span>
+                <span>⚡ Select Microsoft Outlook ({microsoftPriceText})</span>
               </button>
             )}
           </div>

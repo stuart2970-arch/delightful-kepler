@@ -921,7 +921,7 @@ const globalBotId = '00000000-0000-0000-0000-000000000000';
                       </span>
                     </h3>
                     <p className="text-xs text-[var(--awb-color6)] mt-1">
-                      {billingData?.tierDetails?.monthly_price != null ? `£${Number(billingData.tierDetails.monthly_price).toFixed(2)}/month` : '£9.99/month'} • Manage your usage limits, active bolt-ons, and allowances.
+                      {billingData?.tierDetails?.monthly_price != null ? `£${Number(billingData.tierDetails.monthly_price).toFixed(2)}/month` : 'Price unavailable'} • Manage your usage limits, active bolt-ons, and allowances.
                     </p>
                   </div>
                   <button
@@ -1133,7 +1133,7 @@ const globalBotId = '00000000-0000-0000-0000-000000000000';
                     {/* 1. Landline */}
                     {(() => {
                       const item = billingData?.catalog?.find((c: any) => c.category === 'landline' || c.id === 'landline_addon');
-                      const priceStr = item ? `${item.is_sliding ? 'From ' : ''}£${(item.monthly_price_pence / 100).toFixed(2)}/mo` : 'From £8.99/mo';
+                      const priceStr = item ? `${item.is_sliding ? 'From ' : ''}£${(item.monthly_price_pence / 100).toFixed(2)}/mo` : 'Price unavailable';
                       return (
                         <div className="bg-[var(--awb-color2)] border border-[var(--awb-color3)] hover:border-[#198fd9] rounded-xl p-4 flex flex-col justify-between transition-colors shadow-sm">
                           <div>
@@ -1161,7 +1161,7 @@ const globalBotId = '00000000-0000-0000-0000-000000000000';
                     {/* 2. Mobile */}
                     {(() => {
                       const item = billingData?.catalog?.find((c: any) => c.category === 'mobile' || c.id === 'mobile_addon');
-                      const priceStr = item ? `${item.is_sliding ? 'From ' : ''}£${(item.monthly_price_pence / 100).toFixed(2)}/mo` : 'From £10.99/mo';
+                      const priceStr = item ? `${item.is_sliding ? 'From ' : ''}£${(item.monthly_price_pence / 100).toFixed(2)}/mo` : 'Price unavailable';
                       return (
                         <div className="bg-[var(--awb-color2)] border border-[var(--awb-color3)] hover:border-[#198fd9] rounded-xl p-4 flex flex-col justify-between transition-colors shadow-sm">
                           <div>
@@ -1189,7 +1189,7 @@ const globalBotId = '00000000-0000-0000-0000-000000000000';
                     {/* 3. Google Calendar */}
                     {(() => {
                       const item = billingData?.catalog?.find((c: any) => c.category === 'google_calendar' || c.id === 'google_calendar_addon');
-                      const priceStr = item ? `£${(item.monthly_price_pence / 100).toFixed(2)}/mo` : '£4.99/mo';
+                      const priceStr = item ? `£${(item.monthly_price_pence / 100).toFixed(2)}/mo` : 'Price unavailable';
                       return (
                         <div className="bg-[var(--awb-color2)] border border-[var(--awb-color3)] hover:border-[#198fd9] rounded-xl p-4 flex flex-col justify-between transition-colors shadow-sm">
                           <div>
@@ -1217,7 +1217,7 @@ const globalBotId = '00000000-0000-0000-0000-000000000000';
                     {/* 4. Microsoft Calendar */}
                     {(() => {
                       const item = billingData?.catalog?.find((c: any) => c.category === 'microsoft_calendar' || c.id === 'microsoft_calendar_addon');
-                      const priceStr = item ? `£${(item.monthly_price_pence / 100).toFixed(2)}/mo` : '£4.99/mo';
+                      const priceStr = item ? `£${(item.monthly_price_pence / 100).toFixed(2)}/mo` : 'Price unavailable';
                       return (
                         <div className="bg-[var(--awb-color2)] border border-[var(--awb-color3)] hover:border-[#198fd9] rounded-xl p-4 flex flex-col justify-between transition-colors shadow-sm">
                           <div>
@@ -1245,7 +1245,7 @@ const globalBotId = '00000000-0000-0000-0000-000000000000';
                     {/* 5. Voice Minutes */}
                     {(() => {
                       const item = billingData?.catalog?.find((c: any) => c.category === 'voice_pack' || c.id === 'voice_pack_20');
-                      const priceStr = item ? `${item.is_sliding ? 'From ' : ''}£${(item.monthly_price_pence / 100).toFixed(2)}` : 'From £15.00';
+                      const priceStr = item ? `${item.is_sliding ? 'From ' : ''}£${(item.monthly_price_pence / 100).toFixed(2)}` : 'Price unavailable';
                       return (
                         <div className="bg-[var(--awb-color2)] border border-[var(--awb-color3)] hover:border-[#9333ea] rounded-xl p-4 flex flex-col justify-between transition-colors shadow-sm">
                           <div>
@@ -1273,7 +1273,7 @@ const globalBotId = '00000000-0000-0000-0000-000000000000';
                     {/* 6. SMS Pack */}
                     {(() => {
                       const item = billingData?.catalog?.find((c: any) => c.category === 'sms_pack' || c.id === 'sms_pack_100');
-                      const priceStr = item ? `${item.is_sliding ? 'From ' : ''}£${(item.monthly_price_pence / 100).toFixed(2)}` : 'From £5.99';
+                      const priceStr = item ? `${item.is_sliding ? 'From ' : ''}£${(item.monthly_price_pence / 100).toFixed(2)}` : 'Price unavailable';
                       return (
                         <div className="bg-[var(--awb-color2)] border border-[var(--awb-color3)] hover:border-[#198fd9] rounded-xl p-4 flex flex-col justify-between transition-colors shadow-sm">
                           <div>
@@ -1301,7 +1301,7 @@ const globalBotId = '00000000-0000-0000-0000-000000000000';
                     {/* 7. Extra Knowledge (Knowledge Items) */}
                     {(() => {
                       const item = billingData?.catalog?.find((c: any) => c.category === 'data_pack' || c.id === 'data_pack_500');
-                      const priceStr = item ? `${item.is_sliding ? 'From ' : ''}£${(item.monthly_price_pence / 100).toFixed(2)}/mo` : 'From £4.99/mo';
+                      const priceStr = item ? `${item.is_sliding ? 'From ' : ''}£${(item.monthly_price_pence / 100).toFixed(2)}/mo` : 'Price unavailable';
                       return (
                         <div className="bg-[var(--awb-color2)] border border-[var(--awb-color3)] hover:border-[#198fd9] rounded-xl p-4 flex flex-col justify-between transition-colors shadow-sm">
                           <div>

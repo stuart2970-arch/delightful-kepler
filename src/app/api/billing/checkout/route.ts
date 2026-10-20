@@ -10,49 +10,25 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'Content-Type, Authorization',
 };
 
-const MODULAR_ADDON_DEFINITIONS: Record<string, { name: string; description: string; unit_amount: number; category: string }> = {
-  google_calendar_addon: {
-    name: 'Google Calendar Integration (£4.99/mo)',
-    description: 'Two-way real-time calendar synchronization to prevent double-booking',
-    unit_amount: 499,
-    category: 'google_calendar',
-  },
-  microsoft_calendar_addon: {
-    name: 'Microsoft Outlook Calendar Integration (£4.99/mo)',
-    description: 'Two-way real-time Outlook calendar synchronization to prevent double-booking',
-    unit_amount: 499,
-    category: 'microsoft_calendar',
-  },
-  data_pack_500: {
-    name: 'Extra Knowledge (500 Knowledge Items) (£4.99/mo)',
-    description: '500 additional knowledge items for rich business rules and menus',
-    unit_amount: 499,
-    category: 'data_pack',
-  },
-  landline_addon: {
-    name: 'Local Landline Number (£8.99/mo)',
-    description: 'Dedicated UK local landline number (01/02) with 10 shared voice minutes',
-    unit_amount: 899,
-    category: 'landline',
-  },
-  mobile_addon: {
-    name: 'Mobile Number (£10.99/mo)',
-    description: 'Dedicated UK mobile number (07) for 2-way SMS text conversations and automated reminders',
-    unit_amount: 1099,
-    category: 'mobile',
-  },
-};
+function getSupabase() {
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.SUPABASE_URL;
+  const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+  if (!supabaseUrl || !supabaseKey) {
+    throw new Error('Supabase environment variables are missing');
+  }
+  return createClient(supabaseUrl, supabaseKey);
+}
 
 function appendQueryParams(baseUrl: string, queryParams: string): string {
   const separator = baseUrl.includes('?') ? '&' : '?';
   return `${baseUrl}${separator}${queryParams}`;
 }
 
-function parseSelectedAddons(input: any): string[] {
+function parseAddonIds(input: any): string[] {
   if (!input) return [];
-  if (Array.isArray(input)) return input.filter(id => Boolean(MODULAR_ADDON_DEFINITIONS[id]));
+  if (Array.isArray(input)) return input.map(s => String(s).trim()).filter(Boolean);
   if (typeof input === 'string') {
-    return input.split(',').map(s => s.trim()).filter(id => Boolean(MODULAR_ADDON_DEFINITIONS[id]));
+    return input.split(',').map(s => s.trim()).filter(Boolean);
   }
   return [];
 }
@@ -69,23 +45,38 @@ export async function GET(req: Request) {
     }
 
     const { searchParams } = new URL(req.url);
-    const plan = searchParams.get('plan') || 'foundation';
     const returnUrl = searchParams.get('return_url') || searchParams.get('returnUrl');
     const rawAddons = searchParams.get('addons') || searchParams.get('addonCatalogIds');
     const customerEmail = searchParams.get('customerEmail') || searchParams.get('email');
-    const selectedAddonIds = parseSelectedAddons(rawAddons);
+    const selectedAddonIds = parseAddonIds(rawAddons);
 
     const stripe = new Stripe(apiKey, {
       apiVersion: '2023-10-16',
     });
 
     const isLocal = process.env.NODE_ENV === 'development' || process.env.NEXT_PUBLIC_ENV === 'development';
-    const wpAppUrl = isLocal ? 'https://styleflo.test/app' : 'https://styleflo.ai/app';
+
+    const supabase = getSupabase();
+
+    // Fetch Foundation plan pricing from subscription_tiers
+    const { data: tiers, error: tierError } = await supabase
+      .from('subscription_tiers')
+      .select('id, name, monthly_price')
+      .in('id', ['foundation', 'base_tier'])
+      .eq('is_active', true);
+
+    const foundationTier = tiers?.find(t => t.id === 'foundation') || tiers?.find(t => t.id === 'base_tier');
+    if (tierError || !foundationTier || foundationTier.monthly_price == null) {
+      return NextResponse.json({ error: 'Pricing unavailable' }, { status: 503, headers: corsHeaders });
+    }
+
+    const foundationUnitAmount = Math.round(Number(foundationTier.monthly_price) * 100);
+    const foundationName = `StyleFlo ${foundationTier.name || 'Foundation Plan'}`;
 
     const priceData: Stripe.Checkout.SessionCreateParams.LineItem.PriceData = {
       currency: 'gbp',
       product_data: {
-        name: 'StyleFlo Foundation Plan (£9.99/mo)',
+        name: foundationName,
         description: '24/7 AI Receptionist Automation with Web Chatbot, Knowledge Base & Modular Bolt-ons',
         metadata: {
           plan_tier: 'base_tier',
@@ -93,7 +84,7 @@ export async function GET(req: Request) {
           type: 'subscription',
         },
       },
-      unit_amount: 999, // £9.99/mo
+      unit_amount: foundationUnitAmount,
       recurring: {
         interval: 'month',
       },
@@ -107,49 +98,39 @@ export async function GET(req: Request) {
     ];
 
     // Query addon_catalog in Supabase to ensure prices are driven from /superadmin values
-    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-    const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
-    const catalogMap: Record<string, { name: string; description: string; unit_amount: number; category: string }> = {};
+    if (selectedAddonIds.length > 0) {
+      const { data: dbAddons, error: addonError } = await supabase
+        .from('addon_catalog')
+        .select('id, name, description, monthly_price_pence, category')
+        .in('id', selectedAddonIds)
+        .eq('is_active', true)
+        .neq('id', 'whatsapp_primary');
 
-    if (supabaseUrl && supabaseKey && selectedAddonIds.length > 0) {
-      try {
-        const supabase = createClient(supabaseUrl, supabaseKey);
-        const { data: dbAddons } = await supabase
-          .from('addon_catalog')
-          .select('id, name, description, monthly_price_pence, category')
-          .in('id', selectedAddonIds);
-
-        if (dbAddons && dbAddons.length > 0) {
-          for (const item of dbAddons) {
-            catalogMap[item.id] = {
-              name: item.name ? `${item.name} (£${(item.monthly_price_pence / 100).toFixed(2)}/mo)` : (MODULAR_ADDON_DEFINITIONS[item.id]?.name || item.name),
-              description: item.description || MODULAR_ADDON_DEFINITIONS[item.id]?.description || '',
-              unit_amount: item.monthly_price_pence,
-              category: item.category,
-            };
-          }
-        }
-      } catch (e) {
-        console.warn('Failed to query addon_catalog for checkout:', e);
+      if (addonError || !dbAddons) {
+        return NextResponse.json({ error: 'Pricing unavailable' }, { status: 503, headers: corsHeaders });
       }
-    }
 
-    selectedAddonIds.forEach(addonId => {
-      const def = catalogMap[addonId] || MODULAR_ADDON_DEFINITIONS[addonId];
-      if (def) {
+      const dbAddonMap = new Map(dbAddons.map(a => [a.id, a]));
+
+      for (const addonId of selectedAddonIds) {
+        const addon = dbAddonMap.get(addonId);
+        if (!addon) {
+          return NextResponse.json({ error: `Add-on not found in catalog: ${addonId}` }, { status: 400, headers: corsHeaders });
+        }
+
         lineItems.push({
           price_data: {
             currency: 'gbp',
             product_data: {
-              name: def.name,
-              description: def.description,
+              name: addon.name,
+              description: addon.description || '',
               metadata: {
-                addon_catalog_id: addonId,
-                category: def.category,
+                addon_catalog_id: addon.id,
+                category: addon.category,
                 type: 'addon',
               },
             },
-            unit_amount: def.unit_amount,
+            unit_amount: addon.monthly_price_pence,
             recurring: {
               interval: 'month',
             },
@@ -157,7 +138,7 @@ export async function GET(req: Request) {
           quantity: 1,
         });
       }
-    });
+    }
 
     const sessionMetadata: Record<string, string> = {
       plan_tier: 'base_tier',
@@ -200,9 +181,7 @@ export async function POST(req: Request) {
       apiVersion: '2023-10-16',
     });
 
-    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
-    const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
-    const supabase = createClient(supabaseUrl, supabaseKey);
+    const supabase = getSupabase();
 
     const body = await req.json().catch(() => ({}));
     const { plan, planTier, tier, priceId, addonPriceIds, addonCatalogId, tenantId, customerEmail, returnUrl, action, customPricePence, customVoiceMinutes, customSms, autoTopup, autoTopupThreshold } = body;
@@ -213,7 +192,7 @@ export async function POST(req: Request) {
         return NextResponse.json({ error: 'Missing tenantId for portal' }, { status: 400 });
       }
 
-      const { data: tenant, error: tenantError } = await supabase
+      const { data: tenant } = await supabase
         .from('tenants')
         .select('stripe_customer_id')
         .eq('id', tenantId)
@@ -292,19 +271,40 @@ export async function POST(req: Request) {
         .eq('id', tenantId)
         .maybeSingle();
 
-      const finalPricePence = (customPricePence && Number(customPricePence) > 0)
-        ? Math.round(Number(customPricePence))
-        : addon.monthly_price_pence;
+      let finalPricePence = addon.monthly_price_pence;
+      let finalVoiceMinutes = addon.included_voice_minutes || 0;
+      let finalSms = addon.included_sms || 0;
 
-      const finalVoiceMinutes = (addon.category === 'mobile' || addonCatalogId === 'mobile_addon')
-        ? 0
-        : (customVoiceMinutes !== undefined && Number(customVoiceMinutes) >= 0)
-          ? Math.round(Number(customVoiceMinutes))
-          : (addon.included_voice_minutes || 0);
+      // Validate client-supplied customPricePence
+      if (customPricePence !== undefined && customPricePence !== null && customPricePence !== '') {
+        const priceNum = Number(customPricePence);
+        const minPrice = addon.monthly_price_pence;
+        const maxPrice = addon.max_price_pence;
+        const stepPence = addon.price_step_pence || 100;
 
-      const finalSms = (customSms !== undefined && Number(customSms) >= 0)
-        ? Math.round(Number(customSms))
-        : (addon.included_sms || 0);
+        if (!addon.is_sliding || maxPrice == null || isNaN(priceNum) || priceNum < minPrice || priceNum > maxPrice) {
+          return NextResponse.json({ error: 'Invalid custom price: out of allowed range' }, { status: 400, headers: corsHeaders });
+        }
+
+        if ((priceNum - minPrice) % stepPence !== 0) {
+          return NextResponse.json({ error: 'Invalid custom price: must be a multiple of step increments' }, { status: 400, headers: corsHeaders });
+        }
+
+        finalPricePence = Math.round(priceNum);
+        const maxSteps = Math.max(1, Math.round((maxPrice - minPrice) / stepPence));
+        const step = Math.round((finalPricePence - minPrice) / stepPence);
+
+        if (addon.max_voice_minutes != null && addon.included_voice_minutes != null) {
+          finalVoiceMinutes = Math.round(addon.included_voice_minutes + step * ((addon.max_voice_minutes - addon.included_voice_minutes) / maxSteps));
+        }
+        if (addon.max_sms != null && addon.included_sms != null) {
+          finalSms = Math.round(addon.included_sms + step * ((addon.max_sms - addon.included_sms) / maxSteps));
+        }
+      }
+
+      if (addon.category === 'mobile' || addonCatalogId === 'mobile_addon') {
+        finalVoiceMinutes = 0;
+      }
 
       const isOneOff = 
         addon.category === 'sms_pack' || 
@@ -312,121 +312,104 @@ export async function POST(req: Request) {
         addon.category === 'voice_pack' || 
         addonCatalogId?.startsWith('voice_pack');
 
-      // Construct line item: use static price if available and no custom pricing was chosen;
-      // otherwise, dynamically create a recurring price using price_data.
-      let lineItem: Stripe.Checkout.SessionCreateParams.LineItem;
-
-      if (addon.stripe_price_id && !customPricePence && !isOneOff) {
-        lineItem = {
-          price: addon.stripe_price_id,
-          quantity: 1,
-        };
-      } else {
-        // Build descriptive line item title & description
-        let lineDescription = addon.description || addon.name;
-        if (addon.category === 'mobile' || addonCatalogId === 'mobile_addon') {
-          lineDescription = `Includes dedicated UK mobile number (07) for WhatsApp and ${finalSms} SMS messages`;
-        } else if (addon.category === 'voice_pack' || addonCatalogId?.startsWith('voice_pack')) {
-          lineDescription = `One-off pack of ${finalVoiceMinutes} voice minutes (Valid for 3 months from purchase)`;
-        } else if (finalVoiceMinutes > 0 && finalSms > 0) {
-          lineDescription = `Includes ${finalVoiceMinutes} shared voice mins + ${finalSms} SMS messages`;
-        } else if (finalVoiceMinutes > 0) {
-          lineDescription = `Includes dedicated number + ${finalVoiceMinutes} shared voice mins`;
-        } else if (finalSms > 0) {
-          lineDescription = isOneOff
-            ? `One-off pack of ${finalSms} SMS messages (Valid for 3 months from purchase)`
-            : `Includes ${finalSms} SMS messages`;
-        }
-
-        const priceData: Stripe.Checkout.SessionCreateParams.LineItem.PriceData = {
-          currency: 'gbp',
-          product_data: {
-            name: `${addon.name}${customPricePence ? ` (£${(finalPricePence / 100).toFixed(2)}${isOneOff ? '' : '/mo'})` : ''}`,
-            description: lineDescription,
-            metadata: {
-              addon_catalog_id: addonCatalogId,
-              tenant_id: tenantId,
-            },
-          },
-          unit_amount: finalPricePence,
-        };
-
-        if (!isOneOff) {
-          priceData.recurring = {
-            interval: 'month',
-          };
-        }
-
-        lineItem = {
-          price_data: priceData,
-          quantity: 1,
-        };
+      // Option 1: Always use price_data with unit_amount from addon_catalog
+      let lineDescription = addon.description || addon.name;
+      if (addon.category === 'mobile' || addonCatalogId === 'mobile_addon') {
+        lineDescription = `Includes dedicated UK mobile number (07) for WhatsApp and ${finalSms} SMS messages`;
+      } else if (addon.category === 'voice_pack' || addonCatalogId?.startsWith('voice_pack')) {
+        lineDescription = `One-off pack of ${finalVoiceMinutes} voice minutes (Valid for 3 months from purchase)`;
+      } else if (finalVoiceMinutes > 0 && finalSms > 0) {
+        lineDescription = `Includes ${finalVoiceMinutes} shared voice mins + ${finalSms} SMS messages`;
+      } else if (finalVoiceMinutes > 0) {
+        lineDescription = `Includes dedicated number + ${finalVoiceMinutes} shared voice mins`;
+      } else if (finalSms > 0) {
+        lineDescription = isOneOff
+          ? `One-off pack of ${finalSms} SMS messages (Valid for 3 months from purchase)`
+          : `Includes ${finalSms} SMS messages`;
       }
 
-      const metadataPayload: Record<string, string> = {
-        tenant_id: tenantId,
-        is_addon: 'true',
-        is_one_off: isOneOff ? 'true' : 'false',
-        addon_catalog_id: addonCatalogId,
-        custom_price_pence: String(finalPricePence),
-        custom_voice_minutes: String(finalVoiceMinutes),
-        custom_sms: String(finalSms),
-        auto_topup: autoTopup ? 'true' : 'false',
-        auto_topup_threshold: String(autoTopupThreshold || 10),
+      const priceData: Stripe.Checkout.SessionCreateParams.LineItem.PriceData = {
+        currency: 'gbp',
+        product_data: {
+          name: addon.name,
+          description: lineDescription,
+          metadata: {
+            addon_catalog_id: addonCatalogId,
+            tenant_id: tenantId,
+          },
+        },
+        unit_amount: finalPricePence,
       };
 
-      if (autoTopup && tenantId && (addon.category === 'voice_pack' || addonCatalogId?.startsWith('voice_pack'))) {
-        await supabase
-          .from('tenants')
-          .update({
-            voice_auto_topup: true,
-            voice_auto_topup_threshold: Number(autoTopupThreshold) || 10,
-            voice_auto_topup_amount: finalVoiceMinutes,
-            voice_auto_topup_price_pence: finalPricePence,
-          })
-          .eq('id', tenantId);
+      if (!isOneOff) {
+        priceData.recurring = {
+          interval: 'month',
+        };
       }
+
+      const lineItem: Stripe.Checkout.SessionCreateParams.LineItem = {
+        price_data: priceData,
+        quantity: 1,
+      };
 
       const isLocal = process.env.NODE_ENV === 'development' || process.env.NEXT_PUBLIC_ENV === 'development';
       const wpAppUrl = isLocal ? 'https://styleflo.test/app' : 'https://styleflo.ai/app';
+      const defaultSuccessUrl = wpAppUrl;
+      const defaultCancelUrl = wpAppUrl;
+
+      const targetSuccessUrl = returnUrl || defaultSuccessUrl;
+      const targetCancelUrl = returnUrl || defaultCancelUrl;
+
+      const sessionMetadata: Record<string, string> = {
+        tenant_id: tenantId,
+        addon_catalog_id: addonCatalogId,
+        category: addon.category,
+        is_sliding: addon.is_sliding ? 'true' : 'false',
+        price_pence: String(finalPricePence),
+        voice_minutes: String(finalVoiceMinutes),
+        sms: String(finalSms),
+        is_one_off: isOneOff ? 'true' : 'false',
+      };
+
+      if (autoTopup !== undefined) {
+        sessionMetadata.auto_topup = String(Boolean(autoTopup));
+        sessionMetadata.auto_topup_threshold = String(autoTopupThreshold || 10);
+      }
 
       const sessionConfig: Stripe.Checkout.SessionCreateParams = {
         mode: isOneOff ? 'payment' : 'subscription',
         payment_method_types: ['card'],
+        customer: tenant?.stripe_customer_id || undefined,
+        customer_email: (!tenant?.stripe_customer_id && customerEmail) ? customerEmail : undefined,
         line_items: [lineItem],
-        metadata: metadataPayload,
-        ...(isOneOff
-          ? { invoice_creation: { enabled: true } }
-          : { subscription_data: { metadata: metadataPayload } }),
-        success_url: appendQueryParams(returnUrl || wpAppUrl, 'checkout_status=success&session_id={CHECKOUT_SESSION_ID}'),
-        cancel_url: appendQueryParams(returnUrl || wpAppUrl, 'checkout_status=cancelled'),
+        metadata: sessionMetadata,
+        success_url: appendQueryParams(targetSuccessUrl, `checkout_status=success&addon_id=${addonCatalogId}&session_id={CHECKOUT_SESSION_ID}`),
+        cancel_url: appendQueryParams(targetCancelUrl, `checkout_status=cancelled&addon_id=${addonCatalogId}`),
       };
 
-      if (tenant?.stripe_customer_id) {
-        sessionConfig.customer = tenant.stripe_customer_id;
+      if (!isOneOff) {
+        sessionConfig.subscription_data = {
+          metadata: sessionMetadata,
+        };
       } else {
-        // Resolve tenant user email if available
-        let resolvedEmail = customerEmail;
-        if (!resolvedEmail) {
-          const { data: profile } = await supabase
-            .from('profiles')
-            .select('id')
-            .eq('tenant_id', tenantId)
-            .limit(1)
-            .maybeSingle();
+        sessionConfig.payment_intent_data = {
+          metadata: sessionMetadata,
+        };
+      }
 
-          if (profile?.id) {
-            const { data: userData } = await supabase.auth.admin.getUserById(profile.id);
-            if (userData?.user?.email) {
-              resolvedEmail = userData.user.email;
-            }
+      if (!tenant?.stripe_customer_id && !customerEmail) {
+        const { data: profile } = await supabase
+          .from('profiles')
+          .select('id')
+          .eq('tenant_id', tenantId)
+          .limit(1)
+          .maybeSingle();
+
+        if (profile?.id) {
+          const { data: userData } = await supabase.auth.admin.getUserById(profile.id);
+          if (userData?.user?.email) {
+            sessionConfig.customer_email = userData.user.email;
           }
-        }
-        if (resolvedEmail) {
-          sessionConfig.customer_email = resolvedEmail;
-        }
-        if (isOneOff) {
-          sessionConfig.customer_creation = 'always';
         }
       }
 
@@ -457,10 +440,25 @@ export async function POST(req: Request) {
           quantity: 1,
         });
       } else {
+        // Fetch Foundation plan pricing from subscription_tiers
+        const { data: tiers, error: tierError } = await supabase
+          .from('subscription_tiers')
+          .select('id, name, monthly_price')
+          .in('id', ['foundation', 'base_tier'])
+          .eq('is_active', true);
+
+        const foundationTier = tiers?.find(t => t.id === 'foundation') || tiers?.find(t => t.id === 'base_tier');
+        if (tierError || !foundationTier || foundationTier.monthly_price == null) {
+          return NextResponse.json({ error: 'Pricing unavailable' }, { status: 503, headers: corsHeaders });
+        }
+
+        const foundationUnitAmount = Math.round(Number(foundationTier.monthly_price) * 100);
+        const foundationName = `StyleFlo ${foundationTier.name || 'Foundation Plan'}`;
+
         const priceData: Stripe.Checkout.SessionCreateParams.LineItem.PriceData = {
           currency: 'gbp',
           product_data: {
-            name: 'StyleFlo Foundation Plan (£9.99/mo)',
+            name: foundationName,
             description: '24/7 AI Receptionist Automation with Web Chatbot, Knowledge Base & Modular Bolt-ons',
             metadata: {
               plan_tier: 'base_tier',
@@ -468,7 +466,7 @@ export async function POST(req: Request) {
               type: 'subscription',
             },
           },
-          unit_amount: 999, // £9.99/mo
+          unit_amount: foundationUnitAmount,
           recurring: {
             interval: 'month',
           },
@@ -488,50 +486,43 @@ export async function POST(req: Request) {
         });
       }
 
-      // Also support modular addon IDs (google_calendar_addon, data_pack_500, landline_addon, mobile_addon)
+      // Modular addon IDs (google_calendar_addon, data_pack_500, landline_addon, mobile_addon, etc.)
       const rawAddons = body.addons || body.addonCatalogIds;
-      const selectedAddonIds = parseSelectedAddons(rawAddons);
-
-      const catalogMap: Record<string, { name: string; description: string; unit_amount: number; category: string }> = {};
+      const selectedAddonIds = parseAddonIds(rawAddons);
 
       if (selectedAddonIds.length > 0) {
-        try {
-          const { data: dbAddons } = await supabase
-            .from('addon_catalog')
-            .select('id, name, description, monthly_price_pence, category')
-            .in('id', selectedAddonIds);
+        const { data: dbAddons, error: addonError } = await supabase
+          .from('addon_catalog')
+          .select('id, name, description, monthly_price_pence, category')
+          .in('id', selectedAddonIds)
+          .eq('is_active', true)
+          .neq('id', 'whatsapp_primary');
 
-          if (dbAddons && dbAddons.length > 0) {
-            for (const item of dbAddons) {
-              catalogMap[item.id] = {
-                name: item.name ? `${item.name} (£${(item.monthly_price_pence / 100).toFixed(2)}/mo)` : (MODULAR_ADDON_DEFINITIONS[item.id]?.name || item.name),
-                description: item.description || MODULAR_ADDON_DEFINITIONS[item.id]?.description || '',
-                unit_amount: item.monthly_price_pence,
-                category: item.category,
-              };
-            }
-          }
-        } catch (e) {
-          console.warn('Failed to query addon_catalog for checkout POST:', e);
+        if (addonError || !dbAddons) {
+          return NextResponse.json({ error: 'Pricing unavailable' }, { status: 503, headers: corsHeaders });
         }
-      }
 
-      selectedAddonIds.forEach(addonId => {
-        const def = catalogMap[addonId] || MODULAR_ADDON_DEFINITIONS[addonId];
-        if (def) {
+        const dbAddonMap = new Map(dbAddons.map(a => [a.id, a]));
+
+        for (const addonId of selectedAddonIds) {
+          const addon = dbAddonMap.get(addonId);
+          if (!addon) {
+            return NextResponse.json({ error: `Add-on not found in catalog: ${addonId}` }, { status: 400, headers: corsHeaders });
+          }
+
           lineItems.push({
             price_data: {
               currency: 'gbp',
               product_data: {
-                name: def.name,
-                description: def.description,
+                name: addon.name,
+                description: addon.description || '',
                 metadata: {
-                  addon_catalog_id: addonId,
-                  category: def.category,
+                  addon_catalog_id: addon.id,
+                  category: addon.category,
                   type: 'addon',
                 },
               },
-              unit_amount: def.unit_amount,
+              unit_amount: addon.monthly_price_pence,
               recurring: {
                 interval: 'month',
               },
@@ -539,10 +530,9 @@ export async function POST(req: Request) {
             quantity: 1,
           });
         }
-      });
+      }
 
       const isLocal = process.env.NODE_ENV === 'development' || process.env.NEXT_PUBLIC_ENV === 'development';
-      const wpAppUrl = isLocal ? 'https://styleflo.test/app' : 'https://styleflo.ai/app';
 
       const sessionMetadata: Record<string, string> = {
         tenant_id: tenantId || '',

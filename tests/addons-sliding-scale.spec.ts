@@ -203,13 +203,11 @@ test.describe('Modular Add-Ons & Sliding Scale Checkout API', () => {
     }
   });
 
-  test('Registration page renders Extra Knowledge (500 Knowledge Items) at £4.99/mo', async ({ request }) => {
-    const res = await request.get('/register?plan=foundation&addons=data_pack_500');
-    expect(res.status()).toBe(200);
-    const html = await res.text();
-    expect(html).toContain('Extra Knowledge (500 Knowledge Items)');
-    expect(html).toContain('£14.98/mo'); // £9.99 base + £4.99 extra knowledge
-    expect(html).not.toContain('Knowledgebase Storage (500 Chunks)');
+  test('Registration page renders Extra Knowledge (500 Knowledge Items) at dynamic price', async ({ page }) => {
+    await page.goto('/register?plan=foundation&addons=data_pack_500');
+    await expect(page.locator('body')).toContainText('Extra Knowledge (500 Knowledge Items)');
+    await expect(page.locator('body')).toContainText('£14.98/mo'); // £9.99 base + £4.99 extra knowledge
+    await expect(page.locator('body')).not.toContainText('Knowledgebase Storage (500 Chunks)');
   });
 
   test('GET /api/superadmin/addon-catalog returns data_pack_500 at 499 pence and Extra Knowledge title', async ({ request }) => {
@@ -220,6 +218,74 @@ test.describe('Modular Add-Ons & Sliding Scale Checkout API', () => {
     expect(dataPack).toBeDefined();
     expect(dataPack.monthly_price_pence).toBe(499);
     expect(dataPack.name).toContain('Extra Knowledge');
+  });
+
+  test('GET /api/billing/prices returns dynamic foundation price and addon catalog', async ({ request }) => {
+    const res = await request.get('/api/billing/prices');
+    expect(res.status()).toBe(200);
+    const json = await res.json();
+    expect(json.plan).toBeDefined();
+    expect(Number(json.plan.monthly_price)).toBe(9.99);
+    expect(Array.isArray(json.addons)).toBe(true);
+    const dataPack = json.addons.find((a: any) => a.id === 'data_pack_500');
+    expect(dataPack).toBeDefined();
+    expect(dataPack.monthly_price_pence).toBe(499);
+    expect(dataPack.name).toBe('Extra Knowledge (500 Knowledge Items)');
+  });
+
+  test('POST /api/billing/checkout rejects customPricePence below minimum with HTTP 400', async ({ request }) => {
+    const res = await request.post('/api/billing/checkout', {
+      headers: { 'Content-Type': 'application/json' },
+      data: {
+        addonCatalogId: 'landline_addon',
+        tenantId: '10000000-0000-0000-0000-000000000001',
+        customPricePence: 100, // min is 899p
+      },
+    });
+    expect(res.status()).toBe(400);
+    const json = await res.json();
+    expect(json.error).toContain('out of allowed range');
+  });
+
+  test('POST /api/billing/checkout rejects customPricePence exceeding maximum with HTTP 400', async ({ request }) => {
+    const res = await request.post('/api/billing/checkout', {
+      headers: { 'Content-Type': 'application/json' },
+      data: {
+        addonCatalogId: 'landline_addon',
+        tenantId: '10000000-0000-0000-0000-000000000001',
+        customPricePence: 99999, // max is 1999p
+      },
+    });
+    expect(res.status()).toBe(400);
+    const json = await res.json();
+    expect(json.error).toContain('out of allowed range');
+  });
+
+  test('POST /api/billing/checkout rejects customPricePence not on valid step increment with HTTP 400', async ({ request }) => {
+    const res = await request.post('/api/billing/checkout', {
+      headers: { 'Content-Type': 'application/json' },
+      data: {
+        addonCatalogId: 'landline_addon',
+        tenantId: '10000000-0000-0000-0000-000000000001',
+        customPricePence: 950, // step is 100p (899, 999, 1099...)
+      },
+    });
+    expect(res.status()).toBe(400);
+    const json = await res.json();
+    expect(json.error).toContain('must be a multiple of step increments');
+  });
+
+  test('POST /api/billing/checkout rejects unknown addon ID with HTTP 400', async ({ request }) => {
+    const res = await request.post('/api/billing/checkout', {
+      headers: { 'Content-Type': 'application/json' },
+      data: {
+        plan: 'foundation',
+        addons: ['unknown_addon_xyz_999'],
+      },
+    });
+    expect(res.status()).toBe(400);
+    const json = await res.json();
+    expect(json.error).toContain('Add-on not found in catalog');
   });
 });
 

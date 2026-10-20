@@ -2,7 +2,12 @@
 /**
  * Setup Script for StyleFlo.ai Modular Products & Pricing in Stripe
  *
- * Creates the £9.99/mo Base Tier plus all bolt-on add-on products.
+ * NOTE / DEPRECATION (STYL-174):
+ * As of STYL-174, StyleFlo uses Option 1 dynamic checkout pricing (`price_data` with
+ * unit_amount dynamically read from Supabase `addon_catalog` and `subscription_tiers` at checkout).
+ * Pre-created Stripe price IDs are no longer required for bolt-on checkout.
+ * This script is retained for historical reference and optional static product provisioning.
+ *
  * All prices in GBP (pence).
  *
  * Usage:

@@ -16,23 +16,58 @@ function RegisterContent() {
   const addonsList = addonsParam ? addonsParam.split(',').filter(Boolean) : [];
   const hasAddons = addonsList.length > 0;
 
-  const MODULAR_ADDONS: Record<string, { name: string; price: number }> = {
-    google_calendar_addon: { name: 'Google Calendar Integration', price: 4.99 },
-    microsoft_calendar_addon: { name: 'Microsoft Outlook Calendar Integration', price: 4.99 },
-    data_pack_500: { name: 'Extra Knowledge (500 Knowledge Items)', price: 4.99 },
-    landline_addon: { name: 'Local Landline Number', price: 8.99 },
-    mobile_addon: { name: 'Mobile Number', price: 10.99 },
-  };
+  const [pricing, setPricing] = useState<{
+    planPrice: number;
+    planName: string;
+    addons: Record<string, { name: string; price: number }>;
+  } | null>(null);
+  const [pricingLoading, setPricingLoading] = useState(true);
 
-  const basePrice = 9.99;
+  useEffect(() => {
+    let isMounted = true;
+    async function fetchPrices() {
+      try {
+        const res = await fetch('/api/billing/prices');
+        if (res.ok) {
+          const data = await res.json();
+          if (isMounted && data.plan) {
+            const addonMap: Record<string, { name: string; price: number }> = {};
+            if (Array.isArray(data.addons)) {
+              data.addons.forEach((a: any) => {
+                addonMap[a.id] = {
+                  name: a.name,
+                  price: Number(a.monthly_price_pence) / 100,
+                };
+              });
+            }
+            setPricing({
+              planPrice: Number(data.plan.monthly_price),
+              planName: data.plan.name || 'Foundation Plan',
+              addons: addonMap,
+            });
+          }
+        }
+      } catch (e) {
+        console.error('Failed to load prices', e);
+      } finally {
+        if (isMounted) setPricingLoading(false);
+      }
+    }
+    fetchPrices();
+    return () => {
+      isMounted = false;
+    };
+  }, []);
+
+  const basePrice = pricing ? pricing.planPrice : 0;
   const addonsTotal = addonsList.reduce((sum, addonId) => {
-    return sum + (MODULAR_ADDONS[addonId]?.price || 0);
+    return sum + (pricing?.addons[addonId]?.price || 0);
   }, 0);
   const totalPrice = basePrice + addonsTotal;
-  const formattedTotalPrice = `£${totalPrice.toFixed(2)}/mo`;
+  const formattedTotalPrice = pricingLoading ? '...' : `£${totalPrice.toFixed(2)}/mo`;
 
   const selectedAddonNames = addonsList
-    .map(id => MODULAR_ADDONS[id]?.name)
+    .map(id => pricing?.addons[id]?.name)
     .filter(Boolean);
 
   useEffect(() => {
@@ -108,14 +143,23 @@ function RegisterContent() {
   }, [companyName, customSlug]);
 
   const getPlanBadge = () => {
+    if (pricingLoading || !pricing) {
+      return {
+        name: 'Foundation Plan',
+        price: '...',
+        tag: 'Loading plan...',
+        addonsDetail: null,
+      };
+    }
+    const planPriceFormatted = `£${pricing.planPrice.toFixed(2)}`;
     return {
       name: hasAddons 
         ? `Foundation Plan + ${addonsList.length} Bolt-on${addonsList.length > 1 ? 's' : ''}`
         : 'Foundation Plan',
       price: formattedTotalPrice,
       tag: hasAddons
-        ? `Foundation £9.99/mo + ${addonsList.length} Bolt-on${addonsList.length > 1 ? 's' : ''}`
-        : 'No setup fee • Cancel anytime',
+        ? `Foundation ${planPriceFormatted} a month + ${addonsList.length} Bolt-on${addonsList.length > 1 ? 's' : ''}`
+        : `Foundation ${planPriceFormatted} a month`,
       addonsDetail: selectedAddonNames.length > 0 ? selectedAddonNames.join(', ') : null,
     };
   };
@@ -353,7 +397,7 @@ function RegisterContent() {
           <h2 className="text-base font-bold text-[#0F172A] mt-1">{planInfo.name} ({planInfo.price})</h2>
           {planInfo.addonsDetail ? (
             <p className="text-xs text-[#7E5FBB] font-semibold">
-              Includes Foundation Plan (£9.99/mo) + {planInfo.addonsDetail}
+              Includes Foundation Plan {pricing ? `(£${pricing.planPrice.toFixed(2)} a month)` : ''} + {planInfo.addonsDetail}
             </p>
           ) : (
             <p className="text-xs text-slate-600 font-medium">24/7 AI Receptionist & Web Chatbot • Cancel anytime</p>

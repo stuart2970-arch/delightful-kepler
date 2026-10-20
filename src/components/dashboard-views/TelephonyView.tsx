@@ -24,6 +24,11 @@ export default function TelephonyView() {
     billingData 
   } = useDashboardStore();
 
+  const landlineAddon = billingData?.catalog?.find((c: any) => c.id === 'landline_addon' || c.category === 'landline');
+  const mobileAddon = billingData?.catalog?.find((c: any) => c.id === 'mobile_addon' || c.category === 'mobile');
+  const landlinePriceText = landlineAddon ? `from £${(landlineAddon.monthly_price_pence / 100).toFixed(2)}/mo` : 'Price unavailable';
+  const mobilePriceText = mobileAddon ? `from £${(mobileAddon.monthly_price_pence / 100).toFixed(2)}/mo` : 'Price unavailable';
+
   const channelFlags = billingData?.channelFlags || { has_landline: false, has_mobile: false, has_whatsapp: false };
   const hasPhoneAddon = channelFlags.has_landline || channelFlags.has_mobile;
 
@@ -239,13 +244,13 @@ export default function TelephonyView() {
                 onClick={() => setUpsellCategory('landline')}
                 className="bg-[#198fd9] hover:bg-[#157ab9] text-white text-xs font-bold py-3 px-6 rounded-xl shadow-md transition-all"
               >
-                📞 Add Landline (from £8.99/mo)
+                📞 Add Landline ({landlinePriceText})
               </button>
               <button
                 onClick={() => setUpsellCategory('mobile')}
                 className="bg-[#260475] hover:bg-[#1e035e] text-white text-xs font-bold py-3 px-6 rounded-xl shadow-md transition-all"
               >
-                📱 Add Mobile (from £10.99/mo)
+                📱 Add Mobile ({mobilePriceText})
               </button>
             </div>
           </div>
@@ -323,7 +328,7 @@ export default function TelephonyView() {
               onClick={() => setUpsellCategory(activeChannelTab)}
               className="bg-[#260475] hover:bg-[#1e035e] text-white text-xs font-bold py-2.5 px-5 rounded-xl shadow-md transition-all whitespace-nowrap"
             >
-              {activeChannelTab === 'mobile' ? 'Add Mobile (from £10.99/mo)' : 'Add Landline (from £8.99/mo)'}
+              {activeChannelTab === 'mobile' ? `Add Mobile (${mobilePriceText})` : `Add Landline (${landlinePriceText})`}
             </button>
           </div>
         )}
