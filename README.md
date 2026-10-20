@@ -3296,6 +3296,51 @@ Highlighted adjustments in the modal:
     - Added tests for `GET /api/billing/prices`, dynamic registration page rendering, and checkout validation (rejecting out-of-range `customPricePence`, rejecting non-step increments, and rejecting unknown add-on IDs).
     - 23/23 tests passing (100%).
 
+
+### 64. Public Chat Protection: Cloudflare Turnstile, HMAC-SHA256 Signed Sessions, Multi-Tier Rate Limits, Message Size Caps & Post-Deploy Regression Tests (STYL-176)
+* **Goal**: Harden `/api/chat/stream` and the public chat widget against unauthorized access, scraping, and LLM token exhaustion while ensuring a seamless, backward-compatible experience for public visitors.
+* **Key Enhancements**:
+  - **Cryptographic Signed Sessions (`src/lib/chat-session.ts`)**:
+    - Implemented HMAC-SHA256 token issuance and timing-safe verification (`signChatSessionToken`, `verifyChatSessionToken`).
+    - Tokens encode `chatbotId`, `sessionId`, and expiration (`exp`) with a 24-hour TTL, signed with `CHAT_SESSION_SIGNING_SECRET` (falling back to `SUPABASE_SERVICE_ROLE_KEY` if unset).
+    - Tokens are cryptographically bound to the request body; attempts to reuse a token with another `chatbotId` or `sessionId` fail with HTTP 401.
+  - **Database Migration (`supabase/migrations/20261020110000_chat_sessions_and_rate_limits.sql`)**:
+    - Add-only migration creating `chat_sessions` (tracking active sessions, chatbot binding, user IP, and creation/expiry timestamps) and `chat_rate_limits` (for sliding-window rate tracking).
+    - Configured with Row Level Security (RLS) restricting public access and granting full access to `service_role`.
+  - **Public Session Init Endpoint (`src/app/api/chat/public-init/route.ts`)**:
+    - Front-door gate requiring Cloudflare Turnstile verification.
+    - Validates `chatbotId` exists in the `chatbots` table (returns 404 if missing or inactive).
+    - Issues cryptographically signed session tokens and generates UUID `sessionId`, recording the session in `chat_sessions`.
+  - **Proxy / Middleware Hardening (`src/proxy.ts`)**:
+    - Removed dead `/api/auth/signup` from public Turnstile verification list.
+    - Removed body-only unauthenticated fallback on `/api/chat/stream`.
+    - Enforced valid HMAC-SHA256 session token verification on `/api/chat/stream` via `x-session-token` or `Authorization: Bearer <token>`.
+    - Enforced strict Turnstile validation in production (rejecting bypasses) while supporting standard Cloudflare deterministic test secrets in non-production environments.
+  - **Chat Stream Route Hardening (`src/app/api/chat/stream/route.ts`)**:
+    - Enforced token claims matching `body.chatbotId` and `body.sessionId` (returns 401 on mismatch).
+    - Enforced user message character cap of 2,000 characters (returns 400).
+    - Enforced history length cap of 20 messages, each max 2,000 characters.
+    - Enforced multi-tier rate limiting: 10 req/min and 100 req/day per session, 30 req/min per IP, and 2,000 req/day per chatbot (returns 429).
+    - Corrected HTTP status codes to return proper 400/404 on invalid or missing chatbot IDs (replacing legacy defensive 200s).
+    - Set `maxOutputTokens: 1024` on all `streamText` invocations to prevent uncontrolled LLM token consumption.
+    - Integrated metered usage logging via `logMeteredUsage`.
+  - **Widget Front-Door Turnstile Integration (`src/widget/index.ts`, `src/widget/embed.ts`)**:
+    - Integrated automatic Turnstile token acquisition (`getTurnstileToken`) and session initialization (`ensureChatSession`).
+    - Caches signed session tokens with timestamps in `localStorage`, reusing valid tokens across page reloads.
+    - Automatically refreshes expired tokens on 401 responses.
+    - Recompiled minified bundles `public/widget.js` and `public/embed.js` via `npm run build:widget`.
+  - **Infrastructure Protection (`terraform/main.tf`, `.github/workflows/deploy.yml`)**:
+    - Added `turnstile_secret_key` Secret Manager secret and IAM secret accessor in Terraform to prevent Terraform applies from wiping the production secret.
+    - Injected `CLOUDFLARE_TURNSTILE_SECRET_KEY` into Cloud Run environment variables.
+    - Added Step 8 automated post-deploy regression smoke tests in GitHub Actions verifying:
+      1. Fake session to `/api/chat/stream` returns 401.
+      2. Missing Turnstile token to `/api/chat/public-init` returns 401/403.
+      3. Test token `1x...` against `/api/chat/public-init` returns 403 in production (proving production secret is enforced).
+  - **Automated Test Suite (`tests/chatbot.spec.ts`)**:
+    - Comprehensive 14-test suite validating all security boundaries (unauthenticated 401, fake tokens, body-only rejection, missing/invalid Turnstile, token expiration, claim mismatch, message size limits, rate limits, and shadow DOM widget integration). 14/14 tests passing (100%).
+
+---
+
 ---
 
 ### Session 62 (October 14, 2026)
@@ -3373,3 +3418,16 @@ Highlighted adjustments in the modal:
        - **Widget Script Recompilation**: Recompiled and minified `public/widget.js` and `public/embed.js` via `npm run build:widget` (`scripts/build-widget.js`).
        - **Automated Verification**: Added 4 automated Playwright test cases in `tests/chatbot.spec.ts` testing 401 rejection on unauthenticated requests, successful authorization via `x-session-token`, public fallback authorization via `chatbotId` + `sessionId`, and end-to-end shadow DOM widget chat submission with header verification. All 6 tests passing (100%).
        - **Production Build Verification**: Successfully compiled Next.js 16.3.5 Turbopack production build with 0 errors across 43 routes.
+
+### Session 67 (October 20, 2026)
+* **User**: "STYL-176 is now signed off by Stuart: since 10:50 BST it's In Progress with the antigravity and signed-off-stuart labels. Please start it now, following the developer instructions in the Jira comment headed \"STYL-173 follow-up: chat stream auth hardening\". Constraints from the ticket: Stripe stays in test mode, no data deletion, don't touch the old landing page files, and no production deploy without Stuart's yes. Never print the Turnstile secret. Also note your point that CLOUDFLARE_TURNSTILE_SECRET_KEY isn't in terraform/main.tf or deploy.yml; cover that in your plan so a Terraform apply can't wipe it, without printing the value."
+  * **Actions Completed**:
+    1. **Jira Verification & Guardrails**: Confirmed ticket STYL-176 in Jira Cloud with `status in ("In Progress")` and labels `antigravity` and `signed-off-stuart`. Maintained all strict constraints: Stripe in test mode, add-only database migrations, landing page files untouched, secrets redacted, and zero production deploy without explicit sign-off.
+    2. **Add-Only Database Migration**: Created and applied `supabase/migrations/20261020110000_chat_sessions_and_rate_limits.sql` adding `chat_sessions` and `chat_rate_limits` with RLS and service role access.
+    3. **Cryptographic Session Signing**: Built `src/lib/chat-session.ts` implementing HMAC-SHA256 token generation and timing-safe verification, with PostgreSQL sliding-window rate limiting.
+    4. **Public Session Init Endpoint**: Built `src/app/api/chat/public-init/route.ts` requiring Turnstile verification, validating chatbot existence, generating UUID `sessionId`, and issuing signed 24h session tokens.
+    5. **Proxy / Middleware Protection**: Hardened `src/proxy.ts` to require valid HMAC tokens on `/api/chat/stream`, removed body-only fallback, and eliminated dead `/api/auth/signup` path.
+    6. **Chat Stream Route Hardening**: Updated `src/app/api/chat/stream/route.ts` to enforce token claim binding (`chatbotId` and `sessionId`), message character limits (2,000 chars), history array limits (20 items), multi-tier rate limiting (10/min, 100/day, 30/min IP, 2000/day bot), `maxOutputTokens: 1024`, and proper 400/404 HTTP status codes.
+    7. **Widget Front-Door Turnstile Integration**: Updated `src/widget/index.ts` and `src/widget/embed.ts` to automatically fetch Turnstile tokens and exchange them for signed session tokens, caching them in `localStorage` with automatic 401 refresh. Recompiled `public/widget.js` and `public/embed.js`.
+    8. **Terraform & CI/CD Protection**: Added `turnstile_secret_key` Secret Manager resource and IAM bindings in `terraform/main.tf` to prevent secret wiping during Terraform apply. Added automated post-deploy smoke checks in `.github/workflows/deploy.yml`.
+    9. **Full Test Suite & Production Build**: Ran full Playwright test suite (`npm run test:e2e`), passing all 110/110 tests (100%), including 14/14 chatbot security tests. Successfully compiled Next.js 16.3.5 Turbopack production build (`npm run build`) with 0 errors across 43 routes.

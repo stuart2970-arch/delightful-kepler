@@ -1,31 +1,90 @@
+import crypto from 'node:crypto';
 import { NextResponse } from 'next/server';
+import { createClient } from '@supabase/supabase-js';
+import { signChatSessionToken } from '@/lib/chat-session';
+
+function getSupabaseAdmin() {
+  const supabaseUrl = process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+
+  if (!supabaseUrl || !serviceRoleKey) {
+    throw new Error('Supabase environment variables missing for admin operations.');
+  }
+
+  return createClient(supabaseUrl, serviceRoleKey, {
+    auth: { persistSession: false },
+  });
+}
 
 /**
  * POST /api/chat/public-init
  * Public widget initialization endpoint.
- * Verified by Cloudflare Turnstile in middleware, returning an ephemeral session token.
+ * Verified by Cloudflare Turnstile at Edge/proxy level.
+ * Validates chatbotId and returns a cryptographically signed session token.
  */
 export async function POST(request: Request) {
   try {
     const body = await request.json().catch(() => ({}));
     const { chatbotId } = body;
 
-    if (!chatbotId) {
+    if (!chatbotId || typeof chatbotId !== 'string') {
       return NextResponse.json(
         { success: false, error: 'Missing required chatbotId attribute.' },
         { status: 400 }
       );
     }
 
-    // Generate a secure, short-lived session token (or JWT) for the visitor
-    const sessionToken = `sf_sess_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
+    const supabaseAdmin = getSupabaseAdmin();
+
+    // 1. Verify that chatbot exists and is active
+    const { data: chatbot, error: botErr } = await supabaseAdmin
+      .from('chatbots')
+      .select('id, name')
+      .eq('id', chatbotId)
+      .maybeSingle();
+
+    if (botErr || !chatbot) {
+      return NextResponse.json(
+        { success: false, error: `Chatbot not found or inactive: ${chatbotId}` },
+        { status: 404 }
+      );
+    }
+
+    // 2. Generate server-side unique sessionId
+    const sessionId = `session_${crypto.randomUUID()}`;
+    const expiresInSeconds = 3600;
+    const expiresAt = new Date(Date.now() + expiresInSeconds * 1000).toISOString();
+
+    // 3. Generate signed session token (HMAC-SHA256)
+    const sessionToken = signChatSessionToken({
+      chatbotId,
+      sessionId,
+      expiresInSeconds,
+    });
+
+    const tokenHash = crypto.createHash('sha256').update(sessionToken).digest('hex');
+    const clientIp = request.headers.get('x-forwarded-for')?.split(',')[0]?.trim() || '127.0.0.1';
+
+    // 4. Persist session record in chat_sessions table
+    const { error: insertErr } = await supabaseAdmin.from('chat_sessions').insert({
+      chatbot_id: chatbotId,
+      session_id: sessionId,
+      token_hash: tokenHash,
+      expires_at: expiresAt,
+      ip_address: clientIp,
+    });
+
+    if (insertErr) {
+      console.warn('[public-init] Failed to persist chat_session:', insertErr.message);
+    }
 
     return NextResponse.json({
       success: true,
-      sessionToken: sessionToken,
-      expiresInSeconds: 3600,
+      sessionToken,
+      sessionId,
+      expiresInSeconds,
     });
-  } catch (error) {
+  } catch (error: any) {
     console.error('[Public Init Error]', error);
     return NextResponse.json(
       { success: false, error: 'Internal session initialization error.' },

@@ -179,6 +179,15 @@ resource "google_secret_manager_secret" "db_url" {
   }
 }
 
+# Turnstile Secret Key for Chat Protection (STYL-176)
+resource "google_secret_manager_secret" "turnstile_secret_key" {
+  depends_on = [google_project_service.services]
+  secret_id  = "turnstile_secret_key"
+  replication {
+    auto {}
+  }
+}
+
 resource "google_secret_manager_secret_version" "db_url_version" {
   secret      = google_secret_manager_secret.db_url.id
   # Formats the internal PostgreSQL connection URL through the unix socket Cloud Run utilizes
@@ -209,6 +218,12 @@ resource "google_secret_manager_secret_iam_member" "access_supabase_key" {
 
 resource "google_secret_manager_secret_iam_member" "access_db_url" {
   secret_id = google_secret_manager_secret.db_url.id
+  role      = "roles/secretmanager.secretAccessor"
+  member    = "serviceAccount:${google_service_account.cloud_run_sa.email}"
+}
+
+resource "google_secret_manager_secret_iam_member" "access_turnstile_secret_key" {
+  secret_id = google_secret_manager_secret.turnstile_secret_key.id
   role      = "roles/secretmanager.secretAccessor"
   member    = "serviceAccount:${google_service_account.cloud_run_sa.email}"
 }
@@ -291,6 +306,15 @@ resource "google_cloud_run_v2_service" "app" {
         value_source {
           secret_key_ref {
             secret  = google_secret_manager_secret.db_url.secret_id
+            version = "latest"
+          }
+        }
+      }
+      env {
+        name = "CLOUDFLARE_TURNSTILE_SECRET_KEY"
+        value_source {
+          secret_key_ref {
+            secret  = google_secret_manager_secret.turnstile_secret_key.secret_id
             version = "latest"
           }
         }

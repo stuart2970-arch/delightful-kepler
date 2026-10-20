@@ -33,6 +33,104 @@ import Vapi from '@vapi-ai/web';
     sessionId = 'session_' + crypto.randomUUID();
     localStorage.setItem(sessionKey, sessionId);
   }
+  const turnstileSiteKey = scriptEl.getAttribute('data-turnstile-sitekey') || '0x4AAAAAAEcGPat6Ll-AhKbf';
+
+  async function getTurnstileToken(): Promise<string> {
+    if (typeof window !== 'undefined' && (window as any).__STYLEFLO_TEST_TURNSTILE_TOKEN__) {
+      return (window as any).__STYLEFLO_TEST_TURNSTILE_TOKEN__;
+    }
+    const scriptTestToken = scriptEl?.getAttribute('data-turnstile-token');
+    if (scriptTestToken) return scriptTestToken;
+
+    return new Promise((resolve) => {
+      const ensureScript = () => {
+        if ((window as any).turnstile) return Promise.resolve();
+        return new Promise<void>((res) => {
+          const s = document.createElement('script');
+          s.src = 'https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit';
+          s.async = true;
+          s.defer = true;
+          s.onload = () => res();
+          s.onerror = () => res();
+          document.head.appendChild(s);
+        });
+      };
+
+      ensureScript().then(() => {
+        const turnstile = (window as any).turnstile;
+        if (!turnstile) return resolve('1x0000000000000000000000000000000AA');
+
+        let container = document.getElementById('styleflo-turnstile-container');
+        if (!container) {
+          container = document.createElement('div');
+          container.id = 'styleflo-turnstile-container';
+          container.style.display = 'none';
+          document.body.appendChild(container);
+        }
+        try {
+          turnstile.render(container, {
+            sitekey: turnstileSiteKey,
+            action: 'chat_init',
+            callback: (token: string) => resolve(token),
+            'error-callback': () => resolve('1x0000000000000000000000000000000AA'),
+            'expired-callback': () => turnstile.reset(container),
+          });
+        } catch {
+          resolve('1x0000000000000000000000000000000AA');
+        }
+      }).catch(() => resolve('1x0000000000000000000000000000000AA'));
+    });
+  }
+
+  async function ensureChatSession(forceRefresh = false): Promise<{ sessionToken: string; sessionId: string }> {
+    const tokenKey = `styleflo_session_token_${chatbotId}`;
+    const sessIdKey = `styleflo_session_id_${chatbotId}`;
+    const expKey = `styleflo_session_exp_${chatbotId}`;
+
+    if (!forceRefresh) {
+      const cachedToken = localStorage.getItem(tokenKey) || localStorage.getItem('styleflo_session_token');
+      const cachedSessId = localStorage.getItem(sessIdKey) || localStorage.getItem(sessionKey);
+      const cachedExp = localStorage.getItem(expKey);
+
+      if (cachedToken && cachedSessId && cachedExp && Date.now() < Number(cachedExp) - 60000) {
+        return { sessionToken: cachedToken, sessionId: cachedSessId };
+      }
+    }
+
+    try {
+      const turnstileToken = await getTurnstileToken();
+      const res = await fetch(`${apiHost}/api/chat/public-init`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-turnstile-token': turnstileToken,
+        },
+        body: JSON.stringify({ chatbotId }),
+      });
+
+      if (!res.ok) {
+        throw new Error(`Session init failed HTTP ${res.status}`);
+      }
+
+      const data = await res.json();
+      if (data.sessionToken && data.sessionId) {
+        const expTime = Date.now() + (data.expiresInSeconds || 3600) * 1000;
+        localStorage.setItem(tokenKey, data.sessionToken);
+        localStorage.setItem('styleflo_session_token', data.sessionToken);
+        localStorage.setItem(sessIdKey, data.sessionId);
+        localStorage.setItem(sessionKey, data.sessionId);
+        localStorage.setItem(expKey, String(expTime));
+        return { sessionToken: data.sessionToken, sessionId: data.sessionId };
+      }
+    } catch (err) {
+      console.warn('[StyleFlo Widget] Session token refresh failed:', err);
+    }
+
+    const fallbackId = localStorage.getItem(sessIdKey) || localStorage.getItem(sessionKey) || `session_${crypto.randomUUID()}`;
+    const fallbackToken = localStorage.getItem(tokenKey) || localStorage.getItem('styleflo_session_token') || '';
+    return { sessionToken: fallbackToken, sessionId: fallbackId };
+  }
+
 
   // 3. Create the Shadow Host container
   const host = document.createElement('div');
@@ -1188,24 +1286,45 @@ import Vapi from '@vapi-ai/web';
       const typingIndicator = showTypingIndicator();
 
       // Retrieve cached or active session token
-      const activeToken = localStorage.getItem('styleflo_session_token') || sessionId || '';
+      const session = await ensureChatSession();
 
       // 3. Initiate fetch streaming call
       try {
-        const response = await fetch(`${apiHost}/api/chat/stream`, {
+        let response = await fetch(`${apiHost}/api/chat/stream`, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
-            'x-session-token': activeToken,
+            'x-session-token': session.sessionToken,
           },
           body: JSON.stringify({
             message: messageText,
             chatbotId: chatbotId,
-            sessionId: sessionId,
+            sessionId: session.sessionId,
             clientName: storedName || undefined,
             clientEmail: storedEmail || undefined,
           }),
         });
+
+        // Auto-refresh token on 401 retry
+        if (response.status === 401) {
+          const freshSession = await ensureChatSession(true);
+          if (freshSession.sessionToken) {
+            response = await fetch(`${apiHost}/api/chat/stream`, {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                'x-session-token': freshSession.sessionToken,
+              },
+              body: JSON.stringify({
+                message: messageText,
+                chatbotId: chatbotId,
+                sessionId: freshSession.sessionId,
+                clientName: storedName || undefined,
+                clientEmail: storedEmail || undefined,
+              }),
+            });
+          }
+        }
 
         // Remove typing indicator once stream starts or fails
         typingIndicator.remove();

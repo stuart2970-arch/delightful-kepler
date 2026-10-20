@@ -1,3 +1,5 @@
+import { verifyChatSessionToken, checkRateLimit } from '@/lib/chat-session';
+import { logMeteredUsage, checkFeatureEntitlement } from '@/lib/entitlements';
 
 import { NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
@@ -232,31 +234,120 @@ export async function POST(request: Request) {
   }
 
   try {
-    // 1. Check env configuration
+    const supabaseAdmin = getSupabaseAdmin();
+
+    // 0. Extract & Validate Headers & Request Body
+    const authHeader = request.headers.get('authorization');
+    const sessionToken = request.headers.get('x-session-token');
+
+    let body: any;
+    try {
+      body = await request.json();
+    } catch {
+      return NextResponse.json({ error: 'Invalid JSON payload' }, { status: 400, headers: corsHeaders });
+    }
+
+    const validation = ChatRequestSchema.safeParse(body);
+    if (!validation.success) {
+      const errorMsg = validation.error.issues.map((issue) => issue.message).join(', ');
+      console.warn(`[Chat Stream][${requestId}] Validation failed: ${errorMsg}`);
+      return NextResponse.json({ error: `Validation error: ${errorMsg}` }, { status: 400, headers: corsHeaders });
+    }
+
+    const { message, chatbotId, sessionId, clientName } = validation.data;
+
+    // Cryptographic Session Verification & Claim Matching
+    if (authHeader && authHeader.startsWith('Bearer ')) {
+      const jwt = authHeader.replace(/^Bearer\s+/i, '').trim();
+      const { data: userData, error: userError } = await supabaseAdmin.auth.getUser(jwt);
+      if (userError || !userData?.user) {
+        return NextResponse.json({ error: 'Unauthorized. Invalid authentication token.' }, { status: 401, headers: corsHeaders });
+      }
+    } else if (sessionToken) {
+      const verification = verifyChatSessionToken(sessionToken);
+      if (!verification.valid || !verification.payload) {
+        return NextResponse.json(
+          { error: `Unauthorized. ${verification.error || 'Invalid session token signature.'}` },
+          { status: 401, headers: corsHeaders }
+        );
+      }
+      if (verification.payload.chatbotId !== chatbotId || verification.payload.sessionId !== sessionId) {
+        return NextResponse.json(
+          { error: 'Unauthorized. Session token does not match requested chatbotId or sessionId.' },
+          { status: 401, headers: corsHeaders }
+        );
+      }
+    } else {
+      return NextResponse.json(
+        { error: 'Unauthorized. Valid signed session token or JWT required to access chat stream.' },
+        { status: 401, headers: corsHeaders }
+      );
+    }
+
+    // Abuse Prevention: Message length cap (2,000 characters)
+    if (message.length > 2000) {
+      return NextResponse.json(
+        { error: 'Message exceeds maximum length of 2,000 characters.' },
+        { status: 400, headers: corsHeaders }
+      );
+    }
+
+    // Abuse Prevention: Sanitize & cap client history array (max 20 items, max 2000 chars each)
+    const rawClientMessages = Array.isArray(body.messages) ? body.messages : Array.isArray(body.history) ? body.history : [];
+    const clientMessages = rawClientMessages.slice(-20).map((m: any) => {
+      if (typeof m === 'string') return m.slice(0, 2000);
+      if (m && typeof m === 'object' && typeof m.content === 'string') {
+        return { ...m, content: m.content.slice(0, 2000) };
+      }
+      return m;
+    });
+
+    // Abuse Prevention: Rate limits (Session, IP, Chatbot)
+    const clientIp = request.headers.get('x-forwarded-for')?.split(',')[0]?.trim() || '127.0.0.1';
+
+    const sessionMin = await checkRateLimit(`rate:sess:min:${sessionId}`, 10, 60);
+    if (!sessionMin.allowed) {
+      return NextResponse.json(
+        { error: 'Session rate limit exceeded (10 messages per minute). Please slow down.' },
+        { status: 429, headers: corsHeaders }
+      );
+    }
+
+    const sessionDay = await checkRateLimit(`rate:sess:day:${sessionId}`, 100, 86400);
+    if (!sessionDay.allowed) {
+      return NextResponse.json(
+        { error: 'Daily session message limit reached (100 messages). Please try again tomorrow.' },
+        { status: 429, headers: corsHeaders }
+      );
+    }
+
+    const ipMin = await checkRateLimit(`rate:ip:min:${clientIp}`, 30, 60);
+    if (!ipMin.allowed) {
+      return NextResponse.json(
+        { error: 'IP rate limit exceeded (30 messages per minute). Please slow down.' },
+        { status: 429, headers: corsHeaders }
+      );
+    }
+
+    const botDay = await checkRateLimit(`rate:bot:day:${chatbotId}`, 2000, 86400);
+    if (!botDay.allowed) {
+      return NextResponse.json(
+        { error: 'Chatbot daily conversation capacity reached (2,000 messages).' },
+        { status: 429, headers: corsHeaders }
+      );
+    }
+
+    // 1. Check Gemini configuration
     const geminiApiKey = process.env.GEMINI_API_KEY || process.env.GOOGLE_GENERATIVE_AI_API_KEY;
     if (!geminiApiKey) {
       console.error(`[Chat Stream][${requestId}] GEMINI_API_KEY environment variable is missing`);
-      return NextResponse.json({ error: 'Gemini integration misconfigured: missing API key' }, { status: 200, headers: corsHeaders });
+      return NextResponse.json({ error: 'Gemini integration misconfigured: missing API key' }, { status: 500, headers: corsHeaders });
     }
 
     const google = createGoogleGenerativeAI({
       apiKey: geminiApiKey,
     });
 
-    const supabaseAdmin = getSupabaseAdmin();
-
-    // 2. Validate request body
-    const body = await request.json();
-    const validation = ChatRequestSchema.safeParse(body);
-
-    if (!validation.success) {
-      const errorMsg = validation.error.issues.map((issue) => issue.message).join(', ');
-      console.warn(`[Chat Stream][${requestId}] Validation failed: ${errorMsg}`);
-      return NextResponse.json({ error: `Validation error: ${errorMsg}` }, { status: 200, headers: corsHeaders });
-    }
-
-    const { message, chatbotId, sessionId, clientName } = validation.data;
-    const clientMessages = Array.isArray(body.messages) ? body.messages : Array.isArray(body.history) ? body.history : [];
     console.log(`[Chat Stream][${requestId}] Chatbot ID: ${chatbotId}, Session ID: ${sessionId}, Client: ${clientName || 'Unknown'}`);
 
     // 3. Resolve tenant_id & configuration
@@ -292,7 +383,7 @@ Help them specify:
 
       if (chatbotError || !chatbot) {
         console.warn(`[Chat Stream][${requestId}] Chatbot validation failed or not found:`, chatbotError);
-        return NextResponse.json({ error: `Chatbot not found: ${chatbotError?.message}` }, { status: 200, headers: corsHeaders });
+        return NextResponse.json({ error: `Chatbot not found: ${chatbotError?.message || 'Not found'}` }, { status: 404, headers: corsHeaders });
       }
 
       chatbotRecord = chatbot;
@@ -316,6 +407,13 @@ Help them specify:
       : '';
 
     console.log(`[Chat Stream][${requestId}] Resolved Tenant ID: ${tenantId}, TZ: ${timezone}, Rules count: ${chatbotRules.length}`);
+
+    // Metered usage tracking
+    if (tenantId && tenantId !== '00000000-0000-0000-0000-000000000000') {
+      logMeteredUsage(supabaseAdmin, tenantId, 'chat_messages', 1, 'Inbound web chat message').catch((err) => {
+        console.warn(`[Chat Stream][${requestId}] Metered usage logging failure:`, err?.message);
+      });
+    }
 
     // 4. Generate user message embedding using central generateEmbedding helper
     let queryEmbedding: number[] = [];
@@ -614,6 +712,7 @@ ${staffContext}`;
       model: google(activeModelName),
       system: systemPrompt,
       messages: formattedMessages,
+      maxOutputTokens: 1024,
       onError: (err: unknown) => {
         console.error(`[Chat Stream][${requestId}] API Stream Error:`, err);
         if (err instanceof Error) {
@@ -724,6 +823,7 @@ ${staffContext}`;
               model: google(activeModelName),
               system: systemPrompt,
               messages: pass2Messages,
+              maxOutputTokens: 1024,
               onFinish: async (event2) => {
                 await supabaseAdmin.from('messages').insert({
                   tenant_id: tenantId,
@@ -762,6 +862,7 @@ ${staffContext}`;
               
               const result2 = await streamText({
                 model: google(activeModelName),
+                maxOutputTokens: 1024,
                 system: `You are an AI assistant representing the business "${businessName}".
 Your goal is to answer questions strictly using the provided context and handle booking inquiries according to the business's booking mode.
 If the answer isn't in the context, clearly state that you don't know and offer a fallback (like taking an email). Do not invent pricing, policies, or facts.
@@ -867,6 +968,7 @@ User identity context: ${clientName ? 'Client Name: ' + clientName : 'Anonymous'
               model: google(activeModelName),
               system: systemPrompt,
               messages: pass2Messages as Parameters<typeof streamText>[0]['messages'],
+              maxOutputTokens: 1024,
               onFinish: async (event2) => {
                 await supabaseAdmin.from('messages').insert({
                   tenant_id: tenantId,

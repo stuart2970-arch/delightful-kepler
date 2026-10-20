@@ -1,8 +1,9 @@
+import { verifyChatSessionToken } from '@/lib/chat-session';
 import { createServerClient } from '@supabase/ssr';
 import { NextResponse, type NextRequest } from 'next/server';
 
 // Unauthenticated public routes requiring Cloudflare Turnstile bot verification
-const PUBLIC_TURNSTILE_ROUTES = ['/api/auth/signup', '/api/chat/public-init'];
+const PUBLIC_TURNSTILE_ROUTES = ['/api/chat/public-init'];
 
 // Authenticated chat stream routes requiring session JWT authorization
 const CHAT_STREAM_ROUTES = ['/api/chat/stream'];
@@ -28,7 +29,32 @@ export async function proxy(request: NextRequest) {
   if (PUBLIC_TURNSTILE_ROUTES.some((route) => pathname.startsWith(route))) {
     const turnstileToken = request.headers.get('x-turnstile-token');
     const clientIp = request.headers.get('x-forwarded-for') || (request as any).ip || '127.0.0.1';
-    const isDevSecret = process.env.CLOUDFLARE_TURNSTILE_SECRET_KEY === '1x0000000000000000000000000000000AA';
+    const isProd = process.env.NODE_ENV === 'production' || process.env.NEXT_PUBLIC_ENV === 'production';
+    const secretKey = process.env.CLOUDFLARE_TURNSTILE_SECRET_KEY;
+
+    if (isProd && !secretKey) {
+      console.error('[Security Critical] CLOUDFLARE_TURNSTILE_SECRET_KEY is missing in production environment!');
+      return new NextResponse(
+        JSON.stringify({
+          success: false,
+          error: 'Security gate misconfiguration in production.',
+        }),
+        {
+          status: 500,
+          headers: { 'Content-Type': 'application/json', ...corsHeaders },
+        }
+      );
+    }
+
+    let effectiveSecret = secretKey || '1x0000000000000000000000000000000AA';
+    if (!isProd) {
+      if (turnstileToken?.startsWith('2x')) {
+        effectiveSecret = '2x0000000000000000000000000000000AA';
+      } else if (turnstileToken?.startsWith('1x')) {
+        effectiveSecret = '1x0000000000000000000000000000000AA';
+      }
+    }
+    const isDevSecret = effectiveSecret === '1x0000000000000000000000000000000AA';
 
     if (!turnstileToken) {
       return new NextResponse(
@@ -45,7 +71,7 @@ export async function proxy(request: NextRequest) {
 
     try {
       const formData = new URLSearchParams();
-      formData.append('secret', process.env.CLOUDFLARE_TURNSTILE_SECRET_KEY || '1x0000000000000000000000000000000AA');
+      formData.append('secret', effectiveSecret);
       formData.append('response', turnstileToken);
       formData.append('remoteip', clientIp);
 
@@ -95,28 +121,32 @@ export async function proxy(request: NextRequest) {
     }
   }
 
-  // 2. CHAT STREAM PROTECTION: Validate Authorization JWT header or session token
+  // 2. CHAT STREAM PROTECTION: Validate Authorization JWT header or cryptographically signed session token
   if (CHAT_STREAM_ROUTES.some((route) => pathname.startsWith(route))) {
     const authHeader = request.headers.get('authorization');
     const sessionToken = request.headers.get('x-session-token');
 
     if (!authHeader && !sessionToken) {
-      // Defense-in-depth fallback: check if request contains valid public chatbotId and sessionId
-      let hasValidPublicPayload = false;
-      try {
-        const clonedBody = await request.clone().json().catch(() => null);
-        if (clonedBody && clonedBody.chatbotId && clonedBody.sessionId) {
-          hasValidPublicPayload = true;
+      return new NextResponse(
+        JSON.stringify({
+          success: false,
+          error: 'Unauthorized. Valid signed session token or JWT required to access chat stream.',
+        }),
+        {
+          status: 401,
+          headers: { 'Content-Type': 'application/json', ...corsHeaders },
         }
-      } catch (err) {
-        hasValidPublicPayload = false;
-      }
+      );
+    }
 
-      if (!hasValidPublicPayload) {
+    // Cryptographic token verification for session tokens
+    if (!authHeader && sessionToken) {
+      const verification = verifyChatSessionToken(sessionToken);
+      if (!verification.valid) {
         return new NextResponse(
           JSON.stringify({
             success: false,
-            error: 'Unauthorized. Valid session token or JWT required to access chat stream.',
+            error: `Unauthorized. ${verification.error || 'Invalid session token signature.'}`,
           }),
           {
             status: 401,

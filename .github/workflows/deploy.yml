@@ -78,3 +78,44 @@ jobs:
         run: |
           echo "Deployment successful!"
           echo "App URL: ${{ steps.deploy.outputs.url }}"
+
+      # 8. Post-Deploy Security Regression Smoke Checks (STYL-176)
+      - name: Post-Deploy Security Regression Smoke Check
+        run: |
+          APP_URL="${{ steps.deploy.outputs.url }}"
+          echo "Running post-deploy security regression smoke checks against $APP_URL..."
+
+          # Probe 1: Fake session token to chat stream MUST return 401
+          STREAM_CODE=$(curl -s -o /dev/null -w "%{http_code}" -X POST "$APP_URL/api/chat/stream" \
+            -H "Content-Type: application/json" \
+            -H "x-session-token: fake_session_token_123" \
+            -d '{"message":"probe","chatbotId":"e0000000-0000-0000-0000-000000000001","sessionId":"session_fake_123"}')
+
+          if [ "$STREAM_CODE" != "401" ]; then
+            echo "::error::Post-deploy smoke check FAILED: /api/chat/stream did not reject fake session with 401 (got $STREAM_CODE)"
+            exit 1
+          fi
+          echo "PASS: /api/chat/stream rejected fake session token with 401."
+
+          # Probe 2: Public init without Turnstile token MUST return 401/403
+          INIT_CODE=$(curl -s -o /dev/null -w "%{http_code}" -X POST "$APP_URL/api/chat/public-init" \
+            -H "Content-Type: application/json" \
+            -d '{"chatbotId":"e0000000-0000-0000-0000-000000000001"}')
+
+          if [ "$INIT_CODE" != "401" ] && [ "$INIT_CODE" != "403" ]; then
+            echo "::error::Post-deploy smoke check FAILED: /api/chat/public-init did not reject missing Turnstile token with 401/403 (got $INIT_CODE)"
+            exit 1
+          fi
+          echo "PASS: /api/chat/public-init rejected missing Turnstile token with $INIT_CODE."
+
+          # Probe 3: Public init MUST reject Cloudflare dummy test token in production (proving production secret is active and not falling back)
+          DEV_TOKEN_CODE=$(curl -s -o /dev/null -w "%{http_code}" -X POST "$APP_URL/api/chat/public-init" \
+            -H "Content-Type: application/json" \
+            -H "x-turnstile-token: 1x0000000000000000000000000000000AA" \
+            -d '{"chatbotId":"e0000000-0000-0000-0000-000000000001"}')
+
+          if [ "$DEV_TOKEN_CODE" != "403" ]; then
+            echo "::error::Post-deploy smoke check FAILED: Production allowed dummy Turnstile test token (got $DEV_TOKEN_CODE). Production Turnstile secret is inactive or falling back to dev secret!"
+            exit 1
+          fi
+          echo "PASS: /api/chat/public-init rejected dummy test token with 403 (confirmed production secret is active)."
