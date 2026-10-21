@@ -3632,3 +3632,15 @@ Highlighted adjustments in the modal:
        - Created 7 new automated tests in `tests/homepage-widget.spec.ts` (10 total) covering fresh session gate, disabled/enabled button states, text chat greeting personalising with first name, web voice call gate interception and first name greeting, localStorage pre-fill isolation, and server-side 403 enforcement.
        - Verified full Next.js Turbopack production build (`npm run build`) succeeded across all 43 routes.
        - Executed full Playwright E2E test suite (`npm run test:e2e`): **171/171 passed (100%)**.
+
+## Session 72 (October 21, 2026)
+* **User**: "3cb75 to main started TWO runs of 'Production CI/CD Ingestion RAG Deployment' at the same time (#633 succeeded, #634 failed at 'npm run build' in Build and Push Docker Image). Please find out why deploy.yml runs twice per push (a duplicate trigger, or the push and merge both firing?), add a concurrency group so only one deploy runs per commit, and work out why the build failed in #634. Put it on its own branch, run the full tests and the pre-push hook (never --no-verify), and stop for Stuart's yes before merging to main."
+  * **Root Cause Diagnosis**:
+    1. **Why deploy.yml ran twice (#633 & #634)**: Queried GitHub REST API (`/actions/runs/39619070182` and `39619075476`). Both runs had `event: push`, `head_branch: main`, and identical `head_sha: 613cb75259c82959a3f8d508d6543efc3683a404`, created 2 seconds apart (14:41:38Z and 14:41:40Z). Queried `/pulls?state=all` which returned empty (`[]`) - confirmed no pull request merge event fired. The duplicate trigger occurred because the HTTPS push of two commits triggered duplicate check suite deliveries (`107367895544` and `107367912064`) on GitHub ingress, and `deploy.yml` lacked a `concurrency` configuration to serialize or deduplicate them.
+    2. **Why Build Failed in #634**: In `.github/workflows/deploy.yml`, Docker Buildx used un-scoped GitHub Actions Cache (`cache-from: type=gha`, `cache-to: type=gha,mode=max`). When Run #633 and #634 ran simultaneously on separate Ubuntu runners, Runner #633 actively streamed intermediate layer cache tarballs into the GitHub Actions cache service while Runner #634 concurrently pulled them. This cache collision corrupted `/app/node_modules` and `.next/cache` during layer decompression in Runner #634, causing `npm run build` (`next build && npm run build:widget`) to crash with exit code 1. Runner #633, which ran with a clean build state, succeeded completely.
+  * **Actions Completed**:
+    1. Created dedicated branch `fix/deploy-concurrency-group`.
+    2. Added `concurrency: group: ${{ github.workflow }}-${{ github.ref }}, cancel-in-progress: false` to `.github/workflows/deploy.yml` ensuring only one deployment can run at a time for `main`.
+    3. Added `scope=${{ github.workflow }}` to `cache-from` and `cache-to` in `docker/build-push-action@v5` to isolate Docker build cache layers.
+    4. Ran full test suite (`npm run test:e2e`): 171/171 passed (100%).
+    5. Pushed branch `fix/deploy-concurrency-group` with pre-push hook verified.
