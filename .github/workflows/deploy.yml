@@ -158,3 +158,25 @@ jobs:
             exit 1
           fi
           echo "PASS: /widget.js contains Turnstile bridge integration."
+
+      # 12. Post-Deploy Name & Terms Gate Smoke Check (STYL-181)
+      - name: Post-Deploy Name & Terms Gate Smoke Check
+        run: |
+          APP_URL="${{ steps.deploy.outputs.url }}"
+          echo "Verifying STYL-181 Name & Terms Gate on $APP_URL..."
+
+          # Probe 1: Homepage bot config must require client name and specify terms version
+          BOT_CONFIG=$(curl -s -L "$APP_URL/api/chatbots/9825855e-d478-443f-b75c-6c0d77039ca6")
+          if ! echo "$BOT_CONFIG" | grep -q '"requireClientName":true'; then
+            echo "::error::Post-deploy smoke check FAILED: Homepage bot does not require client name!"
+            exit 1
+          fi
+          echo "PASS: /api/chatbots/9825855e-d478-443f-b75c-6c0d77039ca6 requires client name."
+
+          # Probe 2: Widget must contain per-session gate logic
+          WIDGET_RESP=$(curl -s -L "$APP_URL/widget.js")
+          if ! echo "$WIDGET_RESP" | grep -q "styleflo_gate_"; then
+            echo "::error::Post-deploy smoke check FAILED: /widget.js does not contain per-session gate logic (styleflo_gate_)!"
+            exit 1
+          fi
+          echo "PASS: /widget.js contains per-session gate logic."
