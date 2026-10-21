@@ -100,7 +100,48 @@ export async function GET(
         voiceId: 'bIHbv24MWmeRgasZH58o',
         backgroundSound: 'office',
         fileUploadEnabled: false,
+        requireClientName: false,
+        termsVersion: '1.0',
       }, { headers: corsHeaders });
+    }
+
+    if (id === '9825855e-d478-443f-b75c-6c0d77039ca6') {
+      const supabaseAdmin = getSupabaseAdmin();
+      const { data: dbBot } = await supabaseAdmin
+        .from('chatbots')
+        .select('id, tenant_id, name, primary_color, configuration_json, voice_enabled')
+        .eq('id', id)
+        .maybeSingle();
+
+      if (!dbBot) {
+        return NextResponse.json({
+          tenantId: '10000000-0000-0000-0000-000000000002',
+          name: 'StyleFlo Homepage Assistant',
+          primaryColor: '#260475',
+          agentName: 'Flo',
+          agentRole: 'AI Receptionist & Assistant',
+          agentAvatarUrl: '/avatars/avatar1.png',
+          avatarUrl: '/avatars/avatar1.png',
+          welcomeMessage: "Hi, you're through to FloChat! How can I help you today?",
+          brandingHtml: '<span style="opacity: 0.6; font-size: 11px;">⚡ Powered by <strong>StyleFlo</strong></span>',
+          brandingUrl: 'https://styleflo.ai',
+          voiceEnabled: true,
+          vapiPublicKey: process.env.NEXT_PUBLIC_VAPI_PUBLIC_KEY || '3648bdcb-ccac-4acc-aee6-a4f9384743de',
+          vapiAssistantId: process.env.VAPI_MASTER_ASSISTANT_ID || '1bb95940-1cb9-4c54-9b16-ba5bc11daae2',
+          globalVoiceDisclaimer: '',
+          voiceProvider: '11labs',
+          voiceId: 'dqTe8OSrj3PERbkXF8Kx',
+          backgroundSound: 'office',
+          fileUploadEnabled: false,
+          requireClientName: true,
+          termsVersion: '1.0',
+        }, {
+          headers: {
+            ...corsHeaders,
+            'Cache-Control': 'no-store, no-cache, must-revalidate, proxy-revalidate',
+          }
+        });
+      }
     }
 
     // Validate UUID format
@@ -228,6 +269,8 @@ export async function GET(
       voiceId: resolvedVoiceId,
       backgroundSound: config.background_sound || config.backgroundSound || 'office',
       fileUploadEnabled: Boolean(config.file_upload_enabled ?? (chatbot.id === 'styleflo-onboarding-flobot')),
+      requireClientName: Boolean(config.require_client_name ?? config.requireClientName ?? ((id === '9825855e-d478-443f-b75c-6c0d77039ca6' || chatbot.id === '9825855e-d478-443f-b75c-6c0d77039ca6') ? true : false)),
+      termsVersion: config.terms_version || config.termsVersion || '1.0',
     }, {
       headers: {
         ...corsHeaders,

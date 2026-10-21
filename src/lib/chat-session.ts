@@ -6,6 +6,8 @@ export interface ChatSessionPayload {
   sessionId: string;
   exp: number;
   iat: number;
+  termsAccepted?: boolean;
+  termsVersion?: string;
 }
 
 function getSupabaseAdmin() {
@@ -52,8 +54,10 @@ export function signChatSessionToken(params: {
   chatbotId: string;
   sessionId: string;
   expiresInSeconds?: number;
+  termsAccepted?: boolean;
+  termsVersion?: string;
 }): string {
-  const { chatbotId, sessionId, expiresInSeconds = 3600 } = params;
+  const { chatbotId, sessionId, expiresInSeconds = 3600, termsAccepted, termsVersion } = params;
   const now = Math.floor(Date.now() / 1000);
   const header = { alg: 'HS256', typ: 'JWT' };
   const payload: ChatSessionPayload = {
@@ -61,6 +65,8 @@ export function signChatSessionToken(params: {
     sessionId,
     iat: now,
     exp: now + expiresInSeconds,
+    ...(termsAccepted !== undefined ? { termsAccepted } : {}),
+    ...(termsVersion ? { termsVersion } : {}),
   };
 
   const encodedHeader = base64UrlEncode(JSON.stringify(header));

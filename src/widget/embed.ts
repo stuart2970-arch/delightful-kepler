@@ -159,6 +159,22 @@ import Vapi from '@vapi-ai/web';
     });
   }
 
+  let currentTermsVersion = '1.0';
+
+  function getSessionGateState(): boolean {
+    try {
+      const raw = sessionStorage.getItem(`styleflo_gate_${chatbotId}`);
+      if (!raw) return false;
+      const parsed = JSON.parse(raw);
+      if (parsed && parsed.accepted === true && parsed.termsVersion === currentTermsVersion) {
+        return true;
+      }
+    } catch (e) {
+      // ignore
+    }
+    return false;
+  }
+
   async function ensureChatSession(forceRefresh = false): Promise<{ sessionToken: string; sessionId: string }> {
     const tokenKey = `styleflo_session_token_${chatbotId}`;
     const sessIdKey = `styleflo_session_id_${chatbotId}`;
@@ -185,7 +201,11 @@ import Vapi from '@vapi-ai/web';
         'Content-Type': 'application/json',
         'x-turnstile-token': turnstileToken,
       },
-      body: JSON.stringify({ chatbotId }),
+      body: JSON.stringify({
+        chatbotId,
+        termsAccepted: getSessionGateState(),
+        termsVersion: currentTermsVersion,
+      }),
     });
 
     if (!res.ok) {
@@ -424,6 +444,8 @@ import Vapi from '@vapi-ai/web';
         if (config.backgroundSound) backgroundSound = config.backgroundSound;
         if (config.fileUploadEnabled !== undefined) fileUploadEnabled = Boolean(config.fileUploadEnabled);
         else if (config.file_upload_enabled !== undefined) fileUploadEnabled = Boolean(config.file_upload_enabled);
+        if (config.termsVersion) currentTermsVersion = config.termsVersion;
+        else if (config.terms_version) currentTermsVersion = config.terms_version;
       }
     } catch (err) {
       console.warn('[StyleFlo Widget] Failed to fetch chatbot config, using defaults:', err);
@@ -544,7 +566,9 @@ import Vapi from '@vapi-ai/web';
             </label>
           </div>
 
-          <button type="submit" class="w-full py-3 rounded-xl text-white font-bold text-sm shadow-md transition-opacity hover:opacity-95 cursor-pointer" style="background-color: ${primaryColor};">
+          <div id="styleflo-gate-error" class="hidden text-red-500 text-xs mb-2.5 font-medium text-left"></div>
+
+          <button type="submit" id="styleflo-onboarding-submit-btn" disabled aria-disabled="true" class="w-full py-3 rounded-xl text-white font-bold text-sm shadow-md transition-all opacity-50 cursor-not-allowed" style="background-color: ${primaryColor};">
             ${isFloBot ? 'Start Onboarding with FloBot ⚡' : 'Start Chat 💬'}
           </button>
         </form>
@@ -685,10 +709,10 @@ import Vapi from '@vapi-ai/web';
 
     let vapiInstance: Vapi | null = null;
     let isVapiActive = false;
+    let startVoiceCall: () => Promise<void> = async () => {};
 
     let storedName = localStorage.getItem('styleflo-client-name');
     let storedEmail = localStorage.getItem('styleflo-client-email');
-    let disclaimerAccepted = localStorage.getItem('styleflo-disclaimer-accepted');
 
     function getFirstName(fullName?: string | null): string {
       if (!fullName) return 'there';
@@ -708,18 +732,41 @@ import Vapi from '@vapi-ai/web';
         return `Hi ${firstName}, thats the hard bit out of the way! Does your business have a website?`;
       }
       let msg = welcomeMessage;
-      const nameVal = (clientName || storedName || '').trim() || 'there';
+      const rawName = (clientName || storedName || '').trim();
+      const firstName = rawName ? getFirstName(rawName) : 'there';
       
-      msg = msg.replace(/\[Name\]/gi, nameVal);
-      msg = msg.replace(/\{Name\}/gi, nameVal);
-      msg = msg.replace(/\[ClientName\]/gi, nameVal);
-      msg = msg.replace(/\{ClientName\}/gi, nameVal);
+      const hasPlaceholder = /\[Name\]|\{Name\}|\[ClientName\]|\{ClientName\}/i.test(msg);
+      msg = msg.replace(/\[Name\]/gi, firstName);
+      msg = msg.replace(/\{Name\}/gi, firstName);
+      msg = msg.replace(/\[ClientName\]/gi, firstName);
+      msg = msg.replace(/\{ClientName\}/gi, firstName);
       
       const botVal = agentName || botName || 'our assistant';
       msg = msg.replace(/\[ChatbotName\]/gi, botVal);
       msg = msg.replace(/\{ChatbotName\}/gi, botVal);
       msg = msg.replace(/\[Chatbot Name\]/gi, botVal);
       msg = msg.replace(/\{Chatbot Name\}/gi, botVal);
+      
+      if (!hasPlaceholder && rawName && firstName !== 'there') {
+        if (/^Hi[, !]+/i.test(msg)) {
+          msg = msg.replace(/^Hi[, !]+/i, (match) => {
+            const punct = match.includes('!') ? '! ' : ', ';
+            return `Hi ${firstName}${punct}`;
+          });
+        } else if (/^Hello[, !]+/i.test(msg)) {
+          msg = msg.replace(/^Hello[, !]+/i, (match) => {
+            const punct = match.includes('!') ? '! ' : ', ';
+            return `Hello ${firstName}${punct}`;
+          });
+        } else if (/^Hey[, !]+/i.test(msg)) {
+          msg = msg.replace(/^Hey[, !]+/i, (match) => {
+            const punct = match.includes('!') ? '! ' : ', ';
+            return `Hey ${firstName}${punct}`;
+          });
+        } else {
+          msg = `Hi ${firstName}! ${msg}`;
+        }
+      }
       
       return msg;
     }
@@ -993,17 +1040,69 @@ import Vapi from '@vapi-ai/web';
       welcomeTextEl.innerHTML = getFormattedWelcomeMessage(storedName);
     }
 
-    const needsOnboarding = isFloBot
-      ? (!storedName || !storedEmail)
-      : ((requireClientName && !storedName) || (globalVoiceDisclaimer && !disclaimerAccepted));
+    const submitBtn = shadowRoot.getElementById('styleflo-onboarding-submit-btn') as HTMLButtonElement | null;
+    const gateErrorEl = shadowRoot.getElementById('styleflo-gate-error') as HTMLDivElement | null;
+    const acceptCheckbox = shadowRoot.getElementById('styleflo-disclaimer-accept') as HTMLInputElement | null;
 
-    if (needsOnboarding) {
+    function validateGateForm(): boolean {
+      const name = (onboardingName?.value || '').trim();
+      const email = (onboardingEmail?.value || '').trim();
+      const accepted = acceptCheckbox ? acceptCheckbox.checked : false;
+
+      if (!name) return false;
+      if (isFloBot && !email) return false;
+      if (!accepted) return false;
+      return true;
+    }
+
+    function updateSubmitButtonState() {
+      if (!submitBtn) return;
+      const isValid = validateGateForm();
+      if (isValid) {
+        submitBtn.removeAttribute('disabled');
+        submitBtn.setAttribute('aria-disabled', 'false');
+        submitBtn.classList.remove('opacity-50', 'cursor-not-allowed');
+        submitBtn.classList.add('opacity-100', 'cursor-pointer', 'hover:opacity-95');
+      } else {
+        submitBtn.setAttribute('disabled', 'disabled');
+        submitBtn.setAttribute('aria-disabled', 'true');
+        submitBtn.classList.remove('opacity-100', 'cursor-pointer', 'hover:opacity-95');
+        submitBtn.classList.add('opacity-50', 'cursor-not-allowed');
+      }
+    }
+
+    if (onboardingName) {
+      onboardingName.addEventListener('input', () => {
+        if (gateErrorEl) gateErrorEl.classList.add('hidden');
+        updateSubmitButtonState();
+      });
+    }
+    if (onboardingEmail) {
+      onboardingEmail.addEventListener('input', () => {
+        if (gateErrorEl) gateErrorEl.classList.add('hidden');
+        updateSubmitButtonState();
+      });
+    }
+    if (acceptCheckbox) {
+      acceptCheckbox.addEventListener('change', () => {
+        if (gateErrorEl) gateErrorEl.classList.add('hidden');
+        updateSubmitButtonState();
+      });
+    }
+
+    const needsGate = isFloBot
+      ? (!storedName || !storedEmail || !getSessionGateState())
+      : ((requireClientName || globalVoiceDisclaimer || chatbotId === '9825855e-d478-443f-b75c-6c0d77039ca6') && !getSessionGateState());
+
+    if (needsGate) {
       messagesContainer.style.setProperty('display', 'none', 'important');
       chatForm.style.setProperty('display', 'none', 'important');
       onboardingContainer.style.setProperty('display', 'flex', 'important');
       
       if (storedName && onboardingName) onboardingName.value = storedName;
       if (storedEmail && onboardingEmail) onboardingEmail.value = storedEmail;
+      if (acceptCheckbox) acceptCheckbox.checked = false;
+      updateSubmitButtonState();
     } else {
       onboardingContainer.style.setProperty('display', 'none', 'important');
       messagesContainer.style.setProperty('display', 'flex', 'important');
@@ -1012,35 +1111,74 @@ import Vapi from '@vapi-ai/web';
       renderTaskButtons();
     }
 
-    onboardingForm.addEventListener('submit', (e) => {
+    let pendingVoiceCall = false;
+
+    onboardingForm.addEventListener('submit', async (e) => {
       e.preventDefault();
       const name = onboardingName.value.trim();
       const email = onboardingEmail ? onboardingEmail.value.trim() : '';
-      const acceptCheckbox = shadowRoot.getElementById('styleflo-disclaimer-accept') as HTMLInputElement | null;
-      
-      if (acceptCheckbox && !acceptCheckbox.checked) {
-        alert('You must accept the Terms of Service & Privacy Policy to continue.');
+
+      if (gateErrorEl) {
+        gateErrorEl.classList.add('hidden');
+        gateErrorEl.textContent = '';
+      }
+
+      if (!name) {
+        if (gateErrorEl) {
+          gateErrorEl.textContent = 'Please enter your name.';
+          gateErrorEl.classList.remove('hidden');
+        }
         return;
       }
 
-      if (name && (email || !isFloBot)) {
-        localStorage.setItem('styleflo-client-name', name);
-        storedName = name;
-        if (email) {
-          localStorage.setItem('styleflo-client-email', email);
-          storedEmail = email;
+      if (isFloBot && !email) {
+        if (gateErrorEl) {
+          gateErrorEl.textContent = 'Please enter your email address.';
+          gateErrorEl.classList.remove('hidden');
         }
-        localStorage.setItem('styleflo-disclaimer-accepted', 'true');
-        disclaimerAccepted = 'true';
+        return;
+      }
 
-        if (welcomeTextEl) {
-          welcomeTextEl.innerHTML = getFormattedWelcomeMessage(storedName);
+      if (!acceptCheckbox || !acceptCheckbox.checked) {
+        if (gateErrorEl) {
+          gateErrorEl.textContent = 'You must accept the Terms of Service & Privacy Policy to continue.';
+          gateErrorEl.classList.remove('hidden');
         }
-        onboardingContainer.style.setProperty('display', 'none', 'important');
-        messagesContainer.style.setProperty('display', 'flex', 'important');
-        messagesContainer.style.setProperty('flex-direction', 'column', 'important');
-        chatForm.style.setProperty('display', 'flex', 'important');
-        renderTaskButtons();
+        return;
+      }
+
+      localStorage.setItem('styleflo-client-name', name);
+      storedName = name;
+      if (email) {
+        localStorage.setItem('styleflo-client-email', email);
+        storedEmail = email;
+      }
+
+      sessionStorage.setItem(`styleflo_gate_${chatbotId}`, JSON.stringify({
+        accepted: true,
+        termsVersion: currentTermsVersion,
+        at: new Date().toISOString(),
+      }));
+
+      try {
+        await ensureChatSession(true);
+      } catch (err) {
+        console.warn('[StyleFlo Widget] Token init on gate submit:', err);
+      }
+
+      if (welcomeTextEl) {
+        welcomeTextEl.innerHTML = getFormattedWelcomeMessage(storedName);
+      }
+      onboardingContainer.style.setProperty('display', 'none', 'important');
+      messagesContainer.style.setProperty('display', 'flex', 'important');
+      messagesContainer.style.setProperty('flex-direction', 'column', 'important');
+      chatForm.style.setProperty('display', 'flex', 'important');
+      renderTaskButtons();
+
+      if (pendingVoiceCall) {
+        pendingVoiceCall = false;
+        startVoiceCall();
+      } else {
         inputField.focus();
       }
     });
@@ -1109,6 +1247,16 @@ import Vapi from '@vapi-ai/web';
       voiceMenu.classList.add('scale-90', 'opacity-0', 'pointer-events-none');
       voiceMenu.classList.remove('scale-100', 'opacity-100', 'pointer-events-auto');
       
+      if (needsGate && !getSessionGateState()) {
+        pendingVoiceCall = true;
+        openChatUI();
+        messagesContainer.style.setProperty('display', 'none', 'important');
+        chatForm.style.setProperty('display', 'none', 'important');
+        onboardingContainer.style.setProperty('display', 'flex', 'important');
+        if (onboardingName) onboardingName.focus();
+        return;
+      }
+
       isRinging = true;
       bubble.classList.add('styleflo-ringing');
       callStatus.classList.remove('opacity-0', 'pointer-events-none');
@@ -1131,9 +1279,8 @@ import Vapi from '@vapi-ai/web';
         callStatus.classList.remove('opacity-100');
         
         openChatUI();
-        // After chat opens, automatically click the Vapi microphone button!
         setTimeout(() => {
-          if (vapiBtn) vapiBtn.click();
+          startVoiceCall();
         }, 300);
       }, 3500);
     });
@@ -1262,81 +1409,113 @@ import Vapi from '@vapi-ai/web';
         });
       }
 
-      vapiBtn.addEventListener('click', async () => {
+      startVoiceCall = async () => {
         if (!vapiPublicKey) {
-          alert('Missing Vapi Public Key in widget configuration.');
+          appendMessage('bot', 'Missing Vapi Public Key in widget configuration.');
           return;
         }
-        
-        if (isVapiActive && vapiInstance) {
-          vapiInstance.stop();
-        } else if (vapiInstance) {
-          try {
-            const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(voiceId);
-            const actualVoiceId = voiceId && voiceId.length >= 15 && !isUuid ? voiceId : 'c8MZcZcr0JnMAwkwnTIu';
-            const isLocalHost = apiHost.includes('localhost') || apiHost.includes('127.0.0.1') || apiHost.includes('.test');
-            const targetVoiceHost = isLocalHost ? 'https://app.styleflo.ai' : apiHost;
+        if (!vapiInstance) {
+          appendMessage('bot', 'Voice call service is not initialized.');
+          return;
+        }
+        try {
+          const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(voiceId);
+          const actualVoiceId = voiceId && voiceId.length >= 15 && !isUuid ? voiceId : 'c8MZcZcr0JnMAwkwnTIu';
+          const isLocalHost = apiHost.includes('localhost') || apiHost.includes('127.0.0.1') || apiHost.includes('.test');
+          const targetVoiceHost = isLocalHost ? 'https://app.styleflo.ai' : apiHost;
 
-            // Resolve background ambient sound with 30% reduced volume streams
-            const ambientPresets = ['office', 'salon', 'barber', 'coffee-shop', 'restaurant', 'diner'];
-            let resolvedBackgroundSound: string = 'off';
-            if (backgroundSound === 'off') {
-              resolvedBackgroundSound = 'off';
-            } else if (typeof backgroundSound === 'string' && backgroundSound.startsWith('http')) {
-              resolvedBackgroundSound = backgroundSound;
-            } else if (typeof backgroundSound === 'string') {
-              const cleanSound = backgroundSound.replace(/-new$/, '');
-              if (ambientPresets.includes(cleanSound)) {
-                resolvedBackgroundSound = `${targetVoiceHost}/audio/ambient/${cleanSound}.wav`;
-              } else if (cleanSound.includes('resaurant')) {
-                resolvedBackgroundSound = `${targetVoiceHost}/audio/ambient/restaurant.wav`;
-              } else {
-                resolvedBackgroundSound = `${targetVoiceHost}/audio/ambient/office.wav`;
-              }
+          const ambientPresets = ['office', 'salon', 'barber', 'coffee-shop', 'restaurant', 'diner'];
+          let resolvedBackgroundSound: string = 'off';
+          if (backgroundSound === 'off') {
+            resolvedBackgroundSound = 'off';
+          } else if (typeof backgroundSound === 'string' && backgroundSound.startsWith('http')) {
+            resolvedBackgroundSound = backgroundSound;
+          } else if (typeof backgroundSound === 'string') {
+            const cleanSound = backgroundSound.replace(/-new$/, '');
+            if (ambientPresets.includes(cleanSound)) {
+              resolvedBackgroundSound = `${targetVoiceHost}/audio/ambient/${cleanSound}.wav`;
+            } else if (cleanSound.includes('resaurant')) {
+              resolvedBackgroundSound = `${targetVoiceHost}/audio/ambient/restaurant.wav`;
             } else {
               resolvedBackgroundSound = `${targetVoiceHost}/audio/ambient/office.wav`;
             }
-
-            await vapiInstance.start({
-              name: `${agentName} Assistant`,
-              transcriber: {
-                provider: "deepgram",
-                model: "nova-2",
-                language: "en-US"
-              },
-              silenceTimeoutSeconds: 30,
-              maxDurationSeconds: 600,
-              model: {
-                provider: "custom-llm",
-                url: `${targetVoiceHost}/api/voice/${chatbotId}/chat/completions`,
-                model: "gemini-3.6-flash",
-                messages: [
-                  {
-                    role: "system",
-                    content: `You are ${agentName}, ${agentRole}. The user's name is ${storedName || 'there'}.`
-                  }
-                ]
-              },
-              voice: {
-                provider: "11labs",
-                voiceId: actualVoiceId,
-                model: "eleven_turbo_v2_5"
-              },
-              firstMessage: getFormattedWelcomeMessage(storedName),
-              backgroundSound: resolvedBackgroundSound as any,
-              backchannelingEnabled: true,
-              metadata: {
-                tenant_id: tenantId || chatbotId,
-                chatbot_id: chatbotId,
-                session_id: sessionId,
-                call_type: 'web_voice'
-              }
-            });
-          } catch (e: any) {
-            console.error('[StyleFlo Widget] Vapi start error:', e);
-            appendMessage('bot', e?.message ? `Microphone / Voice Error: ${e.message}` : 'Microphone access denied or voice connection failed.');
+          } else {
+            resolvedBackgroundSound = `${targetVoiceHost}/audio/ambient/office.wav`;
           }
+
+          const firstName = getFirstName(storedName);
+          const session = await ensureChatSession();
+
+          (window as any).__STYLEFLO_LAST_VAPI_CALL__ = {
+            firstName,
+            firstMessage: getFormattedWelcomeMessage(storedName),
+            systemPrompt: "You are " + agentName + ", " + agentRole + ". The user's first name is " + firstName + ". Greet them by first name.",
+            clientName: firstName,
+          };
+
+          if ((window as any).__STYLEFLO_MOCK_VAPI__) {
+            return;
+          }
+
+          await vapiInstance.start({
+            name: `${agentName} Assistant`,
+            transcriber: {
+              provider: "deepgram",
+              model: "nova-2",
+              language: "en-US"
+            },
+            silenceTimeoutSeconds: 30,
+            maxDurationSeconds: 600,
+            model: {
+              provider: "custom-llm",
+              url: `${targetVoiceHost}/api/voice/${chatbotId}/chat/completions`,
+              model: "gemini-3.6-flash",
+              messages: [
+                {
+                  role: "system",
+                  content: `You are ${agentName}, ${agentRole}. The user's first name is ${firstName}. Greet them by first name.`
+                }
+              ]
+            },
+            voice: {
+              provider: "11labs",
+              voiceId: actualVoiceId,
+              model: "eleven_turbo_v2_5"
+            },
+            firstMessage: getFormattedWelcomeMessage(storedName),
+            backgroundSound: resolvedBackgroundSound as any,
+            backchannelingEnabled: true,
+            metadata: {
+              tenant_id: tenantId || chatbotId,
+              chatbot_id: chatbotId,
+              session_id: session.sessionId || sessionId,
+              call_type: 'web_voice',
+              client_name: firstName,
+            }
+          });
+        } catch (e: any) {
+          console.error('[StyleFlo Widget] Vapi start error:', e);
+          appendMessage('bot', e?.message ? `Microphone / Voice Error: ${e.message}` : 'Microphone access denied or voice connection failed.');
         }
+      };
+
+      vapiBtn.addEventListener('click', async () => {
+        if (isVapiActive && vapiInstance) {
+          vapiInstance.stop();
+          return;
+        }
+
+        if (needsGate && !getSessionGateState()) {
+          pendingVoiceCall = true;
+          openChatUI();
+          messagesContainer.style.setProperty('display', 'none', 'important');
+          chatForm.style.setProperty('display', 'none', 'important');
+          onboardingContainer.style.setProperty('display', 'flex', 'important');
+          if (onboardingName) onboardingName.focus();
+          return;
+        }
+
+        startVoiceCall();
       });
     }
 
@@ -1377,7 +1556,7 @@ import Vapi from '@vapi-ai/web';
             message: messageText,
             chatbotId: chatbotId,
             sessionId: session.sessionId,
-            clientName: storedName || undefined,
+            clientName: (storedName ? getFirstName(storedName) : undefined) || storedName || undefined,
             clientEmail: storedEmail || undefined,
           }),
         });
@@ -1396,7 +1575,7 @@ import Vapi from '@vapi-ai/web';
                 message: messageText,
                 chatbotId: chatbotId,
                 sessionId: freshSession.sessionId,
-                clientName: storedName || undefined,
+                clientName: (storedName ? getFirstName(storedName) : undefined) || storedName || undefined,
                 clientEmail: storedEmail || undefined,
               }),
             });

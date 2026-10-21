@@ -38,7 +38,7 @@ function getSupabaseAdmin() {
 export async function POST(request: Request) {
   try {
     const body = await request.json().catch(() => ({}));
-    const { chatbotId } = body;
+    const { chatbotId, termsAccepted, termsVersion } = body;
 
     if (!chatbotId || typeof chatbotId !== 'string') {
       return NextResponse.json(
@@ -68,11 +68,17 @@ export async function POST(request: Request) {
     const expiresInSeconds = 3600;
     const expiresAt = new Date(Date.now() + expiresInSeconds * 1000).toISOString();
 
+    const isTermsAccepted = termsAccepted === true;
+    const acceptedVersion = isTermsAccepted ? (termsVersion || '1.0') : null;
+    const acceptedAt = isTermsAccepted ? new Date().toISOString() : null;
+
     // 3. Generate signed session token (HMAC-SHA256)
     const sessionToken = signChatSessionToken({
       chatbotId,
       sessionId,
       expiresInSeconds,
+      termsAccepted: isTermsAccepted,
+      termsVersion: acceptedVersion || undefined,
     });
 
     const tokenHash = crypto.createHash('sha256').update(sessionToken).digest('hex');
@@ -85,6 +91,8 @@ export async function POST(request: Request) {
       token_hash: tokenHash,
       expires_at: expiresAt,
       ip_address: clientIp,
+      terms_accepted_at: acceptedAt,
+      terms_version: acceptedVersion,
     });
 
     if (insertErr) {

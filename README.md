@@ -3602,3 +3602,33 @@ Highlighted adjustments in the modal:
        - **Problem**: When the Turnstile bridge successfully resolved on `styleflo.ai`, the widget called `POST /api/chat/public-init`. The preflight `OPTIONS` passed (handled by `src/proxy.ts`), but the subsequent `POST` response returned by `src/app/api/chat/public-init/route.ts` lacked `Access-Control-Allow-Origin: *`, triggering browser CORS blocking and throwing `TypeError: Failed to fetch`.
        - **Resolution**: Added `corsHeaders` (`Access-Control-Allow-Origin: *`, methods, and allowed headers) to all response branches in `src/app/api/chat/public-init/route.ts` and implemented explicit downstream header forwarding in `src/proxy.ts` for all `/api/chat/*` routes.
        - **Automated Verification**: Added automated CORS preflight and POST validation in `tests/homepage-widget.spec.ts` ensuring full test suite (165/165 passed 100%).
+
+## Session 71 (October 21, 2026)
+* **User**: "Stuart has signed off STYL-179, STYL-181 and STYL-182. All three are In Progress with the antigravity label, and each has a developer plan in its latest Jira comment (10088, 10089 and 10090). Please read those comments and work them in this order: STYL-181, then STYL-179, then STYL-182. Use a branch per ticket. Run lint, the build, the full test suite and the pre-push hook, and never use --no-verify. Do NOT push to main or deploy any of them until Stuart gives an explicit yes for that ticket. When one is ready to deploy, stop and summarise it. STYL-181 decision from Stuart (also in Jira comment 10091): web Voice Call must show the same name and terms box as Text Chat before the call starts. Pass the first name from the box to the bot so it greets the person by first name in both chat and web voice, and add tests for both. Telephone (landline) calls are out of scope: leave the phone flow unchanged. Still no push to main or deploy without Stuart's yes."
+  * **Actions Completed**:
+    1. **Jira Ticket Verification**: Confirmed tickets STYL-181, STYL-179, and STYL-182 are In Progress with label `antigravity`. Created and worked on isolated feature branch `styl-181-prechat-gate`.
+    2. **Database Add-Only Migration (`supabase/migrations/20261021113000_styl181_chat_session_terms.sql`)**:
+       - Added `terms_accepted_at timestamptz NULL` and `terms_version text NULL` columns to `public.chat_sessions`.
+       - Idempotently inserted and verified the homepage chatbot (`9825855e-d478-443f-b75c-6c0d77039ca6`) linked to an active salon tenant for local testing and foreign key integrity.
+    3. **HMAC-SHA256 Chat Session Signing (`src/lib/chat-session.ts`)**:
+       - Extended `ChatSessionPayload` with `termsAccepted?: boolean` and `termsVersion?: string`.
+       - Updated `signChatSessionToken` and token verification to carry and validate signed terms claims cryptographically.
+    4. **Public Init API Route (`src/app/api/chat/public-init/route.ts`)**:
+       - Accepted `termsAccepted` and `termsVersion` in POST payload.
+       - Persisted acceptance timestamp and version to `chat_sessions` table and issued signed HMAC session token including the claims.
+    5. **Chatbot Config API Route (`src/app/api/chatbots/[id]/route.ts`)**:
+       - Configured endpoint to return `requireClientName: true` and `termsVersion: '1.0'` for the homepage bot and any configured gated chatbot.
+    6. **Server Stream Gate Enforcement (`src/app/api/chat/stream/route.ts`)**:
+       - Added server-side gate validation: if a chatbot requires name/disclaimer (or is homepage bot `9825855e-d478-443f-b75c-6c0d77039ca6`), incoming session tokens missing `termsAccepted: true` are rejected with HTTP 403: `{ error: 'Please accept the terms of service and privacy notice to start chatting.' }`.
+       - Added first name extraction logic so Gemini is prompted with the visitor's first name.
+    7. **Widget Core & Web Voice Interception (`src/widget/index.ts` & `src/widget/embed.ts`)**:
+       - Enforced per-session gate stored in `sessionStorage` under key `styleflo_gate_<chatbotId>`. Existing `localStorage` name pre-fills the input field without bypassing the terms gate on a fresh session.
+       - Disabled the 'Start chat' / 'Continue' button with `aria-disabled="true"`, `opacity-50`, and `cursor-not-allowed` until both name is non-empty and terms checkbox is checked. Replaced popup alerts with inline DOM error messaging.
+       - Intercepted web Voice Call buttons (`#styleflo-menu-call` and `#styleflo-vapi-btn`): clicking voice call when the gate has not yet been accepted opens the onboarding box with `pendingVoiceCall = true`. Submitting the gate connects the call directly.
+       - Personalised greetings: dynamically injected first name into text chat greeting and passed first name, greeting message, and system prompt instructions into Vapi web voice assistant.
+       - Left telephone/landline call routing unchanged.
+    8. **Widget Build**: Recompiled and minified `public/widget.js` and `public/embed.js` via `npm run build:widget`.
+    9. **Automated Verification**:
+       - Created 7 new automated tests in `tests/homepage-widget.spec.ts` (10 total) covering fresh session gate, disabled/enabled button states, text chat greeting personalising with first name, web voice call gate interception and first name greeting, localStorage pre-fill isolation, and server-side 403 enforcement.
+       - Verified full Next.js Turbopack production build (`npm run build`) succeeded across all 43 routes.
+       - Executed full Playwright E2E test suite (`npm run test:e2e`): **171/171 passed (100%)**.
