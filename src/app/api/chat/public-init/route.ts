@@ -3,6 +3,19 @@ import { NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import { signChatSessionToken } from '@/lib/chat-session';
 
+const corsHeaders = {
+  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
+  'Access-Control-Allow-Headers': 'Content-Type, x-session-token, x-turnstile-token, authorization',
+};
+
+export async function OPTIONS() {
+  return new NextResponse(null, {
+    status: 200,
+    headers: corsHeaders,
+  });
+}
+
 function getSupabaseAdmin() {
   const supabaseUrl = process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL;
   const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -30,7 +43,7 @@ export async function POST(request: Request) {
     if (!chatbotId || typeof chatbotId !== 'string') {
       return NextResponse.json(
         { success: false, error: 'Missing required chatbotId attribute.' },
-        { status: 400 }
+        { status: 400, headers: corsHeaders }
       );
     }
 
@@ -46,7 +59,7 @@ export async function POST(request: Request) {
     if (botErr || !chatbot) {
       return NextResponse.json(
         { success: false, error: `Chatbot not found or inactive: ${chatbotId}` },
-        { status: 404 }
+        { status: 404, headers: corsHeaders }
       );
     }
 
@@ -78,17 +91,20 @@ export async function POST(request: Request) {
       console.warn('[public-init] Failed to persist chat_session:', insertErr.message);
     }
 
-    return NextResponse.json({
-      success: true,
-      sessionToken,
-      sessionId,
-      expiresInSeconds,
-    });
+    return NextResponse.json(
+      {
+        success: true,
+        sessionToken,
+        sessionId,
+        expiresInSeconds,
+      },
+      { status: 200, headers: corsHeaders }
+    );
   } catch (error: any) {
     console.error('[Public Init Error]', error);
     return NextResponse.json(
       { success: false, error: 'Internal session initialization error.' },
-      { status: 500 }
+      { status: 500, headers: corsHeaders }
     );
   }
 }

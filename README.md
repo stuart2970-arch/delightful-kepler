@@ -3598,3 +3598,7 @@ Highlighted adjustments in the modal:
     6. **Widget Recompilation**: Recompiled and minified `public/widget.js` and `public/embed.js` via `npm run build:widget`.
     7. **CI/CD Smoke Check**: Added Step 11 to `.github/workflows/deploy.yml` verifying `/turnstile.html` and widget bridge integration on deploy.
     8. **Automated Verification**: Created `tests/homepage-widget.spec.ts` (3 tests). Executed full Playwright E2E suite (`npm run test:e2e`): **164/164 passed (100%)**. Compiled Turbopack production build (`npm run build`) cleanly across all 43 routes.
+    9. **CORS Alignment for Cross-Origin Public Init (Resolving '⚠️ Failed to fetch')**:
+       - **Problem**: When the Turnstile bridge successfully resolved on `styleflo.ai`, the widget called `POST /api/chat/public-init`. The preflight `OPTIONS` passed (handled by `src/proxy.ts`), but the subsequent `POST` response returned by `src/app/api/chat/public-init/route.ts` lacked `Access-Control-Allow-Origin: *`, triggering browser CORS blocking and throwing `TypeError: Failed to fetch`.
+       - **Resolution**: Added `corsHeaders` (`Access-Control-Allow-Origin: *`, methods, and allowed headers) to all response branches in `src/app/api/chat/public-init/route.ts` and implemented explicit downstream header forwarding in `src/proxy.ts` for all `/api/chat/*` routes.
+       - **Automated Verification**: Added automated CORS preflight and POST validation in `tests/homepage-widget.spec.ts` ensuring full test suite (165/165 passed 100%).

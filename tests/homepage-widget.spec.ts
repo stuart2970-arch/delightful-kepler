@@ -25,6 +25,37 @@ test.describe('STYL-180: Real Homepage Widget Flow & Voice Chat Verification', (
     expect(config.voiceId).toBeTruthy();
   });
 
+  test('cross-origin CORS headers are present on /api/chat/public-init and /api/chat/stream for external embedding', async ({ request }) => {
+    // 1. Verify OPTIONS preflight for public-init from external origin (e.g. styleflo.ai)
+    const optionsRes = await request.fetch('/api/chat/public-init', {
+      method: 'OPTIONS',
+      headers: {
+        'Origin': 'https://styleflo.ai',
+        'Access-Control-Request-Method': 'POST',
+        'Access-Control-Request-Headers': 'Content-Type, x-turnstile-token',
+      },
+    });
+    expect(optionsRes.ok()).toBeTruthy();
+    const optHeaders = optionsRes.headers();
+    expect(optHeaders['access-control-allow-origin']).toBe('*');
+    expect(optHeaders['access-control-allow-headers']).toContain('x-turnstile-token');
+
+    // 2. Verify actual POST /api/chat/public-init returns CORS allow-origin header on response
+    const postRes = await request.post('/api/chat/public-init', {
+      headers: {
+        'Origin': 'https://styleflo.ai',
+        'Content-Type': 'application/json',
+        'x-turnstile-token': '1x0000000000000000000000000000000AA',
+      },
+      data: { chatbotId: testChatbotId },
+    });
+    expect(postRes.ok()).toBeTruthy();
+    const postHeaders = postRes.headers();
+    expect(postHeaders['access-control-allow-origin']).toBe('*');
+    const postData = await postRes.json();
+    expect(postData.sessionToken).toBeTruthy();
+  });
+
   test('end-to-end homepage widget flow: disclaimer gate, Turnstile handshake, public-init, and streaming reply', async ({ page }) => {
     // Navigate to a blank page to simulate external site embedding (e.g. styleflo.ai)
     await page.goto('/login');

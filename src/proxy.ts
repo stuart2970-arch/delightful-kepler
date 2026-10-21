@@ -284,6 +284,13 @@ export async function proxy(request: NextRequest) {
     return redirectWithCookies(new URL(wpAppUrl));
   }
 
+  // Ensure public cross-origin endpoints under /api/chat/* carry full CORS headers
+  if (pathname.startsWith('/api/chat/')) {
+    Object.entries(corsHeaders).forEach(([k, v]) => {
+      supabaseResponse.headers.set(k, v);
+    });
+  }
+
   return supabaseResponse;
 }
 
