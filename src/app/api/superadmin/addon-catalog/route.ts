@@ -18,6 +18,7 @@ const ALLOWED_ADDON_FIELDS = new Set([
   'max_sms',
   'included_data_chunks',
   'display_order',
+  'is_active',
 ]);
 
 const ALLOWED_BASE_TIER_FIELDS = new Set([
@@ -83,6 +84,10 @@ export const PATCH = withSuperAdmin(async (req: NextRequest, _ctx: any, admin: {
         }
       }
 
+      if (updates.is_active !== undefined && typeof updates.is_active !== 'boolean') {
+        return NextResponse.json({ error: 'is_active must be a boolean' }, { status: 400 });
+      }
+
       if (updates.name !== undefined || updates.description !== undefined) {
         const textVal = validateAddonText({
           name: updates.name,
@@ -130,10 +135,15 @@ export const PATCH = withSuperAdmin(async (req: NextRequest, _ctx: any, admin: {
     if (updateError) throw updateError;
 
     // Write audit log with authenticated superadmin userId
+    let actionType = type === 'base_tier' ? 'base_tier_updated' : 'addon_updated';
+    if (type === 'addon' && updates.is_active !== undefined) {
+      actionType = updates.is_active ? 'addon_activated' : 'addon_deactivated';
+    }
+
     const summaryText = body.summary || `Updated ${type} (${id}): ${Object.keys(updates).join(', ')}`;
     const auditInsert: Record<string, any> = {
       addon_catalog_id: id,
-      action: type === 'base_tier' ? 'base_tier_updated' : 'addon_updated',
+      action: actionType,
       old_value: oldValues,
       new_value: updates,
       summary: summaryText,

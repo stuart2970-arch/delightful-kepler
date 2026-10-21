@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import Stripe from 'stripe';
 import { createClient } from '@supabase/supabase-js';
 import { buildCheckoutLineDescription } from '@/lib/addon-text';
+import { applyPublicAddonFilter, isAddonSellable } from '@/lib/addons/public-catalogue';
 
 export const dynamic = 'force-dynamic';
 
@@ -102,10 +103,8 @@ export async function GET(req: Request) {
     if (selectedAddonIds.length > 0) {
       const { data: dbAddons, error: addonError } = await supabase
         .from('addon_catalog')
-        .select('id, name, description, monthly_price_pence, category')
-        .in('id', selectedAddonIds)
-        .eq('is_active', true)
-        .neq('id', 'whatsapp_primary');
+        .select('id, name, description, monthly_price_pence, category, is_active')
+        .in('id', selectedAddonIds);
 
       if (addonError || !dbAddons) {
         return NextResponse.json({ error: 'Pricing unavailable' }, { status: 503, headers: corsHeaders });
@@ -117,6 +116,10 @@ export async function GET(req: Request) {
         const addon = dbAddonMap.get(addonId);
         if (!addon) {
           return NextResponse.json({ error: `Add-on not found in catalog: ${addonId}` }, { status: 400, headers: corsHeaders });
+        }
+
+        if (!isAddonSellable(addon)) {
+          return NextResponse.json({ error: 'This add-on is not available' }, { status: 400, headers: corsHeaders });
         }
 
         if (addon.category === 'voice_pack' || addon.category === 'sms_pack' || addon.id.startsWith('voice_pack') || addon.id.startsWith('sms_pack')) {
@@ -260,17 +263,21 @@ export async function POST(req: Request) {
 
     // Mode 2: Add-on to existing subscription (Fixed or Sliding Scale)
     if (addonCatalogId && tenantId) {
-      const { data: addon, error: addonError } = await supabase
+      const { data: rawAddon, error: rawError } = await supabase
         .from('addon_catalog')
         .select('*')
         .eq('id', addonCatalogId)
-        .eq('is_active', true)
-        .neq('id', 'whatsapp_primary')
-        .single();
+        .maybeSingle();
 
-      if (addonError || !addon) {
+      if (rawError || !rawAddon || rawAddon.retired_at) {
         return NextResponse.json({ error: 'Add-on not found in catalog' }, { status: 404 });
       }
+
+      if (!isAddonSellable(rawAddon)) {
+        return NextResponse.json({ error: 'This add-on is not available' }, { status: 400, headers: corsHeaders });
+      }
+
+      const addon = rawAddon;
 
       const { data: tenant } = await supabase
         .from('tenants')
@@ -490,10 +497,8 @@ export async function POST(req: Request) {
       if (selectedAddonIds.length > 0) {
         const { data: dbAddons, error: addonError } = await supabase
           .from('addon_catalog')
-          .select('id, name, description, monthly_price_pence, category')
-          .in('id', selectedAddonIds)
-          .eq('is_active', true)
-          .neq('id', 'whatsapp_primary');
+          .select('id, name, description, monthly_price_pence, category, is_active')
+          .in('id', selectedAddonIds);
 
         if (addonError || !dbAddons) {
           return NextResponse.json({ error: 'Pricing unavailable' }, { status: 503, headers: corsHeaders });
@@ -505,6 +510,10 @@ export async function POST(req: Request) {
           const addon = dbAddonMap.get(addonId);
           if (!addon) {
             return NextResponse.json({ error: `Add-on not found in catalog: ${addonId}` }, { status: 400, headers: corsHeaders });
+          }
+
+          if (!isAddonSellable(addon)) {
+            return NextResponse.json({ error: 'This add-on is not available' }, { status: 400, headers: corsHeaders });
           }
 
           if (addon.category === 'voice_pack' || addon.category === 'sms_pack' || addon.id.startsWith('voice_pack') || addon.id.startsWith('sms_pack')) {

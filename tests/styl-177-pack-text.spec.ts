@@ -133,17 +133,17 @@ test.describe('STYL-177: Bolt-on and pack wording, legacy pack retirement, and s
   });
 
   test('/api/superadmin/addon-catalog PATCH validation: rejects non-whitelisted fields, invalid length, £ digits, VAT', async ({ request }) => {
-    // 1. Disallowed field in updates (e.g. is_active, category, id)
+    // 1. Disallowed field in updates (e.g. category, id, retired_at)
     const resDisallowed = await request.patch('/api/superadmin/addon-catalog', {
       headers: { Authorization: `Bearer ${superadminSession.token}` },
       data: {
         id: 'sms_pack_100',
-        updates: { is_active: false },
+        updates: { category: 'custom_category' },
       },
     });
     expect(resDisallowed.status()).toBe(400);
     const jsonDisallowed = await resDisallowed.json();
-    expect(jsonDisallowed.error).toContain('Disallowed field in updates: is_active');
+    expect(jsonDisallowed.error).toContain('Disallowed field in updates: category');
 
     // 2. Name too long (>60 chars)
     const resLongName = await request.patch('/api/superadmin/addon-catalog', {

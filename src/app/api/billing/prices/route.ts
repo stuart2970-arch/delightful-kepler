@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
+import { applyPublicAddonFilter } from '@/lib/addons/public-catalogue';
 
 export const dynamic = 'force-dynamic';
 
@@ -40,12 +41,11 @@ export async function GET() {
       return NextResponse.json({ error: 'Pricing unavailable' }, { status: 503, headers: corsHeaders });
     }
 
-    // 2. Fetch active add-ons from addon_catalog (excluding whatsapp_primary)
-    const { data: addons, error: addonsError } = await supabase
+    // 2. Fetch sellable add-ons from addon_catalog (using shared public filter)
+    const addonsQuery = supabase
       .from('addon_catalog')
-      .select('id, name, description, category, monthly_price_pence, max_price_pence, price_step_pence, is_sliding, included_voice_minutes, max_voice_minutes, included_sms, max_sms, included_messages, included_data_chunks')
-      .eq('is_active', true)
-      .neq('id', 'whatsapp_primary')
+      .select('id, name, description, category, monthly_price_pence, max_price_pence, price_step_pence, is_sliding, included_voice_minutes, max_voice_minutes, included_sms, max_sms, included_messages, included_data_chunks');
+    const { data: addons, error: addonsError } = await applyPublicAddonFilter(addonsQuery)
       .order('display_order', { ascending: true });
 
     if (addonsError || !addons) {

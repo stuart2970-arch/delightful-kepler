@@ -142,6 +142,12 @@ jobs:
           fi
           echo "PASS: /api/billing/prices contains no retired legacy packs."
 
+      # 10b. Post-Deploy Disabled Add-ons Smoke Check (STYL-179)
+      - name: Post-Deploy Disabled Add-ons Smoke Check
+        run: |
+          APP_URL="${{ steps.deploy.outputs.url }}"
+          node scripts/smoke-check-disabled-addons.mjs "$APP_URL"
+
       # 11. Post-Deploy Homepage Widget & Turnstile Bridge Smoke Check (STYL-180)
       - name: Post-Deploy Widget & Turnstile Bridge Smoke Check
         run: |

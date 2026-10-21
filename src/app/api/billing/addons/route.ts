@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
+import { applyPublicAddonFilter } from '@/lib/addons/public-catalogue';
 
 export const dynamic = 'force-dynamic';
 
@@ -12,11 +13,11 @@ export async function GET(req: Request) {
     const { searchParams } = new URL(req.url);
     const category = searchParams.get('category');
 
-    let query = supabase
+    let baseQuery = supabase
       .from('addon_catalog')
-      .select('*')
-      .neq('id', 'whatsapp_primary')
-      .eq('is_active', true)
+      .select('*');
+
+    let query = applyPublicAddonFilter(baseQuery)
       .order('display_order', { ascending: true });
 
     if (category) {

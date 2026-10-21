@@ -276,6 +276,69 @@ export default function PricingMatrixView() {
     }
   };
 
+  const handleToggleAddonActive = async (item: AddonItem) => {
+    const nextActive = item.is_active === false ? true : false;
+    if (nextActive) {
+      const ok = window.confirm('This will show the add-on on the public price list and checkout. Are you sure?');
+      if (!ok) return;
+    }
+
+    setSavingId(item.id);
+    setErrorMsg(null);
+    setSuccessMsg(null);
+
+    const updates = { is_active: nextActive };
+    const summary = nextActive
+      ? `Enabled ${item.name} for customers (visible on public catalogue and checkout)`
+      : `Disabled ${item.name} from customers (hidden from public catalogue and checkout)`;
+
+    try {
+      const res = await fetch('/api/superadmin/addon-catalog', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          type: 'addon',
+          id: item.id,
+          updates,
+          summary,
+        }),
+      });
+
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Failed to update add-on active status');
+
+      setSuccessMsg(`Successfully ${nextActive ? 'enabled' : 'disabled'} ${item.name}!`);
+      setAddons((prev) =>
+        prev.map((a) => (a.id === item.id ? { ...a, is_active: nextActive } : a))
+      );
+    } catch (err: any) {
+      console.error(err);
+      setErrorMsg(err.message || 'Failed to update add-on active status');
+    } finally {
+      setSavingId(null);
+    }
+  };
+
+  const renderActiveToggle = (item: AddonItem) => {
+    return (
+      <div className="flex items-center justify-between py-1.5 px-3 rounded-xl bg-gray-950 border border-gray-800">
+        <span className="text-[11px] text-gray-300 font-medium">Enabled for customers</span>
+        <button
+          type="button"
+          onClick={() => handleToggleAddonActive(item)}
+          disabled={savingId === item.id}
+          className={`text-[10px] font-bold px-2.5 py-0.5 rounded transition-colors cursor-pointer ${
+            item.is_active !== false
+              ? 'bg-emerald-600 hover:bg-emerald-500 text-white'
+              : 'bg-amber-600 hover:bg-amber-500 text-white'
+          }`}
+        >
+          {item.is_active !== false ? 'Enabled' : 'Disabled'}
+        </button>
+      </div>
+    );
+  };
+
   // Helper to compute steps preview
   const getStepsSummary = (lowerCost: string, upperCost: string, lowerAllow: string, upperAllow: string, stepPence: string, unit: string) => {
     const minP = Math.round(parseFloat(lowerCost || '0') * 100);
@@ -301,15 +364,15 @@ export default function PricingMatrixView() {
     );
   }
 
-  const activeAddons = addons.filter((a) => a.is_active !== false);
-  const landlineItem = activeAddons.find((a) => a.id === 'landline_addon') || activeAddons.find((a) => a.category === 'landline');
-  const mobileItem = activeAddons.find((a) => a.id === 'mobile_addon') || activeAddons.find((a) => a.category === 'mobile');
-  const voicePackItem = activeAddons.find((a) => a.id === 'voice_pack_20') || activeAddons.find((a) => a.category === 'voice_pack');
-  const smsPackItem = activeAddons.find((a) => a.id === 'sms_pack_100') || activeAddons.find((a) => a.category === 'sms_pack');
-  const whatsappAddon = activeAddons.find((a) => a.id === 'whatsapp_addon');
-  const dataPack = activeAddons.find((a) => a.id === 'data_pack_500') || activeAddons.find((a) => a.category === 'data_pack');
-  const googleCalendarItem = activeAddons.find((a) => a.id === 'google_calendar_addon') || activeAddons.find((a) => a.category === 'google_calendar');
-  const microsoftCalendarItem = activeAddons.find((a) => a.id === 'microsoft_calendar_addon') || activeAddons.find((a) => a.category === 'microsoft_calendar');
+  // STYL-179: Render every add-on in /superadmin; inactive ones get a "Disabled (hidden from customers)" badge.
+  const landlineItem = addons.find((a) => a.id === 'landline_addon') || addons.find((a) => a.category === 'landline');
+  const mobileItem = addons.find((a) => a.id === 'mobile_addon') || addons.find((a) => a.category === 'mobile');
+  const voicePackItem = addons.find((a) => a.id === 'voice_pack_20') || addons.find((a) => a.category === 'voice_pack');
+  const smsPackItem = addons.find((a) => a.id === 'sms_pack_100') || addons.find((a) => a.category === 'sms_pack');
+  const whatsappAddon = addons.find((a) => a.id === 'whatsapp_addon');
+  const dataPack = addons.find((a) => a.id === 'data_pack_500') || addons.find((a) => a.category === 'data_pack');
+  const googleCalendarItem = addons.find((a) => a.id === 'google_calendar_addon') || addons.find((a) => a.category === 'google_calendar');
+  const microsoftCalendarItem = addons.find((a) => a.id === 'microsoft_calendar_addon') || addons.find((a) => a.category === 'microsoft_calendar');
 
   const renderWordingControls = (item: AddonItem) => {
     const currentName = formState[item.id]?.name ?? item.name ?? '';
@@ -424,6 +487,11 @@ export default function PricingMatrixView() {
                   <span className="bg-emerald-500/10 text-emerald-400 border border-emerald-500/30 text-[10px] font-semibold px-2 py-0.5 rounded-full">
                     Sliding Scale
                   </span>
+                  {landlineItem.is_active === false && (
+                    <span className="text-[9px] uppercase tracking-wider font-bold px-1.5 py-0.5 rounded bg-amber-500/20 text-amber-300 border border-amber-500/30">
+                      Disabled (hidden from customers)
+                    </span>
+                  )}
                 </div>
                 <p className="text-xs text-gray-400 mt-1 font-mono">{landlineItem.id}</p>
               </div>
@@ -434,6 +502,8 @@ export default function PricingMatrixView() {
                 </div>
               </div>
             </div>
+
+            {renderActiveToggle(landlineItem)}
 
             <div className="grid grid-cols-2 gap-4 pt-2">
               {/* Lower Cost */}
@@ -533,6 +603,11 @@ export default function PricingMatrixView() {
                   <span className="bg-emerald-500/10 text-emerald-400 border border-emerald-500/30 text-[10px] font-semibold px-2 py-0.5 rounded-full">
                     Sliding Scale
                   </span>
+                  {mobileItem.is_active === false && (
+                    <span className="text-[9px] uppercase tracking-wider font-bold px-1.5 py-0.5 rounded bg-amber-500/20 text-amber-300 border border-amber-500/30">
+                      Disabled (hidden from customers)
+                    </span>
+                  )}
                 </div>
                 <p className="text-xs text-gray-400 mt-1 font-mono">{mobileItem.id}</p>
               </div>
@@ -543,6 +618,8 @@ export default function PricingMatrixView() {
                 </div>
               </div>
             </div>
+
+            {renderActiveToggle(mobileItem)}
 
             <div className="grid grid-cols-2 gap-4 pt-2">
               {/* Lower Cost */}
@@ -648,6 +725,11 @@ export default function PricingMatrixView() {
                   <span className="bg-purple-500/10 text-purple-400 border border-purple-500/30 text-[10px] font-semibold px-2 py-0.5 rounded-full">
                     3-Mo Expiry (One-off)
                   </span>
+                  {voicePackItem.is_active === false && (
+                    <span className="text-[9px] uppercase tracking-wider font-bold px-1.5 py-0.5 rounded bg-amber-500/20 text-amber-300 border border-amber-500/30">
+                      Disabled (hidden from customers)
+                    </span>
+                  )}
                 </div>
                 <p className="text-xs text-gray-400 mt-1 font-mono">{voicePackItem.id}</p>
               </div>
@@ -658,6 +740,8 @@ export default function PricingMatrixView() {
                 </div>
               </div>
             </div>
+
+            {renderActiveToggle(voicePackItem)}
 
             <div className="grid grid-cols-2 gap-4 pt-2">
               {/* Lower Cost */}
@@ -757,6 +841,11 @@ export default function PricingMatrixView() {
                   <span className="bg-purple-500/10 text-purple-400 border border-purple-500/30 text-[10px] font-semibold px-2 py-0.5 rounded-full">
                     3-Mo Expiry (One-off)
                   </span>
+                  {smsPackItem.is_active === false && (
+                    <span className="text-[9px] uppercase tracking-wider font-bold px-1.5 py-0.5 rounded bg-amber-500/20 text-amber-300 border border-amber-500/30">
+                      Disabled (hidden from customers)
+                    </span>
+                  )}
                 </div>
                 <p className="text-xs text-gray-400 mt-1 font-mono">{smsPackItem.id}</p>
               </div>
@@ -767,6 +856,8 @@ export default function PricingMatrixView() {
                 </div>
               </div>
             </div>
+
+            {renderActiveToggle(smsPackItem)}
 
             <div className="grid grid-cols-2 gap-4 pt-2">
               {/* Lower Cost */}
@@ -866,51 +957,86 @@ export default function PricingMatrixView() {
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4 pt-2">
-          {/* WhatsApp Addon (Disabled / Foreseeable) */}
+          {/* WhatsApp Addon */}
           {whatsappAddon && formState[whatsappAddon.id] && (
-            <div className="bg-gray-950 border border-gray-800 p-4 rounded-xl space-y-3 opacity-40 filter grayscale pointer-events-none cursor-not-allowed select-none">
+            <div className={`bg-gray-950 border ${whatsappAddon.is_active === false ? 'border-amber-500/40' : 'border-gray-800'} p-4 rounded-xl space-y-3`}>
               <div className="flex justify-between items-center">
-                <span className="text-xs font-bold text-white">💬 WhatsApp Add-on</span>
-                <span className="text-[9px] uppercase tracking-wider font-bold px-1.5 py-0.5 rounded bg-amber-500/20 text-amber-300">Disabled</span>
+                <span className="text-xs font-bold text-white flex items-center gap-1.5">
+                  <span>💬</span> {whatsappAddon.name || 'WhatsApp Add-on'}
+                </span>
+                <div className="flex items-center gap-1.5">
+                  {whatsappAddon.is_active === false ? (
+                    <span className="text-[9px] uppercase tracking-wider font-bold px-1.5 py-0.5 rounded bg-amber-500/20 text-amber-300 border border-amber-500/30">
+                      Disabled (hidden from customers)
+                    </span>
+                  ) : (
+                    <span className="text-[9px] uppercase tracking-wider font-bold px-1.5 py-0.5 rounded bg-emerald-500/20 text-emerald-300">
+                      Active
+                    </span>
+                  )}
+                  <span className="text-[10px] text-gray-400 font-mono">whatsapp_addon</span>
+                </div>
               </div>
+
+              {renderActiveToggle(whatsappAddon)}
+
               <div>
                 <label className="block text-[10px] text-gray-400 mb-1">Monthly Price (£)</label>
                 <div className="relative">
                   <span className="absolute left-2.5 top-1.5 text-gray-400 text-xs">£</span>
                   <input
-                    disabled
                     type="number"
                     step="0.01"
                     value={formState[whatsappAddon.id].lowerCostGBP}
-                    className="w-full bg-gray-900 border border-gray-700 rounded-lg pl-6 pr-2 py-1 text-xs text-white font-mono cursor-not-allowed"
+                    onChange={(e) => handleFieldChange(whatsappAddon.id, 'lowerCostGBP', e.target.value)}
+                    className="w-full bg-gray-900 border border-gray-700 rounded-lg pl-6 pr-2 py-1 text-xs text-white font-mono"
                   />
                 </div>
               </div>
+
               <div>
                 <label className="block text-[10px] text-gray-400 mb-1">Included Messages</label>
                 <input
-                  disabled
                   type="number"
                   value={formState[whatsappAddon.id].lowerAllowance}
-                  className="w-full bg-gray-900 border border-gray-700 rounded-lg px-2.5 py-1 text-xs text-white font-mono cursor-not-allowed"
+                  onChange={(e) => handleFieldChange(whatsappAddon.id, 'lowerAllowance', e.target.value)}
+                  className="w-full bg-gray-900 border border-gray-700 rounded-lg px-2.5 py-1 text-xs text-white font-mono"
                 />
               </div>
+
+              {renderWordingControls(whatsappAddon)}
+
               <button
-                disabled
-                className="w-full py-1.5 bg-gray-800 text-gray-500 text-[11px] font-bold rounded-lg cursor-not-allowed"
+                onClick={() => handleSaveFixedAddon(whatsappAddon.id, whatsappAddon.name, formState[whatsappAddon.id].lowerCostGBP, formState[whatsappAddon.id].lowerAllowance, 'included_messages')}
+                disabled={savingId === whatsappAddon.id}
+                className="w-full py-1.5 bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 text-white text-[11px] font-bold rounded-lg transition-colors cursor-pointer"
               >
-                Channel Unavailable
+                {savingId === whatsappAddon.id ? 'Saving...' : 'Save WhatsApp Add-on'}
               </button>
             </div>
           )}
 
           {/* Data Pack (500 Chunks) */}
           {dataPack && formState[dataPack.id] && (
-            <div className="bg-gray-950 border border-gray-800 p-4 rounded-xl space-y-3">
+            <div className={`bg-gray-950 border ${dataPack.is_active === false ? 'border-amber-500/40' : 'border-gray-800'} p-4 rounded-xl space-y-3`}>
               <div className="flex justify-between items-center">
                 <span className="text-xs font-bold text-white">📚 Extra Knowledge (Knowledge Items)</span>
-                <span className="text-[10px] text-gray-400 font-mono">{dataPack.id}</span>
+                <div className="flex items-center gap-1.5">
+                  {dataPack.is_active === false ? (
+                    <span className="text-[9px] uppercase tracking-wider font-bold px-1.5 py-0.5 rounded bg-amber-500/20 text-amber-300 border border-amber-500/30">
+                      Disabled (hidden from customers)
+                    </span>
+                  ) : (
+                    <span className="text-[9px] uppercase tracking-wider font-bold px-1.5 py-0.5 rounded bg-emerald-500/20 text-emerald-300">
+                      Active
+                    </span>
+                  )}
+                  <span className="text-[10px] text-gray-400 font-mono">{dataPack.id}</span>
+                </div>
               </div>
+
+              {renderActiveToggle(dataPack)}
+
               <div>
                 <label className="block text-[10px] text-gray-400 mb-1">Monthly Price (£)</label>
                 <div className="relative">
@@ -933,6 +1059,9 @@ export default function PricingMatrixView() {
                   className="w-full bg-gray-900 border border-gray-700 rounded-lg px-2.5 py-1 text-xs text-white font-mono"
                 />
               </div>
+
+              {renderWordingControls(dataPack)}
+
               <button
                 onClick={() => handleSaveFixedAddon(dataPack.id, dataPack.name, formState[dataPack.id].lowerCostGBP, formState[dataPack.id].lowerAllowance, 'included_data_chunks')}
                 disabled={savingId === dataPack.id}
@@ -945,16 +1074,30 @@ export default function PricingMatrixView() {
 
           {/* Google Calendar Integration */}
           {googleCalendarItem && formState[googleCalendarItem.id] && (
-            <div className="bg-gray-950 border border-gray-800 p-4 rounded-xl space-y-3">
+            <div className={`bg-gray-950 border ${googleCalendarItem.is_active === false ? 'border-amber-500/40' : 'border-gray-800'} p-4 rounded-xl space-y-3`}>
               <div className="flex justify-between items-center">
                 <span className="text-xs font-bold text-white flex items-center gap-1.5">
                   <span>📅</span> Google Calendar
                 </span>
-                <span className="text-[10px] text-gray-400 font-mono">google_calendar_addon</span>
+                <div className="flex items-center gap-1.5">
+                  {googleCalendarItem.is_active === false ? (
+                    <span className="text-[9px] uppercase tracking-wider font-bold px-1.5 py-0.5 rounded bg-amber-500/20 text-amber-300 border border-amber-500/30">
+                      Disabled (hidden from customers)
+                    </span>
+                  ) : (
+                    <span className="text-[9px] uppercase tracking-wider font-bold px-1.5 py-0.5 rounded bg-emerald-500/20 text-emerald-300">
+                      Active
+                    </span>
+                  )}
+                  <span className="text-[10px] text-gray-400 font-mono">google_calendar_addon</span>
+                </div>
               </div>
               <p className="text-[10px] text-gray-400 leading-tight">
                 Two-way Google Calendar synchronization for bookings & rotas.
               </p>
+
+              {renderActiveToggle(googleCalendarItem)}
+
               <div>
                 <label className="block text-[10px] text-gray-400 mb-1">Monthly Price (£)</label>
                 <div className="relative">
@@ -977,6 +1120,9 @@ export default function PricingMatrixView() {
                   className="w-full bg-gray-900/60 border border-gray-800 rounded-lg px-2.5 py-1 text-xs text-gray-400 font-mono cursor-not-allowed"
                 />
               </div>
+
+              {renderWordingControls(googleCalendarItem)}
+
               <button
                 onClick={() => handleSaveFixedAddon(googleCalendarItem.id, googleCalendarItem.name, formState[googleCalendarItem.id].lowerCostGBP, '1', 'display_order')}
                 disabled={savingId === googleCalendarItem.id}
@@ -989,16 +1135,30 @@ export default function PricingMatrixView() {
 
           {/* Microsoft Outlook Calendar Integration */}
           {microsoftCalendarItem && formState[microsoftCalendarItem.id] && (
-            <div className="bg-gray-950 border border-gray-800 p-4 rounded-xl space-y-3">
+            <div className={`bg-gray-950 border ${microsoftCalendarItem.is_active === false ? 'border-amber-500/40' : 'border-gray-800'} p-4 rounded-xl space-y-3`}>
               <div className="flex justify-between items-center">
                 <span className="text-xs font-bold text-white flex items-center gap-1.5">
                   <span>📅</span> Microsoft Calendar
                 </span>
-                <span className="text-[10px] text-gray-400 font-mono">microsoft_calendar_addon</span>
+                <div className="flex items-center gap-1.5">
+                  {microsoftCalendarItem.is_active === false ? (
+                    <span className="text-[9px] uppercase tracking-wider font-bold px-1.5 py-0.5 rounded bg-amber-500/20 text-amber-300 border border-amber-500/30">
+                      Disabled (hidden from customers)
+                    </span>
+                  ) : (
+                    <span className="text-[9px] uppercase tracking-wider font-bold px-1.5 py-0.5 rounded bg-emerald-500/20 text-emerald-300">
+                      Active
+                    </span>
+                  )}
+                  <span className="text-[10px] text-gray-400 font-mono">microsoft_calendar_addon</span>
+                </div>
               </div>
               <p className="text-[10px] text-gray-400 leading-tight">
                 Two-way Microsoft Outlook Calendar synchronization for bookings & rotas.
               </p>
+
+              {renderActiveToggle(microsoftCalendarItem)}
+
               <div>
                 <label className="block text-[10px] text-gray-400 mb-1">Monthly Price (£)</label>
                 <div className="relative">
@@ -1021,6 +1181,9 @@ export default function PricingMatrixView() {
                   className="w-full bg-gray-900/60 border border-gray-800 rounded-lg px-2.5 py-1 text-xs text-gray-400 font-mono cursor-not-allowed"
                 />
               </div>
+
+              {renderWordingControls(microsoftCalendarItem)}
+
               <button
                 onClick={() => handleSaveFixedAddon(microsoftCalendarItem.id, microsoftCalendarItem.name, formState[microsoftCalendarItem.id].lowerCostGBP, '1', 'display_order')}
                 disabled={savingId === microsoftCalendarItem.id}
