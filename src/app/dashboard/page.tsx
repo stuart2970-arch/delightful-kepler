@@ -5,6 +5,7 @@ import { cookies } from 'next/headers';
 import DashboardClient from '@/components/DashboardClient';
 import { redirect } from 'next/navigation';
 import { getTenantChannelFlags } from '@/lib/entitlements';
+import { applyPublicAddonFilter } from '@/lib/addons/public-catalogue';
 
 export const dynamic = 'force-dynamic';
 
@@ -414,10 +415,11 @@ export default async function DashboardPage(props: { searchParams?: Promise<{ [k
       }
       if (entitlements) billingData.entitlements = entitlements;
 
-      // Fetch catalog for dynamic rendering
-      const { data: catalogItems } = await queryClient
+      // Fetch catalog for dynamic rendering (sellable only)
+      const catalogQuery = queryClient
         .from('addon_catalog')
-        .select('*')
+        .select('*');
+      const { data: catalogItems } = await applyPublicAddonFilter(catalogQuery)
         .order('display_order', { ascending: true });
       if (catalogItems) {
         billingData.catalog = catalogItems;
@@ -455,7 +457,8 @@ export default async function DashboardPage(props: { searchParams?: Promise<{ [k
             included_voice_minutes,
             included_sms,
             included_messages,
-            included_data_chunks
+            included_data_chunks,
+            is_active
           )
         `)
         .eq('tenant_id', tenantId)
@@ -473,6 +476,7 @@ export default async function DashboardPage(props: { searchParams?: Promise<{ [k
           included_messages: a.addon_catalog?.included_messages || 0,
           included_data_chunks: a.addon_catalog?.included_data_chunks || 0,
           is_active: a.is_active,
+          catalog_is_active: a.addon_catalog?.is_active ?? true,
           activated_at: a.activated_at,
         }));
         if (billingData.addons.some((a: any) => a.category === 'google_calendar')) {

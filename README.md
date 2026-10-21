@@ -3644,3 +3644,36 @@ Highlighted adjustments in the modal:
     3. Added `scope=${{ github.workflow }}` to `cache-from` and `cache-to` in `docker/build-push-action@v5` to isolate Docker build cache layers.
     4. Ran full test suite (`npm run test:e2e`): 171/171 passed (100%).
     5. Pushed branch `fix/deploy-concurrency-group` with pre-push hook verified.
+
+
+## Session 73 (October 21, 2026)
+* **User**: "yes" (Deploy concurrency fix approval), followed by resuming STYL-179: "Please continue STYL-179 on its branch per the plan in Jira comment 10088. Run the full tests and the pre-push hook (never --no-verify), and stop for Stuart's yes before pushing to main or deploying. Then start STYL-182 (comment 10090)."
+  * **Actions Completed**:
+    1. **Deploy Concurrency Fix Merged**: Merged `fix/deploy-concurrency-group` into `main` and pushed with pre-push hook (171/171 passed). Verified on GitHub Actions that Run #635 queued and ran cleanly as a single workflow with concurrency protection.
+    2. **STYL-179 Production Tenant Pre-Flight Check**: Executed read-only query against production Supabase DB: confirmed `whatsapp_addon` active count is 0 (no live tenant active subscriptions affected).
+    3. **Local Add-Only Migration (`supabase/migrations/20261021120000_styl179_disable_whatsapp_addon.sql`)**:
+       - Updated `addon_catalog` to set `is_active = false` for `whatsapp_addon`.
+       - Recorded `addon_audit_log` row with `action = 'addon_deactivated'`, previous snapshot, and audit summary.
+       - Applied locally via `npx supabase migration up`.
+    4. **Shared Public Filter (`src/lib/addons/public-catalogue.ts` & `src/lib/addons/disabled-addons.json`)**:
+       - Created shared helper `applyPublicAddonFilter` applying `.eq('is_active', true).neq('id', 'whatsapp_primary')`.
+       - Created `isAddonSellable(addon)` helper and defined shared `disabled-addons.json` config list.
+       - Integrated shared filter into:
+         - `src/app/api/billing/prices/route.ts` (public price feed)
+         - `src/app/api/billing/addons/route.ts` (public addons feed)
+         - `src/app/api/billing/checkout/route.ts` (checkout validation refusing disabled add-ons with HTTP 400 `{ error: 'This add-on is not available' }` and retired add-ons with 404)
+         - `src/app/dashboard/page.tsx` (dashboard available catalog query)
+    5. **Dashboard Experience (`src/components/DashboardClient.tsx`)**:
+       - Filtered available modular bolt-ons catalog using `applyPublicAddonFilter`.
+       - For tenants owning a disabled add-on in `tenant_active_addons`, displayed it under "Active Add-ons" with badge "Not available to buy" and removed the "Adjust" button.
+    6. **Superadmin Catalog View & Route (`src/components/superadmin/PricingMatrixView.tsx` & `src/app/api/superadmin/addon-catalog/route.ts`)**:
+       - Allowed `is_active` in `ALLOWED_ADDON_FIELDS` in `addon-catalog/route.ts`, validated as boolean, and recorded audit log with `actionType` (`addon_activated` / `addon_deactivated`) and `performed_by: admin.userId`.
+       - Rendered all add-ons in `/superadmin` (no filtering out of inactive rows); inactive ones display `"Disabled (hidden from customers)"` badge.
+       - Replaced hard-coded greyed-out WhatsApp card with fully editable card including `renderActiveToggle(item)` with confirmation dialog, `renderWordingControls(item)` (STYL-177 wording/preview controls), editable price and messages allowance, and save handler.
+       - Added `renderActiveToggle` to all other catalog cards (Landline, Mobile, Voice Pack, SMS Pack, Data Pack, Google Calendar, Microsoft Calendar).
+    7. **Post-Deploy Smoke Check (`scripts/smoke-check-disabled-addons.mjs` & `.github/workflows/deploy.yml`)**:
+       - Created smoke check script verifying `/api/billing/prices` and `/api/billing/addons` contain 0 disabled add-ons from `disabled-addons.json`.
+       - Added step to `.github/workflows/deploy.yml` adjacent to STYL-177 check.
+    8. **Automated Test Suite (`tests/styl-179-disabled-addons.spec.ts`)**:
+       - Added 6 automated Playwright tests covering: public price/addons feed exclusions, checkout refusal (400), dashboard active-addon display, superadmin wording/price editing with audit logging, enable/disable toggle lifecycle, and RBAC / type validation (401 unauthenticated, 403 normal user, 400 invalid type).
+       - Full test suite execution: **177/177 passed (100%)**.

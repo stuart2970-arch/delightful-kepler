@@ -1108,12 +1108,18 @@ const globalBotId = '00000000-0000-0000-0000-000000000000';
                             </div>
                           </div>
                           <div className="flex items-center gap-2 shrink-0">
-                            <button
-                              onClick={() => setBillingUpsellCategory(addon.category as AddOnCategory)}
-                              className="bg-[var(--awb-color1)] hover:bg-[var(--awb-color3)] text-[var(--awb-color8)] border border-[var(--awb-color3)] text-[11px] font-bold py-1 px-2.5 rounded-[4px] transition-colors cursor-pointer"
-                            >
-                              Adjust
-                            </button>
+                            {addon.catalog_is_active === false || addon.addon_catalog_id === 'whatsapp_primary' ? (
+                              <span className="text-[10px] font-bold text-amber-500 bg-amber-500/10 border border-amber-500/20 px-2 py-0.5 rounded">
+                                Not available to buy
+                              </span>
+                            ) : (
+                              <button
+                                onClick={() => setBillingUpsellCategory(addon.category as AddOnCategory)}
+                                className="bg-[var(--awb-color1)] hover:bg-[var(--awb-color3)] text-[var(--awb-color8)] border border-[var(--awb-color3)] text-[11px] font-bold py-1 px-2.5 rounded-[4px] transition-colors cursor-pointer"
+                              >
+                                Adjust
+                              </button>
+                            )}
                             <div className="w-2 h-2 rounded-full bg-green-500 shrink-0" title="Active"></div>
                           </div>
                         </div>
