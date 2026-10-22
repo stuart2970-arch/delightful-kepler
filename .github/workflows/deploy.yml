@@ -66,8 +66,8 @@ jobs:
           tags: |
             ${{ env.GCP_REGION }}-docker.pkg.dev/${{ env.GCP_PROJECT_ID }}/${{ env.AR_REPO_NAME }}/${{ env.SERVICE_NAME }}:${{ github.sha }}
             ${{ env.GCP_REGION }}-docker.pkg.dev/${{ env.GCP_PROJECT_ID }}/${{ env.AR_REPO_NAME }}/${{ env.SERVICE_NAME }}:latest
-          cache-from: type=gha,scope=${{ github.workflow }}
-          cache-to: type=gha,mode=max,scope=${{ github.workflow }}
+          cache-from: type=gha,scope=${{ github.workflow }}-v2
+          cache-to: type=gha,mode=max,scope=${{ github.workflow }}-v2
 
       # 6. Deploy Docker container image to Google Cloud Run (zero-downtime rolling release)
       - name: Deploy to Cloud Run

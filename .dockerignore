@@ -1,0 +1,13 @@
+node_modules
+.next
+.git
+.github
+playwright-report
+test-results
+tests
+*.log
+.env*.local
+.env.test
+.env.backup
+job-failure.log
+scripts/check-deploy-run.mjs
