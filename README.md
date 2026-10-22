@@ -3732,3 +3732,14 @@ Highlighted adjustments in the modal:
     8. **Automated Test Coverage (`tests/knowledge-base.spec.ts`)**:
        - Extended `tests/test-auth-helper.ts` to support tenant-scoped normal user provisioning.
        - Added 7 new test cases (14 tests total) covering: strict 401 without session, 404 for cross-tenant / unknown bot IDs (no fallback), list grouping and quota payload validation, duplicate chunk replacement on re-ingest, single-source deletion, owner/superadmin-scoped "delete all" deletion with cross-tenant isolation, and 500-item quota limit enforcement.
+    9. **Sign-off, Merge & Production Deployment Verification**:
+       - Stuart provided explicit approval ('Yes') to merge fix/styl-186-knowledge-sources into main and deploy to production.
+       - Merged branch into main (ea040da).
+       - Resolved CI Docker build blocker: updated .gitignore to allow !src/**/*.json and tracked src/lib/addons/disabled-addons.json (8008e66).
+       - Ran full automated pre-push hook: 184/184 tests passed (100% clean).
+       - Pushed to origin/main. GitHub Actions workflow #39751417178 successfully built, pushed, and deployed Docker container image to Cloud Run (styleflo-new).
+       - Executed live post-deploy smoke checks on https://app.styleflo.ai:
+         - Disabled add-ons smoke check: PASSED (0 leaks).
+         - Superadmin lockdown smoke check: PASSED (31/31 endpoints strictly locked down).
+         - Knowledge base ingest routes auth: PASSED (100% 401 across /urls, /crawl, /text, /file).
+       - Posted completion summary to Jira ticket STYL-186 and transitioned to Done.
