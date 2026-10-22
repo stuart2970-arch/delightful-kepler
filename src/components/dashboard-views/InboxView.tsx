@@ -153,8 +153,10 @@ export default function InboxView() {
 
   const selectedConvObj = (conversations || []).find(c => c && c.id === selectedConversation);
 
-  // Filter conversations based on selected channel dropdown
-  const webConversations = (conversations || []).filter(c => c && !c.is_phone_call && (!c.user_session_id || !c.user_session_id.startsWith('phone_')));
+  // Filter conversations based on selected channel dropdown (STYL-190)
+  const isPhoneConversation = (c: any) =>
+    c && (c.channel === 'phone' || c.is_phone_call || (c.is_voice_call && c.user_session_id?.startsWith('phone_')));
+  const webConversations = (conversations || []).filter(c => c && (c.channel ? (c.channel === 'web_chat' || c.channel === 'web_voice') : !isPhoneConversation(c)));
 
   const filteredConversations = (webConversations || []).filter(conv => {
     if (!conv) return false;
@@ -291,9 +293,9 @@ export default function InboxView() {
             </div>
           </div>
 
-          {/* Transcript / Audio Viewer Panel */}
+          {/* Transcript Viewer Panel */}
           <div className="bg-[var(--awb-color1)] border border-[var(--awb-color3)] p-6 rounded-2xl shadow-xl h-[700px] flex flex-col overflow-hidden">
-            <h4 className="text-base font-bold text-[var(--awb-color8)] mb-4">Transcript & Audio Viewer</h4>
+            <h4 className="text-base font-bold text-[var(--awb-color8)] mb-4">Transcript Viewer</h4>
             
             <div className="flex-1 overflow-y-auto p-4 bg-white border border-[#f2f3f5] rounded-xl space-y-4 styleflo-scrollbar">
               {isFetchingMessages ? (
@@ -302,20 +304,6 @@ export default function InboxView() {
                 </div>
               ) : selectedConversation && selectedConvObj ? (
                 <div className="space-y-4">
-                  {/* Web Voice Audio Player */}
-                  {selectedConvObj.recording_url && (
-                    <div className="bg-indigo-50/50 border border-indigo-100 p-4 rounded-xl space-y-2">
-                      <div className="flex items-center justify-between">
-                        <h5 className="text-xs font-bold text-indigo-900 flex items-center gap-1.5">
-                          <svg className="w-4 h-4 text-indigo-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 016 0v6a3 3 0 01-3 3z"/></svg>
-                          Web Voice Recording
-                        </h5>
-                        <span className="text-[10px] text-indigo-600 font-mono">Audio Stream</span>
-                      </div>
-                      <audio controls src={selectedConvObj.recording_url} className="w-full h-10 mt-1" />
-                    </div>
-                  )}
-
                   {/* Transcribed Text Block */}
                   {selectedConvObj.transcript && (
                     <div className="bg-gray-50 border border-gray-200 p-4 rounded-xl space-y-2">
@@ -345,7 +333,7 @@ export default function InboxView() {
                         </div>
                       ))}
                     </div>
-                  ) : !selectedConvObj.transcript && !selectedConvObj.recording_url && (
+                  ) : !selectedConvObj.transcript && (
                     <div className="h-full flex items-center justify-center text-xs text-gray-400 italic">
                       Empty session log.
                     </div>
@@ -353,7 +341,7 @@ export default function InboxView() {
                 </div>
               ) : (
                 <div className="h-full flex items-center justify-center text-xs text-gray-400 text-center italic">
-                  Select any conversation session from the left explorer to view transcripts and audio recordings.
+                  Select any conversation session from the left explorer to view transcripts.
                 </div>
               )}
             </div>
