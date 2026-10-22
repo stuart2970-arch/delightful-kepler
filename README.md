@@ -3782,3 +3782,27 @@ Highlighted adjustments in the modal:
          - Build and Push Docker Image: SUCCESS
          - Deploy to Cloud Run (`styleflo-new`): SUCCESS
          - All post-deploy smoke checks: SUCCESS
+
+## Session 77 (October 22, 2026)
+* **User**: "Start Jira ticket STYL-184 (pre-chat box wording). Read the full STYL-184 description in Jira; it is the signed-off plan and holds all context, scope, files and acceptance criteria. Rules: first run git status and check you are on an up-to-date main; if the working copy is dirty, stop and tell me. Create your own branch (e.g. fix/styl-184-prechat-wording) off latest main. Rebuild public/widget.js and public/embed.js, update tests for the new wording and links, check both links resolve, run the full test suite and the pre-push hook, never use --no-verify. Push the branch, comment on STYL-184 with what changed, then stop. Do NOT merge to main or deploy without Stuart's explicit yes."
+  * **Actions Completed**:
+    1. **Pre-flight & Jira Verification**:
+       - Verified git status on up-to-date `main` (clean working tree).
+       - Checked Jira via API: verified STYL-184 is In Progress with labels `antigravity` and `signed-off-stuart`.
+       - Read full STYL-184 issue description signed off by Stuart (21 Oct 2026, 4:40pm BST).
+       - Branched `fix/styl-184-prechat-wording` off latest `main`.
+    2. **Pre-Chat Box Wording & Link Updates (`src/widget/index.ts` & `src/widget/embed.ts`)**:
+       - **Item 1 (Header)**: Changed pre-chat box header from `"Chat & Voice Disclaimer"` to `"Meet our AI assistant"`.
+       - **Item 2 (Notice Label)**: Changed notice label from `"Important Notice"` (which rendered in all-caps via `uppercase tracking-wider`) to sentence case `"Please read before you start"`, removing the `uppercase` CSS class.
+       - **Item 3 (AI Assistant Terminology)**: Ensured all voice notice text, disclaimer notices, and default agent roles in the box replace `"our AI agent"` with `"our AI assistant"` and `"AI agent"` with `"AI assistant"`.
+       - **Item 4 (Checkbox & Links)**: Updated agreement checkbox text to `"I agree to the Terms and acknowledge the Privacy Policy"`. "Terms" links to `https://styleflo.ai/terms-conditions/` and "Privacy Policy" links to `https://styleflo.ai/privacy/`. Form validation error updated to `"You must accept the Terms and Privacy Policy to continue."`.
+       - **Start Chat Button**: Kept `"Start Chat 💬"` unchanged.
+    3. **Link Resolution Verification**:
+       - Verified both `https://styleflo.ai/terms-conditions/` (HTTP 200 OK) and `https://styleflo.ai/privacy/` (HTTP 200 OK) resolve successfully.
+    4. **Widget Rebuild (`public/widget.js` & `public/embed.js`)**:
+       - Executed `npm run build:widget` (`esbuild`) to recompile and minify both scripts into `public/widget.js` and `public/embed.js`.
+    5. **Automated Testing (`tests/homepage-widget.spec.ts`)**:
+       - Added assertions verifying the checkbox text, "Terms" link, and "Privacy Policy" link.
+       - Added test verifying header renders `"Meet our AI assistant"`, notice label renders sentence case `"Please read before you start"` without uppercase class, notice text renders `"our AI assistant"` with zero occurrences of `"our AI agent"`, and both links resolve with HTTP 200.
+       - Verified full test suite (`npm run test:e2e`): 206/206 passed (100%).
+       - Verified TypeScript compilation (`npm run typecheck`): passed with 0 errors.

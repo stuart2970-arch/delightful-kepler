@@ -178,6 +178,76 @@ test.describe('STYL-181: Per-Session Name & Terms Gate, Voice Call Interception,
     await expect(submitBtn).toBeVisible();
     await expect(submitBtn).toBeDisabled();
     expect(await submitBtn.getAttribute('aria-disabled')).toBe('true');
+
+    const termsLabel = onboarding.locator('label[for="styleflo-disclaimer-accept"]');
+    await expect(termsLabel).toHaveText('I agree to the Terms and acknowledge the Privacy Policy.');
+
+    const termsLink = termsLabel.locator('a', { hasText: 'Terms' });
+    await expect(termsLink).toHaveAttribute('href', 'https://styleflo.ai/terms-conditions/');
+    await expect(termsLink).toHaveText('Terms');
+
+    const privacyLink = termsLabel.locator('a', { hasText: 'Privacy Policy' });
+    await expect(privacyLink).toHaveAttribute('href', 'https://styleflo.ai/privacy/');
+    await expect(privacyLink).toHaveText('Privacy Policy');
+  });
+
+  test('STYL-184: pre-chat box wording with global disclaimer displays new header, sentence case notice label, AI assistant wording and Terms links', async ({ page, request }) => {
+    // 1. Check that both links resolve (not 404)
+    const termsRes = await request.get('https://styleflo.ai/terms-conditions/');
+    expect(termsRes.status()).toBe(200);
+    const privacyRes = await request.get('https://styleflo.ai/privacy/');
+    expect(privacyRes.status()).toBe(200);
+
+    // 2. Intercept chatbot config to return voice notice with legacy "our AI agent" wording
+    await page.route(`**/api/chatbots/${homepageBotId}*`, async (route) => {
+      const response = await route.fetch();
+      const json = await response.json();
+      json.globalVoiceDisclaimer = 'Before we connect you, this call is between you and our AI agent, and we keep a record of the transcription for reference and contact purposes, this is outlined in our privacy-policy which can be found on our website.';
+      await route.fulfill({
+        response,
+        json,
+      });
+    });
+
+    await page.goto('/login');
+    const host = await mountWidgetAndOpen(page, homepageBotId);
+
+    const onboarding = host.locator('#styleflo-onboarding');
+    await expect(onboarding).toBeVisible({ timeout: 10000 });
+
+    // Item 1: Header "Chat & Voice Disclaimer" becomes "Meet our AI assistant"
+    const header = onboarding.locator('h4');
+    await expect(header).toHaveText('Meet our AI assistant');
+
+    // Item 2: The "IMPORTANT NOTICE" label becomes "Please read before you start" (sentence case)
+    const noticeHeader = onboarding.locator('div.font-bold:has-text("Please read before you start")');
+    await expect(noticeHeader).toBeVisible();
+    await expect(noticeHeader).toContainText('Please read before you start');
+    const classAttr = await noticeHeader.getAttribute('class');
+    expect(classAttr).not.toContain('uppercase');
+
+    // Item 3: The voice notice text "our AI agent" becomes "our AI assistant"
+    const noticeText = await onboarding.locator('.bg-blue-50\\/80, [class*="bg-blue-50"]').textContent();
+    expect(noticeText).toContain('this call is between you and our AI assistant');
+    expect(noticeText).not.toContain('our AI agent');
+    expect(noticeText).not.toContain('AI agent');
+
+    // Item 4: The checkbox text becomes "I agree to the Terms and acknowledge the Privacy Policy"
+    const termsLabel = onboarding.locator('label[for="styleflo-disclaimer-accept"]');
+    await expect(termsLabel).toHaveText('I agree to the Terms and acknowledge the Privacy Policy.');
+
+    const termsLink = termsLabel.locator('a', { hasText: 'Terms' });
+    await expect(termsLink).toHaveAttribute('href', 'https://styleflo.ai/terms-conditions/');
+    await expect(termsLink).toHaveText('Terms');
+
+    const privacyLink = termsLabel.locator('a', { hasText: 'Privacy Policy' });
+    await expect(privacyLink).toHaveAttribute('href', 'https://styleflo.ai/privacy/');
+    await expect(privacyLink).toHaveText('Privacy Policy');
+
+    // Leave the "Start Chat" button unchanged
+    const submitBtn = host.locator('#styleflo-onboarding-submit-btn');
+    await expect(submitBtn).toHaveText('Start Chat 💬');
+    await expect(submitBtn).toBeDisabled();
   });
 
   test('start chat button becomes enabled only when both name and terms checkbox are completed', async ({ page }) => {

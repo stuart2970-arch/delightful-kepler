@@ -501,7 +501,7 @@ import { buildGreeting, getFirstName, isEchoOfGreeting } from '../lib/greeting';
   let primaryColor = '#260475'; // Default Avada Theme Deep Purple/Navy (#260475)
   let botName = 'AI Assistant';
   let agentName = 'AI Assistant';
-  let agentRole = 'AI Support Agent';
+  let agentRole = 'AI Assistant';
   let agentAvatarUrl = '/avatars/avatar1.png';
 
   let welcomeMessage = '';
@@ -528,7 +528,7 @@ import { buildGreeting, getFirstName, isEchoOfGreeting } from '../lib/greeting';
         if (config.name) botName = config.name;
         if (config.primaryColor) primaryColor = config.primaryColor;
         agentName = config.agentName || botName;
-        agentRole = config.agentRole || 'AI Support Agent';
+        agentRole = config.agentRole || 'AI Assistant';
         agentAvatarUrl = config.agentAvatarUrl || config.avatarUrl || config.agent_avatar_url || '/avatars/avatar1.png';
         welcomeMessage = config.welcomeMessage ?? '';
         businessName = config.businessName || '';
@@ -537,7 +537,9 @@ import { buildGreeting, getFirstName, isEchoOfGreeting } from '../lib/greeting';
         requireClientName = config.requireClientName || false;
         vapiPublicKey = config.vapiPublicKey || '3648bdcb-ccac-4acc-aee6-a4f9384743de';
         vapiAssistantId = config.vapiAssistantId || '1bb95940-1cb9-4c54-9b16-ba5bc11daae2';
-        globalVoiceDisclaimer = config.globalVoiceDisclaimer || '';
+        globalVoiceDisclaimer = (config.globalVoiceDisclaimer || '')
+          .replace(/\bour AI agent\b/gi, 'our AI assistant')
+          .replace(/\bAI agent\b/gi, 'AI assistant');
         if (config.voiceProvider) voiceProvider = config.voiceProvider;
         if (config.voiceId) voiceId = config.voiceId;
         if (config.backgroundSound) backgroundSound = config.backgroundSound;
@@ -639,15 +641,15 @@ import { buildGreeting, getFirstName, isEchoOfGreeting } from '../lib/greeting';
             <div class="flex-1 border-t border-gray-200"></div>
           </div>
         ` : `
-          <h4 class="font-bold text-gray-900 text-lg mb-1 shrink-0">${globalVoiceDisclaimer ? 'Chat & Voice Disclaimer' : `Welcome to ${agentName || botName}`}</h4>
+          <h4 class="font-bold text-gray-900 text-lg mb-1 shrink-0">${globalVoiceDisclaimer ? 'Meet our AI assistant' : `Welcome to ${agentName || botName}`}</h4>
           <p class="text-gray-500 text-xs mb-3 shrink-0">${globalVoiceDisclaimer ? 'Please review the notice below and confirm your details to start chatting.' : 'Please enter your details to start chatting.'}</p>
 
           ${globalVoiceDisclaimer ? `
             <div class="w-full bg-blue-50/80 border border-blue-100 rounded-xl p-3.5 mb-4 text-xs text-blue-950 text-left leading-relaxed shadow-sm max-h-48 overflow-y-auto">
-              <div class="font-bold text-blue-900 text-[11px] uppercase tracking-wider mb-1 flex items-center gap-1">
-                <span>📋</span> <span>Important Notice</span>
+              <div class="font-bold text-blue-900 text-[11px] mb-1 flex items-center gap-1">
+                <span>📋</span> <span>Please read before you start</span>
               </div>
-              ${globalVoiceDisclaimer}
+              ${globalVoiceDisclaimer.replace(/\bour AI agent\b/gi, 'our AI assistant').replace(/\bAI agent\b/gi, 'AI assistant')}
             </div>
           ` : ''}
         `}
@@ -673,7 +675,7 @@ import { buildGreeting, getFirstName, isEchoOfGreeting } from '../lib/greeting';
           <div class="flex items-start gap-2 mb-4 text-left">
             <input type="checkbox" id="styleflo-disclaimer-accept" required class="mt-0.5 cursor-pointer" />
             <label for="styleflo-disclaimer-accept" style="font-size: 11px; color: #4b5563; line-height: 1.4;" class="cursor-pointer">
-              I agree to the <a href="https://styleflo.ai/terms-conditions/" target="_blank" style="color: ${primaryColor}; text-decoration: underline; font-weight: 500;">Terms of Service</a> and acknowledge the <a href="https://styleflo.ai/privacy/" target="_blank" style="color: ${primaryColor}; text-decoration: underline; font-weight: 500;">Privacy Policy</a>.
+              I agree to the <a href="https://styleflo.ai/terms-conditions/" target="_blank" style="color: ${primaryColor}; text-decoration: underline; font-weight: 500;">Terms</a> and acknowledge the <a href="https://styleflo.ai/privacy/" target="_blank" style="color: ${primaryColor}; text-decoration: underline; font-weight: 500;">Privacy Policy</a>.
             </label>
           </div>
 
@@ -1209,7 +1211,7 @@ import { buildGreeting, getFirstName, isEchoOfGreeting } from '../lib/greeting';
 
       if (!acceptCheckbox || !acceptCheckbox.checked) {
         if (gateErrorEl) {
-          gateErrorEl.textContent = 'You must accept the Terms of Service & Privacy Policy to continue.';
+          gateErrorEl.textContent = 'You must accept the Terms and Privacy Policy to continue.';
           gateErrorEl.classList.remove('hidden');
         }
         return;
