@@ -367,7 +367,7 @@ export default function FloBotProfileSettingsView({
               {activePersona && (activePersona.preview_url || activePersona.previewUrl) && (
                 <div className="bg-gray-900 p-3 rounded-xl border border-gray-800 space-y-2">
                   <p className="text-[11px] font-semibold text-indigo-400 flex items-center gap-1.5">
-                    🔊 Audio Recording Sample: <span className="text-white font-bold">{activePersona.name}</span>
+                    🔊 Voice Sample: <span className="text-white font-bold">{activePersona.name}</span>
                   </p>
                   <audio 
                     controls 

@@ -3743,3 +3743,38 @@ Highlighted adjustments in the modal:
          - Superadmin lockdown smoke check: PASSED (31/31 endpoints strictly locked down).
          - Knowledge base ingest routes auth: PASSED (100% 401 across /urls, /crawl, /text, /file).
        - Posted completion summary to Jira ticket STYL-186 and transitioned to Done.
+
+## Session 77 (October 22, 2026)
+* **User**: "Please work on Jira ticket STYL-190 (Phone calls missing from Phone Calls history; stop storing call recordings and remove recording wording). Read the STYL-190 Jira description and its latest plan comment first; they hold all the context, fix steps and acceptance criteria. First run git status: if there are uncommitted changes from another ticket, stop and tell me, don't discard them. Then create your own branch fix/styl-190-phone-calls-channel off the latest main. Don't touch the feat/styl-185-greeting-welcome-message or fix/styl-188-voice-availability-crash branches. Note STYL-188 also edits the voice completions route and is waiting to merge, so keep your edits there focused and expect to rebase onto main once 188 is merged. Leave the superadmin 'this call may be recorded' disclaimer unchanged; that wording is Stuart's decision. Rules: run the full tests and the pre-push hook, never use --no-verify, and no merge to main, deploy, migration on production, or production data change (such as clearing existing recording_url values or backfilling past rows) without Stuart's explicit yes. When done, push the branch, post a Jira comment, and ask for Stuart's yes."
+  * **Actions Completed**:
+    1. **Session Start & Branch Isolation**:
+       - Checked working tree cleanliness via `git status`, confirmed 0 uncommitted changes.
+       - Synced with remote `main` (`git fetch origin`, `git checkout main`, `git pull origin main`).
+       - Created dedicated branch `fix/styl-190-phone-calls-channel` off latest `main`. Left `feat/styl-185-greeting-welcome-message` and `fix/styl-188-voice-availability-crash` untouched.
+    2. **Failing TDD Playwright Test Suite (`tests/styl-190-phone-calls-channel.spec.ts`)**:
+       - Implemented 7 tests covering:
+         - Mocked Vapi `end-of-call-report` (inboundPhoneCall) creates conversation with `channel='phone'`, sets `caller_number`, and leaves `recording_url=null`.
+         - Mocked Vapi `end-of-call-report` (webCall) sets `channel='web_voice'` and `recording_url=null`.
+         - Assistant webhook (`/api/webhooks/vapi/assistant`) returns assistant config with `server.url` / `serverUrl` pointing to `/api/webhooks/vapi` and `artifactPlan.recordingEnabled=false`.
+         - Assistant webhook forwards non-assistant requests (specifically `end-of-call-report`) to `/api/webhooks/vapi` handler.
+         - Voice completions endpoints pre-initialize conversation with `channel='phone'` and `caller_number`.
+         - Dashboard Phone Calls tab shows phone calls and NOT web voice calls, with no `<audio>` player, no "audio recording", "Call Recording & Transcript", or "Voice Recording" wording.
+         - Dashboard Web Chat & Voice tab shows web voice calls and NOT phone calls, with header "Transcript Viewer" (no "Transcript & Audio Viewer").
+         - Empty state copy in `TelephonyView` matches British English specifications.
+       - Verified test suite failed prior to implementation.
+    3. **Database Migration (`supabase/migrations/20261022130000_styl190_add_channel_and_caller_number_to_conversations.sql`)**:
+       - Added columns `channel` (text with `CHECK (channel IN ('web_chat', 'web_voice', 'phone'))`) and `caller_number` (text) to `public.conversations` with compound index on `(tenant_id, channel)`.
+       - No data modification performed on existing rows.
+       - Applied locally to local test Supabase CLI.
+    4. **Backend Webhooks & Voice Completions**:
+       - Updated `src/app/api/webhooks/vapi/route.ts`: set `channel='phone'` for `inboundPhoneCall` / `outboundPhoneCall` (or phone session ID) and `web_voice` for web calls; extracted `caller_number` from `customer.number` / `phoneNumber`; removed all `recording_url` writes to `conversations`; removed `voiceRecordingUrl` from consolidated lead emails.
+       - Updated `src/app/api/webhooks/vapi/assistant/route.ts`: returned `server.url` and `serverUrl` pointing to `/api/webhooks/vapi` and `artifactPlan: { recordingEnabled: false }`; forwarded `end-of-call-report` payloads to the main Vapi webhook handler.
+       - Updated `src/app/api/voice/[chatbotId]/chat/completions/route.ts` and `src/app/api/voice/chat/completions/route.ts`: added focused pre-logging of `conversations` with `channel` and `caller_number` so calls are never dropped from history even on early disconnect.
+       - Updated `src/lib/lead-notifier.ts`: removed `voiceRecordingUrl` parameter and removed the Call Recording link from notification emails.
+    5. **Dashboard Filtering & Copy Updates**:
+       - Updated `src/components/dashboard-views/TelephonyView.tsx`: filtered `phoneCallLogs` by `channel === 'phone'` (retaining legacy `is_phone_call || phone_` fallback); displayed `caller_number`; updated header to "Call Transcript"; removed `<audio>` player and "Voice Recording" label; updated empty state copy to "Calls to your dedicated number will appear here with their transcripts. StyleFlo doesn't keep call audio; only the transcript is saved."; updated prompt to "Select a call to read its transcript."
+       - Updated `src/components/dashboard-views/InboxView.tsx`: filtered `webConversations` to exclude phone calls; updated header to "Transcript Viewer"; removed `<audio>` player and "Web Voice Recording" block; updated prompt to "Select any conversation session from the left explorer to view transcripts."
+       - Updated `src/components/dashboard-views/SidebarNavigation.tsx` & `src/components/DashboardClient.tsx`: updated count badges for Phone Calls and Web Chat & Voice using the `channel` field with legacy fallback.
+       - Left superadmin 'this call may be recorded' disclaimer placeholder in `SuperadminClient.tsx` completely unchanged.
+    6. **Prepared SQL for Stuart**:
+       - Prepared SQL queries for clearing existing `recording_url` values and backfilling past rows on production (not executed, awaiting Stuart's explicit sign-off).

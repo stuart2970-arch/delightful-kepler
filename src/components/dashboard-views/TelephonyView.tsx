@@ -213,7 +213,7 @@ export default function TelephonyView() {
   const isChannelUnlocked = activeChannelTab === 'mobile' ? channelFlags.has_mobile : channelFlags.has_landline;
 
   // Phone calls strictly reflect calls routed via the dedicated phone numbers linked to the account
-  const phoneCallLogs = conversations.filter(c => c.is_phone_call || (c.is_voice_call && c.user_session_id?.startsWith('phone_')));
+  const phoneCallLogs = (conversations || []).filter(c => c && (c.channel === 'phone' || c.is_phone_call || (c.is_voice_call && c.user_session_id?.startsWith('phone_'))));
   const selectedCallObj = phoneCallLogs.find(c => c.id === selectedCallId);
 
   return (
@@ -612,7 +612,7 @@ export default function TelephonyView() {
                 {phoneCallLogs.length === 0 ? (
                   <div className="text-center text-xs text-[var(--awb-color6)] py-16 px-4 space-y-2">
                     <p className="font-semibold text-[var(--awb-color7)]">No incoming phone calls logged yet.</p>
-                    <p className="text-[11px]">Calls made to your dedicated numbers will appear here with full audio recordings and transcripts.</p>
+                    <p className="text-[11px]">Calls to your dedicated number will appear here with their transcripts. StyleFlo doesn't keep call audio; only the transcript is saved.</p>
                   </div>
                 ) : (
                   phoneCallLogs.map((call) => (
@@ -627,7 +627,7 @@ export default function TelephonyView() {
                     >
                       <div className="flex justify-between items-center w-full">
                         <span className="font-bold font-mono text-sm text-[#260475]">
-                          📞 {call.user_session_id?.replace('phone_', '') || 'Incoming Call'}
+                          📞 {call.caller_number || call.caller_phone_number || call.user_session_id?.replace('phone_', '') || 'Incoming Call'}
                         </span>
                         <span className="text-[10px] text-[var(--awb-color6)] font-mono">
                           {call.created_at && !isNaN(new Date(call.created_at).getTime()) ? new Date(call.created_at).toLocaleDateString('en-GB') : 'N/A'}
@@ -653,18 +653,12 @@ export default function TelephonyView() {
           {/* Call Details & Audio Transcript Viewer */}
           <div className="bg-[var(--awb-color2)] border border-[var(--awb-color3)] p-4 rounded-xl h-[500px] flex flex-col">
             <h4 className="text-xs font-bold uppercase tracking-wider text-[var(--awb-color8)] mb-3">
-              Call Recording & Transcript
+              Call Transcript
             </h4>
 
             <div className="flex-1 overflow-y-auto p-4 bg-white border border-[var(--awb-color3)] rounded-xl styleflo-scrollbar">
               {selectedCallObj ? (
                 <div className="space-y-4">
-                  {selectedCallObj.recording_url && (
-                    <div className="bg-[var(--awb-color2)] border border-[var(--awb-color3)] p-3.5 rounded-xl">
-                      <h5 className="text-xs font-bold text-[var(--awb-color8)] mb-2">Voice Recording</h5>
-                      <audio controls src={selectedCallObj.recording_url} className="w-full h-10" />
-                    </div>
-                  )}
                   <div className="bg-[var(--awb-color2)] border border-[var(--awb-color3)] p-3.5 rounded-xl">
                     <h5 className="text-xs font-bold text-[var(--awb-color8)] mb-2">Call Transcript</h5>
                     {selectedCallObj.transcript ? (
@@ -678,7 +672,7 @@ export default function TelephonyView() {
                 </div>
               ) : (
                 <div className="h-full flex items-center justify-center text-xs text-[var(--awb-color6)] text-center italic px-4">
-                  Select a phone call session from the list to listen to the audio recording and inspect transcripts.
+                  Select a call to read its transcript.
                 </div>
               )}
             </div>

@@ -22,7 +22,6 @@ export interface LeadNotificationParams {
   newContactInfo?: string;
   channelType?: 'chat' | 'voice' | 'openclaw';
   voiceTranscript?: string;
-  voiceRecordingUrl?: string;
   customerName?: string;
 }
 
@@ -38,7 +37,6 @@ export async function sendConsolidatedLeadEmail(params: LeadNotificationParams):
     newContactInfo,
     channelType = 'chat',
     voiceTranscript,
-    voiceRecordingUrl,
     customerName,
   } = params;
 
@@ -157,9 +155,6 @@ export async function sendConsolidatedLeadEmail(params: LeadNotificationParams):
     let transcriptBlock = '';
     if (channelType === 'voice' || conversation?.is_voice_call) {
       transcriptBlock = `--- VOICE CALL TRANSCRIPT ---\n${voiceTranscript || conversation?.transcript || 'Voice call completed.'}`;
-      if (voiceRecordingUrl || conversation?.recording_url) {
-        transcriptBlock += `\n\nCall Recording: ${voiceRecordingUrl || conversation?.recording_url}`;
-      }
     } else {
       transcriptBlock = `--- CHAT TRANSCRIPT ---\n${formattedTranscriptLines.length > 0 ? formattedTranscriptLines.join('\n') : (combinedAllText || 'No transcript available.')}`;
     }
@@ -269,11 +264,7 @@ Log into your StyleFlo Dashboard to view and manage this conversation.
       <div style="background-color: #f1f5f9; border-radius: 8px; padding: 16px; font-size: 13px; color: #334155; max-height: 400px; overflow-y: auto; white-space: pre-wrap; font-family: monospace;">${formattedTranscriptLines.length > 0 ? formattedTranscriptLines.join('\n\n') : (voiceTranscript || combinedAllText || 'No transcript text available.')}</div>
     </div>
 
-    ${voiceRecordingUrl || conversation?.recording_url ? `
-    <div style="margin-bottom: 20px; padding: 12px; background-color: #eff6ff; border-radius: 6px; font-size: 14px;">
-      🎙️ <strong>Call Recording:</strong> <a href="${voiceRecordingUrl || conversation?.recording_url}" target="_blank" style="color: #2563eb;">Listen to Voice Call</a>
-    </div>
-    ` : ''}
+
 
     <div style="text-align: center; margin-top: 28px;">
       <a href="https://app.styleflo.ai" style="background-color: #4f46e5; color: #ffffff; padding: 12px 24px; border-radius: 6px; text-decoration: none; font-weight: 600; font-size: 14px; display: inline-block;">View in StyleFlo Dashboard</a>

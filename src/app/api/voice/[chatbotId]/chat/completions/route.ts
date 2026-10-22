@@ -123,6 +123,43 @@ export async function POST(
     const currency = tenantRes?.currency || '£';
     const tenantCompany = (tenantRes?.company_name || tenantRes?.rwg_business_name || '').trim();
     const chatbotName = ((chatbotRecord?.name as string) || '').trim();
+
+    // Ensure conversation session exists with channel & caller_number (STYL-190)
+    const isPhoneCall = body.call?.type === 'inboundPhoneCall' || body.call?.type === 'outboundPhoneCall' || (typeof sessionId === 'string' && sessionId.startsWith('phone_')) || Boolean(body.call?.phoneNumberId);
+    const channel = isPhoneCall ? 'phone' : 'web_voice';
+    const callerNumber = body.call?.customer?.number || (typeof body.call?.phoneNumber === 'string' ? body.call.phoneNumber : body.call?.phoneNumber?.number) || null;
+
+    try {
+      let { data: preConv } = await supabaseAdmin
+        .from('conversations')
+        .select('id, channel, caller_number')
+        .eq('tenant_id', tenantId)
+        .eq('user_session_id', sessionId)
+        .maybeSingle();
+
+      if (!preConv) {
+        await supabaseAdmin
+          .from('conversations')
+          .insert({
+            tenant_id: tenantId,
+            chatbot_id: targetBotUuid,
+            user_session_id: sessionId,
+            is_voice_call: true,
+            channel,
+            caller_number: callerNumber,
+          });
+      } else if (!preConv.channel || (callerNumber && !preConv.caller_number)) {
+        await supabaseAdmin
+          .from('conversations')
+          .update({
+            channel: preConv.channel || channel,
+            caller_number: preConv.caller_number || callerNumber,
+          })
+          .eq('id', preConv.id);
+      }
+    } catch (preConvErr) {
+      console.error('[Vapi Custom LLM] Pre-logging conversation error:', preConvErr);
+    }
     const agentName = ((configData.agent_name as string) || chatbotName || 'AI Assistant').trim();
     const businessName = (configData.businessName as string)?.trim() || tenantCompany || chatbotName || agentName || 'our business';
 
@@ -546,11 +583,15 @@ ${globalDisclaimer}`;
           controller.enqueue(encoder.encode(`data: [DONE]\n\n`));
           controller.close();
 
-          // Save voice session and speech messages to Supabase after stream finishes
+          // Save voice session and speech messages to Supabase after stream finishes (STYL-190: channel and caller_number)
           try {
+            const isPhoneCall = body.call?.type === 'inboundPhoneCall' || body.call?.type === 'outboundPhoneCall' || (typeof sessionId === 'string' && sessionId.startsWith('phone_')) || Boolean(body.call?.phoneNumberId);
+            const channel = isPhoneCall ? 'phone' : 'web_voice';
+            const callerNumber = body.call?.customer?.number || (typeof body.call?.phoneNumber === 'string' ? body.call.phoneNumber : body.call?.phoneNumber?.number) || null;
+
             let { data: conv } = await supabaseAdmin
               .from('conversations')
-              .select('id')
+              .select('id, channel, caller_number')
               .eq('tenant_id', tenantId)
               .eq('user_session_id', sessionId)
               .maybeSingle();
@@ -562,11 +603,21 @@ ${globalDisclaimer}`;
                   tenant_id: tenantId,
                   chatbot_id: targetBotUuid,
                   user_session_id: sessionId,
-                  is_voice_call: true
+                  is_voice_call: true,
+                  channel,
+                  caller_number: callerNumber,
                 })
                 .select('id')
                 .single();
               conv = newConv;
+            } else if (!conv.channel || (callerNumber && !conv.caller_number)) {
+              await supabaseAdmin
+                .from('conversations')
+                .update({
+                  channel: conv.channel || channel,
+                  caller_number: conv.caller_number || callerNumber,
+                })
+                .eq('id', conv.id);
             }
 
             if (conv?.id) {

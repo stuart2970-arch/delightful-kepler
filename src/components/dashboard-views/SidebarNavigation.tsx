@@ -46,8 +46,8 @@ export default function SidebarNavigation() {
     ? [
         { id: 'scheduling', label: '🗓️ Master Calendar & Rota', locked: false },
         { id: 'chatbots', label: '🤖 Agent', count: chatbots.filter(b => b.id !== globalBotId).length, locked: false },
-        { id: 'conversations', label: '💬 Web Chat & Voice', count: conversations.filter(c => !c.is_phone_call).length, locked: false },
-        { id: 'telephony', label: '📞 Phone Calls', count: conversations.filter(c => c.is_phone_call || (c.is_voice_call && c.user_session_id?.startsWith('phone_'))).length, locked: !channelFlags.has_landline && !channelFlags.has_mobile },
+        { id: 'conversations', label: '💬 Web Chat & Voice', count: conversations.filter(c => c && (c.channel ? (c.channel === 'web_chat' || c.channel === 'web_voice') : (!c.is_phone_call && (!c.user_session_id || !c.user_session_id.startsWith('phone_'))))).length, locked: false },
+        { id: 'telephony', label: '📞 Phone Calls', count: conversations.filter(c => c && (c.channel === 'phone' || c.is_phone_call || (c.is_voice_call && c.user_session_id?.startsWith('phone_')))).length, locked: !channelFlags.has_landline && !channelFlags.has_mobile },
         { id: 'whatsapp', label: '📱 WhatsApp & Meta', locked: false },
         { id: 'crawler', label: '📚 Knowledge Base', locked: false },
         { id: 'integrations', label: '🔌 Integrations', locked: false },
