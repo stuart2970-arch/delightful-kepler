@@ -3702,3 +3702,33 @@ Highlighted adjustments in the modal:
        - Transitioned Jira ticket STYL-179 to **Done** (transition 31).
     6. **Session Guardrail Enforced**:
        - Stopped immediately per instructions. STYL-182 will be initiated in a clean new chat session.
+
+
+## Session 75 (October 22, 2026)
+* **User**: "Please start Jira ticket STYL-186 (Knowledge base: 'Learned Pages & Sources' says 'No sources ingested yet' after a successful crawl). Read the STYL-186 Jira description and its latest plan comment, which hold all the context, and follow the plan exactly. Rules: work on your own new branch off the latest main, run the full test suite and let the pre-push hook run, never use --no-verify (if a hook or check fails, find and fix the cause), and do not merge to main or deploy to production without Stuart's explicit yes on this ticket. When the branch is pushed and tests pass, stop and ask Stuart for his yes."
+  * **Actions Completed**:
+    1. **Pre-flight & Jira Verification**: Checked Jira ticket STYL-186 (`status in ("In Progress", "in-progress") AND labels = "antigravity"`), confirmed authorized signed-off developer plan in Jira comment ID 10097, created dedicated branch `fix/styl-186-knowledge-sources` from latest `main`.
+    2. **Ingest Route Authentication Lockdown**:
+       - Updated `src/app/api/ingest/crawl/route.ts`, `src/app/api/ingest/text/route.ts`, and `src/app/api/ingest/file/route.ts` to strictly enforce authentication using `requireUser(request)` (supporting cookies and Authorization Bearer header). Removed the unauthenticated service-role fallback (returning HTTP 401).
+       - Removed all fallback-to-another-chatbot branches (`.limit(1)` and `.neq('id', '0000...')`), returning HTTP 404 for unknown or other-tenant chatbot IDs. Preserved superadmin access strictly for exact chatbot IDs.
+    3. **Document Chunks Real Quota Limit Enforcement**:
+       - Updated `checkFeatureEntitlement` in `src/lib/entitlements.ts` to query the exact stored row count in `document_chunks` for the tenant rather than relying on `usage_ledger`.
+       - Provided detailed capacity error messages returning HTTP 403 when limit is reached: `"Knowledge items limit reached. Your plan allows {limit} items (currently using {used}, {remaining} remaining). Adding {volume} more would exceed your limit."`
+       - Returned `remaining` in `EntitlementCheckResult`.
+    4. **Duplicate Prevention on Re-Crawl & Re-Ingest**:
+       - Implemented chunk replacement logic in `/api/ingest/crawl`, `/api/ingest/text`, and `/api/ingest/file`. Re-crawling an existing URL or re-ingesting a source with the same name replaces existing chunks for that chatbot rather than duplicating them. Evaluated net incoming chunks to avoid rejecting valid updates.
+    5. **Knowledge Sources Listing & In-Memory Grouping**:
+       - Updated `GET /api/ingest/urls` to authenticate via `requireUser(req)` (HTTP 401 on missing session) and enforce tenant chatbot ownership (HTTP 404 on invalid/cross-tenant bot).
+       - Enriched returned list with `title`, `sourceType` ('url', 'text', 'file'), `chunkCount`, and `latestDate`. Added tenant-level `quota` summary (`limit`, `currentUsage`, `remaining`).
+    6. **Knowledge Deletion & "Delete All" Guardrail**:
+       - Updated `DELETE /api/ingest/urls` to support `all=true` for deleting all chunks belonging to a specific chatbot. Enforced role restriction: only account owners (`profile.role === 'owner'`) and verified superadmins can invoke `all=true` (HTTP 403 for others).
+       - Retained targeted single-source deletion by `sourceUrl` for standard chatbot managers.
+    7. **Dashboard Experience (`src/components/dashboard-views/KnowledgeBaseView.tsx`)**:
+       - Excluded global bot `00000000-0000-0000-0000-000000000000` from the Target Chatbot picker dropdown.
+       - Replaced silent error handling in `loadIngestedUrls` with dedicated error UI containing a "Retry" button.
+       - Displayed live knowledge items quota indicator (`{used} / {limit} items used ({remaining} remaining)`) and a "Delete All Knowledge" button with confirmation prompt.
+       - Always triggered `loadIngestedUrls` immediately after batch crawling, file upload, text ingestion, or Shopify processing to ensure newly ingested pages appear without requiring a manual browser refresh.
+       - Formatted dates with British English (`en-GB`) and labelled items cleanly by source type (`Web Page`, `Raw Text`, `Document`).
+    8. **Automated Test Coverage (`tests/knowledge-base.spec.ts`)**:
+       - Extended `tests/test-auth-helper.ts` to support tenant-scoped normal user provisioning.
+       - Added 7 new test cases (14 tests total) covering: strict 401 without session, 404 for cross-tenant / unknown bot IDs (no fallback), list grouping and quota payload validation, duplicate chunk replacement on re-ingest, single-source deletion, owner/superadmin-scoped "delete all" deletion with cross-tenant isolation, and 500-item quota limit enforcement.

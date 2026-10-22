@@ -20,6 +20,7 @@ export type EntitlementCheckResult = {
   error?: string;
   limit?: number;
   currentUsage?: number;
+  remaining?: number;
 };
 
 export type ChannelFlags = {
@@ -364,6 +365,31 @@ export async function checkFeatureEntitlement(
       }
       return { allowed: true, limit: effectiveLimit, currentUsage };
     }
+  }
+
+  // Special handling for knowledge_data_chunks: count real stored rows in document_chunks per tenant
+  if (featureId === 'knowledge_data_chunks' || featureId === 'data_chunks_addon') {
+    const adminSupabase = createAdminClient();
+    const queryClient = dbClient || adminSupabase;
+    const { count } = await queryClient
+      .from('document_chunks')
+      .select('*', { count: 'exact', head: true })
+      .eq('tenant_id', tenantId);
+
+    currentUsage = typeof count === 'number' ? count : 0;
+    const remaining = Math.max(0, limit - currentUsage);
+
+    if (currentUsage + requestedVolume > limit) {
+      return {
+        allowed: false,
+        limit,
+        currentUsage,
+        remaining,
+        error: `Knowledge items limit reached. Your plan allows ${limit} items (currently using ${currentUsage}, ${remaining} remaining). Adding ${requestedVolume} more would exceed your limit.`
+      };
+    }
+
+    return { allowed: true, limit, currentUsage, remaining };
   }
 
   // Standard monthly window for non-rolling features

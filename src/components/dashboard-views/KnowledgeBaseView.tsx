@@ -22,6 +22,9 @@ export default function KnowledgeBaseView() {
   
   const [ingestedUrls, setIngestedUrls] = useState<any[]>([]);
   const [isLoadingUrls, setIsLoadingUrls] = useState(false);
+  const [urlsError, setUrlsError] = useState<string | null>(null);
+  const [quotaInfo, setQuotaInfo] = useState<{ limit: number; currentUsage: number; remaining: number } | null>(null);
+  const [isDeletingAll, setIsDeletingAll] = useState(false);
 
   // Sitemap Discovery State
   const [discoveredSitemapUrls, setDiscoveredSitemapUrls] = useState<string[]>([]);
@@ -48,17 +51,36 @@ export default function KnowledgeBaseView() {
   const [rulesSavedMessage, setRulesSavedMessage] = useState<{ type: 'success' | 'error', text: string } | null>(null);
 
   const loadIngestedUrls = async (botId: string) => {
+    if (!botId) return;
     setIsLoadingUrls(true);
+    setUrlsError(null);
     try {
       const res = await fetch(`/api/ingest/urls?chatbotId=${encodeURIComponent(botId)}`);
       if (res.ok) {
         const data = await res.json();
         setIngestedUrls(data.urls || []);
+        if (data.quota) {
+          setQuotaInfo(data.quota);
+        }
+        if (setMetrics && typeof data.totalChunks === 'number') {
+          setMetrics(prev => ({
+            ...prev,
+            chunksCount: data.quota?.currentUsage ?? data.totalChunks,
+          }));
+        }
+        setUrlsError(null);
+      } else {
+        const errData = await res.json().catch(() => ({}));
+        setUrlsError(errData.error || `Failed to load knowledge sources (${res.status})`);
+        setIngestedUrls([]);
       }
-    } catch (err) {
+    } catch (err: any) {
       console.error('Failed to load ingested urls:', err);
+      setUrlsError(err.message || 'Network error while loading knowledge sources');
+      setIngestedUrls([]);
+    } finally {
+      setIsLoadingUrls(false);
     }
-    setIsLoadingUrls(false);
   };
 
   useEffect(() => {
@@ -198,6 +220,38 @@ export default function KnowledgeBaseView() {
     setIsSavingSchedule(false);
   };
 
+  const handleDeleteAllKnowledge = async () => {
+    if (!crawlBotId) return;
+    if (!confirm('Are you sure you want to delete all knowledge items for this chatbot? This action cannot be undone.')) {
+      return;
+    }
+
+    setIsDeletingAll(true);
+    try {
+      const res = await fetch(`/api/ingest/urls?chatbotId=${encodeURIComponent(crawlBotId)}&all=true`, {
+        method: 'DELETE',
+      });
+      const data = await res.json().catch(() => ({}));
+      if (res.ok) {
+        setIngestedUrls([]);
+        if (setMetrics) {
+          setMetrics(prev => ({
+            ...prev,
+            chunksCount: Math.max(0, prev.chunksCount - (data.deletedCount || 0)),
+          }));
+        }
+        await loadIngestedUrls(crawlBotId);
+      } else {
+        alert(data.error || 'Failed to delete all knowledge items.');
+      }
+    } catch (err: any) {
+      console.error(err);
+      alert('An error occurred while deleting all knowledge items.');
+    } finally {
+      setIsDeletingAll(false);
+    }
+  };
+
   const handleDeleteUrl = async (url: string) => {
     if (!crawlBotId || !confirm(`Are you sure you want to delete all knowledge items for ${url}?`)) return;
     
@@ -205,17 +259,20 @@ export default function KnowledgeBaseView() {
       const res = await fetch(`/api/ingest/urls?chatbotId=${encodeURIComponent(crawlBotId)}&sourceUrl=${encodeURIComponent(url)}`, {
         method: 'DELETE'
       });
+      const data = await res.json().catch(() => ({}));
       if (res.ok) {
         const deletedItem = ingestedUrls.find(item => item.url === url);
-        if (deletedItem) {
+        const deletedCount = data.deletedCount || deletedItem?.chunkCount || 0;
+        if (setMetrics) {
           setMetrics(prev => ({
             ...prev,
-            chunksCount: Math.max(0, prev.chunksCount - deletedItem.chunkCount)
+            chunksCount: Math.max(0, prev.chunksCount - deletedCount)
           }));
         }
         setIngestedUrls(prev => prev.filter(item => item.url !== url));
+        await loadIngestedUrls(crawlBotId);
       } else {
-        alert('Failed to delete URL from knowledge base.');
+        alert(data.error || 'Failed to delete source from knowledge base.');
       }
     } catch (err) {
       console.error(err);
@@ -295,7 +352,10 @@ export default function KnowledgeBaseView() {
 
     setIsCrawling(true);
     setCrawlResult(null);
-    setCrawlLogs([`[System] Initializing scraper for URLs...`]);
+    setCrawlLogs([`[System] Initialising scraper for ${urls.length} ${urls.length === 1 ? 'URL' : 'URLs'}...`]);
+    if (quotaInfo) {
+      setCrawlLogs(prev => [...prev, `[System] Knowledge quota: ${quotaInfo.remaining} items remaining (${quotaInfo.currentUsage}/${quotaInfo.limit} used).`]);
+    }
 
     const urls = crawlUrl.split(/[\s,]+/).map(u => u.trim()).filter(u => u);
     let totalChunks = 0;
@@ -352,6 +412,10 @@ export default function KnowledgeBaseView() {
         console.warn(`[Dashboard] Ingestion failed for ${currentUrl}:`, err.message || err);
         setCrawlLogs((prev) => [...prev, `[Error] Failed to crawl ${currentUrl}: ${err.message || err}`]);
       }
+    }
+
+    if (totalChunks > 0 || !hasError) {
+      loadIngestedUrls(crawlBotId);
     }
 
     if (!hasError) {
@@ -531,7 +595,7 @@ export default function KnowledgeBaseView() {
                       required
                     >
                       <option value="" disabled>Select chatbot...</option>
-                      {chatbots.filter(b => b.id !== 'global').map((bot) => (
+                      {chatbots.filter(b => b.id !== 'global' && b.id !== '00000000-0000-0000-0000-000000000000').map((bot) => (
                         <option key={bot.id} value={bot.id}>
                           {bot.name}
                         </option>
@@ -932,13 +996,45 @@ export default function KnowledgeBaseView() {
 
             {/* Ingested URLs List */}
             <div className="bg-[var(--awb-color1)] border border-[var(--awb-color3)] p-6 rounded-2xl shadow-xl space-y-4">
-              <div>
-                <h3 className="text-lg font-bold text-[var(--awb-color8)]">Learned Pages & Sources</h3>
-                <p className="text-xs text-[var(--awb-color6)] mt-0.5">Manage the websites and content already loaded into this chatbot's knowledge base.</p>
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                <div>
+                  <h3 className="text-lg font-bold text-[var(--awb-color8)]">Learned Pages & Sources</h3>
+                  <p className="text-xs text-[var(--awb-color6)] mt-0.5">Manage the websites and content already loaded into this chatbot's knowledge base.</p>
+                </div>
+                <div className="flex items-center gap-3">
+                  {quotaInfo && (
+                    <span className="text-xs font-semibold px-2.5 py-1 rounded-lg bg-[var(--awb-color2)] text-[var(--awb-color7)] border border-[var(--awb-color3)]">
+                      {quotaInfo.currentUsage} / {quotaInfo.limit} items used ({quotaInfo.remaining} remaining)
+                    </span>
+                  )}
+                  {ingestedUrls.length > 0 && (
+                    <button
+                      type="button"
+                      onClick={handleDeleteAllKnowledge}
+                      disabled={isDeletingAll || isLoadingUrls}
+                      className="text-xs font-semibold px-3 py-1.5 rounded-lg text-red-500 hover:text-red-600 hover:bg-red-50 border border-red-200 transition-colors disabled:opacity-50"
+                    >
+                      {isDeletingAll ? 'Deleting All...' : 'Delete All Knowledge'}
+                    </button>
+                  )}
+                </div>
               </div>
 
               {isLoadingUrls ? (
                 <div className="text-sm text-[var(--awb-color6)] py-4">Loading sources...</div>
+              ) : urlsError ? (
+                <div className="p-4 rounded-xl border border-red-200 bg-red-50 text-red-700 space-y-2">
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm font-medium">{urlsError}</span>
+                    <button
+                      type="button"
+                      onClick={() => loadIngestedUrls(crawlBotId)}
+                      className="px-3 py-1 bg-red-100 hover:bg-red-200 text-red-800 rounded-lg text-xs font-semibold transition-colors"
+                    >
+                      Retry
+                    </button>
+                  </div>
+                </div>
               ) : ingestedUrls.length === 0 ? (
                 <div className="text-sm text-[var(--awb-color6)] py-4">No sources ingested yet for this chatbot.</div>
               ) : (
@@ -946,14 +1042,30 @@ export default function KnowledgeBaseView() {
                   {ingestedUrls.map((item, idx) => (
                     <div key={idx} className="flex items-center justify-between p-3 bg-white border border-[#f2f3f5] rounded-xl">
                       <div className="flex-1 min-w-0 pr-4">
-                        <p className="text-sm font-medium text-gray-200 truncate" title={item.url}>{item.url}</p>
+                        <div className="flex items-center gap-2">
+                          <span className={`text-[10px] uppercase font-bold px-1.5 py-0.5 rounded ${
+                            item.sourceType === 'url' ? 'bg-blue-100 text-blue-700' :
+                            item.sourceType === 'text' ? 'bg-amber-100 text-amber-700' :
+                            'bg-emerald-100 text-emerald-700'
+                          }`}>
+                            {item.sourceType === 'url' ? 'Web Page' : item.sourceType === 'text' ? 'Raw Text' : 'Document'}
+                          </span>
+                          <p className="text-sm font-medium text-gray-900 truncate" title={item.url}>
+                            {item.title || item.url}
+                          </p>
+                        </div>
+                        {item.title && item.title !== item.url && (
+                          <p className="text-xs text-[var(--awb-color6)] truncate mt-0.5" title={item.url}>
+                            {item.url}
+                          </p>
+                        )}
                         <p className="text-xs text-[var(--awb-color6)] mt-0.5">
-                          {item.chunkCount} {item.chunkCount === 1 ? 'section' : 'sections'} &bull; Last updated {new Date(item.latestDate).toLocaleDateString('en-GB')}
+                          {item.chunkCount} {item.chunkCount === 1 ? 'item' : 'items'} &bull; Last updated {new Date(item.latestDate).toLocaleDateString('en-GB')}
                         </p>
                       </div>
                       <button
                         onClick={() => handleDeleteUrl(item.url)}
-                        className="p-1.5 text-[var(--awb-color6)] hover:text-red-400 hover:bg-white/5 rounded-lg transition-colors shrink-0"
+                        className="p-1.5 text-[var(--awb-color6)] hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors shrink-0"
                         title="Delete source"
                       >
                         <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
