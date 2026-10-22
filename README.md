@@ -3772,3 +3772,13 @@ Highlighted adjustments in the modal:
     7. **Automated Test Coverage**:
        - Created `tests/voice-availability.spec.ts` with 3 comprehensive tests verifying single holding phrase + second pass completion, unknown service ID conversational fallback with clean stream closure, and no pre-bracket text holding phrase handling.
        - Verified full test suite passes cleanly: `tsc --noEmit` passed with 0 errors, `playwright test` passed 187/187 tests, and `next build` completed successfully.
+    8. **Sign-off, Merge & Production Deployment Verification**:
+       - Stuart provided explicit approval ('Yes') to merge `fix/styl-188-voice-availability-crash` into `main` and deploy to production.
+       - Merged branch into `main` via merge commit `2b8d975`.
+       - Ran full automated pre-push hook: `npm run typecheck && npm run test:e2e` passed (187/187 tests clean, zero `--no-verify` bypass).
+       - Pushed to `origin/main`.
+       - GitHub Actions workflow Run #39790847677 succeeded:
+         - TypeScript Type Check (`tsc --noEmit`): SUCCESS
+         - Build and Push Docker Image: SUCCESS
+         - Deploy to Cloud Run (`styleflo-new`): SUCCESS
+         - All post-deploy smoke checks: SUCCESS
