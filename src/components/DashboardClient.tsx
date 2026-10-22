@@ -487,7 +487,7 @@ const globalBotId = '00000000-0000-0000-0000-000000000000';
 // Form states
   const [newBotName, setNewBotName] = useState('');
   const [newBotColor, setNewBotColor] = useState('#4F46E5');
-  const [newBotWelcome, setNewBotWelcome] = useState('Hello! How can I help you today?');
+  const [newBotWelcome, setNewBotWelcome] = useState('');
   const [newAgentName, setNewAgentName] = useState('');
   const [newAgentRole, setNewAgentRole] = useState('AI Assistant');
   const [newAgentAvatar, setNewAgentAvatar] = useState('/avatars/avatar1.png');
@@ -613,7 +613,7 @@ const globalBotId = '00000000-0000-0000-0000-000000000000';
       setChatbots([newChatbot, ...chatbots]);
       setMetrics({ ...metrics, chatbotsCount: metrics.chatbotsCount + 1 });
       setNewBotName('');
-      setNewBotWelcome('Hello! How can I help you today?');
+      setNewBotWelcome('');
       setNewAgentName('');
       setNewAgentRole('AI Assistant');
       setNewAgentAvatar('/avatars/avatar1.png');
@@ -672,7 +672,7 @@ const globalBotId = '00000000-0000-0000-0000-000000000000';
       
       setEditingBotId(null);
       setNewBotName('');
-      setNewBotWelcome('Hello! How can I help you today?');
+      setNewBotWelcome('');
       setNewAgentName('');
       setNewAgentRole('AI Assistant');
       setNewAgentAvatar('/avatars/avatar1.png');

@@ -227,7 +227,7 @@ test.describe('STYL-181: Per-Session Name & Terms Gate, Voice Call Interception,
     const termsCheckbox = host.locator('#styleflo-disclaimer-accept');
     const submitBtn = host.locator('#styleflo-onboarding-submit-btn');
 
-    await nameInput.fill('Sarah Connor');
+    await nameInput.fill('Sarah Jones');
     await termsCheckbox.check();
     await submitBtn.click();
 
@@ -237,7 +237,7 @@ test.describe('STYL-181: Per-Session Name & Terms Gate, Voice Call Interception,
 
     // Verify welcome greeting personalized with first name Sarah
     const welcomeEl = host.locator('#styleflo-welcome-message-text');
-    await expect(welcomeEl).toContainText('Sarah');
+    await expect(welcomeEl).toHaveText("Hi Sarah, you're through to FloChat! How can I help you today?");
 
     // Verify sessionStorage recorded acceptance
     const gateStorage = await page.evaluate((botId) => {
@@ -289,7 +289,7 @@ test.describe('STYL-181: Per-Session Name & Terms Gate, Voice Call Interception,
     const termsCheckbox = host.locator('#styleflo-disclaimer-accept');
     const submitBtn = host.locator('#styleflo-onboarding-submit-btn');
 
-    await nameInput.fill('John Connor');
+    await nameInput.fill('Sarah Jones');
     await termsCheckbox.check();
     await submitBtn.click();
 
@@ -299,10 +299,89 @@ test.describe('STYL-181: Per-Session Name & Terms Gate, Voice Call Interception,
     }, { timeout: 10000 }).toBeTruthy();
 
     const lastVapiCall = (await page.evaluate(() => (window as unknown as TestWindow).__STYLEFLO_LAST_VAPI_CALL__)) as any;
+    expect(lastVapiCall.firstName).toBe('Sarah');
+    expect(lastVapiCall.clientName).toBe('Sarah');
+    expect(lastVapiCall.firstMessage).toBe("Hi Sarah, you're through to FloChat! How can I help you today?");
+    expect(lastVapiCall.systemPrompt).toContain('Flo');
+    expect(lastVapiCall.systemPrompt).toContain('Sarah');
+    expect(lastVapiCall.systemPrompt).not.toContain('first name is there');
+  });
+
+  test('mock bot with agent name "Emma" and empty welcome message: chat and voice both start "Hi John, I\'m Emma"', async ({ page }) => {
+    const emptyWelcomeBotId = 'e0000000-0000-0000-0000-000000000002';
+    await page.goto('/login');
+
+    await page.evaluate((botId) => {
+      const win = window as unknown as TestWindow;
+      win.__STYLEFLO_TEST_TURNSTILE_TOKEN__ = '1x0000000000000000000000000000000AA';
+      win.__STYLEFLO_MOCK_VAPI__ = true;
+      const s = document.createElement('script');
+      s.src = '/widget.js';
+      s.setAttribute('data-bot-id', botId);
+      document.body.appendChild(s);
+    }, emptyWelcomeBotId);
+
+    const host = page.locator('#styleflo-chat-widget');
+    await expect(host).toBeAttached({ timeout: 10000 });
+
+    const menuChat = host.locator('#styleflo-menu-chat');
+    await expect(menuChat).toBeAttached({ timeout: 10000 });
+    await menuChat.evaluate((btn: HTMLButtonElement) => btn.click());
+
+    const nameInput = host.locator('#styleflo-onboarding-name');
+    const termsCheckbox = host.locator('#styleflo-disclaimer-accept');
+    const submitBtn = host.locator('#styleflo-onboarding-submit-btn');
+
+    await nameInput.fill('John Doe');
+    await termsCheckbox.check();
+    await submitBtn.click();
+
+    // Verify chat welcome bubble starts with "Hi John, I'm Emma"
+    const welcomeEl = host.locator('#styleflo-welcome-message-text');
+    await expect(welcomeEl).toBeVisible({ timeout: 10000 });
+    const welcomeText = await welcomeEl.textContent();
+    expect(welcomeText?.startsWith("Hi John, I'm Emma")).toBe(true);
+
+    // Trigger voice call and verify voice firstMessage also starts with "Hi John, I'm Emma"
+    const vapiBtn = host.locator('#styleflo-vapi-btn');
+    await vapiBtn.evaluate((btn: HTMLButtonElement) => btn.click());
+
+    await expect.poll(async () => {
+      return page.evaluate(() => (window as unknown as TestWindow).__STYLEFLO_LAST_VAPI_CALL__);
+    }, { timeout: 10000 }).toBeTruthy();
+
+    const lastVapiCall = (await page.evaluate(() => (window as unknown as TestWindow).__STYLEFLO_LAST_VAPI_CALL__)) as any;
     expect(lastVapiCall.firstName).toBe('John');
-    expect(lastVapiCall.clientName).toBe('John');
-    expect(lastVapiCall.firstMessage).toContain('John');
-    expect(lastVapiCall.systemPrompt).toContain("The user's first name is John. Greet them by first name.");
+    expect(lastVapiCall.firstMessage?.startsWith("Hi John, I'm Emma")).toBe(true);
+    expect(lastVapiCall.systemPrompt).toContain('Emma');
+    expect(lastVapiCall.systemPrompt).not.toContain('first name is there');
+  });
+
+  test('voice completions route: business bot system prompt contains agent name and not "phone"', async ({ request }) => {
+    const res = await request.post('/api/voice/e0000000-0000-0000-0000-000000000002/chat/completions', {
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      data: {
+        stream: false,
+        messages: [
+          { role: 'user', content: 'What services do you offer?' },
+        ],
+        call: {
+          id: 'call_test_prompt_check',
+          metadata: {
+            client_name: 'John Doe',
+          },
+        },
+      },
+    });
+
+    expect(res.ok()).toBeTruthy();
+    const data = await res.json();
+    const identityLine = data.systemPrompt.split('\n')[0];
+    expect(identityLine).toContain('Emma');
+    expect(identityLine.toLowerCase()).not.toContain('phone');
+    expect(data.systemPrompt.toLowerCase()).not.toContain('phone representative');
   });
 
   test('stored name in localStorage does NOT bypass terms gate on new session', async ({ page }) => {

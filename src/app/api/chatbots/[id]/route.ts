@@ -90,6 +90,7 @@ export async function GET(
         agentAvatarUrl: '/avatars/avatar1.png',
         avatarUrl: '/avatars/avatar1.png',
         welcomeMessage: 'Hello! How can I help you today?',
+        businessName: 'Acme',
         brandingHtml: '<span style="opacity: 0.6; font-size: 11px;">⚡ Powered by <strong>StyleFlo</strong></span>',
         brandingUrl: 'https://styleflo.ai',
         voiceEnabled: true,
@@ -101,6 +102,32 @@ export async function GET(
         backgroundSound: 'office',
         fileUploadEnabled: false,
         requireClientName: false,
+        termsVersion: '1.0',
+      }, { headers: corsHeaders });
+    }
+
+    if (id === 'e0000000-0000-0000-0000-000000000002') {
+      return NextResponse.json({
+        tenantId: 't0000000-0000-0000-0000-000000000002',
+        name: "Bella's Salon Assistant",
+        primaryColor: '#EC4899',
+        agentName: 'Emma',
+        agentRole: 'AI Assistant',
+        agentAvatarUrl: '/avatars/avatar1.png',
+        avatarUrl: '/avatars/avatar1.png',
+        welcomeMessage: '',
+        businessName: "Bella's Salon",
+        brandingHtml: '<span style="opacity: 0.6; font-size: 11px;">⚡ Powered by <strong>StyleFlo</strong></span>',
+        brandingUrl: 'https://styleflo.ai',
+        voiceEnabled: true,
+        vapiPublicKey: process.env.NEXT_PUBLIC_VAPI_PUBLIC_KEY || '3648bdcb-ccac-4acc-aee6-a4f9384743de',
+        vapiAssistantId: process.env.VAPI_MASTER_ASSISTANT_ID || '1bb95940-1cb9-4c54-9b16-ba5bc11daae2',
+        globalVoiceDisclaimer: '',
+        voiceProvider: '11labs',
+        voiceId: 'bIHbv24MWmeRgasZH58o',
+        backgroundSound: 'salon',
+        fileUploadEnabled: false,
+        requireClientName: true,
         termsVersion: '1.0',
       }, { headers: corsHeaders });
     }
@@ -123,6 +150,7 @@ export async function GET(
           agentAvatarUrl: '/avatars/avatar1.png',
           avatarUrl: '/avatars/avatar1.png',
           welcomeMessage: "Hi, you're through to FloChat! How can I help you today?",
+          businessName: 'StyleFlo AI',
           brandingHtml: '<span style="opacity: 0.6; font-size: 11px;">⚡ Powered by <strong>StyleFlo</strong></span>',
           brandingUrl: 'https://styleflo.ai',
           voiceEnabled: true,
@@ -179,15 +207,19 @@ export async function GET(
     }
 
     let planTier = 'foundation';
+    let companyName = '';
+    let rwgBusinessName = '';
     
     if (chatbot.tenant_id) {
       const { data: tenantData } = await supabaseAdmin
         .from('tenants')
-        .select('plan_tier')
+        .select('plan_tier, company_name, rwg_business_name')
         .eq('id', chatbot.tenant_id)
         .single();
       
       planTier = tenantData?.plan_tier || 'foundation';
+      companyName = (tenantData?.company_name as string) || '';
+      rwgBusinessName = (tenantData?.rwg_business_name as string) || '';
     }
     
     // Check Voice Entitlement:
@@ -250,6 +282,12 @@ export async function GET(
       }
     }
 
+    const resolvedBusinessName = (config.businessName as string)?.trim() ||
+      companyName.trim() ||
+      rwgBusinessName.trim() ||
+      (chatbot.name as string)?.trim() ||
+      '';
+
     return NextResponse.json({
       tenantId: chatbot.tenant_id,
       name: chatbot.name,
@@ -258,7 +296,8 @@ export async function GET(
       agentRole: config.agent_role || 'AI Assistant',
       agentAvatarUrl: config.agent_avatar_url || config.agentAvatarUrl || config.avatarUrl || '/avatars/avatar1.png',
       avatarUrl: config.agent_avatar_url || config.agentAvatarUrl || config.avatarUrl || '/avatars/avatar1.png',
-      welcomeMessage: config.welcome_message || 'Hello! How can I help you today?',
+      welcomeMessage: typeof config.welcome_message === 'string' ? config.welcome_message : '',
+      businessName: resolvedBusinessName,
       brandingHtml: (planTier === 'premium' || planTier === 'ultimate') ? '' : (globalConfig.branding_html || '<span style="opacity: 0.6; font-size: 11px;">⚡ Powered by <strong>StyleFlo</strong></span>'),
       brandingUrl: (planTier === 'premium' || planTier === 'ultimate') ? '' : (globalConfig.branding_url || 'https://styleflo.ai'),
       voiceEnabled: isVoiceActive,
