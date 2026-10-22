@@ -321,7 +321,7 @@ ${globalDisclaimer}`;
             choices: [{ delta: {}, index: 0, finish_reason: 'stop' }]
           };
           controller.enqueue(encoder.encode(`data: ${JSON.stringify(finishChunk)}\n\n`));
-          controller.encode ? controller.enqueue(encoder.encode(`data: [DONE]\n\n`)) : null;
+          controller.enqueue(encoder.encode(`data: [DONE]\n\n`));
           controller.close();
 
           // Log session

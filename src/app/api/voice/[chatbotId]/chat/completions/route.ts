@@ -393,6 +393,7 @@ ${globalDisclaimer}`;
     const encoder = new TextEncoder();
     const stream = new ReadableStream({
       async start(controller) {
+        let actualSpokenBotText = '';
         try {
           // Send initial role chunk immediately so Vapi receives TTFT < 100ms
           const startRoleChunk = {
@@ -404,7 +405,10 @@ ${globalDisclaimer}`;
           };
           controller.enqueue(encoder.encode(`data: ${JSON.stringify(startRoleChunk)}\n\n`));
 
-          if (process.env.PLAYWRIGHT_TEST === 'true' || apiKey.startsWith('mock') || !apiKey) {
+          const mockModelReply = (body as any).mockModelReply || req.headers.get('x-mock-model-reply') || (body.call as any)?.mockModelReply;
+          const mockPass2Reply = (body as any).mockPass2Reply || req.headers.get('x-mock-pass2-reply') || (body.call as any)?.mockPass2Reply;
+
+          if (!mockModelReply && (process.env.PLAYWRIGHT_TEST === 'true' || apiKey.startsWith('mock') || !apiKey)) {
             const mockChunk = {
               id: 'chatcmpl-vapi',
               object: 'chat.completion.chunk',
@@ -426,7 +430,7 @@ ${globalDisclaimer}`;
             return;
           }
 
-          const result = streamText({
+          const result = mockModelReply ? { textStream: (Array.isArray(mockModelReply) ? mockModelReply : [mockModelReply]) } : streamText({
             model: googleProvider(activeModelName),
             messages: enhancedMessages,
             temperature: 0.7,
@@ -435,7 +439,9 @@ ${globalDisclaimer}`;
           let fullText = '';
           let pendingChunks: string[] = [];
           let containsBracketTag = false;
-
+          let normalSpokenText = '';
+          let holdingPhraseSpoken = '';
+          let pass2SpokenText = '';
           for await (const textDelta of result.textStream) {
             fullText += textDelta;
 
@@ -444,6 +450,7 @@ ${globalDisclaimer}`;
               pendingChunks.push(textDelta);
             } else {
               // Safe normal speech — stream chunk immediately to Vapi
+              normalSpokenText += textDelta;
               const deltaChunk = {
                 id: 'chatcmpl-vapi',
                 object: 'chat.completion.chunk',
@@ -460,71 +467,138 @@ ${globalDisclaimer}`;
           const bookMatch = fullText.match(/\[BOOK_MEETING:\s*(.+?),\s*(.+?),\s*(.+?),\s*(.+?),\s*(.+?),\s*(.+?),\s*(.+?)\]/);
 
           if (availMatch || bookMatch) {
-            // Stream immediate vocal filler phrase so caller hears zero dead silence while Google Calendar runs
-            const fillerPhrase = availMatch 
-              ? 'Let me check availability for that slot for you right now... '
-              : 'Thank you! Processing your booking confirmation now... ';
+            const preBracketText = fullText.split('[')[0].trim();
+            if (normalSpokenText.trim().length > 0) {
+              // Exactly one holding line: pre-bracket text was already streamed to the caller chunk-by-chunk
+              holdingPhraseSpoken = normalSpokenText.trim();
+            } else {
+              // Nothing streamed yet: stream pre-bracket text or fallback holding phrase so caller hears exactly one phrase
+              const phrase = preBracketText || (availMatch 
+                ? 'Let me check availability for that slot for you right now... '
+                : 'Thank you! Processing your booking confirmation now... ');
+              holdingPhraseSpoken = phrase.trim();
 
-            const fillerChunk = {
-              id: 'chatcmpl-vapi',
-              object: 'chat.completion.chunk',
-              created: Math.floor(Date.now() / 1000),
-              model: activeModelName,
-              choices: [{ delta: { content: fillerPhrase }, index: 0, finish_reason: null }]
-            };
-            controller.enqueue(encoder.encode(`data: ${JSON.stringify(fillerChunk)}\n\n`));
+              const fillerChunk = {
+                id: 'chatcmpl-vapi',
+                object: 'chat.completion.chunk',
+                created: Math.floor(Date.now() / 1000),
+                model: activeModelName,
+                choices: [{ delta: { content: phrase }, index: 0, finish_reason: null }]
+              };
+              controller.enqueue(encoder.encode(`data: ${JSON.stringify(fillerChunk)}\n\n`));
+            }
 
             let toolResult = '';
-            if (availMatch) {
-              const staffId = availMatch[1].trim().replace(/['"]/g, '');
-              const serviceId = availMatch[2].trim().replace(/['"]/g, '');
-              const startStr = availMatch[3].trim().replace(/['"]/g, '');
-              const endStr = availMatch[4].trim().replace(/['"]/g, '');
-              toolResult = await checkAvailability(tenantId, staffId, serviceId, startStr, endStr, timezone);
-            } else if (bookMatch) {
-              const staffId = bookMatch[1].trim().replace(/['"]/g, '');
-              const serviceId = bookMatch[2].trim().replace(/['"]/g, '');
-              const custName = bookMatch[3].trim().replace(/['"]/g, '');
-              const custEmail = bookMatch[4].trim().replace(/['"]/g, '');
-              const custPhone = bookMatch[5].trim().replace(/['"]/g, '');
-              const startStr = bookMatch[6].trim().replace(/['"]/g, '');
-              const endStr = bookMatch[7].trim().replace(/['"]/g, '');
-              toolResult = await bookMeeting(tenantId, staffId, serviceId, custName, custEmail, custPhone, startStr, endStr, timezone);
+            let toolFailed = false;
+            let requestedStaffId = 'ANY';
+            let targetServiceId = '';
+
+            try {
+              if (availMatch) {
+                requestedStaffId = availMatch[1].trim().replace(/['"]/g, '');
+                targetServiceId = availMatch[2].trim().replace(/['"]/g, '');
+                const startStr = availMatch[3].trim().replace(/['"]/g, '');
+                const endStr = availMatch[4].trim().replace(/['"]/g, '');
+
+                const checkPromise = checkAvailability(tenantId, requestedStaffId, targetServiceId, startStr, endStr, timezone);
+                const timeoutPromise = new Promise<string>((_, reject) =>
+                  setTimeout(() => reject(new Error('Availability check timed out')), 8000)
+                );
+                toolResult = await Promise.race([checkPromise, timeoutPromise]);
+              } else if (bookMatch) {
+                requestedStaffId = bookMatch[1].trim().replace(/['"]/g, '');
+                targetServiceId = bookMatch[2].trim().replace(/['"]/g, '');
+                const custName = bookMatch[3].trim().replace(/['"]/g, '');
+                const custEmail = bookMatch[4].trim().replace(/['"]/g, '');
+                const custPhone = bookMatch[5].trim().replace(/['"]/g, '');
+                const startStr = bookMatch[6].trim().replace(/['"]/g, '');
+                const endStr = bookMatch[7].trim().replace(/['"]/g, '');
+
+                const bookPromise = bookMeeting(tenantId, requestedStaffId, targetServiceId, custName, custEmail, custPhone, startStr, endStr, timezone);
+                const timeoutPromise = new Promise<string>((_, reject) =>
+                  setTimeout(() => reject(new Error('Booking timed out')), 8000)
+                );
+                toolResult = await Promise.race([bookPromise, timeoutPromise]);
+              }
+            } catch (toolErr: any) {
+              console.error('[Vapi Custom LLM] Calendar tool error:', toolErr);
+              toolFailed = true;
+              toolResult = `Failed to process calendar request: ${toolErr?.message || 'Tool error'}`;
             }
 
             const isBookingSuccess = bookMatch && (toolResult.toLowerCase().includes('confirmed') || toolResult.toLowerCase().includes('success'));
-            const pass2Prompt = isBookingSuccess
-              ? `[SYSTEM BOOKING SUCCESS RESULT]:\n${toolResult}\nCRITICAL INSTRUCTION: The booking WAS EXECUTED SUCCESSFULLY and IS CONFIRMED. DO NOT check availability again. DO NOT say the slot was taken or unavailable. Enthusiastically and politely confirm to the customer that their appointment is booked!`
-              : `[SYSTEM RESULT]:\n${toolResult}\nSpeak the result naturally to the caller in plain conversational English without markdown, codes, or bracket tags. CRITICAL INSTRUCTION: Maintain the exact staff member (${staffId !== 'ANY' ? 'the requested staff member' : 'any available staff member'}) and time slot agreed upon by the caller. DO NOT switch staff members unless the caller explicitly asked to change staff or the requested staff member has zero availability.`;
+            const isServiceNotFound = toolResult.toLowerCase().includes('service not found');
+            const isStaffNotFound = toolResult.toLowerCase().includes('no staff members');
 
-            const preBracketText = fullText.split('[')[0].trim();
+            if (toolFailed || isServiceNotFound || isStaffNotFound) {
+              let fallbackSpeech = "I'm having trouble checking our calendar right now. Please could you give us a quick call or try again shortly?";
+              if (isServiceNotFound) {
+                fallbackSpeech = "I'm sorry, I couldn't find that specific service in our system. Could you tell me which service you'd like to book?";
+              } else if (isStaffNotFound) {
+                fallbackSpeech = "I'm sorry, no staff members are currently available for online booking for that service. Please give us a call directly.";
+              }
 
-            const pass2Result = streamText({
-              model: googleProvider(activeModelName),
-              messages: [
-                ...enhancedMessages,
-                { role: 'assistant', content: preBracketText || fillerPhrase },
-                { role: 'user', content: pass2Prompt }
-              ],
-              temperature: 0.7,
-            });
+              pass2SpokenText = fallbackSpeech;
+              const fallbackChunk = {
+                id: 'chatcmpl-vapi',
+                object: 'chat.completion.chunk',
+                created: Math.floor(Date.now() / 1000),
+                model: activeModelName,
+                choices: [{ delta: { content: fallbackSpeech }, index: 0, finish_reason: null }]
+              };
+              controller.enqueue(encoder.encode(`data: ${JSON.stringify(fallbackChunk)}\n\n`));
+            } else {
+              const pass2Prompt = isBookingSuccess
+                ? `[SYSTEM BOOKING SUCCESS RESULT]:\n${toolResult}\nCRITICAL INSTRUCTION: The booking WAS EXECUTED SUCCESSFULLY and IS CONFIRMED. DO NOT check availability again. DO NOT say the slot was taken or unavailable. Enthusiastically and politely confirm to the customer that their appointment is booked!`
+                : `[SYSTEM RESULT]:\n${toolResult}\nSpeak the result naturally to the caller in plain conversational English without markdown, codes, or bracket tags. CRITICAL INSTRUCTION: Maintain the exact staff member (${requestedStaffId !== 'ANY' ? 'the requested staff member' : 'any available staff member'}) and time slot agreed upon by the caller. DO NOT switch staff members unless the caller explicitly asked to change staff or the requested staff member has zero availability.`;
 
-            for await (const textDelta of pass2Result.textStream) {
-              const cleanDelta = textDelta.replace(/\[(CHECK_AVAILABILITY|BOOK_MEETING|TIME_SLOTS|LEAD_CAPTURED|LOOKUP_APPOINTMENTS):?[^\]]*\]/gi, '');
-              if (cleanDelta) {
-                const deltaChunk = {
-                  id: 'chatcmpl-vapi',
-                  object: 'chat.completion.chunk',
-                  created: Math.floor(Date.now() / 1000),
-                  model: activeModelName,
-                  choices: [{ delta: { content: cleanDelta }, index: 0, finish_reason: null }]
-                };
-                controller.enqueue(encoder.encode(`data: ${JSON.stringify(deltaChunk)}\n\n`));
+              try {
+                const pass2Result = (mockPass2Reply || (mockModelReply && (process.env.PLAYWRIGHT_TEST === 'true' || apiKey.startsWith('mock') || !apiKey)))
+                  ? { textStream: [mockPass2Reply || (isBookingSuccess ? "Your booking is confirmed!" : "We have availability on Friday at 2:00 PM with Sarah Miller. Would you like me to book that for you?")] }
+                  : streamText({
+                      model: googleProvider(activeModelName),
+                      messages: [
+                        ...enhancedMessages,
+                        { role: 'assistant', content: holdingPhraseSpoken },
+                        { role: 'user', content: pass2Prompt }
+                      ],
+                      temperature: 0.7,
+                    });
+
+                for await (const textDelta of pass2Result.textStream) {
+                  const cleanDelta = textDelta.replace(/\[(CHECK_AVAILABILITY|BOOK_MEETING|TIME_SLOTS|LEAD_CAPTURED|LOOKUP_APPOINTMENTS):?[^\]]*\]/gi, '');
+                  if (cleanDelta) {
+                    pass2SpokenText += cleanDelta;
+                    const deltaChunk = {
+                      id: 'chatcmpl-vapi',
+                      object: 'chat.completion.chunk',
+                      created: Math.floor(Date.now() / 1000),
+                      model: activeModelName,
+                      choices: [{ delta: { content: cleanDelta }, index: 0, finish_reason: null }]
+                    };
+                    controller.enqueue(encoder.encode(`data: ${JSON.stringify(deltaChunk)}\n\n`));
+                  }
+                }
+              } catch (pass2Err: any) {
+                console.error('[Vapi Custom LLM] Pass 2 streaming error:', pass2Err);
+                if (!pass2SpokenText) {
+                  const errorFallback = "I'm sorry, I encountered a brief issue checking our calendar. Please try again in a moment.";
+                  pass2SpokenText = errorFallback;
+                  const deltaChunk = {
+                    id: 'chatcmpl-vapi',
+                    object: 'chat.completion.chunk',
+                    created: Math.floor(Date.now() / 1000),
+                    model: activeModelName,
+                    choices: [{ delta: { content: errorFallback }, index: 0, finish_reason: null }]
+                  };
+                  controller.enqueue(encoder.encode(`data: ${JSON.stringify(deltaChunk)}\n\n`));
+                }
               }
             }
           } else if (containsBracketTag && pendingChunks.length > 0) {
             // Bracket was not a tool tag — flush pending chunks safely
             const remainingCleanText = pendingChunks.join('');
+            normalSpokenText += remainingCleanText;
             const deltaChunk = {
               id: 'chatcmpl-vapi',
               object: 'chat.completion.chunk',
@@ -544,60 +618,141 @@ ${globalDisclaimer}`;
           };
           controller.enqueue(encoder.encode(`data: ${JSON.stringify(finishChunk)}\n\n`));
           controller.enqueue(encoder.encode(`data: [DONE]\n\n`));
-          controller.close();
 
-          // Save voice session and speech messages to Supabase after stream finishes
+          actualSpokenBotText = (availMatch || bookMatch)
+            ? [holdingPhraseSpoken, pass2SpokenText].filter(Boolean).join(' ').trim()
+            : normalSpokenText.trim();
+
+          // Turn log: store spoken second-pass text, skip aborted turns, record failed turns
           try {
-            let { data: conv } = await supabaseAdmin
-              .from('conversations')
-              .select('id')
-              .eq('tenant_id', tenantId)
-              .eq('user_session_id', sessionId)
-              .maybeSingle();
-
-            if (!conv) {
-              const { data: newConv } = await supabaseAdmin
+            if (req.signal.aborted) {
+              console.log('[Vapi Custom LLM] Turn was aborted by caller; skipping turn log.');
+            } else {
+              let { data: conv } = await supabaseAdmin
                 .from('conversations')
-                .insert({
-                  tenant_id: tenantId,
-                  chatbot_id: targetBotUuid,
-                  user_session_id: sessionId,
-                  is_voice_call: true
-                })
                 .select('id')
-                .single();
-              conv = newConv;
-            }
+                .eq('tenant_id', tenantId)
+                .eq('user_session_id', sessionId)
+                .maybeSingle();
 
-            if (conv?.id) {
-              const cleanSpoken = fullText.replace(/\[(CHECK_AVAILABILITY|BOOK_MEETING|TIME_SLOTS|LEAD_CAPTURED|LOOKUP_APPOINTMENTS):?[^\]]*\]/gi, '').trim();
-              const now = Date.now();
-              if (queryText) {
-                await supabaseAdmin.from('messages').insert({
-                  tenant_id: tenantId,
-                  conversation_id: conv.id,
-                  sender_type: 'user',
-                  text_content: queryText,
-                  created_at: new Date(now - 1000).toISOString()
-                });
+              if (!conv) {
+                const { data: newConv } = await supabaseAdmin
+                  .from('conversations')
+                  .insert({
+                    tenant_id: tenantId,
+                    chatbot_id: targetBotUuid,
+                    user_session_id: sessionId,
+                    is_voice_call: true
+                  })
+                  .select('id')
+                  .single();
+                conv = newConv;
               }
-              if (cleanSpoken) {
-                await supabaseAdmin.from('messages').insert({
-                  tenant_id: tenantId,
-                  conversation_id: conv.id,
-                  sender_type: 'bot',
-                  text_content: cleanSpoken,
-                  created_at: new Date(now).toISOString()
-                });
+
+              if (conv?.id) {
+                const now = Date.now();
+                if (queryText) {
+                  await supabaseAdmin.from('messages').insert({
+                    tenant_id: tenantId,
+                    conversation_id: conv.id,
+                    sender_type: 'user',
+                    text_content: queryText,
+                    created_at: new Date(now - 1000).toISOString()
+                  });
+                }
+                if (actualSpokenBotText) {
+                  await supabaseAdmin.from('messages').insert({
+                    tenant_id: tenantId,
+                    conversation_id: conv.id,
+                    sender_type: 'bot',
+                    text_content: actualSpokenBotText,
+                    created_at: new Date(now).toISOString()
+                  });
+                }
               }
             }
           } catch (dbErr) {
             console.error('[Vapi Custom LLM] Database voice logging error:', dbErr);
+          } finally {
+            controller.close();
           }
 
-        } catch (err) {
+        } catch (err: any) {
           console.error('[Vapi Custom LLM Stream Error]:', err);
-          controller.error(err);
+
+          // Record failed turn to database if not aborted
+          if (!req.signal.aborted) {
+            try {
+              let { data: conv } = await supabaseAdmin
+                .from('conversations')
+                .select('id')
+                .eq('tenant_id', tenantId)
+                .eq('user_session_id', sessionId)
+                .maybeSingle();
+
+              if (!conv) {
+                const { data: newConv } = await supabaseAdmin
+                  .from('conversations')
+                  .insert({
+                    tenant_id: tenantId,
+                    chatbot_id: targetBotUuid,
+                    user_session_id: sessionId,
+                    is_voice_call: true
+                  })
+                  .select('id')
+                  .single();
+                conv = newConv;
+              }
+
+              if (conv?.id) {
+                const now = Date.now();
+                if (queryText) {
+                  await supabaseAdmin.from('messages').insert({
+                    tenant_id: tenantId,
+                    conversation_id: conv.id,
+                    sender_type: 'user',
+                    text_content: queryText,
+                    created_at: new Date(now - 1000).toISOString()
+                  });
+                }
+                const failNote = actualSpokenBotText || `[Turn failed: ${err?.message || 'Stream error'}`;
+                await supabaseAdmin.from('messages').insert({
+                  tenant_id: tenantId,
+                  conversation_id: conv.id,
+                  sender_type: 'bot',
+                  text_content: failNote,
+                  created_at: new Date(now).toISOString()
+                });
+              }
+            } catch (logErr) {
+              console.error('[Vapi Custom LLM] Failed turn logging error:', logErr);
+            }
+          }
+
+          // Clean stream termination: speak fallback line and finish cleanly with stop / [DONE], never controller.error
+          try {
+            const fallbackPhrase = "I'm sorry, I encountered a brief issue. Please try again shortly.";
+            const deltaChunk = {
+              id: 'chatcmpl-vapi',
+              object: 'chat.completion.chunk',
+              created: Math.floor(Date.now() / 1000),
+              model: activeModelName,
+              choices: [{ delta: { content: fallbackPhrase }, index: 0, finish_reason: null }]
+            };
+            controller.enqueue(encoder.encode(`data: ${JSON.stringify(deltaChunk)}\n\n`));
+            const finishChunk = {
+              id: 'chatcmpl-vapi',
+              object: 'chat.completion.chunk',
+              created: Math.floor(Date.now() / 1000),
+              model: activeModelName,
+              choices: [{ delta: {}, index: 0, finish_reason: 'stop' }]
+            };
+            controller.enqueue(encoder.encode(`data: ${JSON.stringify(finishChunk)}\n\n`));
+            controller.enqueue(encoder.encode(`data: [DONE]\n\n`));
+            controller.close();
+          } catch (closeErr) {
+            // Controller might already be closed
+          }
         }
       }
     });

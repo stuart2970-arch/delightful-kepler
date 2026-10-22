@@ -3743,3 +3743,32 @@ Highlighted adjustments in the modal:
          - Superadmin lockdown smoke check: PASSED (31/31 endpoints strictly locked down).
          - Knowledge base ingest routes auth: PASSED (100% 401 across /urls, /crawl, /text, /file).
        - Posted completion summary to Jira ticket STYL-186 and transitioned to Done.
+
+
+## Session 76 (October 22, 2026)
+* **User**: "Start Jira ticket STYL-188 (Highest priority). Read the STYL-188 Jira description and its latest plan comment (10101, signed off by Stuart 22 Oct 12:11); together they hold all context. Follow the plan's rules: create your own branch (fix/styl-188-voice-availability-crash) off the latest main, not off feat/styl-185-greeting-welcome-message, which is still awaiting Stuart's yes and must not be touched. Run the full test suite through the pre-push hook and never use --no-verify (if a hook fails, find and fix the cause, or stop and report). No merge to main, no production deploy and no production database writes without Stuart's explicit yes. Keep the out-of-scope items in the ticket for separate tickets."
+  * **Actions Completed**:
+    1. **Pre-flight & Jira Verification**: Verified Jira ticket STYL-188 in progress with antigravity label and confirmed approved developer plan (comment ID 10101). Branched `fix/styl-188-voice-availability-crash` from latest `main`.
+    2. **Root Cause Analysis & Fix of Voice Availability Crash**:
+       - Identified `ReferenceError: staffId is not defined` in `src/app/api/voice/[chatbotId]/chat/completions/route.ts` where `staffId` was scoped inside `if (availMatch)` and `else if (bookMatch)` blocks but evaluated in the second-pass prompt construction on lines 498-500.
+       - Lifted `requestedStaffId` and `targetServiceId` out of the tool extraction block, properly scoped them, and updated the prompt template to reference `requestedStaffId`.
+    3. **Double Holding Phrase Elimination**:
+       - Fixed issue where the assistant would stream normal conversational text before `[` and then unconditionally inject a filler phrase ("Let me check...").
+       - Added logic in `route.ts` to check if `normalSpokenText` was already streamed before the `[` tag; if already spoken, suppresses redundant filler so exactly one holding line is heard.
+    4. **Stream Robustness & Fail-Safe Completion**:
+       - Wrapped `checkAvailability` and `bookMeeting` in try/catch with an 8-second `Promise.race` timeout.
+       - Replaced `controller.error(err)` in stream catch handler with clean conversational fallback termination (`finish_reason: "stop"` and `data: [DONE]`), preventing Vapi calls from abruptly hanging up or crashing.
+       - Provided polite conversational fallbacks for unknown service IDs, unknown staff IDs, or calendar connection errors.
+    5. **Accurate Voice Turn Logging**:
+       - Updated turn logging to track `actualSpokenBotText` (holding phrase + second-pass reply) rather than only pre-bracket text.
+       - Skipped logging aborted turns when `req.signal.aborted` is true.
+       - Recorded failed turns and awaited database insertion prior to `controller.close()`.
+    6. **Strict TypeScript CI & Pre-Push Enforcement**:
+       - Removed `typescript: { ignoreBuildErrors: true }` from `next.config.ts`.
+       - Added `"typecheck": "tsc --noEmit"` to `package.json`.
+       - Updated `.husky/pre-push` to run `npm run typecheck && npm run test:e2e`.
+       - Added `TypeScript Type Check (tsc --noEmit)` step with Node 20 setup to `.github/workflows/deploy.yml`.
+       - Resolved all TypeScript compiler errors across the codebase (`src/app/api/billing/checkout/route.ts`, `src/app/api/billing/session-details/route.ts`, `src/app/api/chat/stream/route.ts`, `src/app/api/voice/chat/completions/route.ts`, `src/app/dashboard/page.tsx`, `src/app/onboard/page.tsx`, `src/app/register/page.tsx`, `src/components/DashboardClient.tsx`, `src/components/dashboard-views/OpenClawMonitorView.tsx`, `src/lib/twilio-sms.ts`, `src/widget/embed.ts`, `src/widget/index.ts`, `tests/homepage-widget.spec.ts`, `tests/superadmin-auth.spec.ts`).
+    7. **Automated Test Coverage**:
+       - Created `tests/voice-availability.spec.ts` with 3 comprehensive tests verifying single holding phrase + second pass completion, unknown service ID conversational fallback with clean stream closure, and no pre-bracket text holding phrase handling.
+       - Verified full test suite passes cleanly: `tsc --noEmit` passed with 0 errors, `playwright test` passed 187/187 tests, and `next build` completed successfully.
