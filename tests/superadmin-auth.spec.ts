@@ -102,7 +102,7 @@ test.describe('STYL-178: Superadmin Server-Side Authentication & Authorization H
     for (const method of entry.methods) {
       const isCron = entry.auth === 'cron';
       const isMixed = entry.auth === 'mixed';
-      const expectedAuth = isMixed ? entry.methodAuth?.[method] : entry.auth;
+      const expectedAuth = isMixed ? (entry.methodAuth as any)?.[method] : entry.auth;
 
       test(`Route Matrix: ${method} ${entry.path} enforces strict auth boundary`, async ({ request }) => {
         const dummyBody = method !== 'GET' ? {} : undefined;

@@ -29,6 +29,19 @@ jobs:
       - name: Checkout Source Code
         uses: actions/checkout@v4
 
+      # 1b. Set up Node.js & Run Type Check (STYL-188)
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'npm'
+
+      - name: Install Dependencies
+        run: npm ci
+
+      - name: TypeScript Type Check (tsc --noEmit)
+        run: npm run typecheck
+
       # 2. Authenticate with Google Cloud Platform
       # Recommended best practice: Workload Identity Federation (avoids static passwords in secrets)
       - name: Authenticate to Google Cloud

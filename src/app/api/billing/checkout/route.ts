@@ -53,7 +53,7 @@ export async function GET(req: Request) {
     const selectedAddonIds = parseAddonIds(rawAddons);
 
     const stripe = new Stripe(apiKey, {
-      apiVersion: '2023-10-16',
+      apiVersion: '2023-10-16' as any,
     });
 
     const isLocal = process.env.NODE_ENV === 'development' || process.env.NEXT_PUBLIC_ENV === 'development';
@@ -171,7 +171,7 @@ export async function GET(req: Request) {
       cancel_url: appendQueryParams(returnUrl || (isLocal ? 'https://styleflo.test/#pricing' : 'https://styleflo.ai/#pricing'), 'checkout_status=cancelled'),
     });
 
-    return NextResponse.redirect(session.url, 303);
+    return NextResponse.redirect(session.url || '/dashboard', 303);
   } catch (err: any) {
     console.error('Stripe Checkout GET Error:', err);
     return NextResponse.json({ error: err.message || 'Failed to initiate checkout' }, { status: 500, headers: corsHeaders });
@@ -186,7 +186,7 @@ export async function POST(req: Request) {
     }
 
     const stripe = new Stripe(apiKey, {
-      apiVersion: '2023-10-16',
+      apiVersion: '2023-10-16' as any,
     });
 
     const supabase = getSupabase();

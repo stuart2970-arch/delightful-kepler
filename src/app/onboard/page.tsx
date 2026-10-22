@@ -45,7 +45,7 @@ function OnboardContent() {
         ? `${window.location.origin}/dashboard`
         : 'https://app.styleflo.ai/dashboard';
 
-      const { data, error } = await supabase.auth.signInWithOAuth({
+      const { data, error } = await (supabase.auth.signInWithOAuth as any)({
         provider: 'google',
         options: {
           scopes: 'https://www.googleapis.com/auth/calendar',

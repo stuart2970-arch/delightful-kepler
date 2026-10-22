@@ -23,7 +23,8 @@ import Vapi from '@vapi-ai/web';
   }
 
   // Parse host URL from script source, or override if provided
-  const scriptUrl = scriptEl.src ? new URL(scriptEl.src, window.location.href) : new URL(window.location.href);
+  const scriptSrc = (scriptEl as HTMLScriptElement).src;
+  const scriptUrl = scriptSrc ? new URL(scriptSrc, window.location.href) : new URL(window.location.href);
   const apiHost = scriptEl.getAttribute('data-api-host') || scriptUrl.origin;
 
   // 2. Generate or retrieve Session ID to preserve chat history
@@ -789,7 +790,7 @@ import Vapi from '@vapi-ai/web';
         try {
           const formData = new FormData();
           formData.append('file', file);
-          formData.append('chatbotId', chatbotId);
+          formData.append('chatbotId', chatbotId || '');
 
           const uploadRes = await fetch(`${apiHost}/api/ingest/file`, {
             method: 'POST',
@@ -1564,7 +1565,7 @@ import Vapi from '@vapi-ai/web';
             return;
           }
 
-          await vapiInstance.start({
+          await (vapiInstance.start as any)({
             name: `${agentName} Assistant`,
             transcriber: {
               provider: "deepgram",

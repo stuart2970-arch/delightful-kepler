@@ -298,7 +298,7 @@ test.describe('STYL-181: Per-Session Name & Terms Gate, Voice Call Interception,
       return page.evaluate(() => (window as unknown as TestWindow).__STYLEFLO_LAST_VAPI_CALL__);
     }, { timeout: 10000 }).toBeTruthy();
 
-    const lastVapiCall = await page.evaluate(() => (window as unknown as TestWindow).__STYLEFLO_LAST_VAPI_CALL__);
+    const lastVapiCall = (await page.evaluate(() => (window as unknown as TestWindow).__STYLEFLO_LAST_VAPI_CALL__)) as any;
     expect(lastVapiCall.firstName).toBe('John');
     expect(lastVapiCall.clientName).toBe('John');
     expect(lastVapiCall.firstMessage).toContain('John');

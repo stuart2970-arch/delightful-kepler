@@ -191,7 +191,7 @@ function RegisterContent() {
         : `https://app.styleflo.ai/auth/callback?next=${encodeURIComponent(checkoutNext)}`;
 
       trackSignUp('google', planParam);
-      const { error } = await supabase.auth.signInWithOAuth({
+      const { error } = await (supabase.auth.signInWithOAuth as any)({
         provider: 'google',
         options: {
           scopes: 'https://www.googleapis.com/auth/calendar',

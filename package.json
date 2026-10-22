@@ -5,6 +5,7 @@
   "scripts": {
     "dev": "next dev",
     "build": "next build && npm run build:widget",
+    "typecheck": "tsc --noEmit",
     "start": "next start",
     "lint": "eslint",
     "build:widget": "node scripts/build-widget.js",

@@ -37,6 +37,12 @@ async function createSupabaseServerClient() {
   });
 }
 
+function isMobileNumber(num?: string | null): boolean {
+  if (!num) return false;
+  const clean = num.replace(/[^\d+]/g, '');
+  return /^(?:\+447|07|447|00447)/.test(clean);
+}
+
 export default async function DashboardPage(props: { searchParams?: Promise<{ [key: string]: string | string[] | undefined }> }) {
   const resolvedSearchParams = props.searchParams ? await props.searchParams : {};
   const initialTab = typeof resolvedSearchParams.tab === 'string' ? resolvedSearchParams.tab : undefined;

@@ -85,8 +85,13 @@ interface DashboardClientProps {
   initialOperatingHoursOverrides?: Record<string, unknown>[];
   initialHolidaySettings?: Record<string, unknown>;
   initialGlobalVoiceDisclaimer?: string;
-  billingData?: Record<string, unknown>;
-  superadminData?: Record<string, unknown>;
+  billingData?: any;
+  superadminData?: any;
+  initialFlexibleBreaks?: boolean;
+  initialIs247?: boolean;
+  initialOpenPublicHolidays?: boolean;
+  initialMaxAdvanceWeeks?: number;
+  
   isImpersonating?: boolean;
   initialGoogleConnected?: boolean;
   initialHasGoogleCalendarAddon?: boolean;
@@ -277,6 +282,10 @@ export default function DashboardClient({
   } = useDashboardStore();
 
   const [isSavingAccountSettings, setIsSavingAccountSettings] = useState(false);
+  const [isSavingGlobal, setIsSavingGlobal] = useState(false);
+  const [globalBrandingHtml, setGlobalBrandingHtml] = useState('');
+  const [globalTrackingUrl, setGlobalTrackingUrl] = useState('');
+  const [globalVoiceDisclaimer, setGlobalVoiceDisclaimer] = useState(initialGlobalVoiceDisclaimer || '');
   const [checkoutNotification, setCheckoutNotification] = useState<{ type: 'success' | 'cancelled'; message: string } | null>(null);
   const [isOpeningPortal, setIsOpeningPortal] = useState(false);
   const [billingMessage, setBillingMessage] = useState<string | null>(null);
@@ -602,10 +611,7 @@ const globalBotId = '00000000-0000-0000-0000-000000000000';
 
     if (successfullySaved) {
       setChatbots([newChatbot, ...chatbots]);
-      setMetrics((prev) => ({
-        ...prev,
-        chatbotsCount: prev.chatbotsCount + 1,
-      }));
+      setMetrics({ ...metrics, chatbotsCount: metrics.chatbotsCount + 1 });
       setNewBotName('');
       setNewBotWelcome('Hello! How can I help you today?');
       setNewAgentName('');
@@ -714,16 +720,13 @@ const globalBotId = '00000000-0000-0000-0000-000000000000';
         }, { onConflict: 'id' });
         
       if (error) throw error;
-      setChatbots(prev => {
-        const others = prev.filter(b => b.id !== globalBotId);
-        return [...others, {
+      setChatbots([...chatbots.filter((b: any) => b.id !== globalBotId), {
           id: globalBotId,
           name: 'Global Branding Bot',
           primary_color: '#000000',
           configuration_json: newConfig,
           created_at: globalBot?.created_at || new Date().toISOString()
-        }];
-      });
+        }]);
       alert('Global branding saved successfully!');
     } catch (err: unknown) {
       alert('Failed to save global branding: ' + (err instanceof Error ? err.message : String(err)));
@@ -771,16 +774,13 @@ const globalBotId = '00000000-0000-0000-0000-000000000000';
         }, { onConflict: 'id' });
         
       if (error) throw error;
-      setChatbots(prev => {
-        const others = prev.filter(b => b.id !== globalBotId);
-        return [...others, {
+      setChatbots([...chatbots.filter((b: any) => b.id !== globalBotId), {
           id: globalBotId,
           name: 'Global Branding Bot',
           primary_color: '#000000',
           configuration_json: newConfig,
           created_at: globalBot?.created_at || new Date().toISOString()
-        }];
-      });
+        }]);
       alert('Global disclaimer saved successfully!');
     } catch (err: unknown) {
       alert('Failed to save global disclaimer: ' + (err instanceof Error ? err.message : String(err)));

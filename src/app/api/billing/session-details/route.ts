@@ -26,7 +26,7 @@ export async function GET(req: Request) {
     }
 
     const stripe = new Stripe(apiKey, {
-      apiVersion: '2023-10-16',
+      apiVersion: '2023-10-16' as any,
     });
 
     const session = await stripe.checkout.sessions.retrieve(sessionId, {

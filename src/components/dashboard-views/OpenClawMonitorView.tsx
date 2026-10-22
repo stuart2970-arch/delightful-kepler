@@ -429,7 +429,7 @@ export default function OpenClawMonitorView() {
                           headers: { 'Content-Type': 'application/json' },
                           body: JSON.stringify({ tenantId, tradingAddressPhone: null })
                         });
-                        useDashboardStore.setState({ tradingAddressPhone: null });
+                        useDashboardStore.setState({ tradingAddressPhone: undefined });
                       }
                       setActivePhoneOrHandle('');
                       alert(`${activeConfigModal.name} channel disconnected successfully.`);
@@ -489,7 +489,7 @@ export default function OpenClawMonitorView() {
                             tradingAddressPhone: newPhone
                           })
                         });
-                        useDashboardStore.setState({ tradingAddressPhone: newPhone });
+                        useDashboardStore.setState({ tradingAddressPhone: newPhone || undefined });
                       }
                       alert(`${activeConfigModal.name} settings updated successfully!`);
                       setActiveConfigModal(null);

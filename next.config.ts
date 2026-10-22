@@ -8,9 +8,6 @@ const nextConfig: any = {
       bodySizeLimit: '25mb',
     },
   },
-  typescript: {
-    ignoreBuildErrors: true,
-  },
   async headers() {
     return [
       {

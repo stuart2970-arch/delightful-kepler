@@ -23,7 +23,7 @@ export async function sendDirectTwilioSms(payload: OutboundSmsPayload): Promise<
 
   try {
     // Initialize Twilio client with region fallback options if specified
-    const clientOpts: twilio.TwilioClientOptions = {};
+    const clientOpts: any = {};
     if (region) {
       clientOpts.region = region;
     }
