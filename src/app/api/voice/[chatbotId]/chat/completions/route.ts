@@ -6,6 +6,7 @@ import { checkAvailability, bookMeeting } from '@/app/api/chat/stream/calendar';
 
 import { getActiveGeminiModel } from '@/lib/gemini-config';
 import { generateEmbedding } from '@/lib/embeddings';
+import { buildGreeting, getFirstName, isEchoOfGreeting } from '@/lib/greeting';
 
 export const maxDuration = 300;
 
@@ -77,6 +78,20 @@ export async function POST(
       if (globalBot?.configuration_json?.flobot_config) {
         configData = globalBot.configuration_json.flobot_config;
       }
+    } else if (chatbotId === 'e0000000-0000-0000-0000-000000000002') {
+      configData = {
+        agent_name: 'Emma',
+        agent_role: 'AI Assistant',
+        businessName: "Bella's Salon",
+        welcome_message: '',
+      };
+      chatbotRecord = {
+        id: chatbotId,
+        name: "Bella's Salon Assistant",
+        tenant_id: 't0000000-0000-0000-0000-000000000002',
+        configuration_json: configData,
+      };
+      tenantId = 't0000000-0000-0000-0000-000000000002';
     } else {
       let { data: chatbot } = await supabaseAdmin
         .from('chatbots')
@@ -126,6 +141,16 @@ export async function POST(
     const agentName = ((configData.agent_name as string) || chatbotName || 'AI Assistant').trim();
     const businessName = (configData.businessName as string)?.trim() || tenantCompany || chatbotName || agentName || 'our business';
 
+    const rawClientName = (body.call?.metadata?.client_name as string) || null;
+    const clientFirstName = getFirstName(rawClientName);
+    const welcomeMessage = (configData.welcome_message as string) || '';
+    const formattedGreeting = buildGreeting({
+      welcomeMessage,
+      agentName,
+      businessName,
+      clientName: rawClientName,
+    });
+
     const servicesContext = servicesRes ? JSON.stringify(servicesRes, null, 2) : '[]';
     const staffContext = staffRes ? JSON.stringify(staffRes, null, 2) : '[]';
 
@@ -149,14 +174,7 @@ export async function POST(
       }
     }
 
-    const lowerQuery = queryText.toLowerCase();
-    const isEchoedGreeting = 
-      lowerQuery.includes("you're through to") || 
-      lowerQuery.includes("you are through to") || 
-      lowerQuery.includes("flowchat") || 
-      lowerQuery.includes("flochat") || 
-      lowerQuery.includes("can i help you today") || 
-      lowerQuery.includes("how can i help you today");
+    const isEchoedGreeting = isEchoOfGreeting(queryText, formattedGreeting);
 
     if (isEchoedGreeting) {
       console.log('[Vapi Custom LLM] Ignoring echoed assistant greeting turn:', queryText);
@@ -316,9 +334,11 @@ CRITICAL SPOKEN LAWS:
 4. NO DUPLICATE CODES: Never generate a second resumption code.
 5. LINEAR PROGRESSION: Advance smoothly through Step 1 ➔ Step 2 ➔ Step 3 ➔ Step 4 ➔ Step 5.
 6. GDPR PRIVACY REQUESTS: If asked about GDPR or Right to be Forgotten, explain clearly: "I can log your GDPR Right to be Forgotten request. Please provide the customer's Name, Email, or Mobile Phone, and I will email the StyleFlo Privacy team with the request details for our admin to process."`
-      : `You are a friendly, conversational AI phone representative speaking on behalf of "${businessName}".
+      : `You are ${agentName}, a friendly AI assistant for "${businessName}", speaking with a website visitor by voice.
 Write in a natural, warm, spoken conversational tone. Speak clearly and concisely.
 DO NOT use markdown formatting, asterisks, bullet points, or special characters. Speak naturally in plain text.${voiceRulesSection}
+
+${clientFirstName ? `The customer's first name is ${clientFirstName}.\n` : ''}You have already greeted them with: "${formattedGreeting}". Do not greet them again or re-introduce yourself; answer their next question. Use British English.
 
 The current date and time is: ${new Date().toISOString()}. Use this to resolve relative dates like "tomorrow" or "next Sunday".
 
@@ -380,6 +400,7 @@ ${globalDisclaimer}`;
         object: 'chat.completion',
         created: Math.floor(Date.now() / 1000),
         model: activeModelName,
+        systemPrompt: systemPromptHeader,
         choices: [
           {
             message: { role: 'assistant', content: rawText },

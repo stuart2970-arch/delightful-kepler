@@ -525,9 +525,10 @@ export default function ChatbotManagerView() {
                         <textarea
                           value={newBotWelcome}
                           onChange={(e) => setNewBotWelcome(e.target.value)}
+                          placeholder="Leave empty for default introduction"
                           className="w-full min-h-[50px] focus:min-h-[120px] transition-all bg-[var(--awb-color1)] border border-[var(--awb-color3)] rounded-[6px] px-3.5 py-3 text-sm text-[var(--awb-color8)] focus:outline-none focus:border-[#198fd9] resize-none overflow-y-auto"
-                          required
                         />
+                        <p className="text-[11px] text-[var(--awb-color6)] mt-1">Visitors who give their name will see &apos;Hi [first name],&apos; before this message.</p>
                       </div>
                       
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -535,7 +536,7 @@ export default function ChatbotManagerView() {
                           <label className="block text-xs font-semibold text-[var(--awb-color7)] mb-1.5">Agent Display Name</label>
                           <input
                             type="text"
-                            placeholder="e.g. Emma (AI Agent)"
+                            placeholder="e.g. Emma (AI assistant)"
                             value={newAgentName}
                             onChange={(e) => setNewAgentName(e.target.value)}
                             className="w-full h-[50px] bg-[var(--awb-color1)] border border-[var(--awb-color3)] rounded-[6px] px-3.5 py-2 text-sm text-[var(--awb-color8)] focus:outline-none focus:border-[var(--awb-color4)]"
@@ -830,7 +831,7 @@ export default function ChatbotManagerView() {
                         </div>
 
                         <div className="bg-[var(--awb-color2)] p-4 rounded-xl text-xs text-[var(--awb-color7)] italic border border-[var(--awb-color3)] leading-relaxed">
-                          "{bot.configuration_json?.welcome_message || 'Hello! How can I help you today?'}"
+                          "{bot.configuration_json?.welcome_message || `Hi, I'm ${bot.configuration_json?.agent_name || bot.name || 'AI Assistant'}, the AI assistant. How can I help you today?`}"
                         </div>
 
                         <div className="flex items-center gap-3 bg-white p-3 rounded-xl border border-[var(--awb-color3)] shadow-sm">
@@ -858,7 +859,7 @@ export default function ChatbotManagerView() {
                               setWizardStep(1);
                               setNewBotName(bot.name);
                               setNewBotColor(bot.primary_color);
-                              setNewBotWelcome(config.welcome_message || 'Hello!');
+                              setNewBotWelcome(config.welcome_message || '');
                               setNewAgentName(config.agent_name || bot.name);
                               setNewAgentRole(config.agent_role || 'AI Assistant');
                               setNewAgentAvatar(config.agent_avatar_url || '/avatars/avatar1.png');

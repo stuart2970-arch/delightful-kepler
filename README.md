@@ -3743,3 +3743,51 @@ Highlighted adjustments in the modal:
          - Superadmin lockdown smoke check: PASSED (31/31 endpoints strictly locked down).
          - Knowledge base ingest routes auth: PASSED (100% 401 across /urls, /crawl, /text, /file).
        - Posted completion summary to Jira ticket STYL-186 and transitioned to Done.
+
+
+## Session 76 (October 22, 2026)
+* **User**: "Start Jira ticket STYL-185 (Greeting: 'Hi [first name],' plus the business's own welcome message and agent name in chat and web voice). First git pull main so you have the latest (STYL-186 is merged and live). Read STYL-185's Jira description and its latest plan comment; they hold all the context. Follow the plan's rules: work on your own branch, run the full tests and the pre-push hook, never use --no-verify, use British English, and don't merge to main or deploy without Stuart's explicit yes. Telephony is out of scope. When the branch is pushed and tests pass, post a Jira comment and ask Stuart for his yes."
+  * **Actions Completed**:
+    1. **Pre-flight & Jira Verification**: Checked Jira ticket STYL-185 (status in ("In Progress", "in-progress") AND labels = "antigravity"), confirmed authorized signed-off developer plan in Jira comment ID 10096, confirmed main branch is up to date with origin/main, and created dedicated branch eat/styl-185-greeting-welcome-message.
+    2. **Shared Greeting Helper Module (src/lib/greeting.ts)**:
+       - Created zero-DOM pure TypeScript module uildGreeting({ welcomeMessage, agentName, businessName, clientName }).
+       - Implemented getFirstName: extracts first word, capitalises initial letter, limits to 40 characters, strips HTML <> characters, and treats email inputs containing @ as no name (
+ull). Returns 
+ull (never 'there' or 'null').
+       - Supported placeholders [Name], {Name}, [ClientName], {ClientName}, and [ChatbotName]. When present, replaces with first name without prepending "Hi [name],". With no name, cleanly strips placeholders and trailing punctuation.
+       - For messages without placeholders: strips one leading greeting word (Hi, Hello, Hey, Hiya, Good morning/afternoon/evening), lower-cases the following letter unless starting with "I" / "I'm", an agent/business name, or containing a mid-word capital (e.g. FloChat, AI), and prefixes "Hi [first name], ".
+       - With empty welcome message, provides fallback: "Hi, I'm [Agent Display Name], the AI assistant for [business]. How can I help you today?" (or "Hi [first name], I'm [Agent Display Name]...").
+       - Implemented 
+ormalizeForEcho and isEchoOfGreeting for dynamic case- and punctuation-insensitive acoustic echo suppression.
+    3. **Public Chatbot Config API (src/app/api/chatbots/[id]/route.ts)**:
+       - Returned stored welcomeMessage directly, defaulting to '' when empty (removing the old hard-coded "Hello!" fallback) so uildGreeting can construct the agent-name default.
+       - Exposed sanitized usinessName from configuration_json.businessName, 	enants.company_name, 	enants.rwg_business_name, or chatbot name.
+       - Added mock test bot e0000000-0000-0000-0000-000000000002 representing Bella's Salon with agent name "Emma" and empty welcome message.
+    4. **Web Voice Assistant & Completions Route (src/app/api/voice/[chatbotId]/chat/completions/route.ts)**:
+       - Identified voice agent as You are , a friendly AI assistant for "", speaking with a website visitor by voice (strictly removing the word "phone").
+       - Extracted visitor first name from ody.call?.metadata?.client_name.
+       - Added critical greeting instruction: "You have already greeted them with: \"\". Do not greet them again or re-introduce yourself; answer their next question. Use British English."
+       - Replaced hard-coded FloChat echo strings with isEchoOfGreeting(queryText, formattedGreeting).
+    5. **Chat Streaming Route (src/app/api/chat/stream/route.ts)**:
+       - Added greeting rule to business bot system prompt specifying that the customer has already received the opening greeting by first name in the chat widget and forbidding repeating greetings or re-introductions on the first reply.
+       - Changed context prompt line to "The customer's name is . Use their first name naturally; do not repeat the greeting."
+    6. **Dashboard Experience (src/components/dashboard-views/ChatbotManagerView.tsx & src/components/DashboardClient.tsx)**:
+       - Under Welcome Message, added helper text: "Visitors who give their name will see 'Hi [first name],' before this message."
+       - Updated Agent Display Name placeholder to "e.g. Emma (AI assistant)" conforming to British English and assistant role standards.
+       - Changed edit-load and reset fallback for welcome_message from 'Hello!' to ''.
+       - Updated dashboard persona preview to show the dynamic agent-name fallback greeting when welcome_message is empty.
+    7. **Widget & Embed Source and Minified Bundles (src/widget/index.ts, src/widget/embed.ts, public/widget.js, public/embed.js)**:
+       - Integrated shared uildGreeting and getFirstName.
+       - Fixed apostrophe in FloBot onboarding welcome text: changed "thats" to "that's".
+       - Hardened against HTML injection by replacing innerHTML with 	extContent for #styleflo-welcome-message-text and leaving span empty in the initial template.
+       - Configured Vapi transcriber language to "en-GB" and passed welcomeStr as irstMessage with the repetition ban prompt.
+       - Rebuilt production minified widget bundles via 
+pm run build:widget.
+    8. **Automated Test Suite (	ests/greeting.spec.ts & 	ests/homepage-widget.spec.ts)**:
+       - Added 9 unit tests in 	ests/greeting.spec.ts covering all greeting permutations, name casing, placeholder removal, and HTML tag sanitisation.
+       - Updated 	ests/homepage-widget.spec.ts to assert exact text match for "Hi Sarah, you're through to FloChat! How can I help you today?" in chat bubble and voice irstMessage.
+       - Added tests for mock bot e0000000-0000-0000-0000-000000000002 (verifying chat and voice start "Hi John, I'm Emma") and voice completions route system prompt (verifying agent name presence and absence of "phone").
+       - Full test suite execution: **195/195 passed (100%)**.
+    9. **Telephony & Recording Observation**:
+       - Verified telephony routes (src/app/api/telephony/*, src/app/api/webhooks/vapi/assistant/route.ts, Twilio webhooks) remain completely untouched per requirements.
+       - Observed that web apiInstance.start sets no recording or artifact options, while src/app/api/webhooks/vapi/route.ts captures call.recordingUrl. Noted for Ops Manager / Stuart review since audio recordings should not be retained.

@@ -1,4 +1,5 @@
 import Vapi from '@vapi-ai/web';
+import { buildGreeting, getFirstName, isEchoOfGreeting } from '../lib/greeting';
 
 (function () {
   if (typeof document === 'undefined') return;
@@ -502,7 +503,8 @@ import Vapi from '@vapi-ai/web';
   let agentRole = 'AI Support Agent';
   let agentAvatarUrl = '/avatars/avatar1.png';
 
-  let welcomeMessage = 'Hello! How can I help you today?';
+  let welcomeMessage = '';
+  let businessName = '';
   let tenantId = '';
   let brandingHtml = '<span style="opacity: 0.6; font-size: 11px;">⚡ Powered by <strong>StyleFlo</strong></span>';
   let voiceEnabled = false;
@@ -527,7 +529,8 @@ import Vapi from '@vapi-ai/web';
         agentName = config.agentName || botName;
         agentRole = config.agentRole || 'AI Support Agent';
         agentAvatarUrl = config.agentAvatarUrl || config.avatarUrl || config.agent_avatar_url || '/avatars/avatar1.png';
-        welcomeMessage = config.welcomeMessage || 'Hello! How can I help you today?';
+        welcomeMessage = config.welcomeMessage ?? '';
+        businessName = config.businessName || '';
         brandingHtml = config.brandingHtml || brandingHtml;
         voiceEnabled = config.voiceEnabled || false;
         requireClientName = config.requireClientName || false;
@@ -687,7 +690,7 @@ import Vapi from '@vapi-ai/web';
         <div class="flex items-start gap-2.5 w-full">
           <img src="${finalAvatarSrc}" alt="Agent Avatar" class="w-7 h-7 rounded-full object-cover bg-white border border-gray-100 flex-shrink-0" />
           <div class="p-3 bg-white border border-gray-100 text-gray-800 rounded-2xl rounded-tl-none styleflo-text-15 styleflo-mw-75 shadow-sm leading-relaxed w-full">
-            <span id="styleflo-welcome-message-text">${welcomeMessage}</span>
+            <span id="styleflo-welcome-message-text"></span>
           </div>
         </div>
       </div>
@@ -821,61 +824,18 @@ import Vapi from '@vapi-ai/web';
     let storedName = localStorage.getItem('styleflo-client-name');
     let storedEmail = localStorage.getItem('styleflo-client-email');
 
-    function getFirstName(fullName?: string | null): string {
-      if (!fullName) return 'there';
-      const clean = fullName.trim();
-      if (clean.includes('@')) {
-        const part = clean.split('@')[0];
-        return part.charAt(0).toUpperCase() + part.slice(1);
-      }
-      const firstWord = clean.split(' ')[0];
-      return firstWord.charAt(0).toUpperCase() + firstWord.slice(1);
-    }
-
-    function getFormattedWelcomeMessage(clientName?: string | null) {
+    function getFormattedWelcomeMessage(clientName?: string | null): string {
       if (chatbotId === 'styleflo-onboarding-flobot') {
         const nameVal = (clientName || storedName || '').trim();
         const firstName = getFirstName(nameVal);
-        return `Hi ${firstName}, thats the hard bit out of the way! Does your business have a website?`;
+        return `Hi ${firstName ? `${firstName}, ` : ''}that's the hard bit out of the way! Does your business have a website?`;
       }
-      let msg = welcomeMessage;
-      const rawName = (clientName || storedName || '').trim();
-      const firstName = rawName ? getFirstName(rawName) : 'there';
-      
-      const hasPlaceholder = /\[Name\]|\{Name\}|\[ClientName\]|\{ClientName\}/i.test(msg);
-      msg = msg.replace(/\[Name\]/gi, firstName);
-      msg = msg.replace(/\{Name\}/gi, firstName);
-      msg = msg.replace(/\[ClientName\]/gi, firstName);
-      msg = msg.replace(/\{ClientName\}/gi, firstName);
-      
-      const botVal = agentName || botName || 'our assistant';
-      msg = msg.replace(/\[ChatbotName\]/gi, botVal);
-      msg = msg.replace(/\{ChatbotName\}/gi, botVal);
-      msg = msg.replace(/\[Chatbot Name\]/gi, botVal);
-      msg = msg.replace(/\{Chatbot Name\}/gi, botVal);
-      
-      if (!hasPlaceholder && rawName && firstName !== 'there') {
-        if (/^Hi[, !]+/i.test(msg)) {
-          msg = msg.replace(/^Hi[, !]+/i, (match) => {
-            const punct = match.includes('!') ? '! ' : ', ';
-            return `Hi ${firstName}${punct}`;
-          });
-        } else if (/^Hello[, !]+/i.test(msg)) {
-          msg = msg.replace(/^Hello[, !]+/i, (match) => {
-            const punct = match.includes('!') ? '! ' : ', ';
-            return `Hello ${firstName}${punct}`;
-          });
-        } else if (/^Hey[, !]+/i.test(msg)) {
-          msg = msg.replace(/^Hey[, !]+/i, (match) => {
-            const punct = match.includes('!') ? '! ' : ', ';
-            return `Hey ${firstName}${punct}`;
-          });
-        } else {
-          msg = `Hi ${firstName}! ${msg}`;
-        }
-      }
-      
-      return msg;
+      return buildGreeting({
+        welcomeMessage,
+        agentName,
+        businessName,
+        clientName: clientName || storedName,
+      });
     }
 
     function renderTaskButtons() {
@@ -1144,7 +1104,7 @@ import Vapi from '@vapi-ai/web';
 
     const welcomeTextEl = shadowRoot.getElementById('styleflo-welcome-message-text');
     if (welcomeTextEl) {
-      welcomeTextEl.innerHTML = getFormattedWelcomeMessage(storedName);
+      welcomeTextEl.textContent = getFormattedWelcomeMessage(storedName);
     }
 
     const submitBtn = shadowRoot.getElementById('styleflo-onboarding-submit-btn') as HTMLButtonElement | null;
@@ -1274,7 +1234,7 @@ import Vapi from '@vapi-ai/web';
       }
 
       if (welcomeTextEl) {
-        welcomeTextEl.innerHTML = getFormattedWelcomeMessage(storedName);
+        welcomeTextEl.textContent = getFormattedWelcomeMessage(storedName);
       }
       onboardingContainer.style.setProperty('display', 'none', 'important');
       messagesContainer.style.setProperty('display', 'flex', 'important');
@@ -1480,16 +1440,8 @@ import Vapi from '@vapi-ai/web';
             const rawText = (msg.transcript || '').trim();
             if (!rawText) return;
 
-            const lowerText = rawText.toLowerCase();
-            const welcome = getFormattedWelcomeMessage(storedName).toLowerCase();
-            const isEchoedGreeting = 
-              lowerText.includes("you're through to") || 
-              lowerText.includes("you are through to") || 
-              lowerText.includes("flowchat") || 
-              lowerText.includes("flochat") || 
-              lowerText.includes("can i help you today") || 
-              lowerText.includes("how can i help you today") ||
-              (welcome.length > 5 && (welcome.includes(lowerText) || lowerText.includes(welcome.substring(0, 15))));
+            const welcome = getFormattedWelcomeMessage(storedName);
+            const isEchoedGreeting = isEchoOfGreeting(rawText, welcome);
 
             if (isEchoedGreeting) return;
 
@@ -1552,11 +1504,13 @@ import Vapi from '@vapi-ai/web';
 
           const firstName = getFirstName(storedName);
           const session = await ensureChatSession();
+          const welcomeStr = getFormattedWelcomeMessage(storedName);
+          const systemPrompt = `You are ${agentName}, ${agentRole}, the AI assistant for ${businessName || 'our business'}.${firstName ? ` The customer's first name is ${firstName}.` : ''} You have already greeted them with: "${welcomeStr}". Do not greet them again or re-introduce yourself; answer their next question. Use British English.`;
 
           (window as any).__STYLEFLO_LAST_VAPI_CALL__ = {
             firstName,
-            firstMessage: getFormattedWelcomeMessage(storedName),
-            systemPrompt: "You are " + agentName + ", " + agentRole + ". The user's first name is " + firstName + ". Greet them by first name.",
+            firstMessage: welcomeStr,
+            systemPrompt,
             clientName: firstName,
           };
 
@@ -1569,7 +1523,7 @@ import Vapi from '@vapi-ai/web';
             transcriber: {
               provider: "deepgram",
               model: "nova-2",
-              language: "en-US"
+              language: "en-GB"
             },
             silenceTimeoutSeconds: 30,
             maxDurationSeconds: 600,
@@ -1580,7 +1534,7 @@ import Vapi from '@vapi-ai/web';
               messages: [
                 {
                   role: "system",
-                  content: `You are ${agentName}, ${agentRole}. The user's first name is ${firstName}. Greet them by first name.`
+                  content: systemPrompt
                 }
               ]
             },
@@ -1589,7 +1543,7 @@ import Vapi from '@vapi-ai/web';
               voiceId: actualVoiceId,
               model: "eleven_turbo_v2_5"
             },
-            firstMessage: getFormattedWelcomeMessage(storedName),
+            firstMessage: welcomeStr,
             backgroundSound: resolvedBackgroundSound as any,
             backchannelingEnabled: true,
             metadata: {
@@ -1597,7 +1551,7 @@ import Vapi from '@vapi-ai/web';
               chatbot_id: chatbotId,
               session_id: session.sessionId || sessionId,
               call_type: 'web_voice',
-              client_name: firstName,
+              ...(firstName ? { client_name: firstName } : {}),
             }
           });
         } catch (e: any) {

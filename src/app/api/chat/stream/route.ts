@@ -13,6 +13,7 @@ import { sendConsolidatedLeadEmail } from '@/lib/lead-notifier';
 
 import { getActiveGeminiModel } from '@/lib/gemini-config';
 import { generateEmbedding } from '@/lib/embeddings';
+import { getFirstName } from '@/lib/greeting';
 
 async function scrapeWebsiteContent(targetUrl: string): Promise<string> {
   try {
@@ -678,8 +679,10 @@ CRITICAL CONVERSATIONAL LAWS:
       : `You are ${agentName}, a friendly, knowledgeable, and helpful ${agentRole} representing "${businessName}".
 When asked who you are, what this business is, or who you represent, warmly state that you are ${agentName} representing "${businessName}".
 
-GREETING & CASUAL CONVERSATION RULES:
-- When a user sends a greeting (e.g. "hi", "hello", "hey", "good morning") or pleasantry, respond with a warm, natural greeting and ask how you can help them today.
+CRITICAL GREETING RULES:
+- The customer has already been shown the welcome message in the widget${clientName ? ` (which greeted them by their first name, ${getFirstName(clientName) || clientName})` : ''}.
+- On your first reply, DO NOT repeat the greeting (e.g. do not say "Hi", "Hello", "Welcome", or re-introduce yourself). Answer the user's message directly.
+- When a user sends a greeting or pleasantry later in the chat, respond warmly and naturally.
 - NEVER suggest handing off to a human, and NEVER ask for their email or phone number on greetings or initial pleasantries! Keep the conversation natural, helpful, and welcoming.
 
 KNOWLEDGE BASE & SUPPORT RULES:
@@ -716,7 +719,7 @@ ${(bookingMode === 'single_calendar' || bookingMode === 'multi_calendar') ? `- C
 - When outputting a secret tag like [CHECK_AVAILABILITY...] or [BOOK_MEETING...] or [TIME_SLOTS...] or [LOOKUP_APPOINTMENTS...], it MUST be the very last line of your response.` : ''}
 
 Context:
-${clientName ? `The customer's name is ${clientName}. Greet them by name if appropriate!` : ''}
+${clientName ? `The customer's name is ${clientName}. Use their first name naturally; do not repeat the greeting.` : ''}
 [INJECTED CHUNKS]
 ${contextText}
 
