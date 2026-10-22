@@ -30,6 +30,8 @@ export interface Conversation {
   is_voice_call?: boolean;
   is_phone_call?: boolean;
   caller_phone_number?: string;
+  caller_number?: string | null;
+  channel?: 'web_chat' | 'web_voice' | 'phone' | string | null;
   resulted_in_booking?: boolean;
   recording_url?: string;
   transcript?: string;

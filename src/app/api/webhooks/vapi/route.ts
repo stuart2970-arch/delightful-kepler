@@ -81,10 +81,12 @@ export async function POST(request: Request) {
       }
     }
 
-    // 3. Update Conversation record with Voice Data
+    // 3. Update Conversation record with Voice Data (STYL-190: channel, caller_number, no recording_url)
     if (tenantId && sessionId) {
-      const recordingUrl = call.recordingUrl || null;
       const transcript = call.transcript || '';
+      const isPhoneCall = call.type === 'inboundPhoneCall' || call.type === 'outboundPhoneCall' || (typeof sessionId === 'string' && sessionId.startsWith('phone_')) || Boolean(call.phoneNumberId);
+      const channel = isPhoneCall ? 'phone' : 'web_voice';
+      const callerNumber = call.customer?.number || (typeof call.phoneNumber === 'string' ? call.phoneNumber : call.phoneNumber?.number) || null;
 
       const { data: existingConv } = await supabaseAdmin
         .from('conversations')
@@ -108,12 +110,16 @@ export async function POST(request: Request) {
 
       if (existingConv) {
         targetConvId = existingConv.id;
-        await supabaseAdmin.from('conversations').update({
+        const updatePayload: Record<string, any> = {
           is_voice_call: true,
+          channel,
           resulted_in_booking: resultedInBooking,
-          recording_url: recordingUrl,
           transcript: transcript,
-        }).eq('id', existingConv.id);
+        };
+        if (callerNumber) {
+          updatePayload.caller_number = callerNumber;
+        }
+        await supabaseAdmin.from('conversations').update(updatePayload).eq('id', existingConv.id);
         const { data: convData } = await supabaseAdmin.from('conversations').select('chatbot_id').eq('id', existingConv.id).single();
         targetChatbotId = convData?.chatbot_id || null;
       } else {
@@ -125,26 +131,25 @@ export async function POST(request: Request) {
             chatbot_id: chatbot.id,
             user_session_id: sessionId,
             is_voice_call: true,
+            channel,
+            caller_number: callerNumber,
             resulted_in_booking: resultedInBooking,
-            recording_url: recordingUrl,
             transcript: transcript,
           }).select('id').single();
           targetConvId = newConv?.id || null;
         }
       }
 
-      // Fire consolidated lead email notification with voice transcript & intent
+      // Fire consolidated lead email notification with voice transcript & intent (no recording link)
       if (targetConvId && targetChatbotId) {
-        const callerNumber = call.customer?.number || call.phoneNumber || '';
         try {
           await sendConsolidatedLeadEmail({
             tenantId,
             chatbotId: targetChatbotId,
             conversationId: targetConvId,
-            newContactInfo: callerNumber,
+            newContactInfo: callerNumber || '',
             channelType: 'voice',
             voiceTranscript: transcript,
-            voiceRecordingUrl: recordingUrl,
             customerName: call.customer?.name,
           });
         } catch (emailErr) {

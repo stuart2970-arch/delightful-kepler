@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 
 import { getActiveGeminiModel } from '@/lib/gemini-config';
+import { POST as handleVapiWebhook } from '../route';
 
 export const dynamic = 'force-dynamic';
 
@@ -14,6 +15,14 @@ export async function POST(request: Request) {
     // Vapi webhook payload structure
     const message = body.message;
     if (!message || message.type !== 'assistant-request') {
+      if (message?.type === 'end-of-call-report') {
+        const forwardReq = new Request(request.url, {
+          method: 'POST',
+          headers: request.headers,
+          body: JSON.stringify(body),
+        });
+        return handleVapiWebhook(forwardReq);
+      }
       return NextResponse.json({ success: true, ignored: true });
     }
 
@@ -189,6 +198,13 @@ export async function POST(request: Request) {
       firstMessage: config.welcome_message || 'Hello, how can I help you today?',
       backgroundSound: resolvedBgSound,
       backchannelingEnabled: true,
+      server: {
+        url: `${appUrl}/api/webhooks/vapi`,
+      },
+      serverUrl: `${appUrl}/api/webhooks/vapi`,
+      artifactPlan: {
+        recordingEnabled: false,
+      },
       startSpeakingPlan: {
         waitSeconds: 0.3,
         smartEndpointingEnabled: true,
