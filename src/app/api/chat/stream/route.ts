@@ -831,18 +831,40 @@ ${staffContext}`;
     });
 
     const encoder = new TextEncoder();
+    let isStreamClosed = false;
     const stream = new ReadableStream({
+      cancel() {
+        isStreamClosed = true;
+      },
       async start(controller) {
+        const safeEnqueue = (data: Uint8Array | string) => {
+          if (isStreamClosed || req.signal?.aborted) return;
+          try {
+            controller.enqueue(typeof data === 'string' ? encoder.encode(data) : data);
+          } catch {
+            isStreamClosed = true;
+          }
+        };
+
+        const safeClose = () => {
+          if (isStreamClosed) return;
+          isStreamClosed = true;
+          try {
+            controller.close();
+          } catch {
+            // Stream already closed or errored
+          }
+        };
         try {
           let hasText = false;
           let rawText = '';
           for await (const chunk of result.textStream) {
             hasText = true;
             rawText += chunk;
-            controller.enqueue(encoder.encode(chunk));
+            safeEnqueue(chunk);
           }
           if (!hasText) {
-            controller.enqueue(encoder.encode(`I'm sorry, I am having trouble connecting to my database. Please try again. [DEBUG: ${lastApiError || "Empty stream, no error caught."}]`));
+            safeEnqueue(`I'm sorry, I am having trouble connecting to my database. Please try again. [DEBUG: ${lastApiError || "Empty stream, no error caught."}]`);
             return;
           }
 
@@ -878,7 +900,7 @@ ${staffContext}`;
             });
             
             for await (const chunk of result2.textStream) {
-              controller.enqueue(encoder.encode(chunk));
+              safeEnqueue(chunk);
             }
           }
 
@@ -988,7 +1010,7 @@ User identity context: ${clientName ? 'Client Name: ' + clientName : 'Anonymous'
               });
               
               for await (const chunk of result2.textStream) {
-                controller.enqueue(encoder.encode(chunk));
+                safeEnqueue(chunk);
               }
             }
           }
@@ -1023,15 +1045,17 @@ User identity context: ${clientName ? 'Client Name: ' + clientName : 'Anonymous'
             });
             
             for await (const chunk of result2.textStream) {
-              controller.enqueue(encoder.encode(chunk));
+              safeEnqueue(chunk);
             }
           }
         } catch (err: unknown) {
-          console.error(`[Chat Stream][${requestId}] In-stream generation error:`, err);
-          const errorMessage = err instanceof Error ? err.message : String(err);
-          controller.enqueue(encoder.encode(`\n[STREAM ERROR: ${errorMessage}]`));
+          if (!req.signal?.aborted && !isStreamClosed) {
+            console.error(`[Chat Stream][${requestId}] In-stream generation error:`, err);
+            const errorMessage = err instanceof Error ? err.message : String(err);
+            safeEnqueue(`\n[STREAM ERROR: ${errorMessage}]`);
+          }
         } finally {
-          controller.close();
+          safeClose();
         }
       }
     });
