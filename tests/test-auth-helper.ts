@@ -66,7 +66,7 @@ export async function createTestSuperadminUser(): Promise<TestUserSession> {
   };
 }
 
-export async function createTestNormalUser(): Promise<TestUserSession> {
+export async function createTestNormalUser(tenantId: string = defaultTestTenantId): Promise<TestUserSession> {
   const adminClient = createClient(supabaseUrl, serviceRoleKey, {
     auth: { persistSession: false, autoRefreshToken: false }
   });
@@ -90,7 +90,7 @@ export async function createTestNormalUser(): Promise<TestUserSession> {
   const { error: profErr } = await adminClient.from('profiles').upsert({
     id: user.id,
     role: 'owner',
-    tenant_id: defaultTestTenantId,
+    tenant_id: tenantId,
     is_super_admin: false,
   });
   if (profErr) {

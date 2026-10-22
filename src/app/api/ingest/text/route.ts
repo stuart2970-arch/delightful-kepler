@@ -1,12 +1,11 @@
 import { NextResponse } from 'next/server';
-import { createServerClient } from '@supabase/ssr';
 import { createClient } from '@supabase/supabase-js';
-import { cookies } from 'next/headers';
 import { RecursiveCharacterTextSplitter } from '@langchain/textsplitters';
 import { z } from 'zod';
 import { checkFeatureEntitlement } from '@/lib/entitlements';
 import { batchEmbedTexts } from '@/lib/embeddings';
 import { sanitizeForPostgres } from '@/lib/file-parser';
+import { requireUser } from '@/lib/auth/require-superadmin';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 120;
@@ -17,29 +16,6 @@ const IngestTextSchema = z.object({
   chatbotId: z.string().regex(/^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/, { message: 'Invalid chatbot ID format' }),
 });
 
-async function createSupabaseClient() {
-  const cookieStore = await cookies();
-  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
-
-  if (!supabaseUrl || !supabaseAnonKey) {
-    throw new Error('Supabase environment variables are missing');
-  }
-
-  return createServerClient(supabaseUrl, supabaseAnonKey, {
-    cookies: {
-      getAll() { return cookieStore.getAll(); },
-      setAll(cookiesToSet) {
-        try {
-          cookiesToSet.forEach(({ name, value, options }) =>
-            cookieStore.set(name, value, options)
-          );
-        } catch {}
-      },
-    },
-  });
-}
-
 export async function POST(request: Request) {
   const requestId = crypto.randomUUID();
   console.log(`[Ingest Text][${requestId}] Processing text ingestion request...`);
@@ -48,10 +24,21 @@ export async function POST(request: Request) {
     process.env.GOOGLE_GENERATIVE_AI_API_KEY = process.env.GEMINI_API_KEY;
   }
 
-  try {
-    const supabase = await createSupabaseClient();
-    const { data: { user }, error: authError } = await supabase.auth.getUser();
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
+  if (!supabaseUrl || !serviceRoleKey) {
+    return NextResponse.json({ error: 'Server configuration error' }, { status: 500 });
+  }
+
+  try {
+    // 1. Authenticate user session (STYL-186: strict 401 when no session)
+    const auth = await requireUser(request);
+    if (!auth.ok) {
+      return auth.response;
+    }
+
+    // 2. Validate request body
     const body = await request.json();
     const validation = IngestTextSchema.safeParse(body);
 
@@ -61,57 +48,54 @@ export async function POST(request: Request) {
     }
 
     const { text, sourceName, chatbotId } = validation.data;
-    let tenantId: string;
-    let dbClient = supabase;
-    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
-    const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
+    const adminClient = createClient(supabaseUrl, serviceRoleKey, {
+      auth: { persistSession: false, autoRefreshToken: false }
+    });
+    const dbClient = adminClient;
+
+    // 3. Verify user profile and tenant
+    const { data: profile, error: profileError } = await adminClient
+      .from('profiles')
+      .select('tenant_id, is_super_admin')
+      .eq('id', auth.userId)
+      .single();
+
+    if (profileError || !profile) {
+      return NextResponse.json({ error: 'User tenant profile not found' }, { status: 403 });
+    }
+
+    let tenantId: string;
     let targetChatbotId = chatbotId;
 
-    if (authError || !user) {
-      if (!serviceRoleKey) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-      
-      const adminClient = createClient(supabaseUrl, serviceRoleKey);
-      dbClient = adminClient;
-      
-      let { data: chatbot } = await dbClient.from('chatbots').select('id, tenant_id').eq('id', chatbotId).maybeSingle();
-      if (!chatbot) {
-        const { data: fallback } = await dbClient.from('chatbots').select('id, tenant_id').neq('id', '00000000-0000-0000-0000-000000000000').limit(1).maybeSingle();
-        chatbot = fallback;
+    if (profile.is_super_admin) {
+      const { data: chatbot, error: chatbotError } = await adminClient
+        .from('chatbots')
+        .select('id, tenant_id')
+        .eq('id', chatbotId)
+        .maybeSingle();
+
+      if (chatbotError || !chatbot) {
+        return NextResponse.json({ error: 'Chatbot not found' }, { status: 404 });
       }
-      if (!chatbot) return NextResponse.json({ error: 'Chatbot not found' }, { status: 404 });
       tenantId = chatbot.tenant_id;
       targetChatbotId = chatbot.id;
     } else {
-      const { data: profile } = await supabase.from('profiles').select('tenant_id, is_super_admin').eq('id', user.id).single();
-      if (!profile) return NextResponse.json({ error: 'User tenant profile not found' }, { status: 403 });
+      tenantId = profile.tenant_id;
+      const { data: chatbot, error: chatbotError } = await adminClient
+        .from('chatbots')
+        .select('id, tenant_id')
+        .eq('id', chatbotId)
+        .eq('tenant_id', tenantId)
+        .maybeSingle();
 
-      if (profile.is_super_admin) {
-        if (!serviceRoleKey) return NextResponse.json({ error: 'Server configuration error' }, { status: 500 });
-        const adminClient = createClient(supabaseUrl, serviceRoleKey);
-        dbClient = adminClient;
-
-        let { data: chatbot } = await adminClient.from('chatbots').select('id, tenant_id').eq('id', chatbotId).maybeSingle();
-        if (!chatbot) {
-          const { data: fallback } = await adminClient.from('chatbots').select('id, tenant_id').neq('id', '00000000-0000-0000-0000-000000000000').limit(1).maybeSingle();
-          chatbot = fallback;
-        }
-        if (!chatbot) return NextResponse.json({ error: 'Chatbot not found' }, { status: 404 });
-        tenantId = chatbot.tenant_id;
-        targetChatbotId = chatbot.id;
-      } else {
-        tenantId = profile.tenant_id;
-        let { data: chatbot } = await supabase.from('chatbots').select('id').eq('id', chatbotId).eq('tenant_id', tenantId).maybeSingle();
-        if (!chatbot) {
-          const { data: fallback } = await supabase.from('chatbots').select('id').eq('tenant_id', tenantId).limit(1).maybeSingle();
-          chatbot = fallback;
-        }
-        if (!chatbot) return NextResponse.json({ error: 'Chatbot not found or unauthorized' }, { status: 404 });
-        targetChatbotId = chatbot.id;
+      if (chatbotError || !chatbot) {
+        return NextResponse.json({ error: 'Chatbot not found' }, { status: 404 });
       }
+      targetChatbotId = chatbot.id;
     }
 
-    // Clean and sanitize text for PostgreSQL
+    // 4. Clean and sanitize text for PostgreSQL
     const textContent = sanitizeForPostgres(text);
     const sanitizedSourceName = sanitizeForPostgres(sourceName);
 
@@ -119,15 +103,7 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Text content is too short to ingest.' }, { status: 400 });
     }
 
-    // Check entitlements
-    const estimatedIncomingChunks = Math.ceil(textContent.length / 1000);
-    const entitlementCheck = await checkFeatureEntitlement(dbClient, tenantId, 'knowledge_data_chunks', estimatedIncomingChunks);
-
-    if (!entitlementCheck.allowed) {
-      return NextResponse.json({ error: entitlementCheck.error }, { status: 403 });
-    }
-
-    // Split text into chunks
+    // 5. Split text into chunks
     const splitter = new RecursiveCharacterTextSplitter({ chunkSize: 1000, chunkOverlap: 200 });
     const docOutputs = await splitter.createDocuments([textContent]);
     const chunks = docOutputs
@@ -138,11 +114,42 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Text splitting generated zero chunks' }, { status: 400 });
     }
 
+    // 6. Check entitlements against real document_chunks count (considering existing chunks for this source)
+    const { count: existingCount } = await dbClient
+      .from('document_chunks')
+      .select('*', { count: 'exact', head: true })
+      .eq('chatbot_id', targetChatbotId)
+      .eq('source_url', sanitizedSourceName);
+
+    const existingChunksForSource = existingCount || 0;
+    const netIncoming = Math.max(0, chunks.length - existingChunksForSource);
+
+    const entitlementCheck = await checkFeatureEntitlement(
+      dbClient,
+      tenantId,
+      'knowledge_data_chunks',
+      netIncoming
+    );
+
+    if (!entitlementCheck.allowed) {
+      return NextResponse.json({ error: entitlementCheck.error }, { status: 403 });
+    }
+
+    // 7. Generate vector embeddings
     console.log(`[Ingest Text][${requestId}] Generating vector embeddings for ${chunks.length} chunks via multi-tier engine...`);
     const embeddings = await batchEmbedTexts(chunks);
 
     if (!embeddings || embeddings.length === 0) {
       return NextResponse.json({ error: 'Failed to generate embeddings for text chunks.' }, { status: 502 });
+    }
+
+    // 8. Replace existing chunks for this source if re-submitting
+    if (existingChunksForSource > 0) {
+      await dbClient
+        .from('document_chunks')
+        .delete()
+        .eq('chatbot_id', targetChatbotId)
+        .eq('source_url', sanitizedSourceName);
     }
 
     const metadata = { source_type: 'raw_text', title: sanitizedSourceName };
@@ -163,7 +170,7 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: `Failed to save chunks: ${dbInsertError.message}` }, { status: 500 });
     }
 
-    console.log(`[Ingest Text][${requestId}] Successfully ingested ${recordsToInsert.length} chunks for chatbot ${chatbotId}`);
+    console.log(`[Ingest Text][${requestId}] Successfully ingested ${recordsToInsert.length} chunks for chatbot ${targetChatbotId}`);
     return NextResponse.json({
       success: true,
       chunksCount: recordsToInsert.length,
