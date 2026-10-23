@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 
-export type AddOnCategory = 'landline' | 'mobile' | 'whatsapp' | 'voice_pack' | 'sms_pack' | 'data_pack' | 'google_calendar' | 'microsoft_calendar';
+export type AddOnCategory = 'landline' | 'mobile' | 'whatsapp' | 'voice_pack' | 'sms_pack' | 'data_pack' | 'google_calendar' | 'microsoft_calendar' | 'remove_branding';
 
 interface AddOnUpsellModalProps {
   isOpen: boolean;
@@ -99,6 +99,8 @@ export default function AddOnUpsellModal({ isOpen, onClose, category, tenantId }
         targetTab = 'scheduling';
       } else if (category === 'data_pack' || addonCatalogId === 'data_pack_500') {
         targetTab = 'knowledge';
+      } else if (category === 'remove_branding' || addonCatalogId === 'remove_styleflo_branding') {
+        targetTab = 'billing';
       }
 
       const returnUrl = `${baseUrl}?tab=${targetTab}&addon=${addonCatalogId}`;
@@ -150,6 +152,7 @@ export default function AddOnUpsellModal({ isOpen, onClose, category, tenantId }
       case 'data_pack': return 'Knowledge Base Capacity';
       case 'google_calendar': return 'Google Calendar Integration Bolt-on';
       case 'microsoft_calendar': return 'Microsoft Outlook Calendar Integration Bolt-on';
+      case 'remove_branding': return 'Remove StyleFlo branding';
       default: return 'Upgrade Feature';
     }
   };
@@ -765,7 +768,16 @@ export default function AddOnUpsellModal({ isOpen, onClose, category, tenantId }
                               <span className="text-sm font-normal text-[#434549]"> /m</span>
                             </div>
                             <button
-                              onClick={() => !isWhatsapp && handleSubscribe(addon.id, addon.monthly_price_pence, addon.included_voice_minutes, addon.included_sms)}
+                              onClick={() => {
+                                if (isWhatsapp) return;
+                                // A fixed monthly price is the catalogue price. Sending it as a custom
+                                // price is rejected for bolt-ons that are not on a sliding scale.
+                                if (addon.category === 'remove_branding') {
+                                  handleSubscribe(addon.id);
+                                  return;
+                                }
+                                handleSubscribe(addon.id, addon.monthly_price_pence, addon.included_voice_minutes, addon.included_sms);
+                              }}
                               disabled={isSubscribing !== null || isWhatsapp}
                               className={`w-full sm:w-auto text-white text-xs font-bold py-2.5 px-6 rounded-[4px] shadow-sm transition-colors flex items-center justify-center gap-2 ${
                                 isWhatsapp 

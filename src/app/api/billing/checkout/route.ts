@@ -422,6 +422,7 @@ export async function POST(req: Request) {
         return NextResponse.json({
           url: 'https://checkout.stripe.com/c/pay/cs_test_mock',
           sessionId: 'cs_test_mock',
+          cataloguePricePence: finalPricePence,
         }, { headers: corsHeaders });
       }
 
