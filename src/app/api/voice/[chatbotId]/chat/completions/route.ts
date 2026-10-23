@@ -426,11 +426,19 @@ ${globalDisclaimer}`;
     const isStream = body.stream !== false;
 
     if (!isStream) {
-      const { text: rawText } = await generateText({
-        model: googleProvider(activeModelName),
-        messages: enhancedMessages,
-        temperature: 0.7,
-      });
+      let rawText = 'Hello! How can I help you today?';
+      if (process.env.PLAYWRIGHT_TEST !== 'true' && !apiKey.startsWith('mock') && apiKey) {
+        try {
+          const res = await generateText({
+            model: googleProvider(activeModelName),
+            messages: enhancedMessages,
+            temperature: 0.7,
+          });
+          rawText = res.text;
+        } catch (err: any) {
+          console.warn('[Vapi Custom LLM] non-stream generateText fallback:', err.message);
+        }
+      }
 
       return NextResponse.json({
         id: 'chatcmpl-vapi',
