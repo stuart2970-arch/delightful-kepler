@@ -2,7 +2,8 @@ import { NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import { streamText, generateText } from 'ai';
 import { createGoogleGenerativeAI } from '@ai-sdk/google';
-import { checkAvailability, bookMeeting } from '@/app/api/chat/stream/calendar';
+import { getAvailabilityData, bookMeeting } from '@/app/api/chat/stream/calendar';
+import { directAvailabilitySpeech } from '@/lib/calendar/fallback-message';
 
 import { getActiveGeminiModel } from '@/lib/gemini-config';
 import { generateEmbedding } from '@/lib/embeddings';
@@ -302,18 +303,23 @@ ${globalDisclaimer}`;
       const endStr = availMatch[4].trim().replace(/['"]/g, '');
 
       console.log(`[Vapi Custom LLM Legacy] Executing checkAvailability for staff ${staffId}, service ${serviceId}`);
-      const availResult = await checkAvailability(tenantId, staffId, serviceId, startStr, endStr, timezone);
-      
-      const { text: pass2Text } = await generateText({
-        model: googleProvider(activeModelName),
-        messages: [
-          ...enhancedMessages,
-          { role: 'assistant', content: rawText },
-          { role: 'user', content: `[SYSTEM AVAILABILITY RESULT]:\n${availResult}\nSpeak the result naturally to the caller in plain conversational English without markdown or bracket tags.` }
-        ],
-        temperature: 0.7,
-      });
-      finalSpokenText = pass2Text;
+      const availData = await getAvailabilityData(tenantId, staffId, serviceId, startStr, endStr, timezone);
+      const directSpeech = directAvailabilitySpeech(availData.outcome, availData.text);
+
+      if (directSpeech) {
+        finalSpokenText = directSpeech;
+      } else {
+        const { text: pass2Text } = await generateText({
+          model: googleProvider(activeModelName),
+          messages: [
+            ...enhancedMessages,
+            { role: 'assistant', content: rawText },
+            { role: 'user', content: `[SYSTEM AVAILABILITY RESULT]:\n${availData.text}\nSpeak the result naturally to the caller in plain conversational English without markdown or bracket tags. If the result says a calendar could not be checked, do not invent times for that person.` }
+          ],
+          temperature: 0.7,
+        });
+        finalSpokenText = pass2Text;
+      }
     }
 
     const bookMatch = rawText.match(/\[BOOK_MEETING:\s*(.+?),\s*(.+?),\s*(.+?),\s*(.+?),\s*(.+?),\s*(.+?),\s*(.+?)\]/);

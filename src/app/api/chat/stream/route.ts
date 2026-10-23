@@ -9,11 +9,11 @@ import { z } from 'zod';
 import formData from 'form-data';
 import * as cheerio from 'cheerio';
 import {
-  checkAvailability,
   getAvailabilityData,
   bookMeeting,
   lookupAppointments,
 } from './calendar';
+import { directAvailabilitySpeech } from '@/lib/calendar/fallback-message';
 import {
   formatQuickDaysTag,
   formatQuickTimesTag,
@@ -690,11 +690,12 @@ Help them specify:
       const now = new Date();
       const nextFortnight = new Date(now.getTime() + 14 * 24 * 60 * 60 * 1000);
       const availData = await getAvailabilityData(tenantId, 'ANY', serviceId, now.toISOString(), nextFortnight.toISOString(), timezone);
+      const directSpeech = directAvailabilitySpeech(availData.outcome, availData.text);
 
-      let replyText = `Which day suits you best for your ${serviceName}?`;
-      if (availData.availableDays.length > 0) {
+      let replyText = directSpeech || `Which day suits you best for your ${serviceName}?`;
+      if (!directSpeech && availData.availableDays.length > 0) {
         replyText += `\n\n${availData.quickDaysTag}`;
-      } else {
+      } else if (!directSpeech) {
         replyText = `I'm sorry, I couldn't find any available days for ${serviceName} in the next 2 weeks. Please let us know your contact details and our team will get in touch!`;
       }
 
@@ -709,13 +710,16 @@ Help them specify:
       const dayEnd = `${dateStr}T23:59:59`;
 
       const availData = await getAvailabilityData(tenantId, staffId, serviceId, dayStart, dayEnd, timezone);
+      const directSpeech = directAvailabilitySpeech(availData.outcome, availData.text);
       const daySlots = getSlotsForDay(availData.slots, dateStr);
 
       const d = new Date(dateStr);
       const displayDate = utcToLocalParts(d, timezone).displayDate;
 
       let replyText = '';
-      if (daySlots.length > 0) {
+      if (directSpeech) {
+        replyText = directSpeech;
+      } else if (daySlots.length > 0) {
         replyText = `Here are the available times for ${displayDate}. Which time would you prefer?\n\n${formatQuickTimesTag(dateStr, serviceId, daySlots)}\n${formatQuickDaysTag(serviceId, staffId, availData.availableDays)}`;
       } else {
         replyText = `I'm sorry, there are no remaining slots on ${displayDate}. Please choose another day:\n\n${formatQuickDaysTag(serviceId, staffId, availData.availableDays)}`;
@@ -745,9 +749,11 @@ Help them specify:
       if (bookingResult.includes('Error:') || bookingResult.includes('Failed')) {
         // Race condition: slot taken! Apologise and re-offer remaining times for that day
         const dayAvail = await getAvailabilityData(tenantId, staffId, serviceId, `${parts.dateStr}T00:00:00`, `${parts.dateStr}T23:59:59`, timezone);
+        const directSpeech = directAvailabilitySpeech(dayAvail.outcome, dayAvail.text);
         const daySlots = getSlotsForDay(dayAvail.slots, parts.dateStr);
 
-        replyText = `I'm sorry, that ${parts.timeStr} slot was just taken! Here are the remaining available times for ${parts.displayDate}:\n\n${formatQuickTimesTag(parts.dateStr, serviceId, daySlots)}\n${formatQuickDaysTag(serviceId, staffId, dayAvail.availableDays)}`;
+        replyText = directSpeech
+          || `I'm sorry, that ${parts.timeStr} slot was just taken! Here are the remaining available times for ${parts.displayDate}:\n\n${formatQuickTimesTag(parts.dateStr, serviceId, daySlots)}\n${formatQuickDaysTag(serviceId, staffId, dayAvail.availableDays)}`;
       } else {
         const svc = configuredServices.find((s: any) => s.id === serviceId);
         const svcName = svc ? svc.name : 'appointment';
@@ -1049,15 +1055,19 @@ ${staffContext}`;
             const endStr = availMatch[4].trim().replace(/['"]/g, '');
             
             const availData = await getAvailabilityData(tenantId, staffId, serviceId, startStr, endStr, timezone);
-            
+            const directSpeech = directAvailabilitySpeech(availData.outcome, availData.text);
+
             const pass2Messages = [
               ...formattedMessages,
               { role: 'assistant', content: rawText },
-              { role: 'user', content: `[SYSTEM] Availability Result:\n${availData.text}\nNow warmly present the available days and times to the user in British English and ask which day suits them best.` }
+              { role: 'user', content: `[SYSTEM] Availability Result:\n${availData.text}\nNow warmly present the available days and times to the user in British English and ask which day suits them best. If the result says a calendar could not be checked, do not invent times for that person.` }
             ];
             
             let pass2Text = '';
-            if (mockModelReply && (body as any).mockPass2Reply) {
+            if (directSpeech) {
+              pass2Text = directSpeech;
+              safeEnqueue(`\n\n${directSpeech}`);
+            } else if (mockModelReply && (body as any).mockPass2Reply) {
               pass2Text = (body as any).mockPass2Reply;
               safeEnqueue(pass2Text);
             } else {
@@ -1074,15 +1084,17 @@ ${staffContext}`;
               }
             }
 
-            // Append structured quick-link tags directly to the stream!
-            const tagsToAppend = [
-              availData.quickDaysTag,
-              availData.quickTimesTag,
-              availData.timeSlotsTag
-            ].filter(Boolean).join('\n');
+            // Quick-link tags are only for times a calendar actually confirmed.
+            if (!directSpeech) {
+              const tagsToAppend = [
+                availData.quickDaysTag,
+                availData.quickTimesTag,
+                availData.timeSlotsTag
+              ].filter(Boolean).join('\n');
 
-            if (tagsToAppend) {
-              safeEnqueue(`\n\n${tagsToAppend}`);
+              if (tagsToAppend) {
+                safeEnqueue(`\n\n${tagsToAppend}`);
+              }
             }
 
             // Save clean transcript in database
@@ -1116,9 +1128,11 @@ ${staffContext}`;
             if (toolResult && toolResult.includes('Error:')) {
               const parts = utcToLocalParts(new Date(startStr), timezone);
               const availData = await getAvailabilityData(tenantId, staffId, serviceId, `${parts.dateStr}T00:00:00`, `${parts.dateStr}T23:59:59`, timezone);
+              const directSpeech = directAvailabilitySpeech(availData.outcome, availData.text);
               const daySlots = getSlotsForDay(availData.slots, parts.dateStr);
 
-              bookingReply = `I'm sorry, that time slot was just taken! Here are the remaining available times for ${parts.displayDate}:\n\n${formatQuickTimesTag(parts.dateStr, serviceId, daySlots)}\n${formatQuickDaysTag(serviceId, staffId, availData.availableDays)}`;
+              bookingReply = directSpeech
+                || `I'm sorry, that time slot was just taken! Here are the remaining available times for ${parts.displayDate}:\n\n${formatQuickTimesTag(parts.dateStr, serviceId, daySlots)}\n${formatQuickDaysTag(serviceId, staffId, availData.availableDays)}`;
               safeEnqueue(`\n\n${bookingReply}`);
             } else {
               const parts = utcToLocalParts(new Date(startStr), timezone);

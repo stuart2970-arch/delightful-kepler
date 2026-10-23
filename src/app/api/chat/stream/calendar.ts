@@ -7,15 +7,14 @@ import {
   BusyInterval,
   StaffCalendarTarget,
 } from '@/lib/calendar/provider';
+import { queryStaffCalendars, type BusyLookup } from '@/lib/calendar/staff-busy';
+import { calendarFallbackMessage } from '@/lib/calendar/fallback-message';
 import {
   calculateAvailableSlots,
   getAvailableDays,
   getSlotsForDay,
   formatQuickDaysTag,
   formatQuickTimesTag,
-  formatSlotIsoWithOffset,
-  localTimeToUtc,
-  utcToLocalParts,
   CalculatedSlot,
   AvailableDay,
   QualifiedStaff,
@@ -39,13 +38,65 @@ function getSupabaseAdmin() {
   });
 }
 
+export type AvailabilityOutcome =
+  | 'ok'
+  | 'service_not_found'
+  | 'no_staff'
+  | 'none_connected'
+  | 'unreachable'
+  | 'no_slots'
+  | 'invalid_window'
+  | 'error';
+
+export interface AvailabilityFixture {
+  service: {
+    id: string;
+    name: string;
+    duration_minutes?: number | null;
+    buffer_minutes?: number | null;
+    price?: number | null;
+  } | null;
+  staff: Array<{
+    id: string;
+    name: string;
+    email?: string | null;
+    working_days?: unknown;
+    calendar_provider?: string | null;
+    google_calendar_id?: string | null;
+    microsoft_calendar_id?: string | null;
+  }>;
+  staffServices?: Array<{ staff_id: string; custom_duration?: number | null }> | null;
+  maxWeeks?: number;
+  bookingUrl?: string | null;
+}
+
+export interface AvailabilityDeps {
+  now?: Date;
+  timeoutMs?: number;
+  lookup?: BusyLookup;
+  log?: (message: string) => void;
+  fixture?: AvailabilityFixture;
+}
+
 export interface AvailabilityResult {
   text: string;
+  outcome: AvailabilityOutcome;
   slots: CalculatedSlot[];
   availableDays: AvailableDay[];
   quickDaysTag: string;
   quickTimesTag?: string;
   timeSlotsTag: string;
+}
+
+function unavailable(text: string, outcome: AvailabilityOutcome): AvailabilityResult {
+  return {
+    text,
+    outcome,
+    slots: [],
+    availableDays: [],
+    quickDaysTag: '',
+    timeSlotsTag: '',
+  };
 }
 
 /**
@@ -73,26 +124,28 @@ export async function getAvailabilityData(
   serviceId: string,
   startDateStr: string,
   endDateStr: string,
-  timezone: string = 'Europe/London'
+  timezone: string = 'Europe/London',
+  deps?: AvailabilityDeps
 ): Promise<AvailabilityResult> {
+  let bookingUrl: string | null = null;
   try {
     console.log(`[Calendar] Checking availability for staff ${staffId}, service ${serviceId} from ${startDateStr} to ${endDateStr} (TZ: ${timezone})`);
 
     // 0. Fetch Service
-    const { data: service, error: srvError } = await getSupabaseAdmin()
-      .from('services')
-      .select('id, name, duration_minutes, buffer_minutes, price')
-      .eq('id', serviceId)
-      .single();
+    let service: AvailabilityFixture['service'] = null;
+    if (deps?.fixture) {
+      service = deps.fixture.service;
+    } else {
+      const { data, error: srvError } = await getSupabaseAdmin()
+        .from('services')
+        .select('id, name, duration_minutes, buffer_minutes, price')
+        .eq('id', serviceId)
+        .single();
+      if (!srvError && data) service = data;
+    }
 
-    if (srvError || !service) {
-      return {
-        text: 'Error: Service not found.',
-        slots: [],
-        availableDays: [],
-        quickDaysTag: '',
-        timeSlotsTag: '',
-      };
+    if (!service) {
+      return unavailable('Error: Service not found.', 'service_not_found');
     }
 
     const serviceConfig: ServiceConfig = {
@@ -100,18 +153,25 @@ export async function getAvailabilityData(
       name: service.name,
       durationMinutes: service.duration_minutes || 30,
       bufferMinutes: service.buffer_minutes || 0,
-      price: service.price,
+      price: service.price ?? undefined,
     };
 
     // 1. Enforce max advance booking window limit
-    const { data: tenantData } = await getSupabaseAdmin()
-      .from('tenants')
-      .select('max_advance_weeks')
-      .eq('id', tenantId)
-      .maybeSingle();
+    let maxWeeks = 12;
+    if (deps?.fixture) {
+      maxWeeks = deps.fixture.maxWeeks || 12;
+      bookingUrl = deps.fixture.bookingUrl ?? null;
+    } else {
+      const { data: tenantData } = await getSupabaseAdmin()
+        .from('tenants')
+        .select('max_advance_weeks, booking_url')
+        .eq('id', tenantId)
+        .maybeSingle();
 
-    const maxWeeks = tenantData?.max_advance_weeks || 12;
-    const now = new Date();
+      maxWeeks = tenantData?.max_advance_weeks || 12;
+      bookingUrl = tenantData?.booking_url ?? null;
+    }
+    const now = deps?.now ?? new Date();
     const maxAdvanceDate = new Date(now.getTime() + maxWeeks * 7 * 24 * 60 * 60 * 1000);
 
     let start = new Date(startDateStr);
@@ -126,36 +186,39 @@ export async function getAvailabilityData(
     if (end > maxAdvanceDate) end = maxAdvanceDate;
 
     if (start >= end) {
-      return {
-        text: `Cannot check availability: Dates must be in the future and within the next ${maxWeeks} weeks.`,
-        slots: [],
-        availableDays: [],
-        quickDaysTag: '',
-        timeSlotsTag: '',
-      };
+      return unavailable(
+        `Cannot check availability: Dates must be in the future and within the next ${maxWeeks} weeks.`,
+        'invalid_window'
+      );
     }
 
     // 2. Fetch staff members
-    const { data: allStaff, error: staffError } = await getSupabaseAdmin()
-      .from('staff')
-      .select('*')
-      .eq('tenant_id', tenantId);
+    let allStaff: AvailabilityFixture['staff'] | null = null;
+    let staffServices: Array<{ staff_id: string; custom_duration?: number | null }> | null = null;
+    if (deps?.fixture) {
+      allStaff = deps.fixture.staff;
+      staffServices = deps.fixture.staffServices ?? null;
+    } else {
+      const { data, error: staffError } = await getSupabaseAdmin()
+        .from('staff')
+        .select('*')
+        .eq('tenant_id', tenantId);
 
-    if (staffError || !allStaff || allStaff.length === 0) {
-      return {
-        text: 'Error: No staff members found or misconfigured for this business.',
-        slots: [],
-        availableDays: [],
-        quickDaysTag: '',
-        timeSlotsTag: '',
-      };
+      if (staffError) {
+        return unavailable('Error: No staff members found or misconfigured for this business.', 'no_staff');
+      }
+      allStaff = data || [];
+
+      const { data: mapping } = await getSupabaseAdmin()
+        .from('staff_services')
+        .select('staff_id, custom_duration')
+        .eq('service_id', serviceId);
+      staffServices = mapping;
     }
 
-    // Fetch staff_services mapping
-    const { data: staffServices } = await getSupabaseAdmin()
-      .from('staff_services')
-      .select('staff_id, custom_duration')
-      .eq('service_id', serviceId);
+    if (!allStaff || allStaff.length === 0) {
+      return unavailable('Error: No staff members found or misconfigured for this business.', 'no_staff');
+    }
 
     const qualifiedStaffIds = staffServices && staffServices.length > 0
       ? staffServices.map((ss) => ss.staff_id)
@@ -169,46 +232,55 @@ export async function getAvailabilityData(
     const isSpecificStaffRequested = staffId && !['ANY', 'ALL', 'any', 'all'].includes(staffId);
     const requestedStaff = targetStaffList.find((s) => s.id === staffId);
 
-    // 3. Query Free/Busy intervals for each qualified staff member
-    const busyMap = new Map<string, BusyInterval[]>();
+    // 3. Query every staff calendar at once. A failed calendar is excluded, never treated as free.
+    const staffTargets: StaffCalendarTarget[] = targetStaffList.map((staffMember) => ({
+      id: staffMember.id,
+      name: staffMember.name,
+      email: staffMember.email ?? undefined,
+      calendar_provider: staffMember.calendar_provider ?? undefined,
+      google_calendar_id: staffMember.google_calendar_id ?? undefined,
+      microsoft_calendar_id: staffMember.microsoft_calendar_id ?? undefined,
+    }));
 
-    for (const staffMember of targetStaffList) {
-      const staffTarget: StaffCalendarTarget = {
-        id: staffMember.id,
-        name: staffMember.name,
-        email: staffMember.email,
-        calendar_provider: staffMember.calendar_provider,
-        google_calendar_id: staffMember.google_calendar_id,
-        microsoft_calendar_id: staffMember.microsoft_calendar_id,
-      };
+    const calendarQuery = await queryStaffCalendars({
+      tenantId,
+      staff: staffTargets,
+      startUtc: start,
+      endUtc: end,
+      timeoutMs: deps?.timeoutMs,
+      lookup: deps?.lookup ?? getBusy,
+      log: deps?.log,
+    });
 
-      try {
-        const busy = await getBusy(tenantId, staffTarget, start, end);
-        busyMap.set(staffMember.id, busy);
-      } catch (err: any) {
-        console.error(`[Calendar] Provider error checking busy for staff ${staffMember.name}:`, err?.message);
-        // Important: If provider call fails, don't assume free. Return an error.
-        return {
-          text: `Failed to check availability: ${err.message}`,
-          slots: [],
-          availableDays: [],
-          quickDaysTag: '',
-          timeSlotsTag: '',
-        };
-      }
+    if (calendarQuery.succeeded.length === 0) {
+      const allDisconnected = calendarQuery.failed.length > 0
+        && calendarQuery.failed.every((failure) => failure.reason === 'not_connected');
+      const kind = allDisconnected ? 'none_connected' : 'unreachable';
+      return unavailable(calendarFallbackMessage(kind, bookingUrl), kind);
     }
 
-    // 4. Transform qualified staff for pure calculation
-    const qualifiedList: QualifiedStaff[] = targetStaffList.map((s) => {
+    const succeededIds = new Set(calendarQuery.succeeded.map((hit) => hit.staff.id));
+    const reachableStaff = targetStaffList.filter((member) => succeededIds.has(member.id));
+    const busyMap = new Map<string, BusyInterval[]>();
+    for (const hit of calendarQuery.succeeded) {
+      busyMap.set(hit.staff.id, hit.busy);
+    }
+
+    const failedRequested = isSpecificStaffRequested
+      ? calendarQuery.failed.find((failure) => failure.staff.id === staffId)
+      : undefined;
+
+    // 4. Transform qualified staff for pure calculation. Only calendars that answered are included.
+    const qualifiedList: QualifiedStaff[] = reachableStaff.map((s) => {
       const mapping = staffServices?.find((ss) => ss.staff_id === s.id);
       return {
         id: s.id,
         name: s.name,
-        schedule: s.working_days,
-        customDuration: mapping?.custom_duration,
-        calendar_provider: s.calendar_provider,
-        google_calendar_id: s.google_calendar_id,
-        microsoft_calendar_id: s.microsoft_calendar_id,
+        schedule: s.working_days as QualifiedStaff['schedule'],
+        customDuration: mapping?.custom_duration ?? undefined,
+        calendar_provider: s.calendar_provider ?? undefined,
+        google_calendar_id: s.google_calendar_id ?? undefined,
+        microsoft_calendar_id: s.microsoft_calendar_id ?? undefined,
       };
     });
 
@@ -225,13 +297,10 @@ export async function getAvailabilityData(
     });
 
     if (slots.length === 0) {
-      return {
-        text: `No available slots found for "${service.name}" between ${start.toLocaleDateString('en-GB')} and ${end.toLocaleDateString('en-GB')}.`,
-        slots: [],
-        availableDays: [],
-        quickDaysTag: '',
-        timeSlotsTag: '',
-      };
+      return unavailable(
+        `No available slots found for "${service.name}" between ${start.toLocaleDateString('en-GB')} and ${end.toLocaleDateString('en-GB')}.`,
+        'no_slots'
+      );
     }
 
     const availableDays = getAvailableDays(slots);
@@ -255,7 +324,12 @@ export async function getAvailabilityData(
     }
 
     // 6. Build text breakdown for AI/voice
-    const outputLines = [`Availability Breakdown for "${service.name}":\n`];
+    const outputLines: string[] = [];
+    if (failedRequested) {
+      const missedName = failedRequested.staff.name || 'that colleague';
+      outputLines.push(`I couldn't check ${missedName}'s calendar, so none of their times are offered.`);
+    }
+    outputLines.push(`Availability Breakdown for "${service.name}":\n`);
 
     if (isSpecificStaffRequested && requestedStaff) {
       const requestedSlots = slots.filter((s) => s.staffId === requestedStaff.id);
@@ -264,6 +338,8 @@ export async function getAvailabilityData(
         outputLines.push(
           requestedSlots.slice(0, 10).map((s) => `- ${s.displayDate} at ${s.time}`).join('\n')
         );
+      } else if (failedRequested) {
+        outputLines.push(`Requested Staff Member: ${requestedStaff.name} (ID: ${requestedStaff.id}) could not be checked, so their times are not offered.`);
       } else {
         outputLines.push(`Requested Staff Member: ${requestedStaff.name} (ID: ${requestedStaff.id}) has NO available slots in this timeframe.`);
       }
@@ -298,6 +374,7 @@ export async function getAvailabilityData(
 
     return {
       text: outputLines.join('\n'),
+      outcome: 'ok',
       slots,
       availableDays,
       quickDaysTag,
@@ -306,13 +383,7 @@ export async function getAvailabilityData(
     };
   } catch (error: any) {
     console.error('[Calendar] Error checking availability:', error);
-    return {
-      text: `Failed to check availability: ${error.message}`,
-      slots: [],
-      availableDays: [],
-      quickDaysTag: '',
-      timeSlotsTag: '',
-    };
+    return unavailable(calendarFallbackMessage('unreachable', bookingUrl), 'unreachable');
   }
 }
 
