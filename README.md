@@ -3846,3 +3846,14 @@ Highlighted adjustments in the modal:
        - Ran pre-push hook (`cmd.exe /c "npm run typecheck && npm run test:e2e"`) cleanly without `--no-verify`.
        - Pushed branch `styl-182-calendar-quick-links` to origin.
        - Posted completion summary to Jira STYL-182. Awaiting Stuart's explicit approval before any merge or deploy.
+    8. **Sign-off, Merge & Production Deployment Verification**:
+       - Stuart provided explicit approval ('Yes deploy').
+       - Merged `styl-182-calendar-quick-links` into `main` via merge commit `a88c6c6`.
+       - Re-ran widget builds (`public/widget.js`, `public/embed.js`) reconciling merged STYL-184 and STYL-182 widget changes.
+       - Ran full automated pre-push hook: `npm run typecheck && npm run test:e2e` passed (219/219 tests clean, zero `--no-verify` bypass).
+       - Pushed to `origin/main`.
+       - GitHub Actions CI/CD workflow Run #647 (ID: 39940379578) completed with full SUCCESS:
+         - TypeScript Type Check (`tsc --noEmit`): SUCCESS
+         - Build and Push Docker Image: SUCCESS
+         - Deploy to Cloud Run (`styleflo-new`): SUCCESS
+         - All post-deploy smoke checks: SUCCESS
