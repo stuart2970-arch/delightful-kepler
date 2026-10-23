@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import { allocateRollingCredits } from '@/lib/entitlements';
+import { resolvePricePaidPence } from '@/lib/billing/account-ownership';
 
 export const dynamic = 'force-dynamic';
 
@@ -62,13 +63,17 @@ async function processAddonLineItems(
     // Look up the addon in our catalog by stripe_price_id
     const { data: addon } = await supabaseAdmin
       .from('addon_catalog')
-      .select('id, category, included_voice_minutes, included_sms, included_messages, included_data_chunks')
+      .select('id, category, monthly_price_pence, included_voice_minutes, included_sms, included_messages, included_data_chunks')
       .eq('stripe_price_id', priceId)
       .maybeSingle();
 
     if (!addon) continue; // Not an addon line item (could be the base subscription)
 
     const featureId = mapAddonCategoryToFeatureId(addon.category);
+    const pricePaidPence = resolvePricePaidPence({
+      stripeUnitAmount: item.price?.unit_amount ?? item.plan?.amount ?? null,
+      cataloguePricePence: addon.monthly_price_pence,
+    });
 
     if (action === 'activate') {
       // Upsert the active addon
@@ -87,6 +92,7 @@ async function processAddonLineItems(
             activated_at: new Date().toISOString(),
             deactivated_at: null,
             stripe_subscription_item_id: item.id || null,
+            price_paid_pence: pricePaidPence,
           })
           .eq('id', existing.id);
         if (updateErr) console.error('[Stripe Webhook] Error updating active addon:', updateErr);
@@ -101,6 +107,7 @@ async function processAddonLineItems(
             is_active: true,
             activated_at: new Date().toISOString(),
             stripe_subscription_item_id: item.id || null,
+            price_paid_pence: pricePaidPence,
           });
         if (insertErr) console.error('[Stripe Webhook] Error inserting active addon:', insertErr);
       }
@@ -121,7 +128,7 @@ async function processAddonLineItems(
         tenant_id: tenantId,
         addon_catalog_id: addon.id,
         action: 'addon_activated',
-        new_value: { stripe_price_id: priceId, stripe_item_id: item.id },
+        new_value: { stripe_price_id: priceId, stripe_item_id: item.id, price_paid_pence: pricePaidPence, custom_price_pence: pricePaidPence },
         summary: `Activated ${addon.id} via Stripe subscription.`,
       });
 
@@ -411,6 +418,10 @@ export async function POST(req: Request) {
             const messagesCount = addon.included_messages || 0;
 
             const isOneOff = dataObject.metadata?.is_one_off === 'true' || addon.category === 'sms_pack' || addon.category === 'voice_pack';
+            const pricePaidPence = resolvePricePaidPence({
+              customPricePence,
+              cataloguePricePence: addon.monthly_price_pence,
+            });
 
             if (!isOneOff) {
               // Upsert tenant_active_addons only for recurring subscriptions
@@ -430,6 +441,7 @@ export async function POST(req: Request) {
                     activated_at: new Date().toISOString(),
                     deactivated_at: null,
                     stripe_subscription_item_id: dataObject.subscription || null,
+                    price_paid_pence: pricePaidPence,
                   })
                   .eq('id', existing.id);
                 if (updateErr) console.error('[Stripe Webhook] Error updating active addon:', updateErr);
@@ -444,6 +456,7 @@ export async function POST(req: Request) {
                     is_active: true,
                     activated_at: new Date().toISOString(),
                     stripe_subscription_item_id: dataObject.subscription || null,
+                    price_paid_pence: pricePaidPence,
                   });
                 if (insertErr) console.error('[Stripe Webhook] Error inserting active addon:', insertErr);
               }
@@ -483,7 +496,8 @@ export async function POST(req: Request) {
               action: isOneOff ? 'one_off_addon_purchased' : 'addon_activated',
               new_value: {
                 is_one_off: isOneOff,
-                custom_price_pence: customPricePence,
+                custom_price_pence: customPricePence ?? pricePaidPence,
+                price_paid_pence: pricePaidPence,
                 voice_minutes: voiceMinutes,
                 sms: smsCount,
                 auto_topup: dataObject.metadata?.auto_topup === 'true',
@@ -545,6 +559,9 @@ export async function POST(req: Request) {
 
           if (addon) {
             const featureId = mapAddonCategoryToFeatureId(addon.category);
+            const pricePaidPence = resolvePricePaidPence({
+              cataloguePricePence: addon.monthly_price_pence,
+            });
             const { data: existing } = await supabaseAdmin
               .from('tenant_active_addons')
               .select('id')
@@ -559,6 +576,7 @@ export async function POST(req: Request) {
                   is_active: true,
                   activated_at: new Date().toISOString(),
                   deactivated_at: null,
+                  price_paid_pence: pricePaidPence,
                 })
                 .eq('id', existing.id);
             } else {
@@ -571,6 +589,7 @@ export async function POST(req: Request) {
                   quantity: 1,
                   is_active: true,
                   activated_at: new Date().toISOString(),
+                  price_paid_pence: pricePaidPence,
                 });
             }
 

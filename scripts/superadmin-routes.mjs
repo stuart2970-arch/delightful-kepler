@@ -5,6 +5,11 @@ export const superadminRoutes = [
     auth: 'superadmin'
   },
   {
+    path: '/api/superadmin/tenant-addon-inclusions',
+    methods: ['GET', 'PUT'],
+    auth: 'superadmin'
+  },
+  {
     path: '/api/superadmin/tiers',
     methods: ['GET', 'PATCH'],
     auth: 'superadmin'

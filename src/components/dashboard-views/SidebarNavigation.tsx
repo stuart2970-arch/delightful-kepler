@@ -52,7 +52,7 @@ export default function SidebarNavigation() {
         { id: 'crawler', label: '📚 Knowledge Base', locked: false },
         { id: 'integrations', label: '🔌 Integrations', locked: false },
         { id: 'openclaw-monitor', label: '⚡ Gateways', locked: false },
-        { id: 'billing', label: '💳 Subscriptions & Add-ons', locked: false },
+        { id: 'billing', label: '💳 Subscriptions & Bolt-ons', locked: false },
       ]
     : [
         { id: 'scheduling', label: '🗓️ Master Calendar & Rota', locked: false },

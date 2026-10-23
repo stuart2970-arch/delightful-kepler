@@ -97,7 +97,7 @@ test.describe.serial('Multi-Colleague Dashboard & RBAC Rota Systems', () => {
       // Verify all administrative tabs are visible in the sidebar navigation
       await expect(page.locator('nav').locator('text=Master Calendar & Rota').first()).toBeVisible();
       await expect(page.locator('nav').locator('text=Agent').first()).toBeVisible();
-      await expect(page.locator('nav').locator('text=Subscriptions & Add-ons').first()).toBeVisible();
+      await expect(page.locator('nav').locator('text=Subscriptions & Bolt-ons').first()).toBeVisible();
       
       // Ensure 'My Profile' tab is NOT visible (Owner doesn't need self-management view here)
       await expect(page.locator('text=My Profile & Calendar')).not.toBeVisible();
@@ -206,7 +206,7 @@ test.describe.serial('Multi-Colleague Dashboard & RBAC Rota Systems', () => {
       test('should prevent colleague from accessing admin endpoints directly (CORS/RLS enforcement)', async ({ page }) => {
         // Verify UI access restriction
         await expect(page.locator('nav').locator('text=Agent').first()).not.toBeVisible();
-        await expect(page.locator('nav').locator('text=Subscriptions & Add-ons').first()).not.toBeVisible();
+        await expect(page.locator('nav').locator('text=Subscriptions & Bolt-ons').first()).not.toBeVisible();
       });
 
       test('should allow colleague to edit only their own profile, bio, and local rota', async ({ page }) => {

@@ -11,6 +11,7 @@ import FloBotProfileSettingsView from './FloBotProfileSettingsView';
 import SuperAdminGdprView from './SuperAdminGdprView';
 import ConnectedAccountsView from './ConnectedAccountsView';
 import SuperAdminWhatsAppView from './SuperAdminWhatsAppView';
+import IncludeOnAccountView from './IncludeOnAccountView';
 
 
 interface ErrorBoundaryProps {
@@ -220,7 +221,7 @@ export default function SuperadminClient({
   const [isSavingHoliday, setIsSavingHoliday] = useState(false);
 
   const [activeTab, setActiveTab] = useState<'overview' | 'pricing' | 'holidays' | 'settings' | 'voices' | 'gateways' | 'flobot' | 'gdpr' | 'accounts' | 'whatsapp'>('overview');
-  const [pricingSubTab, setPricingSubTab] = useState<'sliding' | 'tiers'>('sliding');
+  const [pricingSubTab, setPricingSubTab] = useState<'sliding' | 'tiers' | 'include'>('sliding');
 
   const [globalBrandingHtml, setGlobalBrandingHtml] = useState(initialGlobalBrandingHtml || '<span style="opacity: 0.6; font-size: 11px;">⚡ Powered by <strong>StyleFlo</strong></span>');
   const [globalTrackingUrl, setGlobalTrackingUrl] = useState(initialGlobalTrackingUrl || 'https://styleflo.ai');
@@ -885,12 +886,25 @@ export default function SuperadminClient({
               <span>📋</span>
               <span>Subscription Tiers & Entitlements</span>
             </button>
+            <button
+              onClick={() => setPricingSubTab('include')}
+              className={`px-4 py-2 text-xs font-bold rounded-lg transition-all flex items-center gap-2 cursor-pointer ${
+                pricingSubTab === 'include'
+                  ? 'bg-indigo-600 text-white shadow-md'
+                  : 'text-gray-400 hover:text-white hover:bg-gray-800/60'
+              }`}
+            >
+              <span>✓</span>
+              <span>Include on an account</span>
+            </button>
           </div>
 
           {pricingSubTab === 'sliding' ? (
             <PricingMatrixView />
-          ) : (
+          ) : pricingSubTab === 'tiers' ? (
             <SuperAdminEntitlementsView />
+          ) : (
+            <IncludeOnAccountView tenants={safeTenantsList} />
           )}
         </div>
       )}
