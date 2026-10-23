@@ -55,3 +55,26 @@ All endpoints under `/api/superadmin/*` (and any other admin-only endpoints) MUS
      if (!auth.ok) return auth.response; // 401
    }
    ```
+
+# Calendar Availability & Quick-Links Protocol (STYL-182 Directive)
+All appointment availability and booking in the chat assistant follow a structured quick-link protocol:
+1. **Quick-Link Tags**:
+   - `[QUICK_SERVICES:[{ id, name, duration_minutes, price }]]`: Offered when customer requests booking, presents available tenant services.
+   - `[QUICK_DAYS:[{ serviceId, staffId, days: [{ date, displayDate, slotsCount }] }]]`: Offered once service is selected, displays distinct bookable dates.
+   - `[QUICK_TIMES:[{ date, serviceId, slots: [{ time, start, end, staffId, serviceId }] }]]`: Offered once day is selected, displays available timeslots for that date.
+   - `[TIME_SLOTS:[...]]`: Supported as a legacy fallback.
+
+2. **Database & UI Hygiene**:
+   - Tags MUST NEVER be visible to the customer in the chat bubble.
+   - Tags MUST NEVER be stored in the database `messages` table (stripped via `stripCalendarTags`).
+   - Bracket-depth tracking is used for stripping and payload extraction to support nested JSON arrays and objects without regex truncations.
+
+3. **Calendar Providers & Availability Engine**:
+   - All provider calls route through `src/lib/calendar/provider.ts` supporting Google Calendar API and Microsoft Graph API (`/me/calendar/getSchedule`).
+   - Real calendar busy slots are checked. If a provider fails or is unconfigured, slots are never falsely assumed free.
+   - Fallback to contact detail collection occurs cleanly if 0 services or no provider are configured.
+
+4. **Booking & Race Condition Safeguards**:
+   - `bookMeeting` re-checks free/busy against both the internal `appointments` table and the external calendar provider before inserting.
+   - Idempotency checks prevent duplicate bookings on double-taps within a 1-second timestamp window.
+
