@@ -3,7 +3,8 @@ import { createClient } from '@supabase/supabase-js';
 import { streamText, generateText } from 'ai';
 import { createGoogleGenerativeAI } from '@ai-sdk/google';
 import { getAvailabilityData, bookMeeting } from '@/app/api/chat/stream/calendar';
-import { directAvailabilitySpeech } from '@/lib/calendar/fallback-message';
+import { calendarFallbackMessage, directAvailabilitySpeech } from '@/lib/calendar/fallback-message';
+import { splitAtToolTag } from '@/lib/calendar/tool-tags';
 
 import { getActiveGeminiModel } from '@/lib/gemini-config';
 import { generateEmbedding } from '@/lib/embeddings';
@@ -349,6 +350,10 @@ ${globalDisclaimer}`;
 
     // Clean any remaining bracket tags from spoken text
     finalSpokenText = finalSpokenText.replace(/\[(CHECK_AVAILABILITY|BOOK_MEETING|TIME_SLOTS|LEAD_CAPTURED|LOOKUP_APPOINTMENTS):?[^\]]*\]/gi, '').trim();
+    const unfinished = splitAtToolTag(finalSpokenText);
+    if (unfinished.hadTag) {
+      finalSpokenText = `${unfinished.before.trim()} ${calendarFallbackMessage('unreachable', bookingUrl)}`.trim();
+    }
 
     // 7. Stream back to Vapi
     const encoder = new TextEncoder();
