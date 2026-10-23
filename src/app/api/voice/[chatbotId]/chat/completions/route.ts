@@ -4,6 +4,7 @@ import { streamText, generateText } from 'ai';
 import { createGoogleGenerativeAI } from '@ai-sdk/google';
 import { getAvailabilityData, bookMeeting } from '@/app/api/chat/stream/calendar';
 import { calendarFallbackMessage, directAvailabilitySpeech } from '@/lib/calendar/fallback-message';
+import { splitAtToolTag } from '@/lib/calendar/tool-tags';
 
 import { getActiveGeminiModel } from '@/lib/gemini-config';
 import { generateEmbedding } from '@/lib/embeddings';
@@ -667,8 +668,11 @@ ${globalDisclaimer}`;
               }
             }
           } else if (containsBracketTag && pendingChunks.length > 0) {
-            // Bracket was not a tool tag — flush pending chunks safely
-            const remainingCleanText = pendingChunks.join('');
+            // No complete tool tag: speak the text before any unfinished tag, never the tag itself.
+            const { before, hadTag } = splitAtToolTag(pendingChunks.join(''));
+            const remainingCleanText = hadTag
+              ? `${before.trim()} ${calendarFallbackMessage('unreachable', bookingUrl)}`.trim()
+              : before;
             normalSpokenText += remainingCleanText;
             const deltaChunk = {
               id: 'chatcmpl-vapi',

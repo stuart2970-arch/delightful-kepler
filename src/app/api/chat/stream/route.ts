@@ -13,7 +13,13 @@ import {
   bookMeeting,
   lookupAppointments,
 } from './calendar';
-import { directAvailabilitySpeech } from '@/lib/calendar/fallback-message';
+import { calendarFallbackMessage, directAvailabilitySpeech } from '@/lib/calendar/fallback-message';
+import {
+  parseTruncatedAvailabilityTag,
+  resolveByIdPrefix,
+  splitAtToolTag,
+  visibleLength,
+} from '@/lib/calendar/tool-tags';
 import {
   formatQuickDaysTag,
   formatQuickTimesTag,
@@ -916,9 +922,10 @@ ${staffContext}`;
     let result: any;
 
     if (mockModelReply) {
+      const mockChunks: string[] = Array.isArray(mockModelReply) ? mockModelReply : [mockModelReply];
       result = {
         textStream: (async function* () {
-          yield mockModelReply;
+          for (const chunk of mockChunks) yield chunk;
         })(),
       };
     } else {
@@ -958,6 +965,7 @@ ${staffContext}`;
             });
 
             const cleanBotText = event.text
+              .slice(0, splitAtToolTag(event.text).before.length)
               .replace(/\[LEAD_CAPTURED:.*?\]/g, '')
               .replace(/\[CHECK_AVAILABILITY:[\s\S]*?(?:\]|$)/g, '')
               .replace(/\[BOOK_MEETING:[\s\S]*?(?:\]|$)/g, '')
@@ -1036,18 +1044,83 @@ ${staffContext}`;
         try {
           let hasText = false;
           let rawText = '';
+          let shownLength = 0;
           for await (const chunk of result.textStream) {
             hasText = true;
             rawText += chunk;
-            safeEnqueue(chunk);
+            const safeLength = visibleLength(rawText);
+            if (safeLength > shownLength) {
+              safeEnqueue(rawText.slice(shownLength, safeLength));
+              shownLength = safeLength;
+            }
           }
           if (!hasText) {
             safeEnqueue(`I'm sorry, I am having trouble connecting to my database. Please try again. [DEBUG: ${lastApiError || "Empty stream, no error caught."}]`);
             return;
           }
+          const { before: visibleText, hadTag: hasToolTag } = splitAtToolTag(rawText);
+          if (visibleText.length > shownLength) {
+            safeEnqueue(visibleText.slice(shownLength));
+            shownLength = visibleText.length;
+          }
 
           // --- AVAILABILITY TOOL PASS ---
           const availMatch = rawText.match(/\[CHECK_AVAILABILITY:\s*(.+?),\s*(.+?),\s*(.+?),\s*(.+?)\]/);
+          const truncatedAvail = availMatch ? null : parseTruncatedAvailabilityTag(rawText);
+          if (truncatedAvail) {
+            // The model stopped before closing the tag, so pick up from what it did say.
+            if (!mockModelReply && typeof result.finishReason?.then === 'function') {
+              result.finishReason.then((reason: string) => {
+                console.warn(`[Chat Stream][${requestId}] Unfinished CHECK_AVAILABILITY tag (finish reason: ${reason}).`);
+              }).catch(() => {});
+            }
+
+            const lowerMessage = (message || '').toLowerCase();
+            const namedStaff = configuredStaff.filter((s: any) => {
+              const firstName = typeof s.name === 'string' ? s.name.trim().split(/\s+/)[0]?.toLowerCase() : '';
+              return firstName && new RegExp(`\\b${firstName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`).test(lowerMessage);
+            });
+            const staffMember = resolveByIdPrefix(configuredStaff, truncatedAvail.staffRef)
+              || (namedStaff.length === 1 ? namedStaff[0] : null);
+            const namedServices = configuredServices.filter(
+              (s: any) => typeof s.name === 'string' && s.name.trim() && lowerMessage.includes(s.name.toLowerCase())
+            );
+            const service = resolveByIdPrefix(configuredServices, truncatedAvail.serviceRef)
+              || (namedServices.length === 1 ? namedServices[0] : null)
+              || (configuredServices.length === 1 ? configuredServices[0] : null);
+
+            let recoveryReply = '';
+            if (service) {
+              const staffId = staffMember?.id || 'ANY';
+              const now = new Date();
+              const nextFortnight = new Date(now.getTime() + 14 * 24 * 60 * 60 * 1000);
+              const availData = await getAvailabilityData(tenantId, staffId, service.id, now.toISOString(), nextFortnight.toISOString(), timezone);
+              const directSpeech = directAvailabilitySpeech(availData.outcome, availData.text);
+
+              if (directSpeech) {
+                recoveryReply = directSpeech;
+              } else if (availData.availableDays.length > 0) {
+                recoveryReply = `Here are the days with free times:\n\n${availData.quickDaysTag}`;
+              } else {
+                recoveryReply = `I'm sorry, I couldn't find any available days for ${service.name || 'that service'} in the next 2 weeks. Please let us know your contact details and our team will get in touch!`;
+              }
+            } else if (configuredServices.length > 0) {
+              recoveryReply = `Which service would you like to book?\n\n${formatQuickServicesTag(configuredServices.map((s: any) => ({ id: s.id, name: s.name, duration_minutes: s.duration_minutes || 30, price: s.price })))}`;
+            } else {
+              recoveryReply = calendarFallbackMessage('unreachable', bookingUrl);
+            }
+
+            safeEnqueue(`\n\n${recoveryReply}`);
+
+            if (conversationId && conversationId !== '00000000-0000-0000-0000-000000000000') {
+              await supabaseAdmin.from('messages').insert({
+                tenant_id: tenantId,
+                conversation_id: conversationId,
+                sender_type: 'bot',
+                text_content: stripCalendarTags(recoveryReply),
+              });
+            }
+          }
           if (availMatch) {
             const staffId = availMatch[1].trim().replace(/['"]/g, '');
             const serviceId = availMatch[2].trim().replace(/['"]/g, '');
@@ -1186,6 +1259,10 @@ ${staffContext}`;
             for await (const chunk of result2.textStream) {
               safeEnqueue(chunk);
             }
+          }
+
+          if (hasToolTag && !availMatch && !truncatedAvail && !bookMatch && !lookupMatch) {
+            safeEnqueue(`\n\nI'm sorry, I couldn't finish that just now. Could you tell me again what you'd like to do?`);
           }
         } catch (err: unknown) {
           if (!request.signal?.aborted && !isStreamClosed) {
