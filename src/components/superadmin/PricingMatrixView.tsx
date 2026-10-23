@@ -230,6 +230,46 @@ export default function PricingMatrixView() {
     }
   };
 
+  const handleSaveMonthlyPrice = async (id: string, name: string, priceGBP: string) => {
+    setSavingId(id);
+    setErrorMsg(null);
+    setSuccessMsg(null);
+    const pricePence = Math.round(parseFloat(priceGBP || '0') * 100);
+    if (!Number.isFinite(pricePence) || pricePence < 0) {
+      setErrorMsg('Enter a price of zero or more.');
+      setSavingId(null);
+      return;
+    }
+    const values = formState[id];
+    const updates: Record<string, any> = {
+      monthly_price_pence: pricePence,
+      max_price_pence: pricePence,
+      is_sliding: false,
+    };
+    if (values?.name !== undefined) updates.name = values.name.trim();
+    if (values?.description !== undefined) updates.description = values.description.trim();
+    try {
+      const res = await fetch('/api/superadmin/addon-catalog', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          type: 'addon',
+          id,
+          updates,
+          summary: `Updated ${name} to £${(pricePence / 100).toFixed(2)} per month.`,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Failed to update');
+      setSuccessMsg(`Successfully updated ${name}.`);
+      setAddons((prev) => prev.map((addon) => (addon.id === id ? { ...addon, ...updates } : addon)));
+    } catch (err: any) {
+      setErrorMsg(err.message || 'Failed to save');
+    } finally {
+      setSavingId(null);
+    }
+  };
+
   const handleSaveFixedAddon = async (id: string, name: string, priceGBP: string, allowance: string, allowKey: string) => {
     setSavingId(id);
     setErrorMsg(null);
@@ -373,6 +413,7 @@ export default function PricingMatrixView() {
   const dataPack = addons.find((a) => a.id === 'data_pack_500') || addons.find((a) => a.category === 'data_pack');
   const googleCalendarItem = addons.find((a) => a.id === 'google_calendar_addon') || addons.find((a) => a.category === 'google_calendar');
   const microsoftCalendarItem = addons.find((a) => a.id === 'microsoft_calendar_addon') || addons.find((a) => a.category === 'microsoft_calendar');
+  const removeBrandingItem = addons.find((a) => a.id === 'remove_styleflo_branding') || addons.find((a) => a.category === 'remove_branding');
 
   const renderWordingControls = (item: AddonItem) => {
     const currentName = formState[item.id]?.name ?? item.name ?? '';
@@ -1190,6 +1231,54 @@ export default function PricingMatrixView() {
                 className="w-full py-1.5 bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 text-white text-[11px] font-bold rounded-lg transition-colors cursor-pointer"
               >
                 {savingId === microsoftCalendarItem.id ? 'Saving...' : 'Save Microsoft Calendar'}
+              </button>
+            </div>
+          )}
+
+          {removeBrandingItem && formState[removeBrandingItem.id] && (
+            <div className={`bg-gray-950 border ${removeBrandingItem.is_active === false ? 'border-amber-500/40' : 'border-gray-800'} p-4 rounded-xl space-y-3`}>
+              <div className="flex justify-between items-center">
+                <span className="text-xs font-bold text-white flex items-center gap-1.5">
+                  <span>✨</span> Remove StyleFlo branding
+                </span>
+                <div className="flex items-center gap-1.5">
+                  {removeBrandingItem.is_active === false ? (
+                    <span className="text-[9px] uppercase tracking-wider font-bold px-1.5 py-0.5 rounded bg-amber-500/20 text-amber-300 border border-amber-500/30">
+                      Disabled (hidden from customers)
+                    </span>
+                  ) : (
+                    <span className="text-[9px] uppercase tracking-wider font-bold px-1.5 py-0.5 rounded bg-emerald-500/20 text-emerald-300">
+                      Active
+                    </span>
+                  )}
+                  <span className="text-[10px] text-gray-400 font-mono">remove_styleflo_branding</span>
+                </div>
+              </div>
+              <p className="text-[10px] text-gray-400 leading-tight">
+                Monthly bolt-on. Hides only the Powered by StyleFlo footer and its tracking link. Terms, Privacy and the AI notice stay visible.
+              </p>
+              {renderActiveToggle(removeBrandingItem)}
+              <div>
+                <label className="block text-[10px] text-gray-400 mb-1">Monthly price (£)</label>
+                <div className="relative">
+                  <span className="absolute left-2.5 top-1.5 text-gray-400 text-xs">£</span>
+                  <input
+                    type="number"
+                    step="0.01"
+                    min="0"
+                    value={formState[removeBrandingItem.id].lowerCostGBP}
+                    onChange={(e) => handleFieldChange(removeBrandingItem.id, 'lowerCostGBP', e.target.value)}
+                    className="w-full bg-gray-900 border border-gray-700 rounded-lg pl-6 pr-2 py-1 text-xs text-white font-mono"
+                  />
+                </div>
+              </div>
+              {renderWordingControls(removeBrandingItem)}
+              <button
+                onClick={() => handleSaveMonthlyPrice(removeBrandingItem.id, removeBrandingItem.name, formState[removeBrandingItem.id].lowerCostGBP)}
+                disabled={savingId === removeBrandingItem.id}
+                className="w-full py-1.5 bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 text-white text-[11px] font-bold rounded-lg transition-colors cursor-pointer"
+              >
+                {savingId === removeBrandingItem.id ? 'Saving...' : 'Save branding bolt-on'}
               </button>
             </div>
           )}

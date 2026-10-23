@@ -1,5 +1,6 @@
 import Vapi from '@vapi-ai/web';
 import { buildGreeting, getFirstName, isEchoOfGreeting } from '../lib/greeting';
+import { resolveChatFooter } from '../lib/billing/branding';
 
 (function () {
   if (typeof document === 'undefined') return;
@@ -507,7 +508,8 @@ import { buildGreeting, getFirstName, isEchoOfGreeting } from '../lib/greeting';
   let welcomeMessage = '';
   let businessName = '';
   let tenantId = '';
-  let brandingHtml = '<span style="opacity: 0.6; font-size: 11px;">⚡ Powered by <strong>StyleFlo</strong></span>';
+  let hideStyleFloBranding = false;
+  let brandingHtml = resolveChatFooter({ hideStyleFloBranding: false, brandingHtml: '' }).html;
   let voiceEnabled = false;
   let requireClientName = false;
   let vapiPublicKey = '';
@@ -532,7 +534,12 @@ import { buildGreeting, getFirstName, isEchoOfGreeting } from '../lib/greeting';
         agentAvatarUrl = config.agentAvatarUrl || config.avatarUrl || config.agent_avatar_url || '/avatars/avatar1.png';
         welcomeMessage = config.welcomeMessage ?? '';
         businessName = config.businessName || '';
-        brandingHtml = config.brandingHtml || brandingHtml;
+        const footer = resolveChatFooter({
+          hideStyleFloBranding: config.hideStyleFloBranding === true,
+          brandingHtml: config.brandingHtml,
+        });
+        hideStyleFloBranding = footer.hide;
+        brandingHtml = footer.html;
         voiceEnabled = config.voiceEnabled || false;
         requireClientName = config.requireClientName || false;
         vapiPublicKey = config.vapiPublicKey || '3648bdcb-ccac-4acc-aee6-a4f9384743de';
@@ -748,10 +755,10 @@ import { buildGreeting, getFirstName, isEchoOfGreeting } from '../lib/greeting';
         </button>
       </form>
 
-      <!-- Branding Footer -->
-      <a href="${apiHost}/api/track?ref=${chatbotId}&source=${encodeURIComponent(window.location.hostname)}" target="_blank" rel="noopener noreferrer" class="w-full bg-gray-50 text-center py-1.5 border-t border-gray-100 block hover:bg-gray-100 transition-colors cursor-pointer text-gray-500 flex items-center justify-center">
+      ${hideStyleFloBranding ? '' : `<!-- Branding footer. The legal and AI notice text are separate and stay visible. -->
+      <a id="styleflo-branding-footer" href="${apiHost}/api/track?ref=${chatbotId}&source=${encodeURIComponent(window.location.hostname)}" target="_blank" rel="noopener noreferrer" class="w-full bg-gray-50 text-center py-1.5 border-t border-gray-100 block hover:bg-gray-100 transition-colors cursor-pointer text-gray-500 flex items-center justify-center">
         ${brandingHtml}
-      </a>
+      </a>`}
     `;
     widgetContainer.appendChild(chatWindow);
 

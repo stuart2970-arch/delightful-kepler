@@ -2,6 +2,11 @@ import { NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import { createServerClient } from '@supabase/ssr';
 import { cookies } from 'next/headers';
+import {
+  DEFAULT_STYLEFLO_BRANDING_HTML,
+  REMOVE_STYLEFLO_BRANDING_ADDON_ID,
+  tenantHidesStyleFloBranding,
+} from '@/lib/billing/branding';
 
 export const dynamic = 'force-dynamic';
 
@@ -70,7 +75,8 @@ export async function GET(
         avatarUrl: floConfig.avatarUrl || floConfig.agentAvatarUrl || null,
         agentAvatarUrl: floConfig.avatarUrl || floConfig.agentAvatarUrl || null,
         welcomeMessage: floConfig.welcomeMessage || "Hi, I'm Flo, your AI registration assistant! Tell me, would you prefer to sign up using your Google account or an email address? (The Google sign-in button is at the top of this chat, or pass me your email address to get started!)",
-        brandingHtml: '<span style="opacity: 0.6; font-size: 11px;">⚡ Powered by <strong>StyleFlo</strong></span>',
+        brandingHtml: DEFAULT_STYLEFLO_BRANDING_HTML,
+        hideStyleFloBranding: false,
         voiceEnabled: floConfig.voiceEnabled ?? false,
         voiceId: floConfig.voiceId || null,
         voiceProvider: '11labs',
@@ -91,7 +97,8 @@ export async function GET(
         avatarUrl: '/avatars/avatar1.png',
         welcomeMessage: 'Hello! How can I help you today?',
         businessName: 'Acme',
-        brandingHtml: '<span style="opacity: 0.6; font-size: 11px;">⚡ Powered by <strong>StyleFlo</strong></span>',
+        brandingHtml: DEFAULT_STYLEFLO_BRANDING_HTML,
+        hideStyleFloBranding: false,
         brandingUrl: 'https://styleflo.ai',
         voiceEnabled: true,
         vapiPublicKey: process.env.NEXT_PUBLIC_VAPI_PUBLIC_KEY || '3648bdcb-ccac-4acc-aee6-a4f9384743de',
@@ -117,7 +124,8 @@ export async function GET(
         avatarUrl: '/avatars/avatar1.png',
         welcomeMessage: '',
         businessName: "Bella's Salon",
-        brandingHtml: '<span style="opacity: 0.6; font-size: 11px;">⚡ Powered by <strong>StyleFlo</strong></span>',
+        brandingHtml: DEFAULT_STYLEFLO_BRANDING_HTML,
+        hideStyleFloBranding: false,
         brandingUrl: 'https://styleflo.ai',
         voiceEnabled: true,
         vapiPublicKey: process.env.NEXT_PUBLIC_VAPI_PUBLIC_KEY || '3648bdcb-ccac-4acc-aee6-a4f9384743de',
@@ -151,7 +159,8 @@ export async function GET(
           avatarUrl: '/avatars/avatar1.png',
           welcomeMessage: "Hi, you're through to FloChat! How can I help you today?",
           businessName: 'StyleFlo AI',
-          brandingHtml: '<span style="opacity: 0.6; font-size: 11px;">⚡ Powered by <strong>StyleFlo</strong></span>',
+          brandingHtml: DEFAULT_STYLEFLO_BRANDING_HTML,
+          hideStyleFloBranding: false,
           brandingUrl: 'https://styleflo.ai',
           voiceEnabled: true,
           vapiPublicKey: process.env.NEXT_PUBLIC_VAPI_PUBLIC_KEY || '3648bdcb-ccac-4acc-aee6-a4f9384743de',
@@ -288,6 +297,30 @@ export async function GET(
       (chatbot.name as string)?.trim() ||
       '';
 
+    let hideStyleFloBranding = false;
+    if (chatbot.tenant_id) {
+      const [{ data: purchaseRows, error: purchaseError }, { data: inclusionRows, error: inclusionError }] = await Promise.all([
+        supabaseAdmin
+          .from('tenant_active_addons')
+          .select('addon_catalog_id, is_active')
+          .eq('tenant_id', chatbot.tenant_id)
+          .eq('addon_catalog_id', REMOVE_STYLEFLO_BRANDING_ADDON_ID),
+        supabaseAdmin
+          .from('tenant_addon_inclusions')
+          .select('addon_catalog_id, included')
+          .eq('tenant_id', chatbot.tenant_id)
+          .eq('addon_catalog_id', REMOVE_STYLEFLO_BRANDING_ADDON_ID),
+      ]);
+      if (purchaseError) console.warn('[Chatbot Config] Could not read branding bolt-on:', purchaseError.message);
+      if (inclusionError) console.warn('[Chatbot Config] Include switch is not available yet:', inclusionError.message);
+      hideStyleFloBranding = tenantHidesStyleFloBranding({
+        purchases: purchaseError ? [] : (purchaseRows || []),
+        inclusions: inclusionError ? [] : (inclusionRows || []),
+      });
+    }
+
+    const storedBranding = typeof globalConfig.branding_html === 'string' ? globalConfig.branding_html.trim() : '';
+
     return NextResponse.json({
       tenantId: chatbot.tenant_id,
       name: chatbot.name,
@@ -298,8 +331,9 @@ export async function GET(
       avatarUrl: config.agent_avatar_url || config.agentAvatarUrl || config.avatarUrl || '/avatars/avatar1.png',
       welcomeMessage: typeof config.welcome_message === 'string' ? config.welcome_message : '',
       businessName: resolvedBusinessName,
-      brandingHtml: (planTier === 'premium' || planTier === 'ultimate') ? '' : (globalConfig.branding_html || '<span style="opacity: 0.6; font-size: 11px;">⚡ Powered by <strong>StyleFlo</strong></span>'),
-      brandingUrl: (planTier === 'premium' || planTier === 'ultimate') ? '' : (globalConfig.branding_url || 'https://styleflo.ai'),
+      brandingHtml: storedBranding || DEFAULT_STYLEFLO_BRANDING_HTML,
+      hideStyleFloBranding,
+      brandingUrl: globalConfig.branding_url || 'https://styleflo.ai',
       voiceEnabled: isVoiceActive,
       vapiPublicKey: process.env.NEXT_PUBLIC_VAPI_PUBLIC_KEY || process.env.VAPI_PUBLIC_KEY || '',
       vapiAssistantId: config.vapi_assistant_id || (chatbot as any).vapi_assistant_id || process.env.VAPI_MASTER_ASSISTANT_ID || '',

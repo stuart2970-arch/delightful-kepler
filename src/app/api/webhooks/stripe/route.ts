@@ -41,6 +41,8 @@ function mapAddonCategoryToFeatureId(category: string): string {
       return 'data_chunks_addon';
     case 'google_calendar':
       return 'google_calendar';
+    case 'remove_branding':
+      return 'remove_branding';
     default:
       return category;
   }

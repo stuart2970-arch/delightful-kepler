@@ -22,7 +22,7 @@ import { useDashboardStore } from '../lib/store';
 import { formatAllowanceRange } from '@/lib/addon-text';
 
 const BILLING_CATEGORIES: AddOnCategory[] = [
-  'landline', 'mobile', 'whatsapp', 'voice_pack', 'sms_pack', 'data_pack', 'google_calendar', 'microsoft_calendar',
+  'landline', 'mobile', 'whatsapp', 'voice_pack', 'sms_pack', 'data_pack', 'google_calendar', 'microsoft_calendar', 'remove_branding',
 ];
 
 function asBillingCategory(category: string): AddOnCategory | null {
@@ -39,6 +39,7 @@ function billingProductEmoji(category: string): string {
     case 'voice_pack': return '🎙️';
     case 'sms_pack': return '✉️';
     case 'data_pack': return '📦';
+    case 'remove_branding': return '✨';
     default: return '📦';
   }
 }
@@ -52,6 +53,7 @@ function billingProductAction(category: string): string {
     case 'voice_pack': return 'Purchase Voice Minutes';
     case 'sms_pack': return 'Purchase SMS Credits';
     case 'data_pack': return 'Add Knowledge Capacity';
+    case 'remove_branding': return 'Remove StyleFlo branding';
     default: return 'Add bolt-on';
   }
 }
