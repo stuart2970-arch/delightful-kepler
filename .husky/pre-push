@@ -1,1 +1,1 @@
-cmd.exe /c "npm run typecheck && npm run test:e2e"
+npm run typecheck && npm run test:e2e

@@ -603,7 +603,7 @@ ${globalDisclaimer}`;
 
             const isBookingSuccess = bookMatch && (toolResult.toLowerCase().includes('confirmed') || toolResult.toLowerCase().includes('success'));
             const directSpeech = toolFailed
-              ? calendarFallbackMessage('unreachable')
+              ? calendarFallbackMessage('unreachable', bookingUrl)
               : directAvailabilitySpeech(availabilityOutcome, toolResult);
 
             if (directSpeech) {
@@ -621,7 +621,7 @@ ${globalDisclaimer}`;
             } else {
               const pass2Prompt = isBookingSuccess
                 ? `[SYSTEM BOOKING SUCCESS RESULT]:\n${toolResult}\nCRITICAL INSTRUCTION: The booking WAS EXECUTED SUCCESSFULLY and IS CONFIRMED. DO NOT check availability again. DO NOT say the slot was taken or unavailable. Enthusiastically and politely confirm to the customer that their appointment is booked!`
-                : `[SYSTEM RESULT]:\n${toolResult}\nSpeak the result naturally to the caller in plain conversational English without markdown, codes, or bracket tags. CRITICAL INSTRUCTION: Maintain the exact staff member (${requestedStaffId !== 'ANY' ? 'the requested staff member' : 'any available staff member'}) and time slot agreed upon by the caller. DO NOT switch staff members unless the caller explicitly asked to change staff or the requested staff member has zero availability.`;
+                : `[SYSTEM RESULT]:\n${toolResult}\nSpeak the result naturally to the caller in plain conversational English without markdown, codes, or bracket tags. CRITICAL INSTRUCTION: Maintain the exact staff member (${requestedStaffId !== 'ANY' ? 'the requested staff member' : 'any available staff member'}) and time slot agreed upon by the caller. DO NOT switch staff members unless the caller explicitly asked to change staff or the requested staff member has zero availability. If the result says a calendar could not be checked, do not invent times for that person.`;
 
               try {
                 const pass2Result = (mockPass2Reply || (mockModelReply && (process.env.PLAYWRIGHT_TEST === 'true' || apiKey.startsWith('mock') || !apiKey)))
