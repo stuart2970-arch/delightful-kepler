@@ -6,6 +6,8 @@ import DashboardClient from '@/components/DashboardClient';
 import { redirect } from 'next/navigation';
 import { getTenantChannelFlags } from '@/lib/entitlements';
 import { applyPublicAddonFilter } from '@/lib/addons/public-catalogue';
+import { buildAccountOwnership } from '@/lib/billing/account-ownership';
+import type { CatalogAddon, InclusionRecord, PurchaseRecord } from '@/lib/billing/account-ownership';
 
 export const dynamic = 'force-dynamic';
 
@@ -448,10 +450,8 @@ export default async function DashboardPage(props: { searchParams?: Promise<{ [k
           .reduce((sum, r) => sum + (r.quantity || 0), 0);
       }
 
-      // Fetch active add-ons with catalog details
-      const { data: activeAddons } = await queryClient
-        .from('tenant_active_addons')
-        .select(`
+      // Fetch bolt-on purchases. Price paid is optional until the STYL-194 migration runs.
+      const addonEmbed = `
           id,
           addon_catalog_id,
           is_active,
@@ -466,29 +466,63 @@ export default async function DashboardPage(props: { searchParams?: Promise<{ [k
             included_data_chunks,
             is_active
           )
-        `)
-        .eq('tenant_id', tenantId)
-        .eq('is_active', true);
+        `;
+      const withPrice = await queryClient
+        .from('tenant_active_addons')
+        .select(`price_paid_pence, ${addonEmbed}`)
+        .eq('tenant_id', tenantId);
 
-      if (activeAddons) {
-        billingData.addons = activeAddons.map((a: any) => ({
-          id: a.id,
-          addon_catalog_id: a.addon_catalog_id,
-          name: a.addon_catalog?.name || '',
-          category: a.addon_catalog?.category || '',
-          monthly_price_pence: a.addon_catalog?.monthly_price_pence || 0,
-          included_voice_minutes: a.addon_catalog?.included_voice_minutes || 0,
-          included_sms: a.addon_catalog?.included_sms || 0,
-          included_messages: a.addon_catalog?.included_messages || 0,
-          included_data_chunks: a.addon_catalog?.included_data_chunks || 0,
-          is_active: a.is_active,
-          catalog_is_active: a.addon_catalog?.is_active ?? true,
-          activated_at: a.activated_at,
-        }));
-        if (billingData.addons.some((a: any) => a.category === 'google_calendar')) {
-          initialHasGoogleCalendarAddon = true;
-        }
+      let purchaseRows: any[] = withPrice.data || [];
+      if (withPrice.error) {
+        console.warn('[Dashboard] Price paid is not available yet:', withPrice.error.message);
+        const fallback = await queryClient
+          .from('tenant_active_addons')
+          .select(addonEmbed)
+          .eq('tenant_id', tenantId);
+        purchaseRows = fallback.data || [];
       }
+      const activeAddons = purchaseRows.filter((row: any) => row.is_active);
+      billingData.addons = activeAddons.map((a: any) => ({
+        id: a.id,
+        addon_catalog_id: a.addon_catalog_id,
+        name: a.addon_catalog?.name || '',
+        category: a.addon_catalog?.category || '',
+        monthly_price_pence: a.addon_catalog?.monthly_price_pence || 0,
+        price_paid_pence: a.price_paid_pence ?? null,
+        included_voice_minutes: a.addon_catalog?.included_voice_minutes || 0,
+        included_sms: a.addon_catalog?.included_sms || 0,
+        included_messages: a.addon_catalog?.included_messages || 0,
+        included_data_chunks: a.addon_catalog?.included_data_chunks || 0,
+        is_active: a.is_active,
+        catalog_is_active: a.addon_catalog?.is_active ?? true,
+        activated_at: a.activated_at,
+      }));
+      if (billingData.addons.some((a: any) => a.category === 'google_calendar')) {
+        initialHasGoogleCalendarAddon = true;
+      }
+
+      const { data: inclusionRows, error: inclusionError } = await queryClient
+        .from('tenant_addon_inclusions')
+        .select('addon_catalog_id, included, price_paid_pence')
+        .eq('tenant_id', tenantId);
+      if (inclusionError) {
+        console.warn('[Dashboard] Include switch is not available yet:', inclusionError.message);
+      }
+
+      const planPrice = billingData.tierDetails?.monthly_price;
+      billingData.ownership = buildAccountOwnership({
+        plan: {
+          name: billingData.tierDetails?.name || currentTierId,
+          price_pence: planPrice == null ? null : Math.round(Number(planPrice) * 100),
+        },
+        catalog: (billingData.catalog || []) as CatalogAddon[],
+        purchases: purchaseRows.map((row: any) => ({
+          addon_catalog_id: row.addon_catalog_id,
+          is_active: Boolean(row.is_active),
+          price_paid_pence: row.price_paid_pence ?? null,
+        })) as PurchaseRecord[],
+        inclusions: inclusionError ? [] : ((inclusionRows || []) as InclusionRecord[]),
+      });
 
       // Fetch 3-month rolling usage for voice/SMS
       const now = new Date();

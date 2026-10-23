@@ -122,6 +122,7 @@ test.describe('STYL-178: Superadmin Server-Side Authentication & Authorization H
             case 'GET': return request.get(entry.path, opts);
             case 'POST': return request.post(entry.path, opts);
             case 'PATCH': return request.patch(entry.path, opts);
+            case 'PUT': return request.put(entry.path, opts);
             case 'DELETE': return request.delete(entry.path, opts);
             default: throw new Error(`Unsupported method ${method}`);
           }

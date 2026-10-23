@@ -21,6 +21,41 @@ import AddOnUpsellModal, { AddOnCategory } from './AddOnUpsellModal';
 import { useDashboardStore } from '../lib/store';
 import { formatAllowanceRange } from '@/lib/addon-text';
 
+const BILLING_CATEGORIES: AddOnCategory[] = [
+  'landline', 'mobile', 'whatsapp', 'voice_pack', 'sms_pack', 'data_pack', 'google_calendar', 'microsoft_calendar',
+];
+
+function asBillingCategory(category: string): AddOnCategory | null {
+  return BILLING_CATEGORIES.includes(category as AddOnCategory) ? (category as AddOnCategory) : null;
+}
+
+function billingProductEmoji(category: string): string {
+  switch (category) {
+    case 'landline': return '📞';
+    case 'mobile': return '📱';
+    case 'whatsapp': return '💬';
+    case 'google_calendar': return '📅';
+    case 'microsoft_calendar': return '📆';
+    case 'voice_pack': return '🎙️';
+    case 'sms_pack': return '✉️';
+    case 'data_pack': return '📦';
+    default: return '📦';
+  }
+}
+
+function billingProductAction(category: string): string {
+  switch (category) {
+    case 'landline': return 'Get Landline Bolt-on';
+    case 'mobile': return 'Get Mobile Bolt-on';
+    case 'google_calendar': return 'Get Google Calendar Bolt-on';
+    case 'microsoft_calendar': return 'Get Microsoft Calendar Bolt-on';
+    case 'voice_pack': return 'Purchase Voice Minutes';
+    case 'sms_pack': return 'Purchase SMS Credits';
+    case 'data_pack': return 'Add Knowledge Capacity';
+    default: return 'Add bolt-on';
+  }
+}
+
 interface Chatbot {
   id: string;
   name: string;
@@ -832,7 +867,7 @@ const globalBotId = '00000000-0000-0000-0000-000000000000';
                     ...(isSuperAdmin ? [{ id: 'openclaw-monitor', label: 'Gateways', icon: <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 10V3L4 14h7v7l9-11h-7z" /> }] : []),
                     { id: 'telephony', label: 'Phone Calls', icon: <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" />, count: (conversations || []).filter(c => c && (c.channel === 'phone' || c.is_phone_call || (c.is_voice_call && c.user_session_id?.startsWith('phone_')))).length },
                     { id: 'whatsapp', label: 'WhatsApp & Meta', icon: <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" /> },
-                    { id: 'billing', label: 'Subscriptions & Add-ons', icon: <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z" /> },
+                    { id: 'billing', label: 'Subscriptions & Bolt-ons', icon: <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z" /> },
                     { id: 'account', label: 'Account Settings', icon: <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" /> },
                   ]
               ).map(tab => (
@@ -917,12 +952,10 @@ const globalBotId = '00000000-0000-0000-0000-000000000000';
                 <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
                   <div>
                     <h3 className="text-lg font-bold text-[var(--awb-color8)]">
-                      Current Plan: <span className="text-[var(--awb-color5)] uppercase tracking-wider font-bold">
-                        {billingData?.tierDetails?.name || (billingData?.planTier === 'base_tier' || billingData?.planTier === 'foundation' || billingData?.planTier === 'basic' ? 'Foundation' : billingData?.planTier || 'Foundation')}
-                      </span>
+                      {billingData?.ownership?.heading || 'Current plan = Foundation. Price unavailable'}
                     </h3>
                     <p className="text-xs text-[var(--awb-color6)] mt-1">
-                      {billingData?.tierDetails?.monthly_price != null ? `£${Number(billingData.tierDetails.monthly_price).toFixed(2)}/month` : 'Price unavailable'} • Manage your usage limits, active bolt-ons, and allowances.
+                      Manage your usage limits, active bolt-ons, and allowances.
                     </p>
                   </div>
                   <button
@@ -1091,20 +1124,26 @@ const globalBotId = '00000000-0000-0000-0000-000000000000';
                   </div>
                 </div>
 
-                {/* Active Add-ons */}
-                {billingData?.addons?.length > 0 && (
+                {/* Active bolt-ons: the price this salon pays, including a grandfathered price */}
+                {((billingData?.ownership?.monthly_bolt_ons || []).filter((item: any) => item.already_included).length > 0 || billingData?.addons?.length > 0) && (
                   <div className="mt-6">
-                    <h4 className="text-sm font-bold text-[var(--awb-color7)] mb-3">Active Add-ons</h4>
+                    <h4 className="text-sm font-bold text-[var(--awb-color7)] mb-3">Active bolt-ons</h4>
                     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-                      {billingData.addons.map((addon: any) => (
+                      {((billingData?.ownership?.monthly_bolt_ons || []).filter((item: any) => item.already_included).length > 0
+                        ? (billingData.ownership.monthly_bolt_ons as any[]).filter((item) => item.already_included)
+                        : billingData.addons
+                      ).map((addon: any) => (
                         <div key={addon.id} className="bg-[var(--awb-color2)] border border-[var(--awb-color3)] rounded-xl p-4 flex items-center justify-between gap-3">
                           <div className="flex items-center gap-3 min-w-0">
                             <div className="w-8 h-8 rounded-lg bg-[#260475] text-white flex items-center justify-center text-xs font-bold shrink-0">
-                              {addon.category === 'landline' ? '📞' : addon.category === 'mobile' ? '📱' : addon.category === 'whatsapp' ? '💬' : addon.category === 'google_calendar' || addon.category === 'microsoft_calendar' ? '📅' : addon.category === 'voice_pack' ? '🎙️' : addon.category === 'sms_pack' ? '✉️' : '📦'}
+                              {billingProductEmoji(addon.category)}
                             </div>
                             <div className="min-w-0">
                               <p className="text-xs font-bold text-[var(--awb-color8)] truncate">{addon.name}</p>
-                              <p className="text-[10px] text-[var(--awb-color6)]">£{(addon.monthly_price_pence / 100).toFixed(2)}/mo</p>
+                              <p className="text-[10px] text-[var(--awb-color6)]">
+                                £{(((addon.price_paid_pence ?? addon.monthly_price_pence) || 0) / 100).toFixed(2)}
+                                {addon.category === 'voice_pack' || addon.category === 'sms_pack' ? '' : '/mo'}
+                              </p>
                             </div>
                           </div>
                           <div className="flex items-center gap-2 shrink-0">
@@ -1114,7 +1153,10 @@ const globalBotId = '00000000-0000-0000-0000-000000000000';
                               </span>
                             ) : (
                               <button
-                                onClick={() => setBillingUpsellCategory(addon.category as AddOnCategory)}
+                                onClick={() => {
+                                  const category = asBillingCategory(addon.category);
+                                  if (category) setBillingUpsellCategory(category);
+                                }}
                                 className="bg-[var(--awb-color1)] hover:bg-[var(--awb-color3)] text-[var(--awb-color8)] border border-[var(--awb-color3)] text-[11px] font-bold py-1 px-2.5 rounded-[4px] transition-colors cursor-pointer"
                               >
                                 Adjust
@@ -1128,261 +1170,136 @@ const globalBotId = '00000000-0000-0000-0000-000000000000';
                   </div>
                 )}
 
-                {/* Available Modular Bolt-ons & Channels Catalog */}
-                <div className="mt-8 pt-6 border-t border-[var(--awb-color3)]">
-                  <div className="mb-4">
-                    <h4 className="text-base font-extrabold text-[var(--awb-color8)]">Available Modular Bolt-ons</h4>
-                    <p className="text-xs text-[var(--awb-color6)] mt-0.5">
-                      Enhance your AI workspace with dedicated phone numbers, channels, and extra message and voice allowances.
-                    </p>
-                  </div>
-                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                    {/* 1. Landline */}
-                    {(() => {
-                      const item = billingData?.catalog?.find((c: any) => c.category === 'landline' || c.id === 'landline_addon');
-                      const priceStr = item ? `${item.is_sliding ? 'From ' : ''}£${(item.monthly_price_pence / 100).toFixed(2)}/mo` : 'Price unavailable';
-                      return (
-                        <div className="bg-[var(--awb-color2)] border border-[var(--awb-color3)] hover:border-[#198fd9] rounded-xl p-4 flex flex-col justify-between transition-colors shadow-sm">
-                          <div>
-                            <div className="flex items-center justify-between mb-2">
-                              <div className="flex items-center gap-2">
-                                <span className="text-xl">📞</span>
-                                <h5 className="text-xs font-extrabold text-[var(--awb-color8)]">{item?.name || 'Local Landline Number'}</h5>
-                              </div>
-                              <span className="text-[11px] font-bold text-[var(--awb-color5)]">{priceStr}</span>
-                            </div>
-                            <p className="text-[11px] text-[var(--awb-color6)] mb-3 leading-relaxed">
-                              {item?.description || 'Dedicated local UK area number (01/02) bundled with 10–30 shared voice minutes.'}
-                            </p>
-                          </div>
-                          <button
-                            onClick={() => setBillingUpsellCategory('landline')}
-                            className="w-full bg-[#198fd9] hover:bg-[#157ab9] text-white text-xs font-bold py-2 px-3 rounded-[4px] shadow-sm transition-colors cursor-pointer flex items-center justify-center gap-1.5"
-                          >
-                            <span>📞</span> Get Landline Bolt-on
-                          </button>
-                        </div>
-                      );
-                    })()}
-
-                    {/* 2. Mobile */}
-                    {(() => {
-                      const item = billingData?.catalog?.find((c: any) => c.category === 'mobile' || c.id === 'mobile_addon');
-                      const priceStr = item ? `${item.is_sliding ? 'From ' : ''}£${(item.monthly_price_pence / 100).toFixed(2)}/mo` : 'Price unavailable';
-                      return (
-                        <div className="bg-[var(--awb-color2)] border border-[var(--awb-color3)] hover:border-[#198fd9] rounded-xl p-4 flex flex-col justify-between transition-colors shadow-sm">
-                          <div>
-                            <div className="flex items-center justify-between mb-2">
-                              <div className="flex items-center gap-2">
-                                <span className="text-xl">📱</span>
-                                <h5 className="text-xs font-extrabold text-[var(--awb-color8)]">{item?.name || 'Virtual Mobile Number'}</h5>
-                              </div>
-                              <span className="text-[11px] font-bold text-[var(--awb-color5)]">{priceStr}</span>
-                            </div>
-                            <p className="text-[11px] text-[var(--awb-color6)] mb-3 leading-relaxed">
-                              UK 07 virtual mobile number for SMS messaging (WhatsApp coming soon).
-                            </p>
-                          </div>
-                          <button
-                            onClick={() => setBillingUpsellCategory('mobile')}
-                            className="w-full bg-[#198fd9] hover:bg-[#157ab9] text-white text-xs font-bold py-2 px-3 rounded-[4px] shadow-sm transition-colors cursor-pointer flex items-center justify-center gap-1.5"
-                          >
-                            <span>📱</span> Get Mobile Bolt-on
-                          </button>
-                        </div>
-                      );
-                    })()}
-
-                    {/* 3. Google Calendar */}
-                    {(() => {
-                      const item = billingData?.catalog?.find((c: any) => c.category === 'google_calendar' || c.id === 'google_calendar_addon');
-                      const priceStr = item ? `£${(item.monthly_price_pence / 100).toFixed(2)}/mo` : 'Price unavailable';
-                      return (
-                        <div className="bg-[var(--awb-color2)] border border-[var(--awb-color3)] hover:border-[#198fd9] rounded-xl p-4 flex flex-col justify-between transition-colors shadow-sm">
-                          <div>
-                            <div className="flex items-center justify-between mb-2">
-                              <div className="flex items-center gap-2">
-                                <span className="text-xl">📅</span>
-                                <h5 className="text-xs font-extrabold text-[var(--awb-color8)]">{item?.name || 'Google Calendar Integration'}</h5>
-                              </div>
-                              <span className="text-[11px] font-bold text-[var(--awb-color5)]">{priceStr}</span>
-                            </div>
-                            <p className="text-[11px] text-[var(--awb-color6)] mb-3 leading-relaxed">
-                              {item?.description || 'Real-time two-way synchronization with Google Calendar to prevent double-booking.'}
-                            </p>
-                          </div>
-                          <button
-                            onClick={() => setBillingUpsellCategory('google_calendar')}
-                            className="w-full bg-[#198fd9] hover:bg-[#157ab9] text-white text-xs font-bold py-2 px-3 rounded-[4px] shadow-sm transition-colors cursor-pointer flex items-center justify-center gap-1.5"
-                          >
-                            <span>📅</span> Get Google Calendar Bolt-on
-                          </button>
-                        </div>
-                      );
-                    })()}
-
-                    {/* 4. Microsoft Calendar */}
-                    {(() => {
-                      const item = billingData?.catalog?.find((c: any) => c.category === 'microsoft_calendar' || c.id === 'microsoft_calendar_addon');
-                      const priceStr = item ? `£${(item.monthly_price_pence / 100).toFixed(2)}/mo` : 'Price unavailable';
-                      return (
-                        <div className="bg-[var(--awb-color2)] border border-[var(--awb-color3)] hover:border-[#198fd9] rounded-xl p-4 flex flex-col justify-between transition-colors shadow-sm">
-                          <div>
-                            <div className="flex items-center justify-between mb-2">
-                              <div className="flex items-center gap-2">
-                                <span className="text-xl">📆</span>
-                                <h5 className="text-xs font-extrabold text-[var(--awb-color8)]">Microsoft Calendar</h5>
-                              </div>
-                              <span className="text-[11px] font-bold text-[var(--awb-color5)]">{priceStr}</span>
-                            </div>
-                            <p className="text-[11px] text-[var(--awb-color6)] mb-3 leading-relaxed">
-                              {item?.description || 'Real-time two-way synchronization with Microsoft Outlook Calendar.'}
-                            </p>
-                          </div>
-                          <button
-                            onClick={() => setBillingUpsellCategory('microsoft_calendar')}
-                            className="w-full bg-[#198fd9] hover:bg-[#157ab9] text-white text-xs font-bold py-2 px-3 rounded-[4px] shadow-sm transition-colors cursor-pointer flex items-center justify-center gap-1.5"
-                          >
-                            <span>📆</span> Get Microsoft Calendar Bolt-on
-                          </button>
-                        </div>
-                      );
-                    })()}
-
-                    {/* 5. Voice Minutes */}
-                    {(() => {
-                      const item = billingData?.catalog?.find((c: any) => c.is_active !== false && (c.id === 'voice_pack_20' || c.category === 'voice_pack'));
-                      if (!item) {
+                <div className="mt-8 pt-6 border-t border-[var(--awb-color3)] space-y-8">
+                  <div>
+                    <div className="mb-4">
+                      <h4 className="text-base font-extrabold text-[var(--awb-color8)]">Monthly bolt-ons</h4>
+                      <p className="text-xs text-[var(--awb-color6)] mt-0.5">
+                        These are added to the monthly total at the price this salon pays.
+                      </p>
+                    </div>
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                      {(billingData?.ownership?.monthly_bolt_ons || []).map((product: any) => {
+                        const catalogItem = billingData?.catalog?.find((c: any) => c.id === product.id);
+                        const allowance = catalogItem ? formatAllowanceRange(catalogItem) : '';
+                        const description = product.description
+                          ? (allowance ? `${product.description} (${allowance})` : product.description)
+                          : allowance;
+                        const category = asBillingCategory(product.category);
                         return (
-                          <div className="bg-[var(--awb-color2)] border border-[var(--awb-color3)] rounded-xl p-4 flex flex-col justify-between shadow-sm opacity-60">
-                            <h5 className="text-xs font-extrabold text-[var(--awb-color8)]">Voice Minutes Pack</h5>
-                            <p className="text-[11px] text-[var(--awb-color6)]">Unavailable</p>
+                          <div key={product.id} className="bg-[var(--awb-color2)] border border-[var(--awb-color3)] hover:border-[#198fd9] rounded-xl p-4 flex flex-col justify-between transition-colors shadow-sm">
+                            <div>
+                              <div className="flex items-center justify-between mb-2 gap-2">
+                                <div className="flex items-center gap-2 min-w-0">
+                                  <span className="text-xl">{billingProductEmoji(product.category)}</span>
+                                  <h5 className="text-xs font-extrabold text-[var(--awb-color8)]">{product.name}</h5>
+                                </div>
+                                <div className="text-right shrink-0">
+                                  <span className="block text-[9px] font-bold uppercase tracking-wider text-[var(--awb-color6)]">Monthly</span>
+                                  <span className="text-[11px] font-bold text-[var(--awb-color5)]">{product.price_label}</span>
+                                </div>
+                              </div>
+                              {description ? (
+                                <p className="text-[11px] text-[var(--awb-color6)] mb-3 leading-relaxed">{description}</p>
+                              ) : null}
+                            </div>
+                            {product.already_included ? (
+                              <button
+                                type="button"
+                                disabled
+                                className="w-full bg-gray-300 text-gray-600 text-xs font-bold py-2 px-3 rounded-[4px] cursor-not-allowed"
+                              >
+                                Already included
+                              </button>
+                            ) : (
+                              <button
+                                type="button"
+                                onClick={() => category && setBillingUpsellCategory(category)}
+                                disabled={!category}
+                                className="w-full bg-[#198fd9] hover:bg-[#157ab9] disabled:bg-gray-300 text-white disabled:text-gray-500 text-xs font-bold py-2 px-3 rounded-[4px] shadow-sm transition-colors cursor-pointer disabled:cursor-not-allowed flex items-center justify-center gap-1.5"
+                              >
+                                <span>{billingProductEmoji(product.category)}</span> {billingProductAction(product.category)}
+                              </button>
+                            )}
                           </div>
                         );
-                      }
-                      const priceStr = `${item.is_sliding ? 'From ' : ''}£${(item.monthly_price_pence / 100).toFixed(2)}`;
-                      const allowanceStr = formatAllowanceRange(item);
-                      return (
-                        <div className="bg-[var(--awb-color2)] border border-[var(--awb-color3)] hover:border-[#9333ea] rounded-xl p-4 flex flex-col justify-between transition-colors shadow-sm">
-                          <div>
-                            <div className="flex items-center justify-between mb-2">
-                              <div className="flex items-center gap-2">
-                                <span className="text-xl">🎙️</span>
-                                <h5 className="text-xs font-extrabold text-[var(--awb-color8)]">{item.name || 'Voice Minutes Pack'}</h5>
-                              </div>
-                              <span className="text-[11px] font-bold text-[#9333ea]">{priceStr}</span>
-                            </div>
-                            <p className="text-[11px] text-[var(--awb-color6)] mb-3 leading-relaxed">
-                              {item.description ? (allowanceStr ? `${item.description} (${allowanceStr})` : item.description) : `One-off pack of ${allowanceStr}. Expires 3 months after purchase.`}
-                            </p>
-                          </div>
-                          <button
-                            onClick={() => setBillingUpsellCategory('voice_pack')}
-                            className="w-full bg-[#9333ea] hover:bg-[#7e22ce] text-white text-xs font-bold py-2 px-3 rounded-[4px] shadow-sm transition-colors cursor-pointer flex items-center justify-center gap-1.5"
-                          >
-                            <span>🎙️</span> Purchase Voice Minutes
-                          </button>
-                        </div>
-                      );
-                    })()}
+                      })}
 
-                    {/* 6. SMS Pack */}
-                    {(() => {
-                      const item = billingData?.catalog?.find((c: any) => c.is_active !== false && (c.id === 'sms_pack_100' || c.category === 'sms_pack'));
-                      if (!item) {
-                        return (
-                          <div className="bg-[var(--awb-color2)] border border-[var(--awb-color3)] rounded-xl p-4 flex flex-col justify-between shadow-sm opacity-60">
-                            <h5 className="text-xs font-extrabold text-[var(--awb-color8)]">SMS Text Pack</h5>
-                            <p className="text-[11px] text-[var(--awb-color6)]">Unavailable</p>
-                          </div>
-                        );
-                      }
-                      const priceStr = `${item.is_sliding ? 'From ' : ''}£${(item.monthly_price_pence / 100).toFixed(2)}`;
-                      const allowanceStr = formatAllowanceRange(item);
-                      return (
-                        <div className="bg-[var(--awb-color2)] border border-[var(--awb-color3)] hover:border-[#198fd9] rounded-xl p-4 flex flex-col justify-between transition-colors shadow-sm">
-                          <div>
-                            <div className="flex items-center justify-between mb-2">
-                              <div className="flex items-center gap-2">
-                                <span className="text-xl">✉️</span>
-                                <h5 className="text-xs font-extrabold text-[var(--awb-color8)]">{item.name || 'SMS Text Pack'}</h5>
-                              </div>
-                              <span className="text-[11px] font-bold text-[var(--awb-color5)]">{priceStr}</span>
+                      <div className="bg-[var(--awb-color2)] border border-[var(--awb-color3)] rounded-xl p-4 flex flex-col justify-between shadow-sm opacity-50 filter grayscale pointer-events-none cursor-not-allowed select-none">
+                        <div>
+                          <div className="flex items-center justify-between mb-2">
+                            <div className="flex items-center gap-2">
+                              <span className="text-xl">💬</span>
+                              <h5 className="text-xs font-extrabold text-[var(--awb-color8)]">WhatsApp</h5>
                             </div>
-                            <p className="text-[11px] text-[var(--awb-color6)] mb-3 leading-relaxed">
-                              {item.description ? (allowanceStr ? `${item.description} (${allowanceStr})` : item.description) : `One-off pack of ${allowanceStr}. Expires 3 months after purchase.`}
-                            </p>
+                            <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded bg-gray-200 text-gray-700">Coming soon</span>
                           </div>
-                          <button
-                            onClick={() => setBillingUpsellCategory('sms_pack')}
-                            className="w-full bg-[#198fd9] hover:bg-[#157ab9] text-white text-xs font-bold py-2 px-3 rounded-[4px] shadow-sm transition-colors cursor-pointer flex items-center justify-center gap-1.5"
-                          >
-                            <span>✉️</span> Purchase SMS Credits
-                          </button>
+                          <p className="text-[11px] text-[var(--awb-color6)] mb-3 leading-relaxed">
+                            Official Meta WhatsApp integration is coming soon.
+                          </p>
                         </div>
-                      );
-                    })()}
-
-                    {/* 7. Extra Knowledge (Knowledge Items) */}
-                    {(() => {
-                      const item = billingData?.catalog?.find((c: any) => c.is_active !== false && (c.id === 'data_pack_500' || c.category === 'data_pack'));
-                      if (!item) {
-                        return (
-                          <div className="bg-[var(--awb-color2)] border border-[var(--awb-color3)] rounded-xl p-4 flex flex-col justify-between shadow-sm opacity-60">
-                            <h5 className="text-xs font-extrabold text-[var(--awb-color8)]">Extra Knowledge</h5>
-                            <p className="text-[11px] text-[var(--awb-color6)]">Unavailable</p>
-                          </div>
-                        );
-                      }
-                      const priceStr = `${item.is_sliding ? 'From ' : ''}£${(item.monthly_price_pence / 100).toFixed(2)}/mo`;
-                      const allowanceStr = formatAllowanceRange(item);
-                      return (
-                        <div className="bg-[var(--awb-color2)] border border-[var(--awb-color3)] hover:border-[#198fd9] rounded-xl p-4 flex flex-col justify-between transition-colors shadow-sm">
-                          <div>
-                            <div className="flex items-center justify-between mb-2">
-                              <div className="flex items-center gap-2">
-                                <span className="text-xl">📦</span>
-                                <h5 className="text-xs font-extrabold text-[var(--awb-color8)]">{item.name || 'Extra Knowledge'}</h5>
-                              </div>
-                              <span className="text-[11px] font-bold text-[var(--awb-color5)]">{priceStr}</span>
-                            </div>
-                            <p className="text-[11px] text-[var(--awb-color6)] mb-3 leading-relaxed">
-                              {item.description ? (allowanceStr ? `${item.description} (${allowanceStr})` : item.description) : `Includes ${allowanceStr}.`}
-                            </p>
-                          </div>
-                          <button
-                            onClick={() => setBillingUpsellCategory('data_pack')}
-                            className="w-full bg-[#198fd9] hover:bg-[#157ab9] text-white text-xs font-bold py-2 px-3 rounded-[4px] shadow-sm transition-colors cursor-pointer flex items-center justify-center gap-1.5"
-                          >
-                            <span>📦</span> Add Knowledge Capacity
-                          </button>
-                        </div>
-                      );
-                    })()}
-
-                    {/* 8. WhatsApp (Coming soon, no sales description) */}
-                    <div className="bg-[var(--awb-color2)] border border-[var(--awb-color3)] rounded-xl p-4 flex flex-col justify-between shadow-sm opacity-50 filter grayscale pointer-events-none cursor-not-allowed select-none">
-                      <div>
-                        <div className="flex items-center justify-between mb-2">
-                          <div className="flex items-center gap-2">
-                            <span className="text-xl">💬</span>
-                            <h5 className="text-xs font-extrabold text-[var(--awb-color8)]">WhatsApp</h5>
-                          </div>
-                          <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded bg-gray-200 text-gray-700">Coming soon</span>
-                        </div>
-                        <p className="text-[11px] text-[var(--awb-color6)] mb-3 leading-relaxed">
-                          Official Meta WhatsApp integration is coming soon.
-                        </p>
+                        <button
+                          type="button"
+                          disabled
+                          className="w-full bg-gray-300 text-gray-500 text-xs font-bold py-2 px-3 rounded-[4px] cursor-not-allowed flex items-center justify-center gap-1.5"
+                        >
+                          <span>💬</span> Coming soon
+                        </button>
                       </div>
-                      <button
-                        disabled
-                        className="w-full bg-gray-300 text-gray-500 text-xs font-bold py-2 px-3 rounded-[4px] cursor-not-allowed flex items-center justify-center gap-1.5"
-                      >
-                        <span>💬</span> Coming soon
-                      </button>
+                    </div>
+                  </div>
+
+                  <div>
+                    <div className="mb-4">
+                      <h4 className="text-base font-extrabold text-[var(--awb-color8)]">One-off packs</h4>
+                      <p className="text-xs text-[var(--awb-color6)] mt-0.5">
+                        Voice and SMS packs are charged once. They are left out of the monthly total.
+                      </p>
+                    </div>
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                      {(billingData?.ownership?.one_off_packs || []).map((product: any) => {
+                        const catalogItem = billingData?.catalog?.find((c: any) => c.id === product.id);
+                        const allowance = catalogItem ? formatAllowanceRange(catalogItem) : '';
+                        const description = product.description
+                          ? (allowance ? `${product.description} (${allowance})` : product.description)
+                          : (allowance ? `One-off pack of ${allowance}. Expires 3 months after purchase.` : '');
+                        const category = asBillingCategory(product.category);
+                        const accent = product.category === 'voice_pack' ? 'text-[#9333ea]' : 'text-[var(--awb-color5)]';
+                        const buttonClass = product.category === 'voice_pack'
+                          ? 'w-full bg-[#9333ea] hover:bg-[#7e22ce] text-white text-xs font-bold py-2 px-3 rounded-[4px] shadow-sm transition-colors cursor-pointer flex items-center justify-center gap-1.5'
+                          : 'w-full bg-[#198fd9] hover:bg-[#157ab9] text-white text-xs font-bold py-2 px-3 rounded-[4px] shadow-sm transition-colors cursor-pointer flex items-center justify-center gap-1.5';
+                        return (
+                          <div key={product.id} className={`bg-[var(--awb-color2)] border border-[var(--awb-color3)] rounded-xl p-4 flex flex-col justify-between transition-colors shadow-sm ${product.category === 'voice_pack' ? 'hover:border-[#9333ea]' : 'hover:border-[#198fd9]'}`}>
+                            <div>
+                              <div className="flex items-center justify-between mb-2 gap-2">
+                                <div className="flex items-center gap-2 min-w-0">
+                                  <span className="text-xl">{billingProductEmoji(product.category)}</span>
+                                  <h5 className="text-xs font-extrabold text-[var(--awb-color8)]">{product.name}</h5>
+                                </div>
+                                <div className="text-right shrink-0">
+                                  <span className="block text-[9px] font-bold uppercase tracking-wider text-[var(--awb-color6)]">One-off</span>
+                                  <span className={`text-[11px] font-bold ${accent}`}>{product.price_label}</span>
+                                </div>
+                              </div>
+                              {description ? (
+                                <p className="text-[11px] text-[var(--awb-color6)] mb-3 leading-relaxed">{description}</p>
+                              ) : null}
+                            </div>
+                            <button
+                              type="button"
+                              onClick={() => category && setBillingUpsellCategory(category)}
+                              disabled={!category}
+                              className={buttonClass}
+                            >
+                              <span>{billingProductEmoji(product.category)}</span> {billingProductAction(product.category)}
+                            </button>
+                          </div>
+                        );
+                      })}
                     </div>
                   </div>
                 </div>
+
 
                 {/* Upsell Modal Mount for Subscriptions & Add-ons Tab */}
                 {billingUpsellCategory && (
