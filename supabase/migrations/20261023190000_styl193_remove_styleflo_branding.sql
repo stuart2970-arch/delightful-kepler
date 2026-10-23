@@ -4,12 +4,34 @@
 -- £4.99 (499 pence) to start. Superadmin can change that price later.
 -- Nobody is given the bolt-on by this file.
 --
--- This file is not applied to production by the pull request.
--- Stuart runs it separately, before the new widget is deployed.
+-- The first run against production rolled back. features has no description
+-- column there. This insert uses the same fields as the other integrations
+-- features: not metered, available, value_type numeric.
+--
+-- This file is still not applied to production. Stuart runs it separately.
 -- =========================================================================
 
 ALTER TABLE public.addon_catalog
     DROP CONSTRAINT IF EXISTS addon_catalog_category_check;
+
+-- Drop any other check that still limits addon_catalog.category, whatever its name.
+DO $$
+DECLARE
+    constraint_name text;
+BEGIN
+    FOR constraint_name IN
+        SELECT con.conname
+        FROM pg_constraint con
+        JOIN pg_class rel ON rel.oid = con.conrelid
+        JOIN pg_namespace nsp ON nsp.oid = rel.relnamespace
+        WHERE nsp.nspname = 'public'
+          AND rel.relname = 'addon_catalog'
+          AND con.contype = 'c'
+          AND pg_get_constraintdef(con.oid) ILIKE '%category%'
+    LOOP
+        EXECUTE format('ALTER TABLE public.addon_catalog DROP CONSTRAINT %I', constraint_name);
+    END LOOP;
+END $$;
 
 ALTER TABLE public.addon_catalog
     ADD CONSTRAINT addon_catalog_category_check CHECK (category IN (
@@ -17,12 +39,16 @@ ALTER TABLE public.addon_catalog
         'google_calendar', 'microsoft_calendar', 'remove_branding'
     ));
 
-INSERT INTO public.features (id, category_id, name, description)
-VALUES (
+INSERT INTO public.features (
+    id, category_id, name, is_metered, is_available, value_type, display_order
+) VALUES (
     'remove_branding',
     'integrations',
     'Remove StyleFlo branding',
-    'Hides the Powered by StyleFlo footer in the chat window'
+    false,
+    true,
+    'numeric',
+    0
 )
 ON CONFLICT (id) DO NOTHING;
 
