@@ -90,8 +90,12 @@ export async function getGoogleCalendarClient(tenantId: string) {
     .eq('provider', 'google_calendar')
     .maybeSingle();
 
+  if (integration?.refresh_token === 'mock_google_refresh_token') {
+    return null;
+  }
+
   if (error || !integration || !integration.refresh_token) {
-    if (process.env.NODE_ENV === 'test' || process.env.PLAYWRIGHT_TEST === 'true' || integration?.refresh_token === 'mock_google_refresh_token') {
+    if (process.env.NODE_ENV === 'test' || process.env.PLAYWRIGHT_TEST === 'true') {
       // Mock client for tests
       return null;
     }
