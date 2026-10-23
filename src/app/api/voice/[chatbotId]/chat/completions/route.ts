@@ -2,7 +2,8 @@ import { NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import { streamText, generateText } from 'ai';
 import { createGoogleGenerativeAI } from '@ai-sdk/google';
-import { checkAvailability, bookMeeting } from '@/app/api/chat/stream/calendar';
+import { getAvailabilityData, bookMeeting } from '@/app/api/chat/stream/calendar';
+import { calendarFallbackMessage, directAvailabilitySpeech } from '@/lib/calendar/fallback-message';
 
 import { getActiveGeminiModel } from '@/lib/gemini-config';
 import { generateEmbedding } from '@/lib/embeddings';
@@ -556,6 +557,7 @@ ${globalDisclaimer}`;
 
             let toolResult = '';
             let toolFailed = false;
+            let availabilityOutcome = '';
             let requestedStaffId = 'ANY';
             let targetServiceId = '';
 
@@ -566,11 +568,18 @@ ${globalDisclaimer}`;
                 const startStr = availMatch[3].trim().replace(/['"]/g, '');
                 const endStr = availMatch[4].trim().replace(/['"]/g, '');
 
-                const checkPromise = checkAvailability(tenantId, requestedStaffId, targetServiceId, startStr, endStr, timezone);
-                const timeoutPromise = new Promise<string>((_, reject) =>
-                  setTimeout(() => reject(new Error('Availability check timed out')), 8000)
+                // Per-staff timeouts live inside getAvailabilityData. An outer race at the same
+                // 8 seconds would discard that result and hide which calendar failed.
+                const availData = await getAvailabilityData(
+                  tenantId,
+                  requestedStaffId,
+                  targetServiceId,
+                  startStr,
+                  endStr,
+                  timezone
                 );
-                toolResult = await Promise.race([checkPromise, timeoutPromise]);
+                toolResult = availData.text;
+                availabilityOutcome = availData.outcome;
               } else if (bookMatch) {
                 requestedStaffId = bookMatch[1].trim().replace(/['"]/g, '');
                 targetServiceId = bookMatch[2].trim().replace(/['"]/g, '');
@@ -593,16 +602,12 @@ ${globalDisclaimer}`;
             }
 
             const isBookingSuccess = bookMatch && (toolResult.toLowerCase().includes('confirmed') || toolResult.toLowerCase().includes('success'));
-            const isServiceNotFound = toolResult.toLowerCase().includes('service not found');
-            const isStaffNotFound = toolResult.toLowerCase().includes('no staff members');
+            const directSpeech = toolFailed
+              ? calendarFallbackMessage('unreachable')
+              : directAvailabilitySpeech(availabilityOutcome, toolResult);
 
-            if (toolFailed || isServiceNotFound || isStaffNotFound) {
-              let fallbackSpeech = "I'm having trouble checking our calendar right now. Please could you give us a quick call or try again shortly?";
-              if (isServiceNotFound) {
-                fallbackSpeech = "I'm sorry, I couldn't find that specific service in our system. Could you tell me which service you'd like to book?";
-              } else if (isStaffNotFound) {
-                fallbackSpeech = "I'm sorry, no staff members are currently available for online booking for that service. Please give us a call directly.";
-              }
+            if (directSpeech) {
+              const fallbackSpeech = directSpeech;
 
               pass2SpokenText = fallbackSpeech;
               const fallbackChunk = {

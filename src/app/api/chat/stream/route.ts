@@ -9,11 +9,11 @@ import { z } from 'zod';
 import formData from 'form-data';
 import * as cheerio from 'cheerio';
 import {
-  checkAvailability,
   getAvailabilityData,
   bookMeeting,
   lookupAppointments,
 } from './calendar';
+import { directAvailabilitySpeech } from '@/lib/calendar/fallback-message';
 import {
   formatQuickDaysTag,
   formatQuickTimesTag,
@@ -1049,15 +1049,19 @@ ${staffContext}`;
             const endStr = availMatch[4].trim().replace(/['"]/g, '');
             
             const availData = await getAvailabilityData(tenantId, staffId, serviceId, startStr, endStr, timezone);
-            
+            const directSpeech = directAvailabilitySpeech(availData.outcome, availData.text);
+
             const pass2Messages = [
               ...formattedMessages,
               { role: 'assistant', content: rawText },
-              { role: 'user', content: `[SYSTEM] Availability Result:\n${availData.text}\nNow warmly present the available days and times to the user in British English and ask which day suits them best.` }
+              { role: 'user', content: `[SYSTEM] Availability Result:\n${availData.text}\nNow warmly present the available days and times to the user in British English and ask which day suits them best. If the result says a calendar could not be checked, do not invent times for that person.` }
             ];
             
             let pass2Text = '';
-            if (mockModelReply && (body as any).mockPass2Reply) {
+            if (directSpeech) {
+              pass2Text = directSpeech;
+              safeEnqueue(`\n\n${directSpeech}`);
+            } else if (mockModelReply && (body as any).mockPass2Reply) {
               pass2Text = (body as any).mockPass2Reply;
               safeEnqueue(pass2Text);
             } else {
@@ -1074,15 +1078,17 @@ ${staffContext}`;
               }
             }
 
-            // Append structured quick-link tags directly to the stream!
-            const tagsToAppend = [
-              availData.quickDaysTag,
-              availData.quickTimesTag,
-              availData.timeSlotsTag
-            ].filter(Boolean).join('\n');
+            // Quick-link tags are only for times a calendar actually confirmed.
+            if (!directSpeech) {
+              const tagsToAppend = [
+                availData.quickDaysTag,
+                availData.quickTimesTag,
+                availData.timeSlotsTag
+              ].filter(Boolean).join('\n');
 
-            if (tagsToAppend) {
-              safeEnqueue(`\n\n${tagsToAppend}`);
+              if (tagsToAppend) {
+                safeEnqueue(`\n\n${tagsToAppend}`);
+              }
             }
 
             // Save clean transcript in database
