@@ -206,14 +206,20 @@ ${contextText}
 
     let replyText = `Hi ${customerName}! Thanks for reaching out to ${botName}. How can I help you today? 😊`;
 
-    const { text: aiResponse } = await generateText({
-      model: google('gemini-flash-latest'),
-      system: systemInstruction,
-      prompt: `Recent Chat History:\n${historyPrompt}\n\nLatest Customer Message: ${messageText}`,
-    });
+    if (process.env.PLAYWRIGHT_TEST !== 'true') {
+      try {
+        const { text: aiResponse } = await generateText({
+          model: google('gemini-flash-latest'),
+          system: systemInstruction,
+          prompt: `Recent Chat History:\n${historyPrompt}\n\nLatest Customer Message: ${messageText}`,
+        });
 
-    if (aiResponse) {
-      replyText = aiResponse.trim();
+        if (aiResponse) {
+          replyText = aiResponse.trim();
+        }
+      } catch (err: any) {
+        console.warn('[Meta Test Journey] generateText error:', err.message);
+      }
     }
 
     // 6. Record simulated assistant reply

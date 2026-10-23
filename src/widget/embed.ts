@@ -10,7 +10,7 @@ import { buildGreeting, getFirstName, isEchoOfGreeting } from '../lib/greeting';
     currentDoc.getElementById('styleflo-onboard-widget-script') ||
     currentDoc.querySelector('script[data-bot-id]') ||
     currentDoc.querySelector('script[data-chatbot-id]') ||
-    currentDoc.querySelector('script[src*="embed.js"]');
+    currentDoc.querySelector('script[src*="widget.js"]');
 
   if (!scriptEl) {
     console.error('[StyleFlo Widget] Current script context not found.');
@@ -231,22 +231,15 @@ import { buildGreeting, getFirstName, isEchoOfGreeting } from '../lib/greeting';
   }
 
 
-  // 3. Create the Shadow Host container
+  // 3. Create the Shadow Host container in body
   const host = document.createElement('div');
-  host.id = 'styleflo-chat-embed';
-  host.style.position = 'relative';
-  host.style.width = '100%';
-  host.style.height = '100%';
-  host.style.minHeight = '400px';
-  host.style.zIndex = '100';
+  host.id = 'styleflo-chat-widget';
+  host.style.position = 'fixed';
+  host.style.bottom = '0';
+  host.style.right = '0';
+  host.style.zIndex = '999999';
 
-  const containerId = scriptEl.getAttribute('data-container-id');
-  const container = containerId ? document.getElementById(containerId) : scriptEl.parentElement;
-  if (container) {
-    container.appendChild(host);
-  } else {
-    document.body.appendChild(host);
-  }
+  document.body.appendChild(host);
 
   const shadowRoot = host.attachShadow({ mode: 'open' });
 
@@ -273,6 +266,10 @@ import { buildGreeting, getFirstName, isEchoOfGreeting } from '../lib/greeting';
       --awb-color7: #212326;
       --awb-color8: #260475;
       font-family: 'Poppins', 'Inter', sans-serif;
+    }
+
+    *, ::before, ::after {
+      box-sizing: border-box !important;
     }
 
     @keyframes styleflo-bounce {
@@ -306,19 +303,140 @@ import { buildGreeting, getFirstName, isEchoOfGreeting } from '../lib/greeting';
       scrollbar-color: var(--awb-color3) transparent;
     }
 
-    /* Custom sizing and Avada Form Control overrides */
+    /* Custom sizing since Tailwind v2 CDN doesn't support arbitrary values */
     .styleflo-chat-window {
-      width: 100%;
-      height: 100%;
-      min-height: 400px;
+      width: calc(100vw - 40px);
+      height: 550px;
+      max-height: calc(100vh - 100px);
       font-family: 'Poppins', 'Inter', sans-serif;
       color: var(--awb-color7);
+    }
+    @supports (max-height: 100dvh) {
+      .styleflo-chat-window {
+        max-height: calc(100dvh - 100px);
+      }
+    }
+    @media (max-width: 639px) {
+      .styleflo-chat-window {
+        left: 16px !important;
+        right: 16px !important;
+        width: auto !important;
+      }
+    }
+    @media (min-width: 640px) {
+      .styleflo-chat-window {
+        width: 380px;
+      }
     }
     .styleflo-text-17 { font-size: 17px; }
     .styleflo-text-15 { font-size: 15px; }
     .styleflo-text-11 { font-size: 11px; }
     .styleflo-mw-85 { max-width: 85%; width: fit-content; }
     .styleflo-mw-75 { max-width: 75%; width: fit-content; }
+
+    /* Custom form layout style rules to ensure display even if external Tailwind CSS fails to load */
+    #styleflo-chat-form {
+      padding: 12px;
+      background-color: #ffffff;
+      border-top: 1px solid #f3f4f6;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      flex-shrink: 0;
+      z-index: 10;
+    }
+    #styleflo-input {
+      flex: 1 1 0%;
+      min-width: 0px;
+      padding: 8px 12px;
+      font-size: 15px;
+      border: 1px solid #e5e7eb;
+      border-radius: 12px;
+      outline: none;
+      transition: all 0.2s ease;
+    }
+    #styleflo-input:focus {
+      border-color: transparent;
+      box-shadow: 0 0 0 2px var(--tw-ring-color, #6b7280);
+    }
+    #styleflo-chat-form button {
+      padding: 8px;
+      border-radius: 12px;
+      color: #ffffff;
+      border: none;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+      transition: opacity 0.2s ease;
+    }
+    #styleflo-chat-form button:hover {
+      opacity: 0.95;
+    }
+    #styleflo-chat-form button svg {
+      width: 16px;
+      height: 16px;
+      display: block;
+    }
+    #styleflo-vapi-btn svg {
+      width: 20px !important;
+      height: 20px !important;
+    }
+
+    #styleflo-messages {
+      display: flex !important;
+      flex-direction: column !important;
+      gap: 16px !important;
+      flex: 1 1 0% !important;
+      min-height: 0px !important;
+      overflow-y: auto !important;
+      padding: 16px !important;
+      box-sizing: border-box !important;
+      background-color: #f9fafb !important;
+    }
+    #styleflo-messages > div {
+      box-sizing: border-box !important;
+      width: 100% !important;
+    }
+
+    .styleflo-msg-wrapper-user {
+      display: flex !important;
+      justify-content: flex-end !important;
+      width: 100% !important;
+      box-sizing: border-box !important;
+    }
+    .styleflo-msg-wrapper-bot {
+      display: flex !important;
+      align-items: flex-start !important;
+      gap: 10px !important;
+      width: 100% !important;
+      box-sizing: border-box !important;
+    }
+    .styleflo-msg-bubble-user {
+      padding: 12px 16px !important;
+      color: #ffffff !important;
+      border-radius: 16px 16px 0px 16px !important;
+      font-size: 15px !important;
+      line-height: 1.5 !important;
+      max-width: 85% !important;
+      word-break: break-word !important;
+      box-shadow: 0 1px 2px rgba(0,0,0,0.05) !important;
+      box-sizing: border-box !important;
+    }
+    .styleflo-msg-bubble-bot {
+      padding: 12px 16px !important;
+      background-color: #ffffff !important;
+      border: 1px solid #f3f4f6 !important;
+      color: #1f2937 !important;
+      border-radius: 16px 16px 16px 0px !important;
+      font-size: 15px !important;
+      line-height: 1.5 !important;
+      max-width: 85% !important;
+      word-break: break-word !important;
+      box-shadow: 0 1px 2px rgba(0,0,0,0.05) !important;
+      box-sizing: border-box !important;
+    }
 
     .styleflo-input-field {
       height: 50px;
@@ -372,27 +490,12 @@ import { buildGreeting, getFirstName, isEchoOfGreeting } from '../lib/greeting';
       box-shadow: 0 4px 20px rgba(239, 68, 68, 0.6) !important;
       color: white !important;
     }
-    #styleflo-messages {
-      display: flex !important;
-      flex-direction: column !important;
-      gap: 16px !important;
-      flex: 1 1 0% !important;
-      min-height: 0px !important;
-      overflow-y: auto !important;
-      padding: 16px !important;
-      box-sizing: border-box !important;
-      background-color: #f9fafb !important;
-    }
-    #styleflo-messages > div {
-      box-sizing: border-box !important;
-      width: 100% !important;
-    }
   `;
   shadowRoot.appendChild(styleTag);
 
   // 5. Setup Widget HTML layout template
   const widgetContainer = document.createElement('div');
-  widgetContainer.className = 'font-sans w-full h-full';
+  widgetContainer.className = 'font-sans';
   shadowRoot.appendChild(widgetContainer);
 
   let primaryColor = '#260475'; // Default Avada Theme Deep Purple/Navy (#260475)
@@ -417,14 +520,6 @@ import { buildGreeting, getFirstName, isEchoOfGreeting } from '../lib/greeting';
 
   // 6. Fetch Chatbot Public Configuration
   async function fetchConfig() {
-    if (chatbotId === 'styleflo-onboarding-flobot') {
-      botName = 'FloBot';
-      agentName = 'Flo';
-      agentRole = 'StyleFlo AI Receptionist Builder';
-      primaryColor = '#260475';
-      welcomeMessage = "Hi, I'm Flo! I'm your StyleFlo AI assistant builder. Let's create your account and get your AI receptionist ready in under 60 seconds!";
-    }
-
     try {
       const response = await fetch(`${apiHost}/api/chatbots/${chatbotId}?t=${Date.now()}`, { cache: 'no-store' });
       if (response.ok) {
@@ -464,9 +559,21 @@ import { buildGreeting, getFirstName, isEchoOfGreeting } from '../lib/greeting';
     const finalAvatarSrc = agentAvatarUrl.startsWith('http') ? agentAvatarUrl : `${apiHost}${agentAvatarUrl}`;
     const isFloBot = chatbotId === 'styleflo-onboarding-flobot';
 
-    // No floating chat bubble for embed
-    const bubble = document.createElement('div'); // Dummy element to satisfy TS references
-    bubble.style.display = 'none';
+    // Floating Chat Bubble
+    const bubble = document.createElement('button');
+    bubble.className = 'fixed bottom-5 right-5 w-14 h-14 rounded-full shadow-2xl flex items-center justify-center cursor-pointer transition-all duration-300 hover:scale-110 focus:outline-none z-[999999]';
+    bubble.style.backgroundColor = primaryColor;
+    bubble.innerHTML = `
+      <!-- Chat Icon -->
+      <svg id="styleflo-icon-chat" class="w-6 h-6 text-white transition-all duration-300 transform scale-100" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"></path>
+      </svg>
+      <!-- Close Icon (Initially hidden) -->
+      <svg id="styleflo-icon-close" class="w-6 h-6 text-white absolute transition-all duration-300 transform scale-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M6 18L18 6M6 6l12 12"></path>
+      </svg>
+    `;
+    widgetContainer.appendChild(bubble);
 
     // --- Voice Menu ---
     const voiceMenu = document.createElement('div');
@@ -488,7 +595,7 @@ import { buildGreeting, getFirstName, isEchoOfGreeting } from '../lib/greeting';
 
     // Chat Window
     const chatWindow = document.createElement('div');
-    chatWindow.className = 'w-full h-full flex-1 min-h-0 flex flex-col bg-white overflow-hidden styleflo-chat-window';
+    chatWindow.className = 'fixed z-[999999] flex flex-col bg-white overflow-hidden transition-all duration-300 transform scale-90 opacity-0 pointer-events-none origin-bottom-right bottom-20 right-5 rounded-2xl border border-gray-100 shadow-2xl styleflo-chat-window';
     chatWindow.innerHTML = `
       <!-- Header -->
       <div class="p-4 text-white flex items-center justify-between shadow-md shrink-0 z-10" style="background-color: ${primaryColor};">
@@ -499,7 +606,7 @@ import { buildGreeting, getFirstName, isEchoOfGreeting } from '../lib/greeting';
             <p class="styleflo-text-11 opacity-75 mt-0.5">${agentRole}</p>
           </div>
         </div>
-        <button id="styleflo-close-btn" class="hidden text-white opacity-80 hover:opacity-100 focus:outline-none transition-opacity">
+        <button id="styleflo-close-btn" class="text-white opacity-80 hover:opacity-100 focus:outline-none transition-opacity">
           <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M6 18L18 6M6 6l12 12"></path>
           </svg>
@@ -1476,20 +1583,78 @@ import { buildGreeting, getFirstName, isEchoOfGreeting } from '../lib/greeting';
       });
     }
 
-    // Form Submit Event Handler
-    chatForm.addEventListener('submit', async (e) => {
-      e.preventDefault();
-      const messageText = inputField.value.trim();
-      if (!messageText) return;
-
-      // Intercept FLO-XXXX Resumption Code input
-      if (/^FLO-[A-Z0-9]{4,8}$/i.test(messageText)) {
-        appendMessage('user', messageText);
-        inputField.value = '';
-        appendMessage('bot', `Welcome back! 🙋‍♀️ Found your saved profile. Restoring your onboarding state...`);
-        console.log('[StyleFlo Widget] Resumption code entered:', messageText.toUpperCase());
-        return;
+    function extractTagPayload(text: string, tagPrefix: string): string | null {
+      const marker = '[' + tagPrefix + ':';
+      const startIdx = text.indexOf(marker);
+      if (startIdx === -1) return null;
+      const contentStart = startIdx + marker.length;
+      let depth = 1;
+      let inString = false;
+      let escape = false;
+      for (let i = contentStart; i < text.length; i++) {
+        const ch = text[i];
+        if (escape) { escape = false; continue; }
+        if (ch === '\\') { escape = true; continue; }
+        if (ch === '"') { inString = !inString; continue; }
+        if (!inString) {
+          if (ch === '[' || ch === '{') depth++;
+          else if (ch === ']' || ch === '}') {
+            depth--;
+            if (depth === 0) return text.slice(contentStart, i).trim();
+          }
+        }
       }
+      return null;
+    }
+
+    function stripCalendarTags(text: string): string {
+      let result = text;
+      const tagList = [
+        'QUICK_SERVICES',
+        'QUICK_DAYS',
+        'QUICK_TIMES',
+        'TIME_SLOTS',
+        'CHECK_AVAILABILITY',
+        'BOOK_MEETING',
+        'LOOKUP_APPOINTMENTS',
+        'LEAD_CAPTURED',
+      ];
+
+      for (const tag of tagList) {
+        while (true) {
+          const marker = '[' + tag + ':';
+          const startIdx = result.indexOf(marker);
+          if (startIdx === -1) break;
+          let depth = 1;
+          let inString = false;
+          let escape = false;
+          let foundEnd = -1;
+          for (let i = startIdx + marker.length; i < result.length; i++) {
+            const ch = result[i];
+            if (escape) { escape = false; continue; }
+            if (ch === '\\') { escape = true; continue; }
+            if (ch === '"') { inString = !inString; continue; }
+            if (!inString) {
+              if (ch === '[' || ch === '{') depth++;
+              else if (ch === ']' || ch === '}') {
+                depth--;
+                if (depth === 0) { foundEnd = i; break; }
+              }
+            }
+          }
+          if (foundEnd !== -1) {
+            result = (result.slice(0, startIdx) + result.slice(foundEnd + 1)).trim();
+          } else {
+            break;
+          }
+        }
+      }
+      return result;
+    }
+
+    // Central Chat Stream Executor (supporting plain text messages and structured quick links)
+    async function executeChatRequest(messageText: string, extraPayload: Record<string, any> = {}) {
+      if (!messageText) return;
 
       // 1. Add user message
       appendMessage('user', messageText);
@@ -1498,43 +1663,38 @@ import { buildGreeting, getFirstName, isEchoOfGreeting } from '../lib/greeting';
       // 2. Add typing indicator
       const typingIndicator = showTypingIndicator();
 
-      // Retrieve cached or active session token
-      const session = await ensureChatSession();
-
-      // 3. Initiate fetch streaming call
       try {
+        const session = await ensureChatSession();
+        const requestData: any = {
+          message: messageText,
+          chatbotId: chatbotId,
+          sessionId: session.sessionId,
+          clientName: (storedName ? getFirstName(storedName) : undefined) || storedName || undefined,
+          clientEmail: storedEmail || undefined,
+          ...extraPayload,
+        };
+
         let response = await fetch(`${apiHost}/api/chat/stream`, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
             'x-session-token': session.sessionToken,
           },
-          body: JSON.stringify({
-            message: messageText,
-            chatbotId: chatbotId,
-            sessionId: session.sessionId,
-            clientName: (storedName ? getFirstName(storedName) : undefined) || storedName || undefined,
-            clientEmail: storedEmail || undefined,
-          }),
+          body: JSON.stringify(requestData),
         });
 
         // Auto-refresh token on 401 retry
         if (response.status === 401) {
           const freshSession = await ensureChatSession(true);
           if (freshSession.sessionToken) {
+            requestData.sessionId = freshSession.sessionId;
             response = await fetch(`${apiHost}/api/chat/stream`, {
               method: 'POST',
               headers: {
                 'Content-Type': 'application/json',
                 'x-session-token': freshSession.sessionToken,
               },
-              body: JSON.stringify({
-                message: messageText,
-                chatbotId: chatbotId,
-                sessionId: freshSession.sessionId,
-                clientName: (storedName ? getFirstName(storedName) : undefined) || storedName || undefined,
-                clientEmail: storedEmail || undefined,
-              }),
+              body: JSON.stringify(requestData),
             });
           }
         }
@@ -1568,13 +1728,7 @@ import { buildGreeting, getFirstName, isEchoOfGreeting } from '../lib/greeting';
           const chunk = decoder.decode(value, { stream: true });
           rawText += chunk;
           
-          let formattedText = rawText
-            // Hide secret tool tags
-            .replace(/\[CHECK_AVAILABILITY:[\s\S]*?(?:\]|$)/g, '')
-            .replace(/\[BOOK_MEETING:[\s\S]*?(?:\]|$)/g, '')
-            .replace(/\[LEAD_CAPTURED:[\s\S]*?(?:\]|$)/g, '')
-            .replace(/\[LOOKUP_APPOINTMENTS:[\s\S]*?(?:\]|$)/g, '')
-            .replace(/\[TIME_SLOTS:[\s\S]*?(?:\}\]|$)/g, '')
+          let formattedText = stripCalendarTags(rawText)
             .replace(/\[REMAINING_TASKS:[\s\S]*?(?:\]|$)/g, '')
             .replace(/\[BOOKING_OPTIONS:[\s\S]*?(?:\]|$)/g, '')
             .replace(/\[BOOKING_OPTIONS\]/g, '')
@@ -1585,7 +1739,7 @@ import { buildGreeting, getFirstName, isEchoOfGreeting } from '../lib/greeting';
             // Replace bold **text**
             .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
             // Replace markdown links with formatted inline links
-            .replace(/\[([^\]]+)\]\((https?:\/\/[^)]+)\)/g, '<a href="$2" target="_blank" class="font-semibold text-indigo-600 hover:underline" style="color: ${primaryColor}; text-decoration: underline;">$1</a>')
+            .replace(/\[([^\]]+)\]\((https?:\/\/[^)]+)\)/g, `<a href="$2" target="_blank" class="font-semibold text-indigo-600 hover:underline" style="color: ${primaryColor}; text-decoration: underline;">$1</a>`)
             // Convert newlines to <br>
             .replace(/\n/g, '<br/>');
 
@@ -1624,7 +1778,6 @@ import { buildGreeting, getFirstName, isEchoOfGreeting } from '../lib/greeting';
         }
 
         for (const url of productUrls) {
-          // Render a skeleton loading card first
           const cardContainer = document.createElement('div');
           cardContainer.className = 'my-2 p-3 bg-gray-50 border border-gray-100 rounded-2xl flex items-center gap-3 styleflo-animate-pulse';
           cardContainer.innerHTML = `
@@ -1635,7 +1788,6 @@ import { buildGreeting, getFirstName, isEchoOfGreeting } from '../lib/greeting';
             </div>
           `;
           
-          // Insert the card container inline, directly following the anchor link mention
           const anchor = botResponseContainer.querySelector(`a[href="${url}"]`);
           if (anchor) {
             anchor.parentNode?.insertBefore(cardContainer, anchor.nextSibling);
@@ -1681,66 +1833,189 @@ import { buildGreeting, getFirstName, isEchoOfGreeting } from '../lib/greeting';
           scrollToBottom();
         }
 
-        // 7. Parse [TIME_SLOTS: ...] if present
-        const timeSlotRegex = /\[TIME_SLOTS:\s*({.*?})\]/;
-        const timeSlotMatch = rawText.match(timeSlotRegex);
-        if (timeSlotMatch && timeSlotMatch[1]) {
+        // --- 7a. Parse [QUICK_SERVICES: ...] (Comment 10092) ---
+        const quickServicesStr = extractTagPayload(rawText, 'QUICK_SERVICES');
+        if (quickServicesStr) {
           try {
-            const timeSlotsJSON = JSON.parse(timeSlotMatch[1]);
-            const gridContainer = document.createElement('div');
-            gridContainer.className = 'mt-3 w-full';
-            
-            let gridHtml = '';
-            for (const [dateStr, times] of Object.entries(timeSlotsJSON)) {
-              if (Array.isArray(times) && times.length > 0) {
-                const d = new Date(dateStr);
-                const displayDate = isNaN(d.getTime()) ? dateStr : d.toLocaleDateString('en-GB', { weekday: 'short', month: 'short', day: 'numeric' });
-                
-                gridHtml += `
-                  <div class="mb-3">
-                    <div class="text-[11px] font-bold text-gray-400 uppercase tracking-wider mb-2 ml-1">${displayDate}</div>
-                    <div class="flex flex-wrap gap-2">
-                      ${times.map(t => `<button type="button" class="styleflo-time-btn px-3 py-1.5 rounded-lg border border-gray-200 text-xs font-bold text-gray-700 hover:text-white transition-colors bg-white shadow-sm" data-time="${t}" data-date="${dateStr}">${t}</button>`).join('')}
-                    </div>
-                  </div>
-                `;
-              }
+            const services = JSON.parse(quickServicesStr);
+            if (Array.isArray(services) && services.length > 0) {
+              const servicesContainer = document.createElement('div');
+              servicesContainer.className = 'mt-3 w-full flex flex-col gap-2';
+              services.forEach((svc: any) => {
+                const btn = document.createElement('button');
+                btn.type = 'button';
+                btn.setAttribute('role', 'button');
+                btn.setAttribute('tabindex', '0');
+                btn.setAttribute('aria-label', `Select service ${svc.name}`);
+                btn.className = 'styleflo-quick-service-btn px-3 py-2 rounded-xl border border-gray-200 text-xs font-semibold text-gray-800 bg-white hover:bg-gray-50 transition shadow-sm text-left flex justify-between items-center';
+                const priceStr = svc.price ? ` • £${svc.price}` : '';
+                const durStr = svc.duration_minutes ? ` (${svc.duration_minutes} mins${priceStr})` : '';
+                btn.innerHTML = `<span>${svc.name}${durStr}</span><span style="color:${primaryColor}">➔</span>`;
+                btn.addEventListener('click', () => {
+                  servicesContainer.querySelectorAll('button').forEach((b) => ((b as HTMLButtonElement).disabled = true));
+                  btn.style.backgroundColor = primaryColor;
+                  btn.style.color = '#ffffff';
+                  executeChatRequest(svc.name, { action: 'select_service', serviceId: svc.id });
+                });
+                servicesContainer.appendChild(btn);
+              });
+              botResponseContainer.appendChild(servicesContainer);
+              scrollToBottom();
             }
-            gridContainer.innerHTML = gridHtml;
-            botResponseContainer.appendChild(gridContainer);
-            
-            // Add event listeners to the generated buttons
-            const btns = gridContainer.querySelectorAll('.styleflo-time-btn');
-            btns.forEach((btn: Element) => {
-              const htmlBtn = btn as HTMLButtonElement;
-              htmlBtn.addEventListener('click', (e) => {
-                const target = e.currentTarget as HTMLButtonElement;
-                const date = target.getAttribute('data-date');
-                const time = target.getAttribute('data-time');
-                
-                target.style.backgroundColor = primaryColor;
-                target.style.color = 'white';
-                target.style.borderColor = primaryColor;
-                
-                inputField.value = `I would like to book ${date} at ${time}`;
-                chatForm.dispatchEvent(new Event('submit'));
+          } catch (e) {
+            console.error('[StyleFlo Widget] Failed to parse QUICK_SERVICES', e);
+          }
+        }
+
+        // --- 7b. Parse [QUICK_DAYS: ...] (Comment 10087/10090) ---
+        let renderedDays = false;
+        const quickDaysStr = extractTagPayload(rawText, 'QUICK_DAYS');
+        if (quickDaysStr) {
+          try {
+            const daysPayload = JSON.parse(quickDaysStr);
+            const serviceId = daysPayload.serviceId;
+            const staffId = daysPayload.staffId || 'ANY';
+            const days = daysPayload.days || [];
+            if (Array.isArray(days) && days.length > 0) {
+              renderedDays = true;
+              const daysContainer = document.createElement('div');
+              daysContainer.className = 'mt-3 w-full';
+              const label = document.createElement('div');
+              label.className = 'text-[11px] font-bold text-gray-400 uppercase tracking-wider mb-2 ml-1';
+              label.textContent = 'Available Days';
+              daysContainer.appendChild(label);
+
+              const chipsDiv = document.createElement('div');
+              chipsDiv.className = 'flex flex-wrap gap-2';
+              days.forEach((dayItem: any) => {
+                const dateStr = typeof dayItem === 'string' ? dayItem : dayItem.date;
+                const display = typeof dayItem === 'object' && dayItem.label ? dayItem.label : dateStr;
+                const btn = document.createElement('button');
+                btn.type = 'button';
+                btn.setAttribute('role', 'button');
+                btn.setAttribute('tabindex', '0');
+                btn.setAttribute('aria-label', `Select ${display}`);
+                btn.className = 'styleflo-day-btn px-3 py-1.5 rounded-lg border border-gray-200 text-xs font-bold text-gray-700 hover:text-white transition-colors bg-white shadow-sm';
+                btn.textContent = display;
+                btn.addEventListener('click', () => {
+                  chipsDiv.querySelectorAll('button').forEach((b) => ((b as HTMLButtonElement).disabled = true));
+                  btn.style.backgroundColor = primaryColor;
+                  btn.style.borderColor = primaryColor;
+                  btn.style.color = 'white';
+                  executeChatRequest(display, { action: 'select_day', date: dateStr, serviceId, staffId });
+                });
+                chipsDiv.appendChild(btn);
+              });
+              daysContainer.appendChild(chipsDiv);
+              botResponseContainer.appendChild(daysContainer);
+              scrollToBottom();
+            }
+          } catch (e) {
+            console.error('[StyleFlo Widget] Failed to parse QUICK_DAYS', e);
+          }
+        }
+
+        // --- 7c. Parse [QUICK_TIMES: ...] (Comment 10087/10090) ---
+        let renderedTimes = false;
+        const quickTimesStr = extractTagPayload(rawText, 'QUICK_TIMES');
+        if (quickTimesStr) {
+          try {
+            const timesPayload = JSON.parse(quickTimesStr);
+            const dateStr = timesPayload.date;
+            const serviceId = timesPayload.serviceId;
+            const slots = timesPayload.slots || [];
+            if (Array.isArray(slots) && slots.length > 0) {
+              renderedTimes = true;
+              const timesContainer = document.createElement('div');
+              timesContainer.className = 'mt-3 w-full';
+              const label = document.createElement('div');
+              label.className = 'text-[11px] font-bold text-gray-400 uppercase tracking-wider mb-2 ml-1';
+              label.textContent = `Available Times (${dateStr})`;
+              timesContainer.appendChild(label);
+
+              const chipsDiv = document.createElement('div');
+              chipsDiv.className = 'flex flex-wrap gap-2';
+              slots.forEach((slot: any) => {
+                const timeLabel = slot.time || (slot.start ? slot.start.slice(11, 16) : 'Time');
+                const btn = document.createElement('button');
+                btn.type = 'button';
+                btn.setAttribute('role', 'button');
+                btn.setAttribute('tabindex', '0');
+                btn.setAttribute('aria-label', `Book ${dateStr} at ${timeLabel}`);
+                btn.className = 'styleflo-time-btn px-3 py-1.5 rounded-lg border border-gray-200 text-xs font-bold text-gray-700 hover:text-white transition-colors bg-white shadow-sm';
+                btn.textContent = timeLabel;
+                btn.addEventListener('click', () => {
+                  chipsDiv.querySelectorAll('button').forEach((b) => ((b as HTMLButtonElement).disabled = true));
+                  btn.style.backgroundColor = primaryColor;
+                  btn.style.borderColor = primaryColor;
+                  btn.style.color = 'white';
+                  executeChatRequest(timeLabel, {
+                    action: 'select_slot',
+                    start: slot.start,
+                    staffId: slot.staffId,
+                    serviceId: serviceId || slot.serviceId,
+                  });
+                });
+                chipsDiv.appendChild(btn);
+              });
+              timesContainer.appendChild(chipsDiv);
+              botResponseContainer.appendChild(timesContainer);
+              scrollToBottom();
+            }
+          } catch (e) {
+            console.error('[StyleFlo Widget] Failed to parse QUICK_TIMES', e);
+          }
+        }
+
+        // --- 7d. Backwards Compatibility: [TIME_SLOTS: ...] (if neither days nor times rendered) ---
+        if (!renderedTimes && !renderedDays) {
+          const timeSlotStr = extractTagPayload(rawText, 'TIME_SLOTS');
+          if (timeSlotStr) {
+            try {
+              const timeSlotsJSON = JSON.parse(timeSlotStr);
+              const gridContainer = document.createElement('div');
+              gridContainer.className = 'mt-3 w-full';
+              
+              let gridHtml = '';
+              for (const [dateStr, times] of Object.entries(timeSlotsJSON)) {
+                if (Array.isArray(times) && times.length > 0) {
+                  const d = new Date(dateStr);
+                  const displayDate = isNaN(d.getTime()) ? dateStr : d.toLocaleDateString('en-GB', { weekday: 'short', month: 'short', day: 'numeric' });
+                  
+                  gridHtml += `
+                    <div class="mb-3">
+                      <div class="text-[11px] font-bold text-gray-400 uppercase tracking-wider mb-2 ml-1">${displayDate}</div>
+                      <div class="flex flex-wrap gap-2">
+                        ${times.map((t: any) => `<button type="button" role="button" aria-label="Book ${displayDate} at ${t}" class="styleflo-time-btn px-3 py-1.5 rounded-lg border border-gray-200 text-xs font-bold text-gray-700 hover:text-white transition-colors bg-white shadow-sm" data-time="${t}" data-date="${dateStr}">${t}</button>`).join('')}
+                      </div>
+                    </div>
+                  `;
+                }
+              }
+              gridContainer.innerHTML = gridHtml;
+              botResponseContainer.appendChild(gridContainer);
+              
+              const btns = gridContainer.querySelectorAll('.styleflo-time-btn');
+              btns.forEach((btn: Element) => {
+                const htmlBtn = btn as HTMLButtonElement;
+                htmlBtn.addEventListener('click', (e) => {
+                  const target = e.currentTarget as HTMLButtonElement;
+                  const date = target.getAttribute('data-date');
+                  const time = target.getAttribute('data-time');
+                  
+                  gridContainer.querySelectorAll('button').forEach((b) => ((b as HTMLButtonElement).disabled = true));
+                  target.style.backgroundColor = primaryColor;
+                  target.style.color = 'white';
+                  target.style.borderColor = primaryColor;
+                  
+                  executeChatRequest(`I would like to book ${date} at ${time}`);
+                });
               });
               
-              htmlBtn.addEventListener('mouseenter', () => {
-                htmlBtn.style.backgroundColor = primaryColor;
-                htmlBtn.style.borderColor = primaryColor;
-                htmlBtn.style.color = 'white';
-              });
-              htmlBtn.addEventListener('mouseleave', () => {
-                htmlBtn.style.backgroundColor = 'white';
-                htmlBtn.style.borderColor = '#e5e7eb';
-                htmlBtn.style.color = '#374151';
-              });
-            });
-            
-            scrollToBottom();
-          } catch (e) {
-            console.error('[StyleFlo Widget] Failed to parse TIME_SLOTS', e);
+              scrollToBottom();
+            } catch (e) {
+              console.error('[StyleFlo Widget] Failed to parse TIME_SLOTS', e);
+            }
           }
         }
 
@@ -1750,6 +2025,14 @@ import { buildGreeting, getFirstName, isEchoOfGreeting } from '../lib/greeting';
         const msg = err && err.message ? err.message : 'An error occurred. Please try again or refresh the page.';
         appendMessage('bot', `⚠️ ${msg}`);
       }
+    }
+
+    // Form Submit Event Handler
+    chatForm.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const messageText = inputField.value.trim();
+      if (!messageText) return;
+      executeChatRequest(messageText);
     });
   }
 

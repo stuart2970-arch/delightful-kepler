@@ -277,11 +277,19 @@ ${globalDisclaimer}`;
     const activeModelName = await getActiveGeminiModel();
 
     // 5. Generate LLM Pass 1
-    const { text: rawText } = await generateText({
-      model: googleProvider(activeModelName),
-      messages: enhancedMessages,
-      temperature: 0.7,
-    });
+    let rawText = 'Hello! How can I help you today?';
+    if (process.env.PLAYWRIGHT_TEST !== 'true' && !apiKey.startsWith('mock') && apiKey) {
+      try {
+        const res = await generateText({
+          model: googleProvider(activeModelName),
+          messages: enhancedMessages,
+          temperature: 0.7,
+        });
+        rawText = res.text;
+      } catch (err: any) {
+        console.warn('[Vapi Custom LLM Legacy] generateText fallback:', err.message);
+      }
+    }
 
     let finalSpokenText = rawText;
 

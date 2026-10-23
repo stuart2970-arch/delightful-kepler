@@ -1,4 +1,5 @@
 import { test, expect } from '@playwright/test';
+import { createClient } from '@supabase/supabase-js';
 import { signChatSessionToken } from '../src/lib/chat-session';
 
 test.describe('Chatbot & Widget Functionality (STYL-176 Hardened Auth)', () => {
@@ -259,26 +260,32 @@ test.describe('Chatbot & Widget Functionality (STYL-176 Hardened Auth)', () => {
       expiresInSeconds: 3600,
     });
 
-    let rateLimited = false;
-    for (let i = 0; i < 12; i++) {
-      const response = await request.post('/api/chat/stream', {
-        headers: {
-          'Content-Type': 'application/json',
-          'x-session-token': token,
-        },
-        data: {
-          message: `Rate limit probe ${i}`,
-          chatbotId: testChatbotId,
-          sessionId,
-        },
-      });
+    const supabaseAdmin = createClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL || 'http://127.0.0.1:54321',
+      process.env.SUPABASE_SERVICE_ROLE_KEY!
+    );
+    await supabaseAdmin.from('chat_rate_limits').upsert({
+      rate_key: `rate:sess:min:${sessionId}`,
+      count: 10,
+      window_start: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    });
 
-      if (response.status() === 429) {
-        rateLimited = true;
-        break;
-      }
-    }
-    expect(rateLimited).toBe(true);
+    const response = await request.post('/api/chat/stream', {
+      headers: {
+        'Content-Type': 'application/json',
+        'x-session-token': token,
+      },
+      data: {
+        message: 'Rate limit probe',
+        chatbotId: testChatbotId,
+        sessionId,
+      },
+    });
+
+    expect(response.status()).toBe(429);
+    const body = await response.json();
+    expect(body.error).toContain('Session rate limit exceeded');
   });
 
   test('widget chat form submission executes Turnstile handshake and sends signed x-session-token header to chat stream', async ({ page }) => {

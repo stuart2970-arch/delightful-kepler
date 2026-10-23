@@ -28,7 +28,7 @@ export async function getMicrosoftAccessToken(tenantId: string): Promise<string 
   const refreshToken = integration?.refresh_token || tenant?.microsoft_refresh_token;
 
   if (!refreshToken) {
-    if (process.env.NODE_ENV === 'development' || refreshToken === 'mock_ms_refresh_token') {
+    if (process.env.NODE_ENV === 'development' || process.env.NODE_ENV === 'test' || process.env.PLAYWRIGHT_TEST === 'true' || refreshToken === 'mock_ms_refresh_token') {
       return 'mock_ms_access_token';
     }
     return null;

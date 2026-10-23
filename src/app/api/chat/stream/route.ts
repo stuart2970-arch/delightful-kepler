@@ -8,7 +8,20 @@ import { createGoogleGenerativeAI, google } from '@ai-sdk/google';
 import { z } from 'zod';
 import formData from 'form-data';
 import * as cheerio from 'cheerio';
-import { checkAvailability, bookMeeting, lookupAppointments } from './calendar';
+import {
+  checkAvailability,
+  getAvailabilityData,
+  bookMeeting,
+  lookupAppointments,
+} from './calendar';
+import {
+  formatQuickDaysTag,
+  formatQuickTimesTag,
+  formatQuickServicesTag,
+  getSlotsForDay,
+  utcToLocalParts,
+  stripCalendarTags,
+} from '@/lib/calendar/availability';
 import { sendConsolidatedLeadEmail } from '@/lib/lead-notifier';
 
 import { getActiveGeminiModel } from '@/lib/gemini-config';
@@ -514,16 +527,28 @@ Help them specify:
       ? matchedDocuments.map((doc: { content: string }) => `- ${doc.content}`).join('\n\n')
       : 'No context available.';
     
-    // Fetch Services, Staff and Tenant Booking Mode for Calendar integration
-    const [servicesRes, staffRes, tenantRes] = await Promise.all([
-      supabaseAdmin.from('services').select('id, name, duration_minutes, buffer_minutes, price, staff_services(staff_id, custom_price, custom_duration)').eq('tenant_id', tenantId).eq('chatbot_id', targetBotUuid),
-      supabaseAdmin.from('staff').select('id, name').eq('tenant_id', tenantId).eq('chatbot_id', targetBotUuid),
-      supabaseAdmin.from('tenants').select('company_name, rwg_business_name, domain, booking_mode, booking_url').eq('id', tenantId).maybeSingle()
+    // Fetch Services, Staff, Tenant, and Integrations for Calendar capabilities
+    const [servicesRes, staffRes, tenantRes, integrationsRes] = await Promise.all([
+      supabaseAdmin.from('services').select('id, name, duration_minutes, buffer_minutes, price, staff_services(staff_id, custom_price, custom_duration)').eq('tenant_id', tenantId).or(`chatbot_id.eq.${targetBotUuid},chatbot_id.is.null`),
+      supabaseAdmin.from('staff').select('id, name, google_calendar_id, working_days').eq('tenant_id', tenantId).or(`chatbot_id.eq.${targetBotUuid},chatbot_id.is.null`),
+      supabaseAdmin.from('tenants').select('company_name, rwg_business_name, domain, booking_mode, booking_url, max_advance_weeks').eq('id', tenantId).maybeSingle(),
+      supabaseAdmin.from('tenant_integrations').select('provider, refresh_token').eq('tenant_id', tenantId),
     ]);
-    const servicesContext = servicesRes.data ? JSON.stringify(servicesRes.data, null, 2) : '[]';
-    const staffContext = staffRes.data ? JSON.stringify(staffRes.data, null, 2) : '[]';
+
+    const configuredServices = servicesRes.data || [];
+    const configuredStaff = staffRes.data || [];
+    const servicesContext = configuredServices.length > 0 ? JSON.stringify(configuredServices, null, 2) : '[]';
+    const staffContext = configuredStaff.length > 0 ? JSON.stringify(configuredStaff, null, 2) : '[]';
     const bookingMode = tenantRes.data?.booking_mode || 'single_calendar';
     const bookingUrl = tenantRes.data?.booking_url || '';
+
+    const hasConnectedCalendar = (integrationsRes.data || []).some(
+      (i: any) => (i.provider === 'google_calendar' || i.provider === 'microsoft_calendar') && Boolean(i.refresh_token)
+    );
+    const hasBookingCapabilities = (bookingMode === 'single_calendar' || bookingMode === 'multi_calendar') &&
+      configuredServices.length > 0 &&
+      configuredStaff.length > 0 &&
+      hasConnectedCalendar;
 
     const tenantCompany = (tenantRes.data?.company_name || tenantRes.data?.rwg_business_name || '').trim();
     const chatbotName = ((chatbotRecord?.name as string) || '').trim();
@@ -614,6 +639,124 @@ Help them specify:
     const emailMatch = fullHistoryText.match(/[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/);
     const confirmedEmail = bodyEmail || (emailMatch ? emailMatch[0] : 'user@example.com');
 
+    // Helper to stream a direct structured response (with DB logging & CORS headers)
+    const streamDirectResponse = (responseText: string, userEchoText?: string) => {
+      const encoder = new TextEncoder();
+      const cleanStoredText = stripCalendarTags(responseText);
+
+      const now = Date.now();
+      if (conversationId && conversationId !== '00000000-0000-0000-0000-000000000000') {
+        Promise.all([
+          supabaseAdmin.from('messages').insert({
+            tenant_id: tenantId,
+            conversation_id: conversationId,
+            sender_type: 'user',
+            text_content: userEchoText || message,
+            created_at: new Date(now - 1000).toISOString(),
+          }),
+          supabaseAdmin.from('messages').insert({
+            tenant_id: tenantId,
+            conversation_id: conversationId,
+            sender_type: 'bot',
+            text_content: cleanStoredText,
+            created_at: new Date(now).toISOString(),
+          }),
+        ]).catch((err) => console.error(`[Chat Stream][${requestId}] Direct response logging warning:`, err));
+      }
+
+      const directStream = new ReadableStream({
+        start(controller) {
+          controller.enqueue(encoder.encode(responseText));
+          controller.close();
+        },
+      });
+
+      return new Response(directStream, {
+        headers: {
+          ...corsHeaders,
+          'Content-Type': 'text/plain; charset=utf-8',
+        },
+      });
+    };
+
+    // --- STRUCTURED QUICK-ACTION DISPATCHER ---
+    const action = body.action;
+
+    if (action === 'select_service' && body.serviceId) {
+      const selectedService = configuredServices.find((s: any) => s.id === body.serviceId) || configuredServices[0];
+      const serviceId = selectedService?.id || body.serviceId;
+      const serviceName = selectedService?.name || 'Appointment';
+
+      const now = new Date();
+      const nextFortnight = new Date(now.getTime() + 14 * 24 * 60 * 60 * 1000);
+      const availData = await getAvailabilityData(tenantId, 'ANY', serviceId, now.toISOString(), nextFortnight.toISOString(), timezone);
+
+      let replyText = `Which day suits you best for your ${serviceName}?`;
+      if (availData.availableDays.length > 0) {
+        replyText += `\n\n${availData.quickDaysTag}`;
+      } else {
+        replyText = `I'm sorry, I couldn't find any available days for ${serviceName} in the next 2 weeks. Please let us know your contact details and our team will get in touch!`;
+      }
+
+      return streamDirectResponse(replyText, message || serviceName);
+    }
+
+    if (action === 'select_day' && body.date) {
+      const dateStr = body.date;
+      const serviceId = body.serviceId || configuredServices[0]?.id;
+      const staffId = body.staffId || 'ANY';
+      const dayStart = `${dateStr}T00:00:00`;
+      const dayEnd = `${dateStr}T23:59:59`;
+
+      const availData = await getAvailabilityData(tenantId, staffId, serviceId, dayStart, dayEnd, timezone);
+      const daySlots = getSlotsForDay(availData.slots, dateStr);
+
+      const d = new Date(dateStr);
+      const displayDate = utcToLocalParts(d, timezone).displayDate;
+
+      let replyText = '';
+      if (daySlots.length > 0) {
+        replyText = `Here are the available times for ${displayDate}. Which time would you prefer?\n\n${formatQuickTimesTag(dateStr, serviceId, daySlots)}\n${formatQuickDaysTag(serviceId, staffId, availData.availableDays)}`;
+      } else {
+        replyText = `I'm sorry, there are no remaining slots on ${displayDate}. Please choose another day:\n\n${formatQuickDaysTag(serviceId, staffId, availData.availableDays)}`;
+      }
+
+      return streamDirectResponse(replyText, message || displayDate);
+    }
+
+    if (action === 'select_slot' && body.start) {
+      const slotStart = body.start;
+      const serviceId = body.serviceId || configuredServices[0]?.id;
+      const staffId = body.staffId || (configuredStaff.length === 1 ? configuredStaff[0].id : (configuredStaff[0]?.id || 'ANY'));
+      const parts = utcToLocalParts(new Date(slotStart), timezone);
+
+      const custName = clientName || body.clientName || 'Customer';
+      const custEmail = body.clientEmail || body.email || (emailMatch ? emailMatch[0] : '');
+      const custPhone = body.clientPhone || body.phone || '';
+
+      if (!custEmail || !custPhone) {
+        const replyText = `To confirm your appointment for ${parts.displayDate} at ${parts.timeStr}, please provide your email address and mobile phone number.`;
+        return streamDirectResponse(replyText, message || parts.timeStr);
+      }
+
+      const bookingResult = await bookMeeting(tenantId, staffId, serviceId, custName, custEmail, custPhone, slotStart, '', timezone);
+
+      let replyText = '';
+      if (bookingResult.includes('Error:') || bookingResult.includes('Failed')) {
+        // Race condition: slot taken! Apologise and re-offer remaining times for that day
+        const dayAvail = await getAvailabilityData(tenantId, staffId, serviceId, `${parts.dateStr}T00:00:00`, `${parts.dateStr}T23:59:59`, timezone);
+        const daySlots = getSlotsForDay(dayAvail.slots, parts.dateStr);
+
+        replyText = `I'm sorry, that ${parts.timeStr} slot was just taken! Here are the remaining available times for ${parts.displayDate}:\n\n${formatQuickTimesTag(parts.dateStr, serviceId, daySlots)}\n${formatQuickDaysTag(serviceId, staffId, dayAvail.availableDays)}`;
+      } else {
+        const svc = configuredServices.find((s: any) => s.id === serviceId);
+        const svcName = svc ? svc.name : 'appointment';
+        replyText = `Your ${svcName} is confirmed for ${parts.displayDate} at ${parts.timeStr}! A confirmation email has been sent to ${custEmail}.`;
+      }
+
+      return streamDirectResponse(replyText, message || parts.timeStr);
+    }
+
     // Detect if user provided a website URL in current message or transcript
     let websiteScrapedText = '';
     let detectedUrl = '';
@@ -703,13 +846,22 @@ Guidelines:
 - CRITICAL: If the user explicitly types their email or phone number in the chat, you MUST end your response with exactly: [LEAD_CAPTURED: their_email_or_phone]. DO NOT use this tag to ask them for their info. Only use it when they actually provide it!
 ${bookingMode === 'walk_in_only' ? '- We DO NOT accept appointments. We are walk-ins only. If the user asks to book, politely inform them that they can just walk in at any time during our opening hours.' : ''}
 ${bookingMode === 'external_platform' ? `- We use an external booking platform. If the user asks to book, politely redirect them to our booking page: ${bookingUrl}` : ''}
-${(bookingMode === 'single_calendar' || bookingMode === 'multi_calendar') ? `- CRITICAL SCHEDULING RULE 1 (STAFF SELECTION): If the user wants to book an appointment, identify the Service and any requested Staff member. If NO staff member is specified by the user, pass 'ANY' as the StaffID to check availability across ALL qualified staff members for that service.
-- CRITICAL SCHEDULING RULE 1b (ALTERNATIVE STAFF OFFER): If the requested staff member (e.g. Jane) is UNAVAILABLE at the requested time slot (e.g. 10:00 AM), but ANOTHER qualified staff member (e.g. Stuart) IS available at 10:00 AM, DO NOT tell the user 10:00 AM is unavailable! Instead, politely offer the 10:00 AM slot with the available colleague (e.g., "Jane is booked at 10:00 AM, but Stuart is available at 10:00 AM! Would you like to book with Stuart, or choose a different time with Jane?").
-- CRITICAL SCHEDULING RULE 1c (FUZZY SERVICE PATTERN MATCHING): Users will often state service requests using informal or varied phrasing (e.g., "assisted build", "build help", "setup assistance", "30 min chat"). You MUST search and match similar text patterns across all names and descriptions in SERVICES CONFIGURATION. Match to the most relevant service (e.g., "assisted build" -> "Assisted Setup"). Never default to an unrelated service!
-- CRITICAL SCHEDULING RULE 1d (NO RE-PROMPTING STAFF CHOICE): If the user specifies a staff member (e.g., "Jane"), CONFIRM that choice (e.g., "Great, an Assisted Setup with Jane!") and DO NOT ask them to choose between staff members again. Do NOT list alternative staff members unless the requested staff member is unavailable.
-- CRITICAL SCHEDULING RULE 1e (PREVENT REDUNDANT QUESTIONS): Never ask the user for information they have already provided in the conversation (such as day, time, service, or staff choice). If day and time were already provided (e.g., "Friday at 8 PM"), immediately check availability using [CHECK_AVAILABILITY] without asking "What day and time were you hoping to book?" again.
-- CRITICAL SCHEDULING RULE 1f (STAFF CONSISTENCY LOCK): Keep the user's requested staff member locked throughout the conversation. DO NOT switch staff members in subsequent turns unless the user explicitly requests to change staff, or the requested staff member has zero availability.
-- CRITICAL SCHEDULING RULE 2: Once you know the Staff ID (or 'ANY') and Service ID, you MUST check availability before confirming any slot. Reply with a polite conversational message, and append EXACTLY: [CHECK_AVAILABILITY: StaffID, ServiceID, StartDate, EndDate]. StartDate and EndDate should be ISO strings WITH the ${timezone} timezone offset (e.g., +01:00 for BST). 
+${(!hasBookingCapabilities && bookingMode !== 'walk_in_only' && bookingMode !== 'external_platform') ? `- ONLINE BOOKING NOT CONFIGURED: We do not currently have direct automated chat booking configured for this assistant. If the customer asks to book, schedule an appointment, or check availability:
+  * Clearly explain that self-booking is not currently configured for automated scheduling directly in chat.
+  * Ask the customer for a description of what they need, along with their name, email address, and mobile phone number.
+  * Promise that our team will follow up promptly to arrange their booking.
+  * DO NOT emit any booking tags ([CHECK_AVAILABILITY], [BOOK_MEETING], [TIME_SLOTS], [QUICK_DAYS], [QUICK_TIMES], [QUICK_SERVICES]).` : ''}
+${hasBookingCapabilities ? `- CRITICAL SCHEDULING RULE 1 (SERVICES CATALOGUE): When the customer asks what services we offer, asks to book, or asks about availability:
+  * Present the available services from SERVICES CONFIGURATION with their name, duration, and price.
+  * If only one service is configured, you can auto-select it.
+  * Offer services using quick links tag: ${formatQuickServicesTag(configuredServices.map((s: any) => ({ id: s.id, name: s.name, duration_minutes: s.duration_minutes || 30, price: s.price })))}
+- CRITICAL SCHEDULING RULE 1b (STAFF SELECTION): If the user wants to book an appointment, identify the Service and any requested Staff member. If NO staff member is specified by the user, pass 'ANY' as the StaffID to check availability across ALL qualified staff members for that service.
+- CRITICAL SCHEDULING RULE 1c (ALTERNATIVE STAFF OFFER): If the requested staff member (e.g. Jane) is UNAVAILABLE at the requested time slot (e.g. 10:00 AM), but ANOTHER qualified staff member (e.g. Stuart) IS available at 10:00 AM, DO NOT tell the user 10:00 AM is unavailable! Instead, politely offer the 10:00 AM slot with the available colleague (e.g., "Jane is booked at 10:00 AM, but Stuart is available at 10:00 AM! Would you like to book with Stuart, or choose a different time with Jane?").
+- CRITICAL SCHEDULING RULE 1d (FUZZY SERVICE PATTERN MATCHING): Users will often state service requests using informal or varied phrasing (e.g., "assisted build", "build help", "setup assistance", "30 min chat"). You MUST search and match similar text patterns across all names and descriptions in SERVICES CONFIGURATION. Match to the most relevant service (e.g., "assisted build" -> "Assisted Setup"). Never default to an unrelated service!
+- CRITICAL SCHEDULING RULE 1e (NO RE-PROMPTING STAFF CHOICE): If the user specifies a staff member (e.g., "Jane"), CONFIRM that choice (e.g., "Great, an Assisted Setup with Jane!") and DO NOT ask them to choose between staff members again. Do NOT list alternative staff members unless the requested staff member is unavailable.
+- CRITICAL SCHEDULING RULE 1f (PREVENT REDUNDANT QUESTIONS): Never ask the user for information they have already provided in the conversation (such as day, time, service, or staff choice). If day and time were already provided (e.g., "Friday at 8 PM"), immediately check availability using [CHECK_AVAILABILITY] without asking "What day and time were you hoping to book?" again.
+- CRITICAL SCHEDULING RULE 1g (STAFF CONSISTENCY LOCK): Keep the user's requested staff member locked throughout the conversation. DO NOT switch staff members in subsequent turns unless the user explicitly requests to change staff, or the requested staff member has zero availability.
+- CRITICAL SCHEDULING RULE 2: Once you know the Staff ID (or 'ANY') and Service ID, you MUST check availability before confirming any slot. Ask the customer: "Which day suits you best?" and append EXACTLY: [CHECK_AVAILABILITY: StaffID, ServiceID, StartDate, EndDate]. StartDate and EndDate should be ISO strings WITH the ${timezone} timezone offset (e.g., +01:00 for BST) covering the next 7-14 days. 
 - CRITICAL SCHEDULING RULE 3: Once you have checked availability and the user agrees to a specific available slot, you MUST ask for BOTH their email address AND their mobile phone number before booking.
 - CRITICAL SCHEDULING RULE 3b (MANDATORY EMAIL READBACK & CONFIRMATION): When the user provides their email address, read it back clearly to confirm the exact spelling before booking.
 - CRITICAL SCHEDULING RULE 4: Once you have both their email and mobile number, you MUST book it by responding with a polite message, and then append EXACTLY: [BOOK_MEETING: StaffID, ServiceID, CustomerName, CustomerEmail, CustomerPhone, StartTime, EndTime]. StartTime and EndTime must be precise ISO strings WITH the timezone offset.
@@ -753,85 +905,102 @@ ${staffContext}`;
 
     let lastApiError = "";
     
-    // 9. Invoke streamText and setup async database transaction logging
-    const result = await streamText({
-      model: google(activeModelName),
-      system: systemPrompt,
-      messages: formattedMessages,
-      maxOutputTokens: 1024,
-      onError: (err: unknown) => {
-        console.error(`[Chat Stream][${requestId}] API Stream Error:`, err);
-        if (err instanceof Error) {
-          lastApiError = err.message;
-        } else if (err && typeof err === 'object') {
-          try {
-            lastApiError = (err as any).message || (err as any).error?.message || JSON.stringify(err);
-          } catch {
+    // 9. Invoke streamText (or mock stream for automated testing) and setup async database transaction logging
+    const mockModelReply = (body as any).mockModelReply || request.headers.get('x-mock-model-reply');
+    let result: any;
+
+    if (mockModelReply) {
+      result = {
+        textStream: (async function* () {
+          yield mockModelReply;
+        })(),
+      };
+    } else {
+      result = await streamText({
+        model: google(activeModelName),
+        system: systemPrompt,
+        messages: formattedMessages,
+        maxOutputTokens: 1024,
+        onError: (err: unknown) => {
+          console.error(`[Chat Stream][${requestId}] API Stream Error:`, err);
+          if (err instanceof Error) {
+            lastApiError = err.message;
+          } else if (err && typeof err === 'object') {
+            try {
+              lastApiError = (err as any).message || (err as any).error?.message || JSON.stringify(err);
+            } catch {
+              lastApiError = String(err);
+            }
+          } else {
             lastApiError = String(err);
           }
-        } else {
-          lastApiError = String(err);
-        }
-      },
-      onFinish: async (event) => {
-        console.log(`[Chat Stream][${requestId}] AI stream finished. Logging conversation in background...`);
-        try {
-          // Explicit timestamps to guarantee order
-          const now = Date.now();
-          const userTime = new Date(now - 1000).toISOString();
-          const botTime = new Date(now).toISOString();
+        },
+        onFinish: async (event) => {
+          console.log(`[Chat Stream][${requestId}] AI stream finished. Logging conversation in background...`);
+          try {
+            // Explicit timestamps to guarantee order
+            const now = Date.now();
+            const userTime = new Date(now - 1000).toISOString();
+            const botTime = new Date(now).toISOString();
 
-          const userInsertRes = await supabaseAdmin.from('messages').insert({
-            tenant_id: tenantId,
-            conversation_id: conversationId,
-            sender_type: 'user',
-            text_content: message,
-            created_at: userTime,
-          });
-
-          const cleanBotText = event.text.replace(/\[LEAD_CAPTURED:.*?\]/g, '').replace(/\[CHECK_AVAILABILITY:.*?\]/g, '').replace(/\[BOOK_MEETING:.*?\]/g, '').trim();
-          
-          let assistantInsertRes: { error: unknown | null } = { error: null };
-          if (cleanBotText) {
-            assistantInsertRes = await supabaseAdmin.from('messages').insert({
+            const userInsertRes = await supabaseAdmin.from('messages').insert({
               tenant_id: tenantId,
               conversation_id: conversationId,
-              sender_type: 'bot',
-              text_content: cleanBotText,
-              created_at: botTime,
+              sender_type: 'user',
+              text_content: message,
+              created_at: userTime,
             });
-          }
 
-          if (userInsertRes.error) console.error(`[Chat Stream][${requestId}] Failed to log user message:`, userInsertRes.error);
-          if (assistantInsertRes.error) console.error(`[Chat Stream][${requestId}] Failed to log assistant response:`, assistantInsertRes.error);
-
-          // Handle consolidated lead capture notification (combining email & phone into 1 email with intent & transcript)
-          const leadMatch = event.text.match(/\[LEAD_CAPTURED:\s*(.+?)\]/);
-          if (leadMatch && leadMatch[1]) {
-            const contactInfo = leadMatch[1];
-            console.log(`[Chat Stream][${requestId}] Extracted Lead Info: ${contactInfo}`);
+            const cleanBotText = event.text
+              .replace(/\[LEAD_CAPTURED:.*?\]/g, '')
+              .replace(/\[CHECK_AVAILABILITY:[\s\S]*?(?:\]|$)/g, '')
+              .replace(/\[BOOK_MEETING:[\s\S]*?(?:\]|$)/g, '')
+              .replace(/\[LOOKUP_APPOINTMENTS:[\s\S]*?(?:\]|$)/g, '')
+              .replace(/\[QUICK_SERVICES:[\s\S]*?(?:\]|$)/g, '')
+              .replace(/\[QUICK_DAYS:[\s\S]*?(?:\]|$)/g, '')
+              .replace(/\[QUICK_TIMES:[\s\S]*?(?:\]|$)/g, '')
+              .replace(/\[TIME_SLOTS:[\s\S]*?(?:\}\]|$)/g, '')
+              .trim();
             
-            try {
-               await sendConsolidatedLeadEmail({
-                tenantId,
-                chatbotId,
-                conversationId,
-                newContactInfo: contactInfo,
-                channelType: 'chat',
-                customerName: clientName || undefined,
+            let assistantInsertRes: { error: unknown | null } = { error: null };
+            if (cleanBotText) {
+              assistantInsertRes = await supabaseAdmin.from('messages').insert({
+                tenant_id: tenantId,
+                conversation_id: conversationId,
+                sender_type: 'bot',
+                text_content: cleanBotText,
+                created_at: botTime,
               });
-            } catch (err: unknown) {
-              console.error(`[Chat Stream][${requestId}] Background lead notification failed:`, err);
             }
-          }
 
-          if (userInsertRes.error) console.error(`[Chat Stream][${requestId}] Failed to log user message:`, userInsertRes.error);
-          if (assistantInsertRes.error) console.error(`[Chat Stream][${requestId}] Failed to log assistant response:`, assistantInsertRes.error);
-        } catch (dbErr: unknown) {
-          console.error(`[Chat Stream][${requestId}] Background DB logging failed:`, dbErr);
-        }
-      },
-    });
+            if (userInsertRes.error) console.error(`[Chat Stream][${requestId}] Failed to log user message:`, userInsertRes.error);
+            if (assistantInsertRes.error) console.error(`[Chat Stream][${requestId}] Failed to log assistant response:`, assistantInsertRes.error);
+
+            // Handle consolidated lead capture notification (combining email & phone into 1 email with intent & transcript)
+            const leadMatch = event.text.match(/\[LEAD_CAPTURED:\s*(.+?)\]/);
+            if (leadMatch && leadMatch[1]) {
+              const contactInfo = leadMatch[1];
+              console.log(`[Chat Stream][${requestId}] Extracted Lead Info: ${contactInfo}`);
+              
+              try {
+                 await sendConsolidatedLeadEmail({
+                  tenantId,
+                  chatbotId,
+                  conversationId,
+                  newContactInfo: contactInfo,
+                  channelType: 'chat',
+                  customerName: clientName || undefined,
+                });
+              } catch (err: unknown) {
+                console.error(`[Chat Stream][${requestId}] Background lead notification failed:`, err);
+              }
+            }
+          } catch (dbErr: unknown) {
+            console.error(`[Chat Stream][${requestId}] Background DB logging failed:`, dbErr);
+          }
+        },
+      });
+    }
 
     const encoder = new TextEncoder();
     let isStreamClosed = false;
@@ -879,33 +1048,53 @@ ${staffContext}`;
             const startStr = availMatch[3].trim().replace(/['"]/g, '');
             const endStr = availMatch[4].trim().replace(/['"]/g, '');
             
-            const toolResult = await checkAvailability(tenantId, staffId, serviceId, startStr, endStr, timezone);
+            const availData = await getAvailabilityData(tenantId, staffId, serviceId, startStr, endStr, timezone);
             
             const pass2Messages = [
               ...formattedMessages,
               { role: 'assistant', content: rawText },
-              { role: 'user', content: `[SYSTEM] Availability Result:\n${toolResult}\nNow present the times to the user naturally. Do not use tags.` }
+              { role: 'user', content: `[SYSTEM] Availability Result:\n${availData.text}\nNow warmly present the available days and times to the user in British English and ask which day suits them best.` }
             ];
             
-            const result2 = await (streamText as any)({
-                // @ts-ignore
-                asAny: true,
-              model: google(activeModelName),
-              system: systemPrompt,
-              messages: pass2Messages as any,
-              maxOutputTokens: 1024,
-              onFinish: async (event2: any) => {
-                await supabaseAdmin.from('messages').insert({
-                  tenant_id: tenantId,
-                  conversation_id: conversationId,
-                  sender_type: 'bot',
-                  text_content: event2.text,
-                });
+            let pass2Text = '';
+            if (mockModelReply && (body as any).mockPass2Reply) {
+              pass2Text = (body as any).mockPass2Reply;
+              safeEnqueue(pass2Text);
+            } else {
+              const result2 = await (streamText as any)({
+                model: google(activeModelName),
+                system: systemPrompt,
+                messages: pass2Messages as any,
+                maxOutputTokens: 1024,
+              });
+              
+              for await (const chunk of result2.textStream) {
+                pass2Text += chunk;
+                safeEnqueue(chunk);
               }
-            });
-            
-            for await (const chunk of result2.textStream) {
-              safeEnqueue(chunk);
+            }
+
+            // Append structured quick-link tags directly to the stream!
+            const tagsToAppend = [
+              availData.quickDaysTag,
+              availData.quickTimesTag,
+              availData.timeSlotsTag
+            ].filter(Boolean).join('\n');
+
+            if (tagsToAppend) {
+              safeEnqueue(`\n\n${tagsToAppend}`);
+            }
+
+            // Save clean transcript in database
+            const cleanStoredText = stripCalendarTags(pass2Text || rawText);
+
+            if (conversationId && conversationId !== '00000000-0000-0000-0000-000000000000') {
+              await supabaseAdmin.from('messages').insert({
+                tenant_id: tenantId,
+                conversation_id: conversationId,
+                sender_type: 'bot',
+                text_content: cleanStoredText,
+              });
             }
           }
 
@@ -923,100 +1112,31 @@ ${staffContext}`;
             const toolResult = await bookMeeting(tenantId, staffId, serviceId, custName, custEmail, custPhone, startStr, endStr, timezone);
             console.log(`[Chat Stream][${requestId}] Booking Result:`, toolResult);
             
+            let bookingReply = '';
             if (toolResult && toolResult.includes('Error:')) {
-              const pass2Messages = [
-                ...formattedMessages,
-                { role: 'assistant', content: rawText },
-                { role: 'user', content: `[SYSTEM] Booking Result:\n${toolResult}\nThe time slot was snatched by someone else! Apologize to the user naturally and ask them if they would like to pick a different time.` }
-              ];
-              
-              const result2 = await (streamText as any)({
-                model: google(activeModelName),
-                maxOutputTokens: 1024,
-                system: `You are an AI assistant representing the business "${businessName}".
-Your goal is to answer questions strictly using the provided context and handle booking inquiries according to the business's booking mode.
-If the answer isn't in the context, clearly state that you don't know and offer a fallback (like taking an email). Do not invent pricing, policies, or facts.
+              const parts = utcToLocalParts(new Date(startStr), timezone);
+              const availData = await getAvailabilityData(tenantId, staffId, serviceId, `${parts.dateStr}T00:00:00`, `${parts.dateStr}T23:59:59`, timezone);
+              const daySlots = getSlotsForDay(availData.slots, parts.dateStr);
 
-Booking Mode Information:
-Current Booking Mode: ${bookingMode}
-${bookingMode === 'walk_in_only' ? '- We DO NOT accept appointments. We are walk-ins only. If the user asks to book, politely inform them that they can just walk in at any time during our opening hours.' : ''}
-${bookingMode === 'external_platform' ? `- We use an external booking platform. If the user asks to book, politely redirect them to our booking page: ${bookingUrl}` : ''}
-${(bookingMode === 'single_calendar' || bookingMode === 'multi_calendar') ? '- We accept online bookings via the chat. Use your tools to check availability and book meetings.' : ''}
+              bookingReply = `I'm sorry, that time slot was just taken! Here are the remaining available times for ${parts.displayDate}:\n\n${formatQuickTimesTag(parts.dateStr, serviceId, daySlots)}\n${formatQuickDaysTag(serviceId, staffId, availData.availableDays)}`;
+              safeEnqueue(`\n\n${bookingReply}`);
+            } else {
+              const parts = utcToLocalParts(new Date(startStr), timezone);
+              const svc = configuredServices.find((s: any) => s.id === serviceId);
+              const svcName = svc ? svc.name : 'appointment';
+              bookingReply = `Your ${svcName} is confirmed for ${parts.displayDate} at ${parts.timeStr}! A confirmation email has been sent to ${custEmail}.`;
+              safeEnqueue(`\n\n${bookingReply}`);
+            }
 
-Available Services and Staff Context:
-Services:
-${servicesContext}
-Staff:
-${staffContext}
+            const cleanStoredText = stripCalendarTags(bookingReply);
 
-${(bookingMode === 'single_calendar' || bookingMode === 'multi_calendar') ? `
-Available Booking Tools (Only invoke if explicitly booking an appointment):
-- checkAvailability: Checks free slots for a specific date/staff/service.
-- lookupAppointments: Finds an existing appointment by email/phone.
-- bookMeeting: Confirms and locks in an appointment.
-IMPORTANT: You cannot update or delete existing appointments. Instruct the user to contact the business directly to make changes.
-` : `IMPORTANT: Do not attempt to use booking tools as the booking mode does not support internal calendar tools.`}
-
-Business Context & FAQ:
-${contextText}
-
-Current time/date: ${new Date().toLocaleString('en-US', { timeZone: timezone })}
-Currency: ${currency}
-User identity context: ${clientName ? 'Client Name: ' + clientName : 'Anonymous'}
-`,
-                messages: pass2Messages as any,
-                tools: (bookingMode === 'single_calendar' || bookingMode === 'multi_calendar') ? {
-                  checkAvailability: (tool as any)({
-                    description: 'Check available times for a specific date, service, and staff member.',
-                    parameters: z.object({
-                      startDateStr: z.string().describe('The start date to check in ISO format.'),
-                      endDateStr: z.string().describe('The end date to check in ISO format.'),
-                      serviceId: z.string().describe('The UUID of the requested service.'),
-                      staffId: z.string().describe('The UUID of the requested staff member.'),
-                    }),
-                    execute: async ({ startDateStr, endDateStr, serviceId, staffId }: { startDateStr: string; endDateStr: string; serviceId: string; staffId: string }) => {
-                      return await checkAvailability(tenantId, staffId, serviceId, startDateStr, endDateStr, timezone);
-                    },
-                  }),
-                  lookupAppointments: (tool as any)({
-                    description: 'Look up an existing appointment by the customer\'s email or phone number.',
-                    parameters: z.object({
-                      email: z.string().describe('The customer email to look up.'),
-                      phone: z.string().describe('The customer phone number to look up.'),
-                    }),
-                    execute: async ({ email, phone }: { email?: string; phone?: string }) => {
-                      return await lookupAppointments(tenantId, email || '', phone || '');
-                    },
-                  }),
-                  bookMeeting: (tool as any)({
-                    description: 'Book a meeting/appointment on the calendar.',
-                    parameters: z.object({
-                      customerName: z.string().describe('The customer\'s full name.'),
-                      customerEmail: z.string().describe('The customer\'s email address.'),
-                      customerPhone: z.string().describe('The customer\'s phone number.'),
-                      startTimeIso: z.string().describe('The exact start time in ISO 8601 format.'),
-                      endTimeIso: z.string().describe('The exact end time in ISO 8601 format.'),
-                      serviceId: z.string().describe('The UUID of the booked service.'),
-                      staffId: z.string().describe('The UUID of the assigned staff member.'),
-                    }),
-                    execute: async ({ customerName, customerEmail, customerPhone, startTimeIso, endTimeIso, serviceId, staffId }: { customerName: string; customerEmail: string; customerPhone: string; startTimeIso: string; endTimeIso: string; serviceId: string; staffId: string }) => {
-                      return await bookMeeting(tenantId, staffId, serviceId, customerName, customerEmail, customerPhone, startTimeIso, endTimeIso, timezone);
-                    },
-                  }),
-                } : ({} as Record<string, any>),
-                onFinish: async (event2: any) => {
-                  await supabaseAdmin.from('messages').insert({
-                    tenant_id: tenantId,
-                    conversation_id: conversationId,
-                    sender_type: 'bot',
-                    text_content: event2.text,
-                  });
-                }
+            if (conversationId && conversationId !== '00000000-0000-0000-0000-000000000000') {
+              await supabaseAdmin.from('messages').insert({
+                tenant_id: tenantId,
+                conversation_id: conversationId,
+                sender_type: 'bot',
+                text_content: cleanStoredText,
               });
-              
-              for await (const chunk of result2.textStream) {
-                safeEnqueue(chunk);
-              }
             }
           }
 

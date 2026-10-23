@@ -3806,3 +3806,43 @@ Highlighted adjustments in the modal:
        - Added test verifying header renders `"Meet our AI assistant"`, notice label renders sentence case `"Please read before you start"` without uppercase class, notice text renders `"our AI assistant"` with zero occurrences of `"our AI agent"`, and both links resolve with HTTP 200.
        - Verified full test suite (`npm run test:e2e`): 206/206 passed (100%).
        - Verified TypeScript compilation (`npm run typecheck`): passed with 0 errors.
+
+## Session 78 (October 23, 2026)
+* **User**: "Start Jira ticket STYL-182 (stuart2970.atlassian.net, project STYL). Read the ticket's Jira description and its latest plan comment (comment 10090, plus Stuart's quick-links requirement in comment 10087); they hold all context. First run git status: if the working copy is dirty or not on main, stop and tell me. STYL-184 is on branch fix/styl-184-prechat-wording awaiting Stuart's merge yes, and it also edits src/widget/index.ts and src/widget/embed.ts, so expect to rebase later. Create your own branch off the latest origin/main (e.g. styl-182-calendar-quick-links). Follow the plan's guardrails: production reads are read-only SELECTs only, don't configure services/staff/calendars on the homepage bot, no real calendar bookings from tests, never print secrets or customer data. Run the full test suite and the pre-push hook, never use --no-verify (fix the underlying cause instead). Push only your branch and post a summary comment on STYL-182. Do not merge to main or deploy without Stuart's explicit yes."
+  * **Actions Completed**:
+    1. **Pre-flight & Jira Verification**:
+       - Verified Jira ticket STYL-182 in progress with `antigravity` label.
+       - Audited production homepage bot configuration: confirmed tenant `7b0f485d-d9b8-47c3-8f64-42f2b347201a`, chatbot `9825855e-d478-443f-b75c-6c0d77039ca6` has 0 services configured, 2 staff members, and Google Calendar integration enabled. Enforced strict guardrail: never modify or configure services on the homepage bot.
+       - Verified clean git status on `main` and branched `styl-182-calendar-quick-links`.
+    2. **Multi-Calendar Provider Abstraction (`src/lib/calendar/provider.ts`)**:
+       - Built unified calendar provider abstraction supporting both Google Calendar API (`freebusy.query` and `events.insert`) and Microsoft Graph API (`/me/calendar/getSchedule` and `/me/events`).
+       - Guaranteed zero optimistic assumptions: if a provider returns an error or is unconfigured, slots are never falsely reported free.
+    3. **Availability Engine & Quick-Links Protocol (`src/lib/calendar/availability.ts`)**:
+       - Implemented `calculateAvailableSlots` strictly adhering to opening hours, service durations, busy interval exclusion, past-time filtering, and London timezone conversions.
+       - Implemented grouped date rollups (`getAvailableDays`) and single-day filtering (`getSlotsForDay`).
+       - Added quick link formatting helpers:
+         - `[QUICK_SERVICES:[{ id, name, duration_minutes, price }]]`
+         - `[QUICK_DAYS:[{ serviceId, staffId, days: [{ date, displayDate, slotsCount }] }]]`
+         - `[QUICK_TIMES:[{ date, serviceId, slots: [{ time, start, end, staffId, serviceId }] }]]`
+         - Backwards compatibility with legacy `[TIME_SLOTS:[...]]`.
+       - Implemented bracket-depth tracking in `stripCalendarTags` and `extractTagPayload` to cleanly parse and strip tags containing nested JSON without regex premature truncation.
+    4. **Chat Stream & Booking Handler Refactor (`src/app/api/chat/stream/calendar.ts`, `src/app/api/chat/stream/route.ts`)**:
+       - Updated `checkAvailability` and `getAvailabilityData` to leverage provider abstraction and availability engine.
+       - Added race-condition safeguards in `bookMeeting`: re-checks both internal `appointments` table and external calendar provider before committing.
+       - Built idempotency handling for rapid double-clicks using a 1-second timestamp window.
+       - Enhanced `route.ts` to handle structured actions (`select_service`, `select_day`, `select_slot`) with direct streaming and clean message logging with all calendar tags stripped from database transcripts.
+    5. **Widget Interactive Quick-Links UI (`src/widget/index.ts`, `src/widget/embed.ts`)**:
+       - Upgraded widget parser with bracket-depth tracking `extractTagPayload` and `stripCalendarTags`.
+       - Rendered accessible, styled button groups for services (`.styleflo-quick-service-btn`), days (`.styleflo-day-btn`), and times (`.styleflo-time-btn`).
+       - Added auto-disable on button click to prevent double clicks.
+       - Rebuilt minified widget assets `public/widget.js` and `public/embed.js` via `npm run build:widget`.
+    6. **Automated Test Coverage**:
+       - Unit tests (`tests/unit/availability.spec.ts`): 6/6 passing.
+       - STYL-182 Integration suite (`tests/styl-182-calendar-booking.spec.ts`): 7/7 passing (Google Calendar, Microsoft Calendar, busy exclusions, race conditions, idempotency, 0-services fallback, and DB tag stripping hygiene).
+       - Stabilized `tests/chatbot.spec.ts` rate-limit test by pre-seeding `chat_rate_limits` counter rather than hammering external Gemini API quotas.
+       - Verified `npm run typecheck` passes with 0 errors.
+       - Rebuilt production bundle (`npm run build`) successfully.
+    7. **Pre-Push Hook Verification & Branch Push**:
+       - Ran pre-push hook (`cmd.exe /c "npm run typecheck && npm run test:e2e"`) cleanly without `--no-verify`.
+       - Pushed branch `styl-182-calendar-quick-links` to origin.
+       - Posted completion summary to Jira STYL-182. Awaiting Stuart's explicit approval before any merge or deploy.

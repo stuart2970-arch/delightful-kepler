@@ -1583,10 +1583,77 @@ import { buildGreeting, getFirstName, isEchoOfGreeting } from '../lib/greeting';
       });
     }
 
-    // Form Submit Event Handler
-    chatForm.addEventListener('submit', async (e) => {
-      e.preventDefault();
-      const messageText = inputField.value.trim();
+    function extractTagPayload(text: string, tagPrefix: string): string | null {
+      const marker = '[' + tagPrefix + ':';
+      const startIdx = text.indexOf(marker);
+      if (startIdx === -1) return null;
+      const contentStart = startIdx + marker.length;
+      let depth = 1;
+      let inString = false;
+      let escape = false;
+      for (let i = contentStart; i < text.length; i++) {
+        const ch = text[i];
+        if (escape) { escape = false; continue; }
+        if (ch === '\\') { escape = true; continue; }
+        if (ch === '"') { inString = !inString; continue; }
+        if (!inString) {
+          if (ch === '[' || ch === '{') depth++;
+          else if (ch === ']' || ch === '}') {
+            depth--;
+            if (depth === 0) return text.slice(contentStart, i).trim();
+          }
+        }
+      }
+      return null;
+    }
+
+    function stripCalendarTags(text: string): string {
+      let result = text;
+      const tagList = [
+        'QUICK_SERVICES',
+        'QUICK_DAYS',
+        'QUICK_TIMES',
+        'TIME_SLOTS',
+        'CHECK_AVAILABILITY',
+        'BOOK_MEETING',
+        'LOOKUP_APPOINTMENTS',
+        'LEAD_CAPTURED',
+      ];
+
+      for (const tag of tagList) {
+        while (true) {
+          const marker = '[' + tag + ':';
+          const startIdx = result.indexOf(marker);
+          if (startIdx === -1) break;
+          let depth = 1;
+          let inString = false;
+          let escape = false;
+          let foundEnd = -1;
+          for (let i = startIdx + marker.length; i < result.length; i++) {
+            const ch = result[i];
+            if (escape) { escape = false; continue; }
+            if (ch === '\\') { escape = true; continue; }
+            if (ch === '"') { inString = !inString; continue; }
+            if (!inString) {
+              if (ch === '[' || ch === '{') depth++;
+              else if (ch === ']' || ch === '}') {
+                depth--;
+                if (depth === 0) { foundEnd = i; break; }
+              }
+            }
+          }
+          if (foundEnd !== -1) {
+            result = (result.slice(0, startIdx) + result.slice(foundEnd + 1)).trim();
+          } else {
+            break;
+          }
+        }
+      }
+      return result;
+    }
+
+    // Central Chat Stream Executor (supporting plain text messages and structured quick links)
+    async function executeChatRequest(messageText: string, extraPayload: Record<string, any> = {}) {
       if (!messageText) return;
 
       // 1. Add user message
@@ -1596,41 +1663,38 @@ import { buildGreeting, getFirstName, isEchoOfGreeting } from '../lib/greeting';
       // 2. Add typing indicator
       const typingIndicator = showTypingIndicator();
 
-      // 3. Initiate fetch streaming call
       try {
         const session = await ensureChatSession();
+        const requestData: any = {
+          message: messageText,
+          chatbotId: chatbotId,
+          sessionId: session.sessionId,
+          clientName: (storedName ? getFirstName(storedName) : undefined) || storedName || undefined,
+          clientEmail: storedEmail || undefined,
+          ...extraPayload,
+        };
+
         let response = await fetch(`${apiHost}/api/chat/stream`, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
             'x-session-token': session.sessionToken,
           },
-          body: JSON.stringify({
-            message: messageText,
-            chatbotId: chatbotId,
-            sessionId: session.sessionId,
-            clientName: (storedName ? getFirstName(storedName) : undefined) || storedName || undefined,
-            clientEmail: storedEmail || undefined,
-          }),
+          body: JSON.stringify(requestData),
         });
 
         // Auto-refresh token on 401 retry
         if (response.status === 401) {
           const freshSession = await ensureChatSession(true);
           if (freshSession.sessionToken) {
+            requestData.sessionId = freshSession.sessionId;
             response = await fetch(`${apiHost}/api/chat/stream`, {
               method: 'POST',
               headers: {
                 'Content-Type': 'application/json',
                 'x-session-token': freshSession.sessionToken,
               },
-              body: JSON.stringify({
-                message: messageText,
-                chatbotId: chatbotId,
-                sessionId: freshSession.sessionId,
-                clientName: (storedName ? getFirstName(storedName) : undefined) || storedName || undefined,
-                clientEmail: storedEmail || undefined,
-              }),
+              body: JSON.stringify(requestData),
             });
           }
         }
@@ -1664,13 +1728,7 @@ import { buildGreeting, getFirstName, isEchoOfGreeting } from '../lib/greeting';
           const chunk = decoder.decode(value, { stream: true });
           rawText += chunk;
           
-          let formattedText = rawText
-            // Hide secret tool tags
-            .replace(/\[CHECK_AVAILABILITY:[\s\S]*?(?:\]|$)/g, '')
-            .replace(/\[BOOK_MEETING:[\s\S]*?(?:\]|$)/g, '')
-            .replace(/\[LEAD_CAPTURED:[\s\S]*?(?:\]|$)/g, '')
-            .replace(/\[LOOKUP_APPOINTMENTS:[\s\S]*?(?:\]|$)/g, '')
-            .replace(/\[TIME_SLOTS:[\s\S]*?(?:\}\]|$)/g, '')
+          let formattedText = stripCalendarTags(rawText)
             .replace(/\[REMAINING_TASKS:[\s\S]*?(?:\]|$)/g, '')
             .replace(/\[BOOKING_OPTIONS:[\s\S]*?(?:\]|$)/g, '')
             .replace(/\[BOOKING_OPTIONS\]/g, '')
@@ -1681,7 +1739,7 @@ import { buildGreeting, getFirstName, isEchoOfGreeting } from '../lib/greeting';
             // Replace bold **text**
             .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
             // Replace markdown links with formatted inline links
-            .replace(/\[([^\]]+)\]\((https?:\/\/[^)]+)\)/g, '<a href="$2" target="_blank" class="font-semibold text-indigo-600 hover:underline" style="color: ${primaryColor}; text-decoration: underline;">$1</a>')
+            .replace(/\[([^\]]+)\]\((https?:\/\/[^)]+)\)/g, `<a href="$2" target="_blank" class="font-semibold text-indigo-600 hover:underline" style="color: ${primaryColor}; text-decoration: underline;">$1</a>`)
             // Convert newlines to <br>
             .replace(/\n/g, '<br/>');
 
@@ -1720,7 +1778,6 @@ import { buildGreeting, getFirstName, isEchoOfGreeting } from '../lib/greeting';
         }
 
         for (const url of productUrls) {
-          // Render a skeleton loading card first
           const cardContainer = document.createElement('div');
           cardContainer.className = 'my-2 p-3 bg-gray-50 border border-gray-100 rounded-2xl flex items-center gap-3 styleflo-animate-pulse';
           cardContainer.innerHTML = `
@@ -1731,7 +1788,6 @@ import { buildGreeting, getFirstName, isEchoOfGreeting } from '../lib/greeting';
             </div>
           `;
           
-          // Insert the card container inline, directly following the anchor link mention
           const anchor = botResponseContainer.querySelector(`a[href="${url}"]`);
           if (anchor) {
             anchor.parentNode?.insertBefore(cardContainer, anchor.nextSibling);
@@ -1777,66 +1833,189 @@ import { buildGreeting, getFirstName, isEchoOfGreeting } from '../lib/greeting';
           scrollToBottom();
         }
 
-        // 7. Parse [TIME_SLOTS: ...] if present
-        const timeSlotRegex = /\[TIME_SLOTS:\s*({.*?})\]/;
-        const timeSlotMatch = rawText.match(timeSlotRegex);
-        if (timeSlotMatch && timeSlotMatch[1]) {
+        // --- 7a. Parse [QUICK_SERVICES: ...] (Comment 10092) ---
+        const quickServicesStr = extractTagPayload(rawText, 'QUICK_SERVICES');
+        if (quickServicesStr) {
           try {
-            const timeSlotsJSON = JSON.parse(timeSlotMatch[1]);
-            const gridContainer = document.createElement('div');
-            gridContainer.className = 'mt-3 w-full';
-            
-            let gridHtml = '';
-            for (const [dateStr, times] of Object.entries(timeSlotsJSON)) {
-              if (Array.isArray(times) && times.length > 0) {
-                const d = new Date(dateStr);
-                const displayDate = isNaN(d.getTime()) ? dateStr : d.toLocaleDateString('en-GB', { weekday: 'short', month: 'short', day: 'numeric' });
-                
-                gridHtml += `
-                  <div class="mb-3">
-                    <div class="text-[11px] font-bold text-gray-400 uppercase tracking-wider mb-2 ml-1">${displayDate}</div>
-                    <div class="flex flex-wrap gap-2">
-                      ${times.map(t => `<button type="button" class="styleflo-time-btn px-3 py-1.5 rounded-lg border border-gray-200 text-xs font-bold text-gray-700 hover:text-white transition-colors bg-white shadow-sm" data-time="${t}" data-date="${dateStr}">${t}</button>`).join('')}
-                    </div>
-                  </div>
-                `;
-              }
+            const services = JSON.parse(quickServicesStr);
+            if (Array.isArray(services) && services.length > 0) {
+              const servicesContainer = document.createElement('div');
+              servicesContainer.className = 'mt-3 w-full flex flex-col gap-2';
+              services.forEach((svc: any) => {
+                const btn = document.createElement('button');
+                btn.type = 'button';
+                btn.setAttribute('role', 'button');
+                btn.setAttribute('tabindex', '0');
+                btn.setAttribute('aria-label', `Select service ${svc.name}`);
+                btn.className = 'styleflo-quick-service-btn px-3 py-2 rounded-xl border border-gray-200 text-xs font-semibold text-gray-800 bg-white hover:bg-gray-50 transition shadow-sm text-left flex justify-between items-center';
+                const priceStr = svc.price ? ` • £${svc.price}` : '';
+                const durStr = svc.duration_minutes ? ` (${svc.duration_minutes} mins${priceStr})` : '';
+                btn.innerHTML = `<span>${svc.name}${durStr}</span><span style="color:${primaryColor}">➔</span>`;
+                btn.addEventListener('click', () => {
+                  servicesContainer.querySelectorAll('button').forEach((b) => ((b as HTMLButtonElement).disabled = true));
+                  btn.style.backgroundColor = primaryColor;
+                  btn.style.color = '#ffffff';
+                  executeChatRequest(svc.name, { action: 'select_service', serviceId: svc.id });
+                });
+                servicesContainer.appendChild(btn);
+              });
+              botResponseContainer.appendChild(servicesContainer);
+              scrollToBottom();
             }
-            gridContainer.innerHTML = gridHtml;
-            botResponseContainer.appendChild(gridContainer);
-            
-            // Add event listeners to the generated buttons
-            const btns = gridContainer.querySelectorAll('.styleflo-time-btn');
-            btns.forEach((btn: Element) => {
-              const htmlBtn = btn as HTMLButtonElement;
-              htmlBtn.addEventListener('click', (e) => {
-                const target = e.currentTarget as HTMLButtonElement;
-                const date = target.getAttribute('data-date');
-                const time = target.getAttribute('data-time');
-                
-                target.style.backgroundColor = primaryColor;
-                target.style.color = 'white';
-                target.style.borderColor = primaryColor;
-                
-                inputField.value = `I would like to book ${date} at ${time}`;
-                chatForm.dispatchEvent(new Event('submit'));
+          } catch (e) {
+            console.error('[StyleFlo Widget] Failed to parse QUICK_SERVICES', e);
+          }
+        }
+
+        // --- 7b. Parse [QUICK_DAYS: ...] (Comment 10087/10090) ---
+        let renderedDays = false;
+        const quickDaysStr = extractTagPayload(rawText, 'QUICK_DAYS');
+        if (quickDaysStr) {
+          try {
+            const daysPayload = JSON.parse(quickDaysStr);
+            const serviceId = daysPayload.serviceId;
+            const staffId = daysPayload.staffId || 'ANY';
+            const days = daysPayload.days || [];
+            if (Array.isArray(days) && days.length > 0) {
+              renderedDays = true;
+              const daysContainer = document.createElement('div');
+              daysContainer.className = 'mt-3 w-full';
+              const label = document.createElement('div');
+              label.className = 'text-[11px] font-bold text-gray-400 uppercase tracking-wider mb-2 ml-1';
+              label.textContent = 'Available Days';
+              daysContainer.appendChild(label);
+
+              const chipsDiv = document.createElement('div');
+              chipsDiv.className = 'flex flex-wrap gap-2';
+              days.forEach((dayItem: any) => {
+                const dateStr = typeof dayItem === 'string' ? dayItem : dayItem.date;
+                const display = typeof dayItem === 'object' && dayItem.label ? dayItem.label : dateStr;
+                const btn = document.createElement('button');
+                btn.type = 'button';
+                btn.setAttribute('role', 'button');
+                btn.setAttribute('tabindex', '0');
+                btn.setAttribute('aria-label', `Select ${display}`);
+                btn.className = 'styleflo-day-btn px-3 py-1.5 rounded-lg border border-gray-200 text-xs font-bold text-gray-700 hover:text-white transition-colors bg-white shadow-sm';
+                btn.textContent = display;
+                btn.addEventListener('click', () => {
+                  chipsDiv.querySelectorAll('button').forEach((b) => ((b as HTMLButtonElement).disabled = true));
+                  btn.style.backgroundColor = primaryColor;
+                  btn.style.borderColor = primaryColor;
+                  btn.style.color = 'white';
+                  executeChatRequest(display, { action: 'select_day', date: dateStr, serviceId, staffId });
+                });
+                chipsDiv.appendChild(btn);
+              });
+              daysContainer.appendChild(chipsDiv);
+              botResponseContainer.appendChild(daysContainer);
+              scrollToBottom();
+            }
+          } catch (e) {
+            console.error('[StyleFlo Widget] Failed to parse QUICK_DAYS', e);
+          }
+        }
+
+        // --- 7c. Parse [QUICK_TIMES: ...] (Comment 10087/10090) ---
+        let renderedTimes = false;
+        const quickTimesStr = extractTagPayload(rawText, 'QUICK_TIMES');
+        if (quickTimesStr) {
+          try {
+            const timesPayload = JSON.parse(quickTimesStr);
+            const dateStr = timesPayload.date;
+            const serviceId = timesPayload.serviceId;
+            const slots = timesPayload.slots || [];
+            if (Array.isArray(slots) && slots.length > 0) {
+              renderedTimes = true;
+              const timesContainer = document.createElement('div');
+              timesContainer.className = 'mt-3 w-full';
+              const label = document.createElement('div');
+              label.className = 'text-[11px] font-bold text-gray-400 uppercase tracking-wider mb-2 ml-1';
+              label.textContent = `Available Times (${dateStr})`;
+              timesContainer.appendChild(label);
+
+              const chipsDiv = document.createElement('div');
+              chipsDiv.className = 'flex flex-wrap gap-2';
+              slots.forEach((slot: any) => {
+                const timeLabel = slot.time || (slot.start ? slot.start.slice(11, 16) : 'Time');
+                const btn = document.createElement('button');
+                btn.type = 'button';
+                btn.setAttribute('role', 'button');
+                btn.setAttribute('tabindex', '0');
+                btn.setAttribute('aria-label', `Book ${dateStr} at ${timeLabel}`);
+                btn.className = 'styleflo-time-btn px-3 py-1.5 rounded-lg border border-gray-200 text-xs font-bold text-gray-700 hover:text-white transition-colors bg-white shadow-sm';
+                btn.textContent = timeLabel;
+                btn.addEventListener('click', () => {
+                  chipsDiv.querySelectorAll('button').forEach((b) => ((b as HTMLButtonElement).disabled = true));
+                  btn.style.backgroundColor = primaryColor;
+                  btn.style.borderColor = primaryColor;
+                  btn.style.color = 'white';
+                  executeChatRequest(timeLabel, {
+                    action: 'select_slot',
+                    start: slot.start,
+                    staffId: slot.staffId,
+                    serviceId: serviceId || slot.serviceId,
+                  });
+                });
+                chipsDiv.appendChild(btn);
+              });
+              timesContainer.appendChild(chipsDiv);
+              botResponseContainer.appendChild(timesContainer);
+              scrollToBottom();
+            }
+          } catch (e) {
+            console.error('[StyleFlo Widget] Failed to parse QUICK_TIMES', e);
+          }
+        }
+
+        // --- 7d. Backwards Compatibility: [TIME_SLOTS: ...] (if neither days nor times rendered) ---
+        if (!renderedTimes && !renderedDays) {
+          const timeSlotStr = extractTagPayload(rawText, 'TIME_SLOTS');
+          if (timeSlotStr) {
+            try {
+              const timeSlotsJSON = JSON.parse(timeSlotStr);
+              const gridContainer = document.createElement('div');
+              gridContainer.className = 'mt-3 w-full';
+              
+              let gridHtml = '';
+              for (const [dateStr, times] of Object.entries(timeSlotsJSON)) {
+                if (Array.isArray(times) && times.length > 0) {
+                  const d = new Date(dateStr);
+                  const displayDate = isNaN(d.getTime()) ? dateStr : d.toLocaleDateString('en-GB', { weekday: 'short', month: 'short', day: 'numeric' });
+                  
+                  gridHtml += `
+                    <div class="mb-3">
+                      <div class="text-[11px] font-bold text-gray-400 uppercase tracking-wider mb-2 ml-1">${displayDate}</div>
+                      <div class="flex flex-wrap gap-2">
+                        ${times.map((t: any) => `<button type="button" role="button" aria-label="Book ${displayDate} at ${t}" class="styleflo-time-btn px-3 py-1.5 rounded-lg border border-gray-200 text-xs font-bold text-gray-700 hover:text-white transition-colors bg-white shadow-sm" data-time="${t}" data-date="${dateStr}">${t}</button>`).join('')}
+                      </div>
+                    </div>
+                  `;
+                }
+              }
+              gridContainer.innerHTML = gridHtml;
+              botResponseContainer.appendChild(gridContainer);
+              
+              const btns = gridContainer.querySelectorAll('.styleflo-time-btn');
+              btns.forEach((btn: Element) => {
+                const htmlBtn = btn as HTMLButtonElement;
+                htmlBtn.addEventListener('click', (e) => {
+                  const target = e.currentTarget as HTMLButtonElement;
+                  const date = target.getAttribute('data-date');
+                  const time = target.getAttribute('data-time');
+                  
+                  gridContainer.querySelectorAll('button').forEach((b) => ((b as HTMLButtonElement).disabled = true));
+                  target.style.backgroundColor = primaryColor;
+                  target.style.color = 'white';
+                  target.style.borderColor = primaryColor;
+                  
+                  executeChatRequest(`I would like to book ${date} at ${time}`);
+                });
               });
               
-              htmlBtn.addEventListener('mouseenter', () => {
-                htmlBtn.style.backgroundColor = primaryColor;
-                htmlBtn.style.borderColor = primaryColor;
-                htmlBtn.style.color = 'white';
-              });
-              htmlBtn.addEventListener('mouseleave', () => {
-                htmlBtn.style.backgroundColor = 'white';
-                htmlBtn.style.borderColor = '#e5e7eb';
-                htmlBtn.style.color = '#374151';
-              });
-            });
-            
-            scrollToBottom();
-          } catch (e) {
-            console.error('[StyleFlo Widget] Failed to parse TIME_SLOTS', e);
+              scrollToBottom();
+            } catch (e) {
+              console.error('[StyleFlo Widget] Failed to parse TIME_SLOTS', e);
+            }
           }
         }
 
@@ -1846,6 +2025,14 @@ import { buildGreeting, getFirstName, isEchoOfGreeting } from '../lib/greeting';
         const msg = err && err.message ? err.message : 'An error occurred. Please try again or refresh the page.';
         appendMessage('bot', `⚠️ ${msg}`);
       }
+    }
+
+    // Form Submit Event Handler
+    chatForm.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const messageText = inputField.value.trim();
+      if (!messageText) return;
+      executeChatRequest(messageText);
     });
   }
 
