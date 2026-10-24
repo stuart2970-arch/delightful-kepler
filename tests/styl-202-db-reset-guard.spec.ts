@@ -7,19 +7,21 @@ import {
   parseDbResetArgs,
   buildSupabaseResetArgs,
   collectTargetHints,
-} from '../scripts/db-reset.mjs';
+} from '../src/lib/env/db-reset-guard';
 
 test.describe('STYL-202: db:reset refuses live Supabase', () => {
   test('detects the live project ref in URLs and env-like strings', () => {
     expect(isLiveSupabaseTarget(`https://${LIVE_SUPABASE_PROJECT_REF}.supabase.co`)).toBe(true);
-    expect(isLiveSupabaseTarget(`postgresql://postgres:x@db.${LIVE_SUPABASE_PROJECT_REF}.supabase.co:5432/postgres`)).toBe(
-      true,
-    );
+    expect(
+      isLiveSupabaseTarget(
+        `postgresql://postgres:x@db.${LIVE_SUPABASE_PROJECT_REF}.supabase.co:5432/postgres`,
+      ),
+    ).toBe(true);
     expect(isLiveSupabaseTarget(LIVE_SUPABASE_PROJECT_REF)).toBe(true);
     expect(isLiveSupabaseTarget(`https://${STAGING_SUPABASE_PROJECT_REF}.supabase.co`)).toBe(false);
     expect(isLiveSupabaseTarget('http://127.0.0.1:54321')).toBe(false);
     expect(isLiveSupabaseTarget('')).toBe(false);
-    expect(isLiveSupabaseTarget(undefined as unknown as string)).toBe(false);
+    expect(isLiveSupabaseTarget(undefined)).toBe(false);
   });
 
   test('assertSafeDbResetTarget blocks live --db-url and live env hints', () => {
@@ -30,10 +32,7 @@ test.describe('STYL-202: db:reset refuses live Supabase', () => {
       expect(blocked.reason).toContain(LIVE_SUPABASE_PROJECT_REF);
     }
 
-    const blockedEnv = assertSafeDbResetTarget(
-      {},
-      { NEXT_PUBLIC_SUPABASE_URL: liveUrl },
-    );
+    const blockedEnv = assertSafeDbResetTarget({}, { NEXT_PUBLIC_SUPABASE_URL: liveUrl });
     expect(blockedEnv.ok).toBe(false);
 
     const stagingOk = assertSafeDbResetTarget(
@@ -42,7 +41,10 @@ test.describe('STYL-202: db:reset refuses live Supabase', () => {
     );
     expect(stagingOk.ok).toBe(true);
 
-    const localOk = assertSafeDbResetTarget({}, { NEXT_PUBLIC_SUPABASE_URL: 'http://127.0.0.1:54321' });
+    const localOk = assertSafeDbResetTarget(
+      {},
+      { NEXT_PUBLIC_SUPABASE_URL: 'http://127.0.0.1:54321' },
+    );
     expect(localOk.ok).toBe(true);
   });
 
