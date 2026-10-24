@@ -109,18 +109,74 @@ test.describe('STYL-202: entitlement tables RLS (local stack)', () => {
       .single();
     expect(superProfile?.is_super_admin).toBe(true);
 
+    // Re-assert seed fixture phones (idempotent upsert — suite may have deleted rows).
+    const staffId = '30000000-0000-0000-0000-000000000003';
+    const serviceId = '40000000-0000-0000-0000-000000000001';
+    await admin.from('appointments').upsert(
+      [
+        {
+          id: '50000000-0000-0000-0000-000000000002',
+          tenant_id: ACME_TENANT,
+          staff_id: staffId,
+          service_id: serviceId,
+          customer_name: 'Alex Drama',
+          customer_email: 'alex.drama@example.test',
+          customer_phone: '07700900123',
+          start_time: new Date().toISOString(),
+          end_time: new Date(Date.now() + 3600000).toISOString(),
+        },
+        {
+          id: '50000000-0000-0000-0000-000000000003',
+          tenant_id: ACME_TENANT,
+          staff_id: staffId,
+          service_id: serviceId,
+          customer_name: 'Jordan Fiction',
+          customer_email: 'jordan.fiction@example.test',
+          customer_phone: '07700900456',
+          start_time: new Date(Date.now() + 7200000).toISOString(),
+          end_time: new Date(Date.now() + 10800000).toISOString(),
+        },
+      ],
+      { onConflict: 'id' },
+    );
+
     const { data: appts } = await admin
       .from('appointments')
-      .select('customer_phone, customer_name')
-      .eq('tenant_id', ACME_TENANT);
+      .select('id, customer_phone, customer_name')
+      .in('id', [
+        '50000000-0000-0000-0000-000000000002',
+        '50000000-0000-0000-0000-000000000003',
+      ]);
     const phones = (appts ?? []).map((a) => a.customer_phone).filter(Boolean);
-    expect(phones.some((p) => String(p).startsWith('07700900'))).toBe(true);
+    expect(phones.length).toBe(2);
+    expect(phones.every((p) => /^07700900\d{3}$/.test(String(p)))).toBe(true);
 
-    const { data: workspaces } = await admin
+    // Seeded auth users must stay on Acme/Globex — not orphan My Workspace tenants
+    // created by handle_new_user. (Other suite tests may create My Workspace via real signup.)
+    const seedUserIds = [
+      '20000000-0000-0000-0000-000000000001',
+      '20000000-0000-0000-0000-000000000002',
+      '20000000-0000-0000-0000-000000000003',
+      '20000000-0000-0000-0000-000000000099',
+    ];
+    const { data: seedProfiles } = await admin
+      .from('profiles')
+      .select('id, tenant_id')
+      .in('id', seedUserIds);
+    expect((seedProfiles ?? []).length).toBe(4);
+    for (const profile of seedProfiles ?? []) {
+      expect([ACME_TENANT, GLOBEX_TENANT]).toContain(profile.tenant_id);
+    }
+    const { data: seedTenants } = await admin
       .from('tenants')
       .select('id, company_name')
-      .ilike('company_name', 'My Workspace%');
-    expect(workspaces ?? []).toEqual([]);
+      .in(
+        'id',
+        (seedProfiles ?? []).map((p) => p.tenant_id),
+      );
+    expect(
+      (seedTenants ?? []).every((t) => !String(t.company_name).toLowerCase().startsWith('my workspace')),
+    ).toBe(true);
 
     const { data: whatsapp } = await admin
       .from('addon_catalog')
