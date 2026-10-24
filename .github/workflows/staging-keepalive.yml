@@ -1,0 +1,35 @@
+# STYL-202: lightweight weekly ping so the Free-plan staging project
+# is less likely to pause after 7 days of inactivity.
+# Pings staging only — never the live project ref tkoasyjvrgaglofpzduq.
+name: Staging Supabase keep-alive
+
+on:
+  schedule:
+    # Mondays 06:15 UTC
+    - cron: '15 6 * * 1'
+  workflow_dispatch:
+
+jobs:
+  ping-staging:
+    name: Ping staging API
+    runs-on: ubuntu-latest
+    # Optional: bind to GitHub Environment "staging" when secrets are configured.
+    # environment: staging
+    steps:
+      - name: Refuse live and ping staging
+        env:
+          STAGING_URL: https://lriugykhrfnnouexqqhm.supabase.co
+          LIVE_REF: tkoasyjvrgaglofpzduq
+        run: |
+          set -euo pipefail
+          if echo "$STAGING_URL" | grep -qi "$LIVE_REF"; then
+            echo "Refusing keep-alive: URL names the live project"
+            exit 1
+          fi
+          # Cheap unauthenticated request; 401/404 still prove the project is awake.
+          code=$(curl -sS -o /dev/null -w '%{http_code}' --max-time 30 "$STAGING_URL/auth/v1/health" || true)
+          echo "Staging HTTP status: $code"
+          if [ -z "$code" ] || [ "$code" = "000" ]; then
+            echo "Keep-alive could not reach staging (paused or network)."
+            exit 1
+          fi

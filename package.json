@@ -4,6 +4,7 @@
   "private": true,
   "scripts": {
     "env:local": "node scripts/write-local-env.mjs",
+    "db:reset": "node scripts/db-reset.mjs",
     "dev": "node scripts/dev.mjs",
     "dev:next": "next dev",
     "build": "next build && npm run build:widget",

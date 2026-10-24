@@ -18,13 +18,19 @@ Local development uses the **local Supabase CLI stack** and mock third-party key
    ```
    This writes `.env.local` and `.env.test` pointing at `http://127.0.0.1:54321` with mock API keys. See `.env.example` for every variable name (no values).
 
-3. **Run the development server**:
+3. **Reset / reseed the database** (local or staging — never live):
+   ```bash
+   npm run db:reset
+   ```
+   Refuses the live project ref. Seed data is synthetic only (no real customer data). Staging project details, auth/SMTP checklist, keep-alive, and migration repair notes: **[docs/staging.md](docs/staging.md)**.
+
+4. **Run the development server**:
    ```bash
    npm run dev
    ```
    `npm run dev` refuses to start if `.env.local` still points at the live Supabase project.
 
-4. **Build the production application and widget script**:
+5. **Build the production application and widget script**:
    ```bash
    npm run build
    ```
@@ -34,6 +40,7 @@ Local development uses the **local Supabase CLI stack** and mock third-party key
 ## Project Resources
 
 * **[Google Sheet Project Backlog](https://docs.google.com/spreadsheets/d/14FP_o7Lv1WJ9V8TP5wpkWVIulwIMcg1jQjr_sG_z_hw/edit?usp=sharing)**
+* **[Staging Supabase runbook](docs/staging.md)** (STYL-202 — Free-plan project `styleflo-staging`, reset, keep-alive)
 
 ---
 
@@ -93,6 +100,17 @@ This runbook documents the key fixes and architecture enhancements implemented d
 
 ### Session Chat History Log
 
+
+### Session (STYL-202 - 24 Oct 2026)
+* **User / Jira**: STYL-202 (epic STYL-201) — staging Supabase hardening after project `styleflo-staging` (ref `lriugykhrfnnouexqqhm`) was built from repo migrations + seed. Repo-only work; no live DB changes; no staging credentials in the agent.
+* **Changes**:
+  - Migrations: RLS on `tier_entitlements`, `tenant_feature_overrides`, `tenant_active_addons`, `entitlement_change_logs` (idempotent `IF EXISTS` / `DROP POLICY IF EXISTS`); SECURITY DEFINER revoke + pinned `search_path`; neutralised `sync_tenant_to_wordpress_fn` (no live URL).
+  - Seed: `app.seed_mode` GUC (seed role cannot `ALTER TRIGGER` on `auth.users`); no ownerless My Workspace; `plan_tier = foundation`; fake superadmin; opening hours; disabled `whatsapp_addon`; Ofcom drama phones `07700 900xxx`; header note — no real data.
+  - `npm run db:reset` (`scripts/db-reset.mjs`) resets + reseeds; refuses live ref `tkoasyjvrgaglofpzduq`.
+  - Docs: `docs/staging.md` (project details, reset, Free-plan pause / keep-alive workflow, auth/SMTP for Stuart, `staging` env secrets, `migration repair`). README pointer.
+  - Playwright: `tests/styl-202-db-reset-guard.spec.ts`, `tests/styl-202-entitlement-rls.spec.ts`.
+  - Confirmed: `.github/workflows/deploy.yml` does **not** apply Supabase migrations to live.
+  - Live drift (list only, STYL-197/207): migrations needed for `referral_clicks` and `knowledge_sources`; empty historical file `20260712182829_…` left untouched for checksum safety.
 
 ### Session (STYL-210 - 24 Oct 2026)
 * **User / Jira**: STYL-210 (epic STYL-201) — stop local `npm run dev` using the live Supabase project and live third-party keys.
