@@ -1,0 +1,17 @@
+# Firebase App Hosting — shared defaults (STYL-203).
+# Staging overrides live in apphosting.staging.yaml (backend Environment name: staging).
+# Node runtime is Node 22 via package.json engines.node (App Hosting does not support Node 20).
+# Production remains on Cloud Run (styleflo-new) via .github/workflows/deploy.yml — do not
+# change production deploy behaviour here.
+#
+# No live Supabase project ref and no secret values may appear in this file.
+# CI: npm run check:staging-no-live-ref
+
+runConfig:
+  # Match terraform Cloud Run defaults (1 CPU / 1Gi) at the low end; staging caps instances.
+  cpu: 1
+  memoryMiB: 1024
+  concurrency: 80
+  minInstances: 0
+  maxInstances: 2
+  cpuAlwaysAllocated: false

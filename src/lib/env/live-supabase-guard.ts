@@ -1,16 +1,24 @@
 /**
- * STYL-210: Guard against accidental use of the live Supabase project
+ * STYL-210 / STYL-203: Guard against accidental use of the live Supabase project
  * outside production (local dev, staging, tests).
  *
  * Production (Cloud Run / Docker) sets NODE_ENV=production but does not
  * currently set APP_ENV. When APP_ENV is unset we treat NODE_ENV=production
  * as production so this guard never logs or breaks the live service.
+ *
+ * Staging (APP_ENV=staging) MUST fail loudly if the live project appears —
+ * never warn-and-continue.
  */
 
-/** Live StyleFlo Supabase project ref — never point local/dev/test at this. */
+/** Live StyleFlo Supabase project ref — never point local/dev/test/staging at this. */
 export const LIVE_SUPABASE_PROJECT_REF = 'tkoasyjvrgaglofpzduq';
 
+/** Staging Supabase project ref (styleflo-staging). */
+export const STAGING_SUPABASE_PROJECT_REF = 'lriugykhrfnnouexqqhm';
+
 export const LIVE_SUPABASE_URL = `https://${LIVE_SUPABASE_PROJECT_REF}.supabase.co`;
+
+export const STAGING_SUPABASE_URL = `https://${STAGING_SUPABASE_PROJECT_REF}.supabase.co`;
 
 export type EnvLike = {
   NEXT_PUBLIC_SUPABASE_URL?: string;
@@ -86,4 +94,22 @@ export function warnIfLiveSupabaseInNonProduction(
   const url = env.NEXT_PUBLIC_SUPABASE_URL || env.SUPABASE_URL;
   logger.warn(formatLiveSupabaseWarning(url));
   return true;
+}
+
+/**
+ * STYL-203: When APP_ENV=staging, throw if the configured Supabase URL is the
+ * live project. Staging builds and runtimes must never silently use live.
+ */
+export function assertNoLiveSupabaseWhenStaging(env: EnvLike = process.env): void {
+  if (resolveAppEnv(env) !== 'staging') return;
+  const url = env.NEXT_PUBLIC_SUPABASE_URL || env.SUPABASE_URL;
+  if (!isLiveSupabaseUrl(url)) return;
+  throw new Error(
+    [
+      '[STYL-203] FATAL: APP_ENV=staging but NEXT_PUBLIC_SUPABASE_URL / SUPABASE_URL',
+      `points at the LIVE Supabase project (${LIVE_SUPABASE_PROJECT_REF}).`,
+      `Staging must use ${STAGING_SUPABASE_URL} only.`,
+      `Got: ${(url || '').trim() || '(empty)'}`,
+    ].join(' '),
+  );
 }

@@ -18,14 +18,25 @@ const inter = Inter({
   preload: false,
 });
 
+const isStaging =
+  (process.env.APP_ENV || process.env.NEXT_PUBLIC_ENV || "")
+    .trim()
+    .toLowerCase() === "staging";
+
 export const metadata: Metadata = {
-  title: "StyleFlo AI Chatbot Platform",
+  title: isStaging
+    ? "[STAGING] StyleFlo AI Chatbot Platform"
+    : "StyleFlo AI Chatbot Platform",
   description: "AI-Powered Customer Support & Scheduling Widget",
+  ...(isStaging
+    ? { robots: { index: false, follow: false, nocache: true } }
+    : {}),
 };
 
 import { Suspense } from "react";
 import IframeResizer from "@/components/IframeResizer";
 import Analytics from "@/components/Analytics";
+import StagingBanner from "@/components/StagingBanner";
 
 export default function RootLayout({
   children,
@@ -102,6 +113,7 @@ export default function RootLayout({
         />
       </head>
       <body className="flex flex-col bg-[var(--awb-color3)] text-[var(--awb-color7)] font-sans">
+        <StagingBanner />
         <Suspense fallback={null}>
           <Analytics />
         </Suspense>

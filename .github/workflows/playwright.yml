@@ -44,6 +44,9 @@ jobs:
           # Local-only stack with mock third-party keys (STYL-210). Never live credentials.
           npm run env:local
 
+      - name: STYL-203 — refuse live Supabase ref in App Hosting / staging config
+        run: npm run check:staging-no-live-ref
+
       - name: TypeScript Type Check
         run: npm run typecheck
         env:
@@ -54,3 +57,4 @@ jobs:
         env:
           CI: true
           NODE_OPTIONS: --max-old-space-size=8192
+

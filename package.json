@@ -2,17 +2,21 @@
   "name": "delightful-kepler",
   "version": "0.1.0",
   "private": true,
+  "engines": {
+    "node": "22"
+  },
   "scripts": {
     "env:local": "node scripts/write-local-env.mjs",
     "db:reset": "node scripts/db-reset.mjs",
     "dev": "node scripts/dev.mjs",
     "dev:next": "next dev",
-    "build": "next build && npm run build:widget",
+    "build": "node scripts/assert-staging-env.mjs && next build && npm run build:widget",
     "typecheck": "tsc --noEmit",
     "start": "next start",
     "lint": "eslint",
     "build:widget": "node scripts/build-widget.js",
-    "prepare": "husky",
+    "prepare": "node -e \"try{require('child_process').execSync('husky',{stdio:'inherit'})}catch(e){}\"",
+    "check:staging-no-live-ref": "node scripts/check-staging-no-live-ref.mjs",
     "test:server": "dotenv -e .env.test --override -- next dev -p 3001",
     "test:e2e": "playwright test",
     "test:e2e:ui": "playwright test --ui"
@@ -26,9 +30,11 @@
     "@supabase/auth-ui-shared": "^0.1.8",
     "@supabase/ssr": "^0.12.0",
     "@supabase/supabase-js": "^2.108.2",
+    "@tailwindcss/postcss": "^4",
     "@vapi-ai/web": "^2.6.1",
     "ai": "^6.0.206",
     "cheerio": "^1.2.0",
+    "esbuild": "^0.28.1",
     "form-data": "^4.0.6",
     "googleapis": "^173.0.0",
     "jwt-decode": "^4.0.0",
@@ -39,23 +45,21 @@
     "react": "19.2.4",
     "react-dom": "19.2.4",
     "stripe": "^22.5.0",
+    "tailwindcss": "^4",
     "twilio": "^6.0.2",
+    "typescript": "^5",
     "zod": "^4.4.3",
-    "zustand": "^5.0.14"
-  },
-  "devDependencies": {
-    "@playwright/test": "^1.62.0",
-    "@tailwindcss/postcss": "^4",
+    "zustand": "^5.0.14",
     "@types/node": "^20",
     "@types/pdf-parse": "^1.1.5",
     "@types/react": "^19",
-    "@types/react-dom": "^19",
+    "@types/react-dom": "^19"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.62.0",
     "dotenv-cli": "^11.0.0",
-    "esbuild": "^0.28.1",
     "eslint": "^9",
     "eslint-config-next": "^16.3.5",
-    "husky": "^9.1.7",
-    "tailwindcss": "^4",
-    "typescript": "^5"
+    "husky": "^9.1.7"
   }
 }
