@@ -39,49 +39,10 @@ jobs:
           npx supabase start --ignore-health-check
           npx supabase db reset --yes
 
-      - name: Write .env.test from local Supabase
+      - name: Write .env.local / .env.test from local Supabase
         run: |
-          npx supabase status -o json > /tmp/supabase-status.json
-          node -e '
-            const fs = require("fs");
-            const status = JSON.parse(fs.readFileSync("/tmp/supabase-status.json", "utf8"));
-            const apiUrl = status.API_URL || status.apiUrl || "http://127.0.0.1:54321";
-            const anon = status.ANON_KEY || status.anonKey;
-            const service = status.SERVICE_ROLE_KEY || status.serviceRoleKey;
-            if (!anon || !service) {
-              console.error("Missing local Supabase keys", Object.keys(status));
-              process.exit(1);
-            }
-            if (/supabase\.co|tkoasyjvrgaglofpzduq/i.test(apiUrl)) {
-              console.error("Refusing to run Playwright against a live Supabase URL:", apiUrl);
-              process.exit(1);
-            }
-            fs.writeFileSync(".env.test", [
-              "NEXT_PUBLIC_SUPABASE_URL=" + apiUrl,
-              "NEXT_PUBLIC_SUPABASE_ANON_KEY=" + anon,
-              "SUPABASE_SERVICE_ROLE_KEY=" + service,
-              "SUPABASE_URL=" + apiUrl,
-              "SUPABASE_ANON_KEY=" + anon,
-              "NEXT_PUBLIC_APP_URL=http://localhost:3001",
-              "PLAYWRIGHT_TEST=true",
-              "NODE_ENV=test",
-              "STRIPE_SECRET_KEY=sk_test_mock",
-              "MAILGUN_API_KEY=mock_mailgun_api_key_for_local_testing",
-              "GEMINI_API_KEY=mock-test-key",
-              "GOOGLE_GENERATIVE_AI_API_KEY=mock-test-key",
-              "OPENAI_API_KEY=mock-test-key",
-              "VAPI_API_KEY=mock-vapi-key",
-              "TWILIO_ACCOUNT_SID=ACmocktwilioaccountsid000000000000",
-              "TWILIO_AUTH_TOKEN=mock_twilio_auth_token",
-              "META_APP_SECRET=test_meta_app_secret_123",
-              "META_VERIFY_TOKEN=styleflo_meta_verify_2026",
-              "CRON_SECRET=mock_cron_secret_for_local_testing",
-              "TURNSTILE_SECRET_KEY=1x0000000000000000000000000000000AA",
-              "NEXT_PUBLIC_TURNSTILE_SITE_KEY=1x0000000000000000000000000000000AA",
-              ""
-            ].join("\n"));
-            console.log("Wrote .env.test for local Supabase only.");
-          '
+          # Local-only stack with mock third-party keys (STYL-210). Never live credentials.
+          npm run env:local
 
       - name: TypeScript Type Check
         run: npm run typecheck

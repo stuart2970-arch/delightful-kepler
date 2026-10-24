@@ -3,7 +3,9 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "dev": "next dev",
+    "env:local": "node scripts/write-local-env.mjs",
+    "dev": "node scripts/dev.mjs",
+    "dev:next": "next dev",
     "build": "next build && npm run build:widget",
     "typecheck": "tsc --noEmit",
     "start": "next start",

@@ -88,8 +88,10 @@ so the same failure cannot regress silently.
 - Never use `git commit --no-verify`, `git push --no-verify`, or any other flag that skips hooks.
 - If a pre-commit or pre-push hook fails, fix the underlying cause (types, tests, lint) and re-run. Do not bypass the hook.
 
-### Local and CI test data isolation
+### Local and CI test data isolation (STYL-210)
+- **Live credentials are never used on a developer machine.** That includes the live Supabase project (`tkoasyjvrgaglofpzduq`) and live Mailgun, Twilio, Stripe, Vapi, Gemini, Meta, or Turnstile keys.
+- Local `npm run dev` defaults to the local Supabase CLI stack (`http://127.0.0.1:54321`) via `npm run env:local` / `scripts/dev.mjs`, or may use a dedicated staging project — never live.
 - Never point Playwright tests, `npm run test:server`, or husky hooks at the live Supabase project or live API keys.
-- `.env.test` must use the local Supabase CLI stack (`http://127.0.0.1:54321`) and mock third-party keys only.
-- Never copy credentials from `.env.local` into `.env.test`.
+- `.env.local` and `.env.test` must use the local Supabase CLI stack (or staging) and mock / vendor test keys only.
+- Never paste live credentials into `.env.local` or `.env.test`. See `.env.example` for variable names (no values) and `.agents/skills/local-testing-environment`.
 
