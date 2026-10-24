@@ -1,11 +1,16 @@
 const { createClient } = require('@supabase/supabase-js');
 require('dotenv').config({ path: '.env.local' });
 
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || 'https://tkoasyjvrgaglofpzduq.supabase.co';
+const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.SUPABASE_URL;
 const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
-if (!serviceRoleKey) {
-  console.error('SUPABASE_SERVICE_ROLE_KEY is required to seed demo tenants');
+if (!supabaseUrl || !serviceRoleKey) {
+  console.error('NEXT_PUBLIC_SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY are required (use `npm run env:local`, never the live project).');
+  process.exit(1);
+}
+
+if (/tkoasyjvrgaglofpzduq/i.test(supabaseUrl) && process.env.APP_ENV !== 'production') {
+  console.error('Refusing to seed against the live Supabase project. Use local Supabase or staging.');
   process.exit(1);
 }
 

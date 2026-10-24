@@ -4,17 +4,27 @@ This is a Next.js web application built with Supabase and Gemini, offering an em
 
 ## Getting Started
 
+Local development uses the **local Supabase CLI stack** and mock third-party keys by default (STYL-210). Live database credentials and live Mailgun / Twilio / Stripe / Vapi / Gemini keys must never be used on a developer machine.
+
 1. **Install dependencies**:
    ```bash
    npm install
    ```
 
-2. **Run the development server**:
+2. **Start local Supabase and write safe env files**:
+   ```bash
+   npx supabase start
+   npm run env:local
+   ```
+   This writes `.env.local` and `.env.test` pointing at `http://127.0.0.1:54321` with mock API keys. See `.env.example` for every variable name (no values).
+
+3. **Run the development server**:
    ```bash
    npm run dev
    ```
+   `npm run dev` refuses to start if `.env.local` still points at the live Supabase project.
 
-3. **Build the production application and widget script**:
+4. **Build the production application and widget script**:
    ```bash
    npm run build
    ```
@@ -82,6 +92,18 @@ This runbook documents the key fixes and architecture enhancements implemented d
 ---
 
 ### Session Chat History Log
+
+
+### Session (STYL-210 - 24 Oct 2026)
+* **User / Jira**: STYL-210 (epic STYL-201) — stop local `npm run dev` using the live Supabase project and live third-party keys.
+* **Changes**:
+  - Default local path: `npx supabase start` → `npm run env:local` → `npm run dev` (writes `.env.local` / `.env.test` from local CLI; `scripts/dev.mjs` refuses the live project).
+  - Added `.env.example` (variable names only; marks test-key vars). Updated `.gitignore` to track `.env.example`.
+  - Added `src/lib/env/live-supabase-guard.ts` + `src/instrumentation.ts` startup warning when the live URL is used outside production. Production Cloud Run (`NODE_ENV=production`, `APP_ENV` unset) stays silent without a deploy config change.
+  - Removed hardcoded live Supabase URL fallbacks from several API routes / scripts; scrubbed live key from `query_services.js`.
+  - Docs: `.agents/skills/local-testing-environment`, root `AGENTS.md`, `.agents/AGENTS.md`, README Getting Started (British English).
+  - Playwright coverage: `tests/styl-210-live-supabase-guard.spec.ts`. CI Playwright workflow now calls `npm run env:local`.
+  - Housekeeping (not deleted — for Stuart): nested `Styleflo AI/delightful-kepler/` is an incomplete stale snapshot (no `src/`); `terraform/main.tf` still defines Cloud SQL + Cloud Run image `styleflo-app` while production deploy uses Supabase + `styleflo-new`.
 
 ### Session (STYL-200 - 24 Oct 2026)
 * **User / Jira**: STYL-200 - standing AGENTS.md regression-test rule; Playwright coverage for 23 Oct fixes (STYL-198/195/194/196/193); run Playwright on every PR without changing production deploy.
@@ -1450,7 +1472,8 @@ pm run test:server without brittle global
 px calls.
   2. **E2E Isolation & Environment Hardening**:
      - Configured Playwright with workers: 1 and ullyParallel: false to run sequentially against local Supabase database state.
-     - Set euseExistingServer: false in playwright.config.ts so Playwright always spawns a dedicated, cleanly scoped Next.js test instance.
+     - Set 
+euseExistingServer: false in playwright.config.ts so Playwright always spawns a dedicated, cleanly scoped Next.js test instance.
   * **Obsidian Documentation**: Created and updated  1_Projects\Styleflo AI\Husky.md in the Obsidian vault with root-cause analysis, hook architecture details, and resolution steps.
   - **Result**: 100% of tests passed (28 passed, 1 skipped) during Husky pre-push hook, and git push origin main completed cleanly to GitHub.
 
