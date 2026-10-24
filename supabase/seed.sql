@@ -1,9 +1,19 @@
 -- =========================================================================
--- DATABASE SEED SCRIPT FOR STYLEFLO
+-- DATABASE SEED SCRIPT FOR STYLEFLO (STYL-202)
+-- =========================================================================
+-- Holds NO real customer or production data. All names, emails, and phone
+-- numbers are synthetic fixtures for local/staging resets only.
+-- Phone numbers use the Ofcom UK drama range 07700 900xxx (never allocated).
+-- Password for all seeded auth users: password123
 -- =========================================================================
 
+-- Disable signup provisioning while we insert auth.users + profiles manually.
+-- Otherwise handle_new_user creates ownerless "My Workspace" tenants per user.
+ALTER TABLE auth.users DISABLE TRIGGER on_auth_user_created;
+-- Allow seeding is_super_admin = true (trigger only permits service_role).
+ALTER TABLE public.profiles DISABLE TRIGGER tr_protect_super_admin_flag;
+
 -- 1. Helper function to generate a dummy vector of 768 dimensions
--- (Used to populate mock embeddings without giant float array text)
 CREATE OR REPLACE FUNCTION public.make_dummy_vector(val float)
 RETURNS vector(768) AS $$
 DECLARE
@@ -14,26 +24,42 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
--- 2. Seed Tenants
-INSERT INTO public.tenants (id, tenant_id, company_name, slug, plan_tier, has_google_calendar)
+-- 2. Seed Tenants (plan_tier = foundation per STYL rename)
+INSERT INTO public.tenants (
+  id, tenant_id, company_name, slug, plan_tier, has_google_calendar,
+  general_operating_hours
+)
 VALUES (
   '10000000-0000-0000-0000-000000000001',
   '10000000-0000-0000-0000-000000000001',
   'Acme Corp',
   'acme-corp',
-  'base_tier',
-  true
-) ON CONFLICT (id) DO UPDATE SET has_google_calendar = true;
+  'foundation',
+  true,
+  '{
+    "monday":    {"unavailable": false, "hours": {"start": "09:00", "end": "17:00"}},
+    "tuesday":   {"unavailable": false, "hours": {"start": "09:00", "end": "17:00"}},
+    "wednesday": {"unavailable": false, "hours": {"start": "09:00", "end": "17:00"}},
+    "thursday":  {"unavailable": false, "hours": {"start": "09:00", "end": "17:00"}},
+    "friday":    {"unavailable": false, "hours": {"start": "09:00", "end": "17:00"}},
+    "saturday":  {"unavailable": true,  "hours": null},
+    "sunday":    {"unavailable": true,  "hours": null}
+  }'::jsonb
+) ON CONFLICT (id) DO UPDATE SET
+  has_google_calendar = true,
+  plan_tier = 'foundation',
+  general_operating_hours = EXCLUDED.general_operating_hours;
 
-INSERT INTO public.tenants (id, tenant_id, company_name, slug)
+INSERT INTO public.tenants (id, tenant_id, company_name, slug, plan_tier)
 VALUES (
   '10000000-0000-0000-0000-000000000002',
   '10000000-0000-0000-0000-000000000002',
   'Globex Corporation',
-  'globex-corporation'
-) ON CONFLICT (id) DO NOTHING;
+  'globex-corporation',
+  'foundation'
+) ON CONFLICT (id) DO UPDATE SET plan_tier = 'foundation';
 
--- 3. Seed auth.users
+-- 3. Seed auth.users (incl. fake superadmin)
 -- Password is 'password123'
 INSERT INTO auth.users (
   instance_id,
@@ -89,22 +115,49 @@ INSERT INTO auth.users (
   '',
   '',
   ''
+), (
+  '00000000-0000-0000-0000-000000000000',
+  '20000000-0000-0000-0000-000000000099',
+  'authenticated',
+  'authenticated',
+  'superadmin@styleflo.test',
+  crypt('password123', gen_salt('bf')),
+  now(),
+  now(),
+  now(),
+  '{"provider":"email","providers":["email"]}',
+  '{"name":"StyleFlo Superadmin"}',
+  now(),
+  now(),
+  '',
+  '',
+  '',
+  ''
 ) ON CONFLICT (id) DO NOTHING;
 
--- 4. Seed Profiles
-INSERT INTO public.profiles (id, tenant_id, role)
+-- 4. Seed Profiles (superadmin attached to Acme for a valid tenant_id)
+INSERT INTO public.profiles (id, tenant_id, role, is_super_admin)
 VALUES (
   '20000000-0000-0000-0000-000000000001',
   '10000000-0000-0000-0000-000000000001',
-  'owner'
+  'owner',
+  false
 ), (
   '20000000-0000-0000-0000-000000000002',
   '10000000-0000-0000-0000-000000000002',
-  'admin'
-) ON CONFLICT (id) DO UPDATE SET tenant_id = EXCLUDED.tenant_id, role = EXCLUDED.role;
+  'admin',
+  false
+), (
+  '20000000-0000-0000-0000-000000000099',
+  '10000000-0000-0000-0000-000000000001',
+  'owner',
+  true
+) ON CONFLICT (id) DO UPDATE SET
+  tenant_id = EXCLUDED.tenant_id,
+  role = EXCLUDED.role,
+  is_super_admin = EXCLUDED.is_super_admin;
 
 -- 5. Seed Chatbots
--- Acme Support Bot (Emerald Green theme)
 INSERT INTO public.chatbots (id, tenant_id, name, configuration_json, primary_color)
 VALUES (
   'e0000000-0000-0000-0000-000000000001',
@@ -114,7 +167,6 @@ VALUES (
   '#10B981'
 ) ON CONFLICT (id) DO NOTHING;
 
--- Globex Helpdesk (Indigo theme)
 INSERT INTO public.chatbots (id, tenant_id, name, configuration_json, primary_color)
 VALUES (
   'e0000000-0000-0000-0000-000000000002',
@@ -125,8 +177,6 @@ VALUES (
 ) ON CONFLICT (id) DO NOTHING;
 
 -- StyleFlo Homepage Assistant (STYL-181 / STYL-200 local+CI seed)
--- The STYL-181 migration inserts this only when a tenant already exists; seed runs after
--- migrations, so local resets need the row here for Playwright.
 INSERT INTO public.chatbots (id, tenant_id, name, configuration_json, primary_color)
 VALUES (
   '9825855e-d478-443f-b75c-6c0d77039ca6',
@@ -137,7 +187,6 @@ VALUES (
 ) ON CONFLICT (id) DO NOTHING;
 
 -- 6. Seed Document Chunks
--- Chunks for Acme support bot
 INSERT INTO public.document_chunks (id, tenant_id, chatbot_id, content, embedding, source_url)
 VALUES (
   'c0000000-0000-0000-0000-000000000001',
@@ -162,7 +211,6 @@ VALUES (
   'https://acme.com/returns'
 ) ON CONFLICT (id) DO NOTHING;
 
--- Chunks for Globex helpdesk
 INSERT INTO public.document_chunks (id, tenant_id, chatbot_id, content, embedding, source_url)
 VALUES (
   'c0000000-0000-0000-0000-000000000004',
@@ -206,8 +254,8 @@ VALUES (
   now() - interval '4 minutes'
 ) ON CONFLICT (id) DO NOTHING;
 
--- Clean up helper function to leave public schema clean
 DROP FUNCTION IF EXISTS public.make_dummy_vector(float);
+
 -- -----------------------------------------
 -- ADDITIONAL COLLEAGUE DATA FOR TESTS
 -- -----------------------------------------
@@ -228,7 +276,7 @@ INSERT INTO auth.users (
 ) ON CONFLICT (id) DO NOTHING;
 
 INSERT INTO auth.identities (id, user_id, identity_data, provider, provider_id, last_sign_in_at, created_at, updated_at)
-VALUES 
+VALUES
 (
   '20000000-0000-0000-0000-000000000001',
   '20000000-0000-0000-0000-000000000001',
@@ -252,13 +300,22 @@ VALUES
   'email',
   '20000000-0000-0000-0000-000000000003',
   now(), now(), now()
+),
+(
+  '20000000-0000-0000-0000-000000000099',
+  '20000000-0000-0000-0000-000000000099',
+  '{"sub":"20000000-0000-0000-0000-000000000099","email":"superadmin@styleflo.test"}'::jsonb,
+  'email',
+  '20000000-0000-0000-0000-000000000099',
+  now(), now(), now()
 ) ON CONFLICT (id) DO NOTHING;
 
-INSERT INTO public.profiles (id, tenant_id, role)
+INSERT INTO public.profiles (id, tenant_id, role, is_super_admin)
 VALUES (
   '20000000-0000-0000-0000-000000000003',
   '10000000-0000-0000-0000-000000000001',
-  'member'
+  'member',
+  false
 ) ON CONFLICT (id) DO UPDATE SET tenant_id = EXCLUDED.tenant_id, role = EXCLUDED.role;
 
 INSERT INTO public.staff (id, tenant_id, chatbot_id, name, email)
@@ -270,10 +327,14 @@ VALUES (
   'colleague@acme.com'
 ) ON CONFLICT (id) DO NOTHING;
 
--- Active Addons for Test Tenant
+-- Active add-on for Acme; keep a known disabled catalogue row for smoke checks
 INSERT INTO public.tenant_active_addons (tenant_id, addon_catalog_id, is_active)
 VALUES ('10000000-0000-0000-0000-000000000001', 'google_calendar_addon', true)
 ON CONFLICT DO NOTHING;
+
+UPDATE public.addon_catalog
+SET is_active = false
+WHERE id = 'whatsapp_addon';
 
 -- Seed Services for Acme Corp
 INSERT INTO public.services (id, tenant_id, name, duration_minutes, price)
@@ -285,18 +346,37 @@ VALUES (
   50.00
 ) ON CONFLICT (id) DO NOTHING;
 
--- Seed Appointments for Acme Colleague
-INSERT INTO public.appointments (id, tenant_id, staff_id, service_id, customer_name, customer_email, start_time, end_time)
+-- Test customers with Ofcom drama-range numbers (07700 900xxx)
+INSERT INTO public.appointments (
+  id, tenant_id, staff_id, service_id,
+  customer_name, customer_email, customer_phone,
+  start_time, end_time
+)
 VALUES (
   '50000000-0000-0000-0000-000000000002',
   '10000000-0000-0000-0000-000000000001',
   '30000000-0000-0000-0000-000000000003',
   '40000000-0000-0000-0000-000000000001',
-  'John Doe',
-  'john@example.com',
+  'Alex Drama',
+  'alex.drama@example.test',
+  '07700900123',
   now(),
   now() + interval '1 hour'
-) ON CONFLICT (id) DO NOTHING;
+), (
+  '50000000-0000-0000-0000-000000000003',
+  '10000000-0000-0000-0000-000000000001',
+  '30000000-0000-0000-0000-000000000003',
+  '40000000-0000-0000-0000-000000000001',
+  'Jordan Fiction',
+  'jordan.fiction@example.test',
+  '07700900456',
+  now() + interval '2 hours',
+  now() + interval '3 hours'
+) ON CONFLICT (id) DO UPDATE SET
+  customer_name = EXCLUDED.customer_name,
+  customer_email = EXCLUDED.customer_email,
+  customer_phone = EXCLUDED.customer_phone;
 
-
-
+-- Re-enable triggers after seed fixtures are in place
+ALTER TABLE public.profiles ENABLE TRIGGER tr_protect_super_admin_flag;
+ALTER TABLE auth.users ENABLE TRIGGER on_auth_user_created;
