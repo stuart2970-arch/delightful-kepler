@@ -87,6 +87,10 @@ Use repair only to align **bookkeeping**. Prefer applying new forward migrations
 
 `.github/workflows/deploy.yml` (push to `main`) builds and deploys Cloud Run only. It does **not** run `supabase db push` or otherwise migrate live or staging. Schema changes ship as SQL files and are applied deliberately (local/CI reset, or an operator against staging).
 
+## Seed mode (`app.seed_mode`)
+
+`supabase/seed.sql` sets `app.seed_mode=on` while inserting fixtures so `handle_new_user` and `protect_super_admin_flag` skip signup provisioning / superadmin protection. The seed role is not the owner of `auth.users`, so disabling that trigger is not possible. Normal signups are unchanged when the GUC is unset or `off`.
+
 ## Empty historical migration
 
 `20260712182829_add_chatbot_to_services_staff.sql` is intentionally empty; the real `chatbot_id` columns are added in `20260712183000_add_chatbot_id_to_services_staff.sql`. Do not edit the empty file (checksum already recorded on staging).

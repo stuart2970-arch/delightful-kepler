@@ -105,7 +105,7 @@ This runbook documents the key fixes and architecture enhancements implemented d
 * **User / Jira**: STYL-202 (epic STYL-201) — staging Supabase hardening after project `styleflo-staging` (ref `lriugykhrfnnouexqqhm`) was built from repo migrations + seed. Repo-only work; no live DB changes; no staging credentials in the agent.
 * **Changes**:
   - Migrations: RLS on `tier_entitlements`, `tenant_feature_overrides`, `tenant_active_addons`, `entitlement_change_logs` (idempotent `IF EXISTS` / `DROP POLICY IF EXISTS`); SECURITY DEFINER revoke + pinned `search_path`; neutralised `sync_tenant_to_wordpress_fn` (no live URL).
-  - Seed: disable signup trigger while inserting users (no ownerless My Workspace); `plan_tier = foundation`; fake superadmin; opening hours; disabled `whatsapp_addon`; Ofcom drama phones `07700 900xxx`; header note — no real data.
+  - Seed: `app.seed_mode` GUC (seed role cannot `ALTER TRIGGER` on `auth.users`); no ownerless My Workspace; `plan_tier = foundation`; fake superadmin; opening hours; disabled `whatsapp_addon`; Ofcom drama phones `07700 900xxx`; header note — no real data.
   - `npm run db:reset` (`scripts/db-reset.mjs`) resets + reseeds; refuses live ref `tkoasyjvrgaglofpzduq`.
   - Docs: `docs/staging.md` (project details, reset, Free-plan pause / keep-alive workflow, auth/SMTP for Stuart, `staging` env secrets, `migration repair`). README pointer.
   - Playwright: `tests/styl-202-db-reset-guard.spec.ts`, `tests/styl-202-entitlement-rls.spec.ts`.

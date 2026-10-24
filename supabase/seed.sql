@@ -7,11 +7,9 @@
 -- Password for all seeded auth users: password123
 -- =========================================================================
 
--- Disable signup provisioning while we insert auth.users + profiles manually.
--- Otherwise handle_new_user creates ownerless "My Workspace" tenants per user.
-ALTER TABLE auth.users DISABLE TRIGGER on_auth_user_created;
--- Allow seeding is_super_admin = true (trigger only permits service_role).
-ALTER TABLE public.profiles DISABLE TRIGGER tr_protect_super_admin_flag;
+-- Skip signup provisioning / superadmin protect while seeding.
+-- Uses app.seed_mode GUC (STYL-202) — seed role cannot ALTER TRIGGER on auth.users.
+SELECT set_config('app.seed_mode', 'on', false);
 
 -- 1. Helper function to generate a dummy vector of 768 dimensions
 CREATE OR REPLACE FUNCTION public.make_dummy_vector(val float)
@@ -377,6 +375,5 @@ VALUES (
   customer_email = EXCLUDED.customer_email,
   customer_phone = EXCLUDED.customer_phone;
 
--- Re-enable triggers after seed fixtures are in place
-ALTER TABLE public.profiles ENABLE TRIGGER tr_protect_super_admin_flag;
-ALTER TABLE auth.users ENABLE TRIGGER on_auth_user_created;
+-- End seed mode (signup trigger and superadmin protect resume normal behaviour)
+SELECT set_config('app.seed_mode', 'off', false);
