@@ -33,7 +33,9 @@ jobs:
       - name: Set up Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: 20
+          # Match package.json engines.node (STYL-203). Production Cloud Run image
+          # already uses node:22-alpine in the Dockerfile; CI typecheck stays aligned.
+          node-version: 22
           cache: 'npm'
 
       - name: Install Dependencies

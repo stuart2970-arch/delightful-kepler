@@ -13,14 +13,21 @@ export function getGeminiApiKey(): string {
     '';
 
   if (!key) {
+    const appEnv = (process.env.APP_ENV || process.env.NEXT_PUBLIC_ENV || '')
+      .trim()
+      .toLowerCase();
+    // Local/test/CI: mock. Staging should always set GEMINI_API_KEY (core secret);
+    // if it is missing, return empty so callers can degrade instead of crashing
+    // process startup / unrelated routes.
     if (
-      process.env.PLAYWRIGHT_TEST === 'true' || 
-      process.env.NODE_ENV === 'test' || 
+      process.env.PLAYWRIGHT_TEST === 'true' ||
+      process.env.NODE_ENV === 'test' ||
       process.env.CI ||
-      !process.env.NEXT_PUBLIC_APP_URL || 
+      appEnv === 'staging' ||
+      !process.env.NEXT_PUBLIC_APP_URL ||
       process.env.NEXT_PUBLIC_APP_URL.includes('localhost')
     ) {
-      return 'mock-test-key';
+      return appEnv === 'staging' ? '' : 'mock-test-key';
     }
     throw new Error('Gemini API key is missing. Set GEMINI_API_KEY or GOOGLE_GENERATIVE_AI_API_KEY.');
   }
@@ -49,6 +56,14 @@ export async function generateEmbedding(text: string, customApiKey?: string): Pr
   // Test mode mock fallback
   if (process.env.PLAYWRIGHT_TEST === 'true' || apiKey === 'mock-test-key') {
     return new Array(768).fill(0).map((_, i) => Math.sin(i + cleanText.length) * 0.05);
+  }
+
+  // STYL-203: staging without GEMINI_API_KEY (misconfigured) — degrade instead of
+  // hammering Google with an empty key.
+  if (!apiKey) {
+    throw new Error(
+      'Gemini API key is missing. Set GEMINI_API_KEY (core staging secret) or GOOGLE_GENERATIVE_AI_API_KEY.',
+    );
   }
 
   const tierErrors: string[] = [];

@@ -36,7 +36,12 @@ import { resolveChatFooter } from '../lib/billing/branding';
     sessionId = 'session_' + crypto.randomUUID();
     localStorage.setItem(sessionKey, sessionId);
   }
-  const turnstileSiteKey = scriptEl.getAttribute('data-turnstile-sitekey') || '0x4AAAAAAEcGPat6Ll-AhKbf';
+  // Prefer embed attribute, then build-time NEXT_PUBLIC_TURNSTILE_SITE_KEY (staging
+  // App Hosting bakes the Cloudflare always-pass site key), then live site key.
+  const turnstileSiteKey =
+    scriptEl.getAttribute('data-turnstile-sitekey') ||
+    (typeof process !== 'undefined' && process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY) ||
+    '0x4AAAAAAEcGPat6Ll-AhKbf';
 
   async function getTurnstileViaIframe(): Promise<string> {
     return new Promise((resolve, reject) => {

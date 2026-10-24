@@ -4,8 +4,8 @@
 #
 # Public / non-secret values may use `value:`. Server secrets MUST use `secret:` (Cloud Secret
 # Manager names only — never commit real secret values).
-# Stuart: create each secret with `firebase apphosting:secrets:set <NAME>` then grant access —
-# see docs/staging.md.
+# Core secrets only (trimmed so rollouts do not fail on unused feature secrets).
+# Stuart: create each with `firebase apphosting:secrets:set` — see docs/staging.md.
 #
 # FORBIDDEN: the live Supabase project ref (CI: npm run check:staging-no-live-ref).
 
@@ -33,6 +33,12 @@ env:
       - RUNTIME
 
   - variable: NEXT_PUBLIC_SUPABASE_URL
+    value: https://lriugykhrfnnouexqqhm.supabase.co
+    availability:
+      - BUILD
+      - RUNTIME
+
+  - variable: SUPABASE_URL
     value: https://lriugykhrfnnouexqqhm.supabase.co
     availability:
       - BUILD
@@ -75,8 +81,16 @@ env:
       - BUILD
       - RUNTIME
 
+  # Cloudflare always-pass *site* key (public). Pair with CLOUDFLARE_TURNSTILE_SECRET_KEY
+  # set to the matching always-pass *secret* 1x0000000000000000000000000000000AA.
+  - variable: NEXT_PUBLIC_TURNSTILE_SITE_KEY
+    value: "1x0000000000000000000000000000000AA"
+    availability:
+      - BUILD
+      - RUNTIME
+
   # ---------------------------------------------------------------------------
-  # Publishable / anon keys — Secret Manager (not committed as values)
+  # Core secrets only (Secret Manager) — six names + aliases
   # ---------------------------------------------------------------------------
   - variable: NEXT_PUBLIC_SUPABASE_ANON_KEY
     secret: NEXT_PUBLIC_SUPABASE_ANON_KEY
@@ -84,48 +98,14 @@ env:
       - BUILD
       - RUNTIME
 
-  - variable: NEXT_PUBLIC_VAPI_PUBLIC_KEY
-    secret: NEXT_PUBLIC_VAPI_PUBLIC_KEY
-    availability:
-      - BUILD
-      - RUNTIME
-
-  - variable: NEXT_PUBLIC_META_APP_ID
-    secret: NEXT_PUBLIC_META_APP_ID
-    availability:
-      - BUILD
-      - RUNTIME
-
-  - variable: NEXT_PUBLIC_META_ES_CONFIG_ID
-    secret: NEXT_PUBLIC_META_ES_CONFIG_ID
-    availability:
-      - BUILD
-      - RUNTIME
-
-  - variable: NEXT_PUBLIC_META_GRAPH_VERSION
-    value: v21.0
-    availability:
-      - BUILD
-      - RUNTIME
-
-  # ---------------------------------------------------------------------------
-  # Server secrets (Cloud Secret Manager) — names only
-  # ---------------------------------------------------------------------------
-  - variable: SUPABASE_SERVICE_ROLE_KEY
-    secret: SUPABASE_SERVICE_ROLE_KEY
-    availability:
-      - BUILD
-      - RUNTIME
-
-  # Alias used by some routes; same staging secret value as NEXT_PUBLIC_SUPABASE_URL / anon.
-  - variable: SUPABASE_URL
-    value: https://lriugykhrfnnouexqqhm.supabase.co
-    availability:
-      - BUILD
-      - RUNTIME
-
   - variable: SUPABASE_ANON_KEY
     secret: NEXT_PUBLIC_SUPABASE_ANON_KEY
+    availability:
+      - BUILD
+      - RUNTIME
+
+  - variable: SUPABASE_SERVICE_ROLE_KEY
+    secret: SUPABASE_SERVICE_ROLE_KEY
     availability:
       - BUILD
       - RUNTIME
@@ -137,51 +117,6 @@ env:
 
   - variable: GOOGLE_GENERATIVE_AI_API_KEY
     secret: GEMINI_API_KEY
-    availability:
-      - RUNTIME
-
-  - variable: STRIPE_SECRET_KEY
-    secret: STRIPE_SECRET_KEY
-    availability:
-      - RUNTIME
-
-  - variable: STRIPE_WEBHOOK_SECRET
-    secret: STRIPE_WEBHOOK_SECRET
-    availability:
-      - RUNTIME
-
-  - variable: MAILGUN_API_KEY
-    secret: MAILGUN_API_KEY
-    availability:
-      - RUNTIME
-
-  - variable: MAILGUN_DOMAIN
-    secret: MAILGUN_DOMAIN
-    availability:
-      - RUNTIME
-
-  - variable: TWILIO_ACCOUNT_SID
-    secret: TWILIO_ACCOUNT_SID
-    availability:
-      - RUNTIME
-
-  - variable: TWILIO_AUTH_TOKEN
-    secret: TWILIO_AUTH_TOKEN
-    availability:
-      - RUNTIME
-
-  - variable: VAPI_API_KEY
-    secret: VAPI_API_KEY
-    availability:
-      - RUNTIME
-
-  - variable: VAPI_PRIVATE_API_KEY
-    secret: VAPI_API_KEY
-    availability:
-      - RUNTIME
-
-  - variable: VAPI_MASTER_ASSISTANT_ID
-    secret: VAPI_MASTER_ASSISTANT_ID
     availability:
       - RUNTIME
 
@@ -197,70 +132,5 @@ env:
 
   - variable: TOKEN_ENC_KEY
     secret: TOKEN_ENC_KEY
-    availability:
-      - RUNTIME
-
-  - variable: CRON_SECRET
-    secret: CRON_SECRET
-    availability:
-      - RUNTIME
-
-  - variable: OPENCLAW_BEARER_TOKEN
-    secret: OPENCLAW_BEARER_TOKEN
-    availability:
-      - RUNTIME
-
-  - variable: GOOGLE_CLIENT_ID
-    secret: GOOGLE_CLIENT_ID
-    availability:
-      - RUNTIME
-
-  - variable: GOOGLE_CLIENT_SECRET
-    secret: GOOGLE_CLIENT_SECRET
-    availability:
-      - RUNTIME
-
-  - variable: MICROSOFT_CLIENT_ID
-    secret: MICROSOFT_CLIENT_ID
-    availability:
-      - RUNTIME
-
-  - variable: MICROSOFT_CLIENT_SECRET
-    secret: MICROSOFT_CLIENT_SECRET
-    availability:
-      - RUNTIME
-
-  - variable: META_ACCESS_TOKEN
-    secret: META_ACCESS_TOKEN
-    availability:
-      - RUNTIME
-
-  - variable: META_APP_SECRET
-    secret: META_APP_SECRET
-    availability:
-      - RUNTIME
-
-  - variable: META_VERIFY_TOKEN
-    secret: META_VERIFY_TOKEN
-    availability:
-      - RUNTIME
-
-  - variable: ELEVENLABS_API_KEY
-    secret: ELEVENLABS_API_KEY
-    availability:
-      - RUNTIME
-
-  - variable: GOOGLE_PLACES_SERVER_API_KEY
-    secret: GOOGLE_PLACES_SERVER_API_KEY
-    availability:
-      - RUNTIME
-
-  - variable: WPMUDEV_WEBHOOK_SECRET
-    secret: WPMUDEV_WEBHOOK_SECRET
-    availability:
-      - RUNTIME
-
-  - variable: STYLEFLO_WP_API_SECRET
-    secret: STYLEFLO_WP_API_SECRET
     availability:
       - RUNTIME

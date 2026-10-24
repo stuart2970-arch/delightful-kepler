@@ -101,6 +101,15 @@ This runbook documents the key fixes and architecture enhancements implemented d
 ### Session Chat History Log
 
 
+### Session (STYL-203 follow-up - trim staging secrets - 24 Oct 2026)
+* **User / Jira**: STYL-203 follow-up after PR #9 merged (`aa0f7bd`) — trim Firebase App Hosting staging to six core secrets so rollouts do not fail on unused feature secrets.
+* **Changes**:
+  - `apphosting.staging.yaml`: keep only `NEXT_PUBLIC_SUPABASE_ANON_KEY` (+ `SUPABASE_ANON_KEY` alias), `SUPABASE_SERVICE_ROLE_KEY`, `GEMINI_API_KEY` (+ `GOOGLE_GENERATIVE_AI_API_KEY` alias), `CLOUDFLARE_TURNSTILE_SECRET_KEY`, `CHAT_SESSION_SIGNING_SECRET`, `TOKEN_ENC_KEY`; add plain `NEXT_PUBLIC_TURNSTILE_SITE_KEY` always-pass site key.
+  - `docs/staging.md`: exact six `secrets:set` / `grantaccess --backend delightful-kepler --project styleflo-staging` commands, `openssl rand` for signing keys, Turnstile always-pass note, **Feature secrets to add later** grouped by feature (`STRIPE_WEBHOOK_SECRET` unused in `src/`).
+  - `.github/workflows/deploy.yml`: Node 22 for typecheck (production behaviour otherwise unchanged).
+  - Widget build bakes `NEXT_PUBLIC_TURNSTILE_SITE_KEY`; `getGeminiApiKey` soft-degrades when `APP_ENV=staging` and key unset.
+  - Playwright: trimmed-secret assertions + staging core-secrets suite.
+
 ### Session (STYL-203 - 24 Oct 2026)
 * **User / Jira**: STYL-203 (epic STYL-201) — make the Next.js 16 app build and run on Firebase App Hosting for staging (Firebase project `styleflo-staging`, backend `delightful-kepler`).
 * **Root cause of first rollout failure**: App Hosting runs `npm ci` with `NODE_ENV=production`, omitting `devDependencies`. The build required `@tailwindcss/postcss`, `tailwindcss`, `esbuild`, and `typescript` / `@types/*` — moved into `dependencies`. Also excluded Playwright tests from `tsconfig.json` so production typecheck does not require `dotenv`.
