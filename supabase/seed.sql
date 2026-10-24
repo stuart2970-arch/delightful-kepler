@@ -124,6 +124,18 @@ VALUES (
   '#4F46E5'
 ) ON CONFLICT (id) DO NOTHING;
 
+-- StyleFlo Homepage Assistant (STYL-181 / STYL-200 local+CI seed)
+-- The STYL-181 migration inserts this only when a tenant already exists; seed runs after
+-- migrations, so local resets need the row here for Playwright.
+INSERT INTO public.chatbots (id, tenant_id, name, configuration_json, primary_color)
+VALUES (
+  '9825855e-d478-443f-b75c-6c0d77039ca6',
+  '10000000-0000-0000-0000-000000000001',
+  'StyleFlo Homepage Assistant',
+  '{"welcome_message": "Hi, you''re through to FloChat! How can I help you today?", "require_client_name": true, "terms_version": "1.0"}'::jsonb,
+  '#260475'
+) ON CONFLICT (id) DO NOTHING;
+
 -- 6. Seed Document Chunks
 -- Chunks for Acme support bot
 INSERT INTO public.document_chunks (id, tenant_id, chatbot_id, content, embedding, source_url)
