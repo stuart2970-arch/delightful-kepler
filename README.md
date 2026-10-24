@@ -101,6 +101,14 @@ This runbook documents the key fixes and architecture enhancements implemented d
 ### Session Chat History Log
 
 
+### Session (STYL-202 follow-up - 24 Oct 2026)
+* **User / Jira**: STYL-202 follow-up after PR #7 merged (`af4259f`) and migrations applied to staging.
+* **Changes**:
+  - Migration `20261024130000_…`: dedupe then `UNIQUE (tenant_id, addon_catalog_id)` on `tenant_active_addons`; pin `search_path` on `set_tenant_id`; revoke `EXECUTE` from `anon` on `get_auth_tenant_id` / `is_auth_admin` (keep `authenticated`); add `assert_staging_sql_reset_allowed()`.
+  - Seed: `ON CONFLICT (tenant_id, addon_catalog_id) DO NOTHING` for Acme google calendar add-on.
+  - `supabase/reset_staging.sql` + `docs/staging.md` SQL-editor reset path (confirm GUC + migration-count live fingerprint).
+  - Playwright: `tests/styl-202-seed-idempotent-reset.spec.ts`.
+
 ### Session (STYL-202 - 24 Oct 2026)
 * **User / Jira**: STYL-202 (epic STYL-201) — staging Supabase hardening after project `styleflo-staging` (ref `lriugykhrfnnouexqqhm`) was built from repo migrations + seed. Repo-only work; no live DB changes; no staging credentials in the agent.
 * **Changes**:
