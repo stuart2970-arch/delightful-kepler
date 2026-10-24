@@ -32,6 +32,57 @@ test.describe('STYL-203: Firebase App Hosting staging guards', () => {
     expect(stagingText).toMatch(/maxInstances:\s*2/);
   });
 
+  test('apphosting.staging.yaml keeps only the six core secrets (plus aliases)', () => {
+    const stagingText = readFileSync(join(root, 'apphosting.staging.yaml'), 'utf8');
+    const secretLines = stagingText
+      .split('\n')
+      .map((l) => l.trim())
+      .filter((l) => l.startsWith('secret:'));
+    const secretNames = secretLines.map((l) => l.replace(/^secret:\s*/, '').trim());
+
+    // Six Secret Manager resource names (aliases reuse the same names).
+    expect(new Set(secretNames)).toEqual(
+      new Set([
+        'NEXT_PUBLIC_SUPABASE_ANON_KEY',
+        'SUPABASE_SERVICE_ROLE_KEY',
+        'GEMINI_API_KEY',
+        'CLOUDFLARE_TURNSTILE_SECRET_KEY',
+        'CHAT_SESSION_SIGNING_SECRET',
+        'TOKEN_ENC_KEY',
+      ]),
+    );
+
+    // Feature secrets must not be required at rollout time.
+    for (const forbidden of [
+      'STRIPE_SECRET_KEY',
+      'STRIPE_WEBHOOK_SECRET',
+      'MAILGUN_API_KEY',
+      'TWILIO_ACCOUNT_SID',
+      'VAPI_API_KEY',
+      'META_ACCESS_TOKEN',
+      'GOOGLE_CLIENT_SECRET',
+      'MICROSOFT_CLIENT_SECRET',
+      'ELEVENLABS_API_KEY',
+      'CRON_SECRET',
+      'OPENCLAW_BEARER_TOKEN',
+      'WPMUDEV_WEBHOOK_SECRET',
+      'STYLEFLO_WP_API_SECRET',
+      'GOOGLE_PLACES_SERVER_API_KEY',
+      'NEXT_PUBLIC_VAPI_PUBLIC_KEY',
+    ]) {
+      expect(secretNames, forbidden).not.toContain(forbidden);
+    }
+
+    expect(stagingText).toContain('NEXT_PUBLIC_TURNSTILE_SITE_KEY');
+    expect(stagingText).toContain('1x0000000000000000000000000000000AA');
+  });
+
+  test('production deploy workflow typechecks on Node 22', () => {
+    const deploy = readFileSync(join(root, '.github/workflows/deploy.yml'), 'utf8');
+    expect(deploy).toMatch(/node-version:\s*22/);
+    expect(deploy).not.toMatch(/node-version:\s*20\b/);
+  });
+
   test('Dockerfile has no live Supabase URL/anon-key fallback defaults', () => {
     const dockerfile = readFileSync(join(root, 'Dockerfile'), 'utf8');
     // No ARG defaults that embed the live URL/key — missing args must fail the build.

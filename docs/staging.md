@@ -84,14 +84,14 @@ Optional: enable the Custom Access Token hook `public.custom_access_token_hook` 
 
 | Variable | Kind | Where |
 | :--- | :--- | :--- |
-| `NEXT_PUBLIC_SUPABASE_URL` | Plain value | `apphosting.staging.yaml` (staging API URL above) |
+| `NEXT_PUBLIC_SUPABASE_URL` / `SUPABASE_URL` | Plain value | `apphosting.staging.yaml` (staging API URL above) |
 | `APP_ENV` / `NEXT_PUBLIC_ENV` | Plain value | `apphosting.staging.yaml` → `staging` |
 | `NEXT_PUBLIC_APP_URL` / `NEXT_PUBLIC_SITE_URL` | Plain value | `apphosting.staging.yaml` (App Hosting URL above) |
-| `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Secret | Cloud Secret Manager → referenced as `secret:` in yaml |
-| `SUPABASE_SERVICE_ROLE_KEY` | Secret | Cloud Secret Manager only — never committed, never pasted into laptop `.env.local` pointed at live |
-| Other server keys (Gemini, Stripe test, Mailgun sandbox, Twilio test, Vapi, Turnstile, OAuth, etc.) | Secret | Cloud Secret Manager — see list below |
+| `NEXT_PUBLIC_TURNSTILE_SITE_KEY` | Plain value | Cloudflare always-pass site key (see Turnstile note below) |
+| **Six core secrets** | Secret Manager | Listed in the runbook below — only these are referenced in `apphosting.staging.yaml` |
+| Feature secrets (Stripe, Twilio, …) | Optional later | See **Feature secrets to add later** — not required for build/boot |
 
-Production Cloud Run continues to use production secrets. `deploy.yml` does **not** apply database migrations and is unchanged by STYL-203.
+Production Cloud Run continues to use production secrets. `deploy.yml` typechecks on **Node 22** (aligned with `package.json` engines); deploy behaviour is otherwise unchanged. `deploy.yml` does **not** apply database migrations.
 
 ---
 
@@ -101,65 +101,61 @@ Production Cloud Run continues to use production secrets. `deploy.yml` does **no
 
 * Firebase project `styleflo-staging` on **Blaze**, budget alert from STYL-209.
 * App Hosting backend **`delightful-kepler`**: region **europe-west4**, app root `/`, live branch `main`, **automatic rollouts OFF**, Environment name **`staging`** (so `apphosting.staging.yaml` is merged).
-* Repo `apphosting.yaml` + `apphosting.staging.yaml` on `main` (this PR). Node **22** via `package.json` `engines.node`.
+* Repo `apphosting.yaml` + `apphosting.staging.yaml` on `main`. Node **22** via `package.json` `engines.node`.
 
-### 1. Create each Secret Manager secret
+### Cloudflare Turnstile on staging (always-pass test keys)
 
-From a machine with Firebase CLI logged into the **styleflo-staging** Google account:
+Cloudflare’s documented **always-pass** pair works for staging QA:
+
+| Role | Value |
+| :--- | :--- |
+| Site key (public, in yaml) | `1x0000000000000000000000000000000AA` |
+| Secret key (Secret Manager) | `1x0000000000000000000000000000000AA` |
+
+`apphosting.staging.yaml` sets `NEXT_PUBLIC_TURNSTILE_SITE_KEY` to the site key above (baked into `widget.js` at App Hosting BUILD). Set `CLOUDFLARE_TURNSTILE_SECRET_KEY` to the matching secret. Do **not** use these always-pass keys in production.
+
+### 1. Create the six core Secret Manager secrets
+
+From a machine with Firebase CLI logged into the **styleflo-staging** Google account. Generate the two random signing/encryption keys locally first:
 
 ```bash
-firebase use styleflo-staging
-
-# Publishable / anon (still store as secrets — never commit values)
-firebase apphosting:secrets:set NEXT_PUBLIC_SUPABASE_ANON_KEY
-firebase apphosting:secrets:set NEXT_PUBLIC_VAPI_PUBLIC_KEY
-firebase apphosting:secrets:set NEXT_PUBLIC_META_APP_ID
-firebase apphosting:secrets:set NEXT_PUBLIC_META_ES_CONFIG_ID
-
-# Core server secrets
-firebase apphosting:secrets:set SUPABASE_SERVICE_ROLE_KEY
-firebase apphosting:secrets:set GEMINI_API_KEY
-firebase apphosting:secrets:set STRIPE_SECRET_KEY          # use sk_test_… only
-firebase apphosting:secrets:set STRIPE_WEBHOOK_SECRET
-firebase apphosting:secrets:set MAILGUN_API_KEY              # sandbox / mock
-firebase apphosting:secrets:set MAILGUN_DOMAIN
-firebase apphosting:secrets:set TWILIO_ACCOUNT_SID           # test account
-firebase apphosting:secrets:set TWILIO_AUTH_TOKEN
-firebase apphosting:secrets:set VAPI_API_KEY
-firebase apphosting:secrets:set VAPI_MASTER_ASSISTANT_ID
-firebase apphosting:secrets:set CLOUDFLARE_TURNSTILE_SECRET_KEY
-firebase apphosting:secrets:set CHAT_SESSION_SIGNING_SECRET
-firebase apphosting:secrets:set TOKEN_ENC_KEY
-firebase apphosting:secrets:set CRON_SECRET
-firebase apphosting:secrets:set OPENCLAW_BEARER_TOKEN
-firebase apphosting:secrets:set GOOGLE_CLIENT_ID
-firebase apphosting:secrets:set GOOGLE_CLIENT_SECRET
-firebase apphosting:secrets:set MICROSOFT_CLIENT_ID
-firebase apphosting:secrets:set MICROSOFT_CLIENT_SECRET
-firebase apphosting:secrets:set META_ACCESS_TOKEN
-firebase apphosting:secrets:set META_APP_SECRET
-firebase apphosting:secrets:set META_VERIFY_TOKEN
-firebase apphosting:secrets:set ELEVENLABS_API_KEY
-firebase apphosting:secrets:set GOOGLE_PLACES_SERVER_API_KEY
-firebase apphosting:secrets:set WPMUDEV_WEBHOOK_SECRET
-firebase apphosting:secrets:set STYLEFLO_WP_API_SECRET
+# Random keys (paste into the matching secrets:set prompts below)
+openssl rand -hex 32   # → CHAT_SESSION_SIGNING_SECRET
+openssl rand -hex 32   # → TOKEN_ENC_KEY
 ```
 
-Each command prompts for the secret value (paste from the staging Supabase dashboard / vendor test consoles). Prefer **test / sandbox** vendor keys — never live production keys on staging.
+Then create each secret (prompts for the value; never commit values):
+
+```bash
+firebase apphosting:secrets:set NEXT_PUBLIC_SUPABASE_ANON_KEY --project styleflo-staging
+firebase apphosting:secrets:set SUPABASE_SERVICE_ROLE_KEY --project styleflo-staging
+firebase apphosting:secrets:set GEMINI_API_KEY --project styleflo-staging
+firebase apphosting:secrets:set CLOUDFLARE_TURNSTILE_SECRET_KEY --project styleflo-staging
+firebase apphosting:secrets:set CHAT_SESSION_SIGNING_SECRET --project styleflo-staging
+firebase apphosting:secrets:set TOKEN_ENC_KEY --project styleflo-staging
+```
+
+Value sources:
+
+* `NEXT_PUBLIC_SUPABASE_ANON_KEY` / `SUPABASE_SERVICE_ROLE_KEY` — Supabase dashboard for project `lriugykhrfnnouexqqhm` (anon + service_role).
+* `GEMINI_API_KEY` — Google AI Studio / Gemini API key used for staging (not the live production key if you want isolation).
+* `CLOUDFLARE_TURNSTILE_SECRET_KEY` — use `1x0000000000000000000000000000000AA` for always-pass staging (see above).
+* `CHAT_SESSION_SIGNING_SECRET` / `TOKEN_ENC_KEY` — from `openssl rand -hex 32` (unique to staging).
+
+Aliases in yaml (same Secret Manager name, no extra create): `SUPABASE_ANON_KEY` → `NEXT_PUBLIC_SUPABASE_ANON_KEY`; `GOOGLE_GENERATIVE_AI_API_KEY` → `GEMINI_API_KEY`.
 
 ### 2. Grant the App Hosting backend access
 
-If `apphosting:secrets:set` did not already grant access (or secrets were created in Cloud Console / `gcloud`):
-
 ```bash
-# Grant for each secret name created above, e.g.:
-firebase apphosting:secrets:grantaccess SUPABASE_SERVICE_ROLE_KEY --backend delightful-kepler
-firebase apphosting:secrets:grantaccess NEXT_PUBLIC_SUPABASE_ANON_KEY --backend delightful-kepler
-firebase apphosting:secrets:grantaccess GEMINI_API_KEY --backend delightful-kepler
-# …repeat for every secret listed in apphosting.staging.yaml
+firebase apphosting:secrets:grantaccess NEXT_PUBLIC_SUPABASE_ANON_KEY --backend delightful-kepler --project styleflo-staging
+firebase apphosting:secrets:grantaccess SUPABASE_SERVICE_ROLE_KEY --backend delightful-kepler --project styleflo-staging
+firebase apphosting:secrets:grantaccess GEMINI_API_KEY --backend delightful-kepler --project styleflo-staging
+firebase apphosting:secrets:grantaccess CLOUDFLARE_TURNSTILE_SECRET_KEY --backend delightful-kepler --project styleflo-staging
+firebase apphosting:secrets:grantaccess CHAT_SESSION_SIGNING_SECRET --backend delightful-kepler --project styleflo-staging
+firebase apphosting:secrets:grantaccess TOKEN_ENC_KEY --backend delightful-kepler --project styleflo-staging
 ```
 
-Alternatively, in Cloud Console → Secret Manager → each secret → Permissions → grant **Secret Manager Secret Accessor** to the App Hosting runtime service account (`firebase-app-hosting-compute@styleflo-staging.iam.gserviceaccount.com` / the project’s App Hosting compute SA).
+Alternatively, in Cloud Console → Secret Manager → each secret → Permissions → grant **Secret Manager Secret Accessor** to the App Hosting runtime service account (`firebase-app-hosting-compute@styleflo-staging.iam.gserviceaccount.com`).
 
 ### 3. Confirm Environment name is `staging`
 
@@ -168,12 +164,10 @@ That selects `apphosting.staging.yaml` over the base `apphosting.yaml`.
 
 ### 4. Trigger a manual rollout
 
-Automatic rollouts are **OFF**. After secrets are set and this PR is on `main`:
+Automatic rollouts are **OFF**. After the six secrets are set:
 
 * Console: App Hosting → `delightful-kepler` → **Roll out** / create rollout from `main`, **or**
-* CLI: `firebase apphosting:rollouts:create delightful-kepler --git-branch main`
-
-Watch the build log. The framework step runs `apphosting-adapter-nextjs-build` (which runs `npm run build` = Next build + `build:widget`). First failure on commit `f4b7f2a` was missing production `devDependencies` (`@tailwindcss/postcss`, `tailwindcss`, `esbuild`) — those are now in `dependencies`.
+* CLI: `firebase apphosting:rollouts:create delightful-kepler --git-branch main --project styleflo-staging`
 
 ### 5. Smoke-check the staging URL
 
@@ -182,17 +176,111 @@ Open `https://delightful-kepler--styleflo-staging.europe-west4.hosted.app`:
 * Visible **STAGING** banner and `X-Robots-Tag: noindex`.
 * Page source / network must **not** contain live ref `tkoasyjvrgaglofpzduq`.
 * `/widget.js` loads; `/api/chatbots/<id>` returns staging data.
+* Unset feature secrets (Stripe, Twilio, …) must **not** crash boot — those routes return errors / no-ops until secrets are added.
 
-### Env var inventory (code scan)
+### Feature secrets to add later
 
-**Plain values in `apphosting.staging.yaml`:** `APP_ENV`, `NEXT_PUBLIC_ENV`, `NEXT_PUBLIC_SUPABASE_URL`, `SUPABASE_URL`, `NEXT_PUBLIC_APP_URL`, `NEXT_PUBLIC_SITE_URL`, blank analytics IDs, `NEXT_PUBLIC_META_GRAPH_VERSION`.
+These are **not** in `apphosting.staging.yaml` (so missing secrets cannot fail a rollout). Add a secret, grant access, then add a matching `secret:` entry to `apphosting.staging.yaml` (or the Firebase console) and roll out again.
 
-**Secrets (Secret Manager names — create these):**  
-`NEXT_PUBLIC_SUPABASE_ANON_KEY`, `NEXT_PUBLIC_VAPI_PUBLIC_KEY`, `NEXT_PUBLIC_META_APP_ID`, `NEXT_PUBLIC_META_ES_CONFIG_ID`, `SUPABASE_SERVICE_ROLE_KEY`, `GEMINI_API_KEY`, `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET`, `MAILGUN_API_KEY`, `MAILGUN_DOMAIN`, `TWILIO_ACCOUNT_SID`, `TWILIO_AUTH_TOKEN`, `VAPI_API_KEY`, `VAPI_MASTER_ASSISTANT_ID`, `CLOUDFLARE_TURNSTILE_SECRET_KEY`, `CHAT_SESSION_SIGNING_SECRET`, `TOKEN_ENC_KEY`, `CRON_SECRET`, `OPENCLAW_BEARER_TOKEN`, `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `MICROSOFT_CLIENT_ID`, `MICROSOFT_CLIENT_SECRET`, `META_ACCESS_TOKEN`, `META_APP_SECRET`, `META_VERIFY_TOKEN`, `ELEVENLABS_API_KEY`, `GOOGLE_PLACES_SERVER_API_KEY`, `WPMUDEV_WEBHOOK_SECRET`, `STYLEFLO_WP_API_SECRET`.
+Note: **`STRIPE_WEBHOOK_SECRET` is unused in `src/`** — do not create it for staging unless a future webhook verifier is added.
 
-Aliases mapped to the same secret where the code accepts either name: `GOOGLE_GENERATIVE_AI_API_KEY` → `GEMINI_API_KEY`, `VAPI_PRIVATE_API_KEY` → `VAPI_API_KEY`, `SUPABASE_ANON_KEY` → `NEXT_PUBLIC_SUPABASE_ANON_KEY`.
+#### Stripe test
 
-Optional later (referenced in code but not required for a first staging smoke): Twilio address/bundle SIDs, `OPENAI_API_KEY`, `STYLEFLO_WP_CREATE_BUSINESS_TOKEN`, `ADMIN_EMAIL` / `STYLEFLO_ADMIN_EMAIL`, Meta WhatsApp phone number id / token, `GCP_PROJECT_ID`.
+```bash
+firebase apphosting:secrets:set STRIPE_SECRET_KEY --project styleflo-staging
+firebase apphosting:secrets:grantaccess STRIPE_SECRET_KEY --backend delightful-kepler --project styleflo-staging
+# STRIPE_WEBHOOK_SECRET — unused in src; skip unless webhook verification is added later
+```
+
+#### Mailgun sandbox
+
+```bash
+firebase apphosting:secrets:set MAILGUN_API_KEY --project styleflo-staging
+firebase apphosting:secrets:grantaccess MAILGUN_API_KEY --backend delightful-kepler --project styleflo-staging
+firebase apphosting:secrets:set MAILGUN_DOMAIN --project styleflo-staging
+firebase apphosting:secrets:grantaccess MAILGUN_DOMAIN --backend delightful-kepler --project styleflo-staging
+```
+
+#### Twilio (test account)
+
+```bash
+firebase apphosting:secrets:set TWILIO_ACCOUNT_SID --project styleflo-staging
+firebase apphosting:secrets:grantaccess TWILIO_ACCOUNT_SID --backend delightful-kepler --project styleflo-staging
+firebase apphosting:secrets:set TWILIO_AUTH_TOKEN --project styleflo-staging
+firebase apphosting:secrets:grantaccess TWILIO_AUTH_TOKEN --backend delightful-kepler --project styleflo-staging
+```
+
+#### Vapi
+
+```bash
+firebase apphosting:secrets:set NEXT_PUBLIC_VAPI_PUBLIC_KEY --project styleflo-staging
+firebase apphosting:secrets:grantaccess NEXT_PUBLIC_VAPI_PUBLIC_KEY --backend delightful-kepler --project styleflo-staging
+firebase apphosting:secrets:set VAPI_API_KEY --project styleflo-staging
+firebase apphosting:secrets:grantaccess VAPI_API_KEY --backend delightful-kepler --project styleflo-staging
+firebase apphosting:secrets:set VAPI_MASTER_ASSISTANT_ID --project styleflo-staging
+firebase apphosting:secrets:grantaccess VAPI_MASTER_ASSISTANT_ID --backend delightful-kepler --project styleflo-staging
+# Optional alias: VAPI_PRIVATE_API_KEY → same secret as VAPI_API_KEY
+```
+
+#### Meta / WhatsApp
+
+```bash
+firebase apphosting:secrets:set NEXT_PUBLIC_META_APP_ID --project styleflo-staging
+firebase apphosting:secrets:grantaccess NEXT_PUBLIC_META_APP_ID --backend delightful-kepler --project styleflo-staging
+firebase apphosting:secrets:set NEXT_PUBLIC_META_ES_CONFIG_ID --project styleflo-staging
+firebase apphosting:secrets:grantaccess NEXT_PUBLIC_META_ES_CONFIG_ID --backend delightful-kepler --project styleflo-staging
+firebase apphosting:secrets:set META_ACCESS_TOKEN --project styleflo-staging
+firebase apphosting:secrets:grantaccess META_ACCESS_TOKEN --backend delightful-kepler --project styleflo-staging
+firebase apphosting:secrets:set META_APP_SECRET --project styleflo-staging
+firebase apphosting:secrets:grantaccess META_APP_SECRET --backend delightful-kepler --project styleflo-staging
+firebase apphosting:secrets:set META_VERIFY_TOKEN --project styleflo-staging
+firebase apphosting:secrets:grantaccess META_VERIFY_TOKEN --backend delightful-kepler --project styleflo-staging
+```
+
+#### Google / Microsoft calendar OAuth
+
+```bash
+firebase apphosting:secrets:set GOOGLE_CLIENT_ID --project styleflo-staging
+firebase apphosting:secrets:grantaccess GOOGLE_CLIENT_ID --backend delightful-kepler --project styleflo-staging
+firebase apphosting:secrets:set GOOGLE_CLIENT_SECRET --project styleflo-staging
+firebase apphosting:secrets:grantaccess GOOGLE_CLIENT_SECRET --backend delightful-kepler --project styleflo-staging
+firebase apphosting:secrets:set MICROSOFT_CLIENT_ID --project styleflo-staging
+firebase apphosting:secrets:grantaccess MICROSOFT_CLIENT_ID --backend delightful-kepler --project styleflo-staging
+firebase apphosting:secrets:set MICROSOFT_CLIENT_SECRET --project styleflo-staging
+firebase apphosting:secrets:grantaccess MICROSOFT_CLIENT_SECRET --backend delightful-kepler --project styleflo-staging
+```
+
+#### Places
+
+```bash
+firebase apphosting:secrets:set GOOGLE_PLACES_SERVER_API_KEY --project styleflo-staging
+firebase apphosting:secrets:grantaccess GOOGLE_PLACES_SERVER_API_KEY --backend delightful-kepler --project styleflo-staging
+```
+
+#### ElevenLabs
+
+```bash
+firebase apphosting:secrets:set ELEVENLABS_API_KEY --project styleflo-staging
+firebase apphosting:secrets:grantaccess ELEVENLABS_API_KEY --backend delightful-kepler --project styleflo-staging
+```
+
+#### WordPress
+
+```bash
+firebase apphosting:secrets:set WPMUDEV_WEBHOOK_SECRET --project styleflo-staging
+firebase apphosting:secrets:grantaccess WPMUDEV_WEBHOOK_SECRET --backend delightful-kepler --project styleflo-staging
+firebase apphosting:secrets:set STYLEFLO_WP_API_SECRET --project styleflo-staging
+firebase apphosting:secrets:grantaccess STYLEFLO_WP_API_SECRET --backend delightful-kepler --project styleflo-staging
+```
+
+#### Cron / OpenClaw
+
+```bash
+firebase apphosting:secrets:set CRON_SECRET --project styleflo-staging
+firebase apphosting:secrets:grantaccess CRON_SECRET --backend delightful-kepler --project styleflo-staging
+firebase apphosting:secrets:set OPENCLAW_BEARER_TOKEN --project styleflo-staging
+firebase apphosting:secrets:grantaccess OPENCLAW_BEARER_TOKEN --backend delightful-kepler --project styleflo-staging
+```
 
 ### Fallback if App Hosting + Next.js 16 cannot work
 
@@ -200,7 +288,7 @@ If the adapter still cannot build or serve Next.js 16 after the dependency fix: 
 
 ### CI guard
 
-`npm run check:staging-no-live-ref` (also in the Playwright workflow) fails if `tkoasyjvrgaglofpzduq` appears in `apphosting.yaml`, `apphosting.staging.yaml`, or `Dockerfile`.
+`npm run check:staging-no-live-ref` (also in the Playwright workflow) fails if `tkoasyjvrgaglofpzduq` appears in `apphosting.yaml` or `apphosting.staging.yaml`.
 
 ## Aligning migration versions (`supabase migration repair`)
 
