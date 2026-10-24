@@ -43,7 +43,7 @@ async function startChatSession(request: APIRequestContext) {
   return res.json() as Promise<{ sessionToken: string; sessionId: string }>;
 }
 
-test.describe('Unfinished calendar tool tags in chat and voice', () => {
+test.describe('STYL-198 unfinished calendar tool tags in chat and voice', () => {
   test.beforeAll(async () => {
     await supabaseAdmin
       .from('staff')

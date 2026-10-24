@@ -83,6 +83,15 @@ This runbook documents the key fixes and architecture enhancements implemented d
 
 ### Session Chat History Log
 
+### Session (STYL-200 - 24 Oct 2026)
+* **User / Jira**: STYL-200 - standing AGENTS.md regression-test rule; Playwright coverage for 23 Oct fixes (STYL-198/195/194/196/193); run Playwright on every PR without changing production deploy.
+* **Changes**:
+  - Added STYL-200 directive to root `AGENTS.md` (bug-fix Playwright requirement; never `--no-verify`; never point tests at live Supabase/keys).
+  - Added `.github/workflows/playwright.yml` (PR-only typecheck + Playwright against local Supabase).
+  - Committed `supabase/config.toml` tuned for local/CI (realtime/studio/analytics off; PG15) so CI can boot the stack.
+  - Added `tests/styl-200-billing-account-tab.spec.ts` for the in-app Subscriptions & Bolt-ons tab + GET `/api/billing/account` (price paid, Remove StyleFlo branding at 499p, branding hide).
+  - Tagged existing unfinished-tag suite as STYL-198. Prior PRs already shipped `chat-unfinished-tool-tag`, `styl-195-check-availability`, `styl-194-account-ownership`, `styl-193-remove-branding`.
+
 **Update (Voice Connection Debugging 3):**
 - **Discovery**: The user provided an error screenshot showing `easy-server297.tempurl.host says VAPI ERROR DETAILS: {"type":"daily-error", "error":{"message":{"type":"ejected","msg":"Meeting has ended"}}}`. This revealed that the user had injected the widget into an external WordPress site (`easy-server297.tempurl.host`). 
 - **Root Cause**: Because `widget.js` dynamically extracts its `apiHost` from the domain it is currently hosted on (using `document.currentScript.src`), when injected into WordPress, it mistakenly instructed Vapi to send Custom LLM API requests to the WordPress server (`https://easy-server297.tempurl.host/api/voice/...`) instead of the Cloud Run backend. Vapi received a `404 Page Not Found` HTML response from WordPress and immediately aborted the voice call.

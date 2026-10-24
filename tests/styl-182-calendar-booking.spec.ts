@@ -133,7 +133,7 @@ test.describe('STYL-182: Calendar Availability & Quick-Links Booking Flow', () =
   // --------------------------------------------------------------------------
   test('Microsoft Calendar tenant correctly resolves provider, calls Graph API path, and writes appointment', async () => {
     const msStaffId = '30000000-0000-0000-0000-000000000099';
-    await supabaseAdmin.from('staff').upsert({
+    const { error: msStaffError } = await supabaseAdmin.from('staff').upsert({
       id: msStaffId,
       tenant_id: seedTenantId,
       name: 'Microsoft Colleague',
@@ -141,8 +141,10 @@ test.describe('STYL-182: Calendar Availability & Quick-Links Booking Flow', () =
       calendar_provider: 'microsoft',
       microsoft_calendar_id: 'primary',
       google_calendar_id: null,
-      working_days: null,
+      // working_days is NOT NULL; an explicit null fails the insert and leaves no staff row.
+      working_days: {},
     }, { onConflict: 'id' });
+    expect(msStaffError).toBeNull();
 
     const msStaff: StaffCalendarTarget = {
       id: msStaffId,
