@@ -78,3 +78,18 @@ All appointment availability and booking in the chat assistant follow a structur
    - `bookMeeting` re-checks free/busy against both the internal `appointments` table and the external calendar provider before inserting.
    - Idempotency checks prevent duplicate bookings on double-taps within a 1-second timestamp window.
 
+# Bug Fix Regression Tests (STYL-200 Directive)
+Every bug fix MUST include a new Playwright test that:
+1. Reproduces the bug (fails against the unfixed code), and
+2. Passes after the fix,
+so the same failure cannot regress silently.
+
+### Git hooks
+- Never use `git commit --no-verify`, `git push --no-verify`, or any other flag that skips hooks.
+- If a pre-commit or pre-push hook fails, fix the underlying cause (types, tests, lint) and re-run. Do not bypass the hook.
+
+### Local and CI test data isolation
+- Never point Playwright tests, `npm run test:server`, or husky hooks at the live Supabase project or live API keys.
+- `.env.test` must use the local Supabase CLI stack (`http://127.0.0.1:54321`) and mock third-party keys only.
+- Never copy credentials from `.env.local` into `.env.test`.
+
