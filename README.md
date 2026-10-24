@@ -101,6 +101,18 @@ This runbook documents the key fixes and architecture enhancements implemented d
 ### Session Chat History Log
 
 
+### Session (STYL-203 - 24 Oct 2026)
+* **User / Jira**: STYL-203 (epic STYL-201) — make the Next.js 16 app build and run on Firebase App Hosting for staging (Firebase project `styleflo-staging`, backend `delightful-kepler`).
+* **Root cause of first rollout failure**: App Hosting runs `npm ci` with `NODE_ENV=production`, omitting `devDependencies`. The build required `@tailwindcss/postcss`, `tailwindcss`, `esbuild`, and `typescript` / `@types/*` — moved into `dependencies`. Also excluded Playwright tests from `tsconfig.json` so production typecheck does not require `dotenv`.
+* **Changes**:
+  - `apphosting.yaml` + `apphosting.staging.yaml` (Node 22 via `engines`, runConfig min 0 / max 2, staging URL + Secret Manager refs; no secret values in repo).
+  - Dockerfile: Node 22; removed live Supabase URL/anon-key ARG fallbacks; fail if args missing; refuse live URL when `APP_ENV=staging`.
+  - `assertNoLiveSupabaseWhenStaging`, build-time `scripts/assert-staging-env.mjs`, CI `check:staging-no-live-ref`.
+  - Staging banner + `noindex` / `X-Robots-Tag`; `frame-ancestors` allows `*.hosted.app`.
+  - Docs: `docs/staging.md` Firebase `apphosting:secrets:set` / `grantaccess` / rollout steps.
+  - Playwright: `tests/styl-203-firebase-app-hosting.spec.ts`.
+  - Local adapter build (`apphosting-adapter-nextjs-build` @14.0.22) **passed** after the dependency fix.
+
 ### Session (STYL-202 follow-up - 24 Oct 2026)
 * **User / Jira**: STYL-202 follow-up after PR #7 merged (`af4259f`) and migrations applied to staging.
 * **Changes**:
