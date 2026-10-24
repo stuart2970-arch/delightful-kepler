@@ -15,7 +15,7 @@ Staging is a **second** Supabase project built only from this repo’s migration
 
 Do **not** commit anon, service_role, or database passwords. Put staging secrets in the GitHub **`staging`** environment only.
 
-## Reset (one command)
+## Reset (one command — CLI)
 
 Local CLI stack (default):
 
@@ -38,6 +38,23 @@ npm run db:reset -- --db-url "$STAGING_DB_URL"
 ```
 
 The script hard-refuses project ref `tkoasyjvrgaglofpzduq`. Seed data is synthetic only (see the header comment in `supabase/seed.sql`).
+
+## Reset (SQL editor — no CLI)
+
+When you only have the Supabase SQL editor / a Postgres connector against **staging**:
+
+1. In the **same session**, confirm the target (required guard):
+
+   ```sql
+   SELECT set_config('app.confirm_staging_reset', 'styleflo-staging', false);
+   -- local CLI DB instead: set_config(..., 'local', false);
+   ```
+
+2. Run [`supabase/reset_staging.sql`](../supabase/reset_staging.sql) — truncates tenant/auth fixtures; preserves migration catalogue tables. The guard raises if the confirm GUC is wrong or the DB has fewer than 50 recorded migrations (live historically tracks ~11).
+
+3. Run [`supabase/seed.sql`](../supabase/seed.sql) in the same database. Seed is idempotent for re-runs via SQL alone (including `tenant_active_addons` via `ON CONFLICT (tenant_id, addon_catalog_id)`).
+
+Never point these scripts at live (`tkoasyjvrgaglofpzduq`).
 
 ## Free-plan 7-day inactivity pause
 
@@ -90,6 +107,8 @@ Use repair only to align **bookkeeping**. Prefer applying new forward migrations
 ## Seed mode (`app.seed_mode`)
 
 `supabase/seed.sql` sets `app.seed_mode=on` while inserting fixtures so `handle_new_user` and `protect_super_admin_flag` skip signup provisioning / superadmin protection. The seed role is not the owner of `auth.users`, so disabling that trigger is not possible. Normal signups are unchanged when the GUC is unset or `off`.
+
+`tenant_active_addons` has a unique constraint on `(tenant_id, addon_catalog_id)` so re-running seed does not duplicate the Acme `google_calendar_addon` row.
 
 ## Empty historical migration
 
