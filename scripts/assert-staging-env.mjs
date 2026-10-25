@@ -1,8 +1,14 @@
 #!/usr/bin/env node
 /**
  * STYL-203: Fail the build loudly when APP_ENV=staging points at the live
- * Supabase project. No-op for other environments (local, production Cloud Run).
+ * Supabase project, or when public Supabase env needed for Next prerender is
+ * missing. No-op for other environments (local, production Cloud Run).
  * Keep the live/staging refs in sync with src/lib/env/live-supabase-guard.ts.
+ *
+ * Note: when apphosting.staging.yaml is not merged (Environment name unset),
+ * APP_ENV was historically absent and this script no-op'd — while /login still
+ * threw during prerender. Base apphosting.yaml now sets APP_ENV + NEXT_PUBLIC_*
+ * so App Hosting BUILD always hits these checks.
  */
 const LIVE_REF = 'tkoasyjvrgaglofpzduq';
 const STAGING_REF = 'lriugykhrfnnouexqqhm';
@@ -21,6 +27,8 @@ function resolveAppEnv(env) {
 
 const appEnv = resolveAppEnv(process.env);
 const url = process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.SUPABASE_URL || '';
+const anonKey =
+  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || process.env.SUPABASE_ANON_KEY || '';
 
 if (appEnv === 'staging') {
   if (isLive(url)) {
@@ -34,6 +42,13 @@ if (appEnv === 'staging') {
   if (!url) {
     console.error(
       '[STYL-203] Refusing to build: APP_ENV=staging but NEXT_PUBLIC_SUPABASE_URL / SUPABASE_URL is empty.',
+    );
+    process.exit(1);
+  }
+  if (!anonKey.trim()) {
+    console.error(
+      '[STYL-203] Refusing to build: APP_ENV=staging but NEXT_PUBLIC_SUPABASE_ANON_KEY / SUPABASE_ANON_KEY is empty.',
+      'Ensure the Secret Manager secret is set, granted to the App Hosting backend, and available at BUILD.',
     );
     process.exit(1);
   }

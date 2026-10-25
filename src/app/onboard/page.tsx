@@ -3,8 +3,8 @@
 import React, { useEffect, useState, Suspense } from 'react';
 import { useSearchParams } from 'next/navigation';
 import Link from 'next/link';
-import { createBrowserClient } from '@supabase/ssr';
 import LegalModal from '@/components/LegalModal';
+import { getSupabaseBrowserClient } from '@/lib/supabase-browser';
 
 function OnboardContent() {
   const searchParams = useSearchParams();
@@ -18,15 +18,6 @@ function OnboardContent() {
     isOpen: false,
     title: '',
     url: '',
-  });
-
-  const [supabase] = useState(() => {
-    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-    const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
-    if (!supabaseUrl || !supabaseAnonKey) {
-      throw new Error('Supabase environment variables are missing');
-    }
-    return createBrowserClient(supabaseUrl, supabaseAnonKey);
   });
 
   const openLegalModal = (title: string, url: string) => {
@@ -45,6 +36,7 @@ function OnboardContent() {
         ? `${window.location.origin}/dashboard`
         : 'https://app.styleflo.ai/dashboard';
 
+      const supabase = getSupabaseBrowserClient();
       const { data, error } = await (supabase.auth.signInWithOAuth as any)({
         provider: 'google',
         options: {

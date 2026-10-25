@@ -1,9 +1,14 @@
 # Firebase App Hosting — shared defaults (STYL-203).
-# Staging overrides live in apphosting.staging.yaml (backend Environment name: staging).
-# Node runtime is Node 22 via package.json engines.node (App Hosting does not support Node 20).
-# Production remains on Cloud Run (styleflo-new) via .github/workflows/deploy.yml — do not
-# change production deploy behaviour here.
+# This Firebase project (styleflo-staging) hosts staging only. Production stays on
+# Cloud Run via .github/workflows/deploy.yml and does NOT read this file.
+# Staging overrides may also live in apphosting.staging.yaml when the backend
+# Environment name is set to "staging" (recommended — see docs/staging.md).
 #
+# Non-secret staging NEXT_PUBLIC_* values are in THIS base file so App Hosting
+# BUILD still sees them even if Environment name is unset (that was the
+# /login prerender failure on build f287d45b). Secrets remain Secret Manager refs.
+#
+# Node runtime is Node 22 via package.json engines.node.
 # No live Supabase project ref and no secret values may appear in this file.
 # CI: npm run check:staging-no-live-ref
 
@@ -32,3 +37,89 @@ env:
     value: "--max-old-space-size=3072"
     availability:
       - BUILD
+
+  # ---------------------------------------------------------------------------
+  # Staging public config (plain values) — BUILD + RUNTIME
+  # Safe here because App Hosting in this repo is staging-only (not production).
+  # ---------------------------------------------------------------------------
+  - variable: APP_ENV
+    value: staging
+    availability:
+      - BUILD
+      - RUNTIME
+
+  - variable: NEXT_PUBLIC_ENV
+    value: staging
+    availability:
+      - BUILD
+      - RUNTIME
+
+  - variable: NEXT_PUBLIC_SUPABASE_URL
+    value: https://lriugykhrfnnouexqqhm.supabase.co
+    availability:
+      - BUILD
+      - RUNTIME
+
+  - variable: SUPABASE_URL
+    value: https://lriugykhrfnnouexqqhm.supabase.co
+    availability:
+      - BUILD
+      - RUNTIME
+
+  - variable: NEXT_PUBLIC_APP_URL
+    value: https://delightful-kepler--styleflo-staging.europe-west4.hosted.app
+    availability:
+      - BUILD
+      - RUNTIME
+
+  - variable: NEXT_PUBLIC_SITE_URL
+    value: https://delightful-kepler--styleflo-staging.europe-west4.hosted.app
+    availability:
+      - BUILD
+      - RUNTIME
+
+  - variable: NEXT_PUBLIC_GA_MEASUREMENT_ID
+    value: ""
+    availability:
+      - BUILD
+      - RUNTIME
+
+  - variable: NEXT_PUBLIC_FB_PIXEL_ID
+    value: ""
+    availability:
+      - BUILD
+      - RUNTIME
+
+  - variable: NEXT_PUBLIC_GTM_ID
+    value: ""
+    availability:
+      - BUILD
+      - RUNTIME
+
+  - variable: NEXT_PUBLIC_TIKTOK_PIXEL_ID
+    value: ""
+    availability:
+      - BUILD
+      - RUNTIME
+
+  - variable: NEXT_PUBLIC_TURNSTILE_SITE_KEY
+    value: "1x0000000000000000000000000000000AA"
+    availability:
+      - BUILD
+      - RUNTIME
+
+  # Anon key must be available at BUILD so Next can embed NEXT_PUBLIC_* into
+  # prerendered client pages (/login, /register, /onboard). Grant access:
+  #   firebase apphosting:secrets:grantaccess NEXT_PUBLIC_SUPABASE_ANON_KEY \
+  #     --backend delightful-kepler --project styleflo-staging
+  - variable: NEXT_PUBLIC_SUPABASE_ANON_KEY
+    secret: NEXT_PUBLIC_SUPABASE_ANON_KEY
+    availability:
+      - BUILD
+      - RUNTIME
+
+  - variable: SUPABASE_ANON_KEY
+    secret: NEXT_PUBLIC_SUPABASE_ANON_KEY
+    availability:
+      - BUILD
+      - RUNTIME

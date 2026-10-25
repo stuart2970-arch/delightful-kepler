@@ -1,10 +1,13 @@
 "use client";
 
 import { useEffect, useState } from 'react';
-import { createBrowserClient } from '@supabase/ssr';
 import { useRouter } from 'next/navigation';
 import LegalModal from '@/components/LegalModal';
 import { trackSignUp } from '@/lib/analytics';
+import {
+  getSupabaseBrowserClient,
+  hasSupabaseBrowserEnv,
+} from '@/lib/supabase-browser';
 
 export default function LoginPage() {
   const router = useRouter();
@@ -98,57 +101,48 @@ export default function LoginPage() {
     return () => clearTimeout(timer);
   }, [companyName, customSlug, isLogin]);
 
-  // Initialize Supabase client
-  const [supabase] = useState(() => {
-    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-    const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
-    if (!supabaseUrl || !supabaseAnonKey) {
-      throw new Error('Supabase environment variables are missing');
-    }
-    return createBrowserClient(supabaseUrl, supabaseAnonKey);
-  });
-
+  // STYL-203: never create the Supabase client during prerender/useState —
+  // missing NEXT_PUBLIC_* must not fail `next build` static generation.
   useEffect(() => {
-    // Handle PKCE auth code exchange or token hash if present in URL
-    if (typeof window !== 'undefined') {
-      const urlParams = new URLSearchParams(window.location.search);
-      const code = urlParams.get('code');
-      const errorParam = urlParams.get('error_description') || urlParams.get('error');
+    if (typeof window === 'undefined' || !hasSupabaseBrowserEnv()) return;
 
-      if (errorParam) {
-        setError(decodeURIComponent(errorParam));
-        const cleanUrl = window.location.pathname;
-        window.history.replaceState({}, document.title, cleanUrl);
-      } else if (code) {
-        supabase.auth.exchangeCodeForSession(code).then(({ error }) => {
-          if (error) {
-            console.error('Error exchanging code for session:', error);
-            setError(error.message);
-          } else {
-            setSuccessMessage("Email confirmed successfully! Signing you in...");
-            const cleanUrl = window.location.pathname;
-            window.history.replaceState({}, document.title, cleanUrl);
-          }
-        });
-      }
+    const supabase = getSupabaseBrowserClient();
+    const urlParams = new URLSearchParams(window.location.search);
+    const code = urlParams.get('code');
+    const errorParam = urlParams.get('error_description') || urlParams.get('error');
 
-      // Check hash fragment (implicit flow token or error)
-      if (window.location.hash) {
-        const hashParams = new URLSearchParams(window.location.hash.substring(1));
-        const hashError = hashParams.get('error_description') || hashParams.get('error');
-        if (hashError) {
-          setError(decodeURIComponent(hashError));
-        } else if (hashParams.get('type') === 'signup' || hashParams.get('access_token')) {
-          setSuccessMessage("Email verified! Redirecting to your dashboard...");
+    if (errorParam) {
+      setError(decodeURIComponent(errorParam));
+      const cleanUrl = window.location.pathname;
+      window.history.replaceState({}, document.title, cleanUrl);
+    } else if (code) {
+      supabase.auth.exchangeCodeForSession(code).then(({ error }) => {
+        if (error) {
+          console.error('Error exchanging code for session:', error);
+          setError(error.message);
+        } else {
+          setSuccessMessage("Email confirmed successfully! Signing you in...");
+          const cleanUrl = window.location.pathname;
+          window.history.replaceState({}, document.title, cleanUrl);
         }
+      });
+    }
+
+    if (window.location.hash) {
+      const hashParams = new URLSearchParams(window.location.hash.substring(1));
+      const hashError = hashParams.get('error_description') || hashParams.get('error');
+      if (hashError) {
+        setError(decodeURIComponent(hashError));
+      } else if (hashParams.get('type') === 'signup' || hashParams.get('access_token')) {
+        setSuccessMessage("Email verified! Redirecting to your dashboard...");
       }
     }
 
     const {
       data: { subscription },
-    } = supabase.auth.onAuthStateChange((event, session) => {
+    } = supabase.auth.onAuthStateChange((event) => {
       if (event === 'SIGNED_IN') {
-        const isEmbedded = typeof window !== 'undefined' && window.self !== window.top;
+        const isEmbedded = window.self !== window.top;
         if (isEmbedded && window.top) {
           const isLocal = process.env.NODE_ENV === 'development' || process.env.NEXT_PUBLIC_ENV === 'development';
           const wpAppUrl = isLocal ? 'https://styleflo.test/app' : 'https://styleflo.ai/app';
@@ -159,7 +153,7 @@ export default function LoginPage() {
       }
     });
     return () => subscription.unsubscribe();
-  }, [supabase, router]);
+  }, [router]);
 
   const handleSendMagicLink = async () => {
     if (!email || !email.trim() || !email.includes('@')) {
@@ -192,6 +186,7 @@ export default function LoginPage() {
       }
 
       // 2. Dispatch OTP email through Supabase client
+      const supabase = getSupabaseBrowserClient();
       const { error: otpError } = await supabase.auth.signInWithOtp({
         email: email.trim(),
         options: {
@@ -223,6 +218,7 @@ export default function LoginPage() {
     setMagicLinkSent(false);
 
     try {
+      const supabase = getSupabaseBrowserClient();
       if (isLogin) {
         const { error } = await supabase.auth.signInWithPassword({
           email,
@@ -338,6 +334,7 @@ export default function LoginPage() {
         ? `${window.location.origin}/dashboard`
         : 'https://app.styleflo.ai/dashboard';
 
+      const supabase = getSupabaseBrowserClient();
       const { error } = await supabase.auth.signInWithOAuth({
         provider: 'google',
         options: {

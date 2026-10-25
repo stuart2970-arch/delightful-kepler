@@ -100,6 +100,11 @@ This runbook documents the key fixes and architecture enhancements implemented d
 
 ### Session Chat History Log
 
+### Session (STYL-203 follow-up - /login prerender missing Supabase env - 25 Oct 2026)
+* **User / Jira**: STYL-203 follow-up — PR #11 heap fix worked (build compiled ~62s) but rollout `f287d45b` failed prerendering `/login`: `Supabase environment variables are missing` (`NEXT_PUBLIC_SUPABASE_URL` / `ANON_KEY` undefined at BUILD). `assert-staging-env.mjs` had passed just before.
+* **Cause**: App Hosting BUILD did not have staging `NEXT_PUBLIC_*` (likely `apphosting.staging.yaml` not merged because Environment name ≠ `staging`), while `/login` threw from a `useState` initializer during prerender; assert no-op'd when `APP_ENV` was unset.
+* **Repo fix**: Base `apphosting.yaml` carries staging plain `NEXT_PUBLIC_*` + anon secret (BUILD+RUNTIME); lazy `getSupabaseBrowserClient` on `/login` `/register` `/onboard`; assert also requires anon key when `APP_ENV=staging`; docs for Environment name + `grantaccess`.
+* **Stuart-only**: Set Environment name to `staging`; if needed: `firebase apphosting:secrets:grantaccess NEXT_PUBLIC_SUPABASE_ANON_KEY --backend delightful-kepler --project styleflo-staging`.
 
 ### Session (STYL-203 follow-up - App Hosting build heap OOM - 25 Oct 2026)
 * **User / Jira**: STYL-203 follow-up — App Hosting rollout of `2bff011` failed after successful Turbopack compile: Node heap OOM (~2044 MB) during `next build` “Running TypeScript…”.

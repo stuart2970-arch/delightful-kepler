@@ -1,12 +1,12 @@
-# Firebase App Hosting — STAGING environment (STYL-203).
+# Firebase App Hosting — STAGING environment overrides (STYL-203).
 # Backend: delightful-kepler in Firebase project styleflo-staging (europe-west4).
-# Environment name on the backend must be "staging" so this file is merged over apphosting.yaml.
 #
-# Public / non-secret values may use `value:`. Server secrets MUST use `secret:` (Cloud Secret
-# Manager names only — never commit real secret values).
-# Core secrets only (trimmed so rollouts do not fail on unused feature secrets).
-# Stuart: create each with `firebase apphosting:secrets:set` — see docs/staging.md.
+# IMPORTANT: Set the backend Environment name to exactly "staging" in Firebase
+# console (Settings → Environment) so this file is merged. Public NEXT_PUBLIC_*
+# values also live in base apphosting.yaml so BUILD works even if the name is
+# unset; this file keeps staging-specific secrets and runConfig.
 #
+# Stuart: create secrets with `firebase apphosting:secrets:set` — see docs/staging.md.
 # FORBIDDEN: the live Supabase project ref (CI: npm run check:staging-no-live-ref).
 
 runConfig:
@@ -17,9 +17,7 @@ runConfig:
   concurrency: 80
 
 env:
-  # ---------------------------------------------------------------------------
-  # App identity (plain values)
-  # ---------------------------------------------------------------------------
+  # Re-assert staging identity (also in base apphosting.yaml).
   - variable: APP_ENV
     value: staging
     availability:
@@ -32,65 +30,8 @@ env:
       - BUILD
       - RUNTIME
 
-  - variable: NEXT_PUBLIC_SUPABASE_URL
-    value: https://lriugykhrfnnouexqqhm.supabase.co
-    availability:
-      - BUILD
-      - RUNTIME
-
-  - variable: SUPABASE_URL
-    value: https://lriugykhrfnnouexqqhm.supabase.co
-    availability:
-      - BUILD
-      - RUNTIME
-
-  - variable: NEXT_PUBLIC_APP_URL
-    value: https://delightful-kepler--styleflo-staging.europe-west4.hosted.app
-    availability:
-      - BUILD
-      - RUNTIME
-
-  - variable: NEXT_PUBLIC_SITE_URL
-    value: https://delightful-kepler--styleflo-staging.europe-west4.hosted.app
-    availability:
-      - BUILD
-      - RUNTIME
-
-  # Leave blank so staging traffic does not pollute live analytics.
-  - variable: NEXT_PUBLIC_GA_MEASUREMENT_ID
-    value: ""
-    availability:
-      - BUILD
-      - RUNTIME
-
-  - variable: NEXT_PUBLIC_FB_PIXEL_ID
-    value: ""
-    availability:
-      - BUILD
-      - RUNTIME
-
-  - variable: NEXT_PUBLIC_GTM_ID
-    value: ""
-    availability:
-      - BUILD
-      - RUNTIME
-
-  - variable: NEXT_PUBLIC_TIKTOK_PIXEL_ID
-    value: ""
-    availability:
-      - BUILD
-      - RUNTIME
-
-  # Cloudflare always-pass *site* key (public). Pair with CLOUDFLARE_TURNSTILE_SECRET_KEY
-  # set to the matching always-pass *secret* 1x0000000000000000000000000000000AA.
-  - variable: NEXT_PUBLIC_TURNSTILE_SITE_KEY
-    value: "1x0000000000000000000000000000000AA"
-    availability:
-      - BUILD
-      - RUNTIME
-
   # ---------------------------------------------------------------------------
-  # Core secrets only (Secret Manager) — six names + aliases
+  # Core secrets (Secret Manager) — BUILD where NEXT_PUBLIC_* need inlining
   # ---------------------------------------------------------------------------
   - variable: NEXT_PUBLIC_SUPABASE_ANON_KEY
     secret: NEXT_PUBLIC_SUPABASE_ANON_KEY
