@@ -15,3 +15,20 @@ runConfig:
   minInstances: 0
   maxInstances: 2
   cpuAlwaysAllocated: false
+
+env:
+  # STYL-203: App Hosting Cloud Build defaults to e2-medium (~4 GB RAM). Next 16's
+  # embedded `tsc` during `next build` OOMs at Node's default ~2 GB heap. Raising
+  # the heap to 4 GB is unsafe on a 4 GB VM, so we (1) give Turbopack ~3 GB and
+  # (2) skip the duplicate typecheck inside next build when STYL_APPHOSTING_BUILD=1
+  # (see next.config.ts). CI / deploy.yml still run `npm run typecheck`.
+  # BUILD-only: must never apply at RUNTIME (Cloud Run has only memoryMiB: 1024).
+  - variable: STYL_APPHOSTING_BUILD
+    value: "1"
+    availability:
+      - BUILD
+
+  - variable: NODE_OPTIONS
+    value: "--max-old-space-size=3072"
+    availability:
+      - BUILD

@@ -169,6 +169,17 @@ Automatic rollouts are **OFF**. After the six secrets are set:
 * Console: App Hosting → `delightful-kepler` → **Roll out** / create rollout from `main`, **or**
 * CLI: `firebase apphosting:rollouts:create delightful-kepler --git-branch main --project styleflo-staging`
 
+#### Build OOM / TypeScript heap (STYL-203)
+
+App Hosting Cloud Build uses **e2-medium (~4 GB RAM)** by default (not configurable in `apphosting.yaml` today). Next 16’s embedded typecheck during `next build` OOMs at Node’s default ~2 GB heap after a successful compile.
+
+`apphosting.yaml` therefore sets **BUILD-only**:
+
+* `STYL_APPHOSTING_BUILD=1` → `next.config.ts` sets `typescript.ignoreBuildErrors` so App Hosting skips the duplicate `tsc` (CI **Typecheck and Playwright** and production `deploy.yml` still run `npm run typecheck`).
+* `NODE_OPTIONS=--max-old-space-size=3072` → gives Turbopack headroom under the 4 GB VM (4 GB heap would be unsafe).
+
+Neither variable is available at **RUNTIME** (Cloud Run staging stays at `memoryMiB: 1024`). Production Cloud Run Docker builds do **not** set `STYL_APPHOSTING_BUILD`, so they still typecheck inside `next build` after CI has already passed.
+
 ### 5. Smoke-check the staging URL
 
 Open `https://delightful-kepler--styleflo-staging.europe-west4.hosted.app`:
