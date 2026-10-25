@@ -83,6 +83,27 @@ test.describe('STYL-203: Firebase App Hosting staging guards', () => {
     expect(deploy).not.toMatch(/node-version:\s*20\b/);
   });
 
+  test('apphosting.yaml raises BUILD heap and flags App Hosting builds (no RUNTIME)', () => {
+    const baseText = readFileSync(join(root, 'apphosting.yaml'), 'utf8');
+    expect(baseText).toContain('STYL_APPHOSTING_BUILD');
+    expect(baseText).toContain('NODE_OPTIONS');
+    expect(baseText).toContain('--max-old-space-size=3072');
+
+    // Each BUILD-only env entry: availability lists BUILD and must not list RUNTIME.
+    for (const name of ['STYL_APPHOSTING_BUILD', 'NODE_OPTIONS']) {
+      const start = baseText.indexOf(`variable: ${name}`);
+      expect(start, name).toBeGreaterThanOrEqual(0);
+      const nextVar = baseText.indexOf('\n  - variable:', start + 1);
+      const block = baseText.slice(start, nextVar === -1 ? undefined : nextVar);
+      expect(block, name).toMatch(/availability:\s*\n\s*-\s*BUILD\b/);
+      expect(block, name).not.toMatch(/-\s*RUNTIME\b/);
+    }
+
+    const nextConfig = readFileSync(join(root, 'next.config.ts'), 'utf8');
+    expect(nextConfig).toContain('ignoreBuildErrors');
+    expect(nextConfig).toContain('STYL_APPHOSTING_BUILD');
+  });
+
   test('Dockerfile has no live Supabase URL/anon-key fallback defaults', () => {
     const dockerfile = readFileSync(join(root, 'Dockerfile'), 'utf8');
     // No ARG defaults that embed the live URL/key — missing args must fail the build.

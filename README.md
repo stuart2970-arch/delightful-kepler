@@ -101,6 +101,11 @@ This runbook documents the key fixes and architecture enhancements implemented d
 ### Session Chat History Log
 
 
+### Session (STYL-203 follow-up - App Hosting build heap OOM - 25 Oct 2026)
+* **User / Jira**: STYL-203 follow-up — App Hosting rollout of `2bff011` failed after successful Turbopack compile: Node heap OOM (~2044 MB) during `next build` “Running TypeScript…”.
+* **Cause**: App Hosting Cloud Build uses e2-medium (~4 GB). Default Node heap (~2 GB) is too small for this repo’s embedded `tsc`; raising to 4 GB is unsafe on a 4 GB VM.
+* **Fix**: BUILD-only in `apphosting.yaml`: `STYL_APPHOSTING_BUILD=1` (skip duplicate typecheck via `next.config.ts` `typescript.ignoreBuildErrors`) + `NODE_OPTIONS=--max-old-space-size=3072` for Turbopack headroom. CI/deploy.yml still run `npm run typecheck`. Production Cloud Run Docker unaffected (env unset).
+
 ### Session (STYL-203 follow-up - trim staging secrets - 24 Oct 2026)
 * **User / Jira**: STYL-203 follow-up after PR #9 merged (`aa0f7bd`) — trim Firebase App Hosting staging to six core secrets so rollouts do not fail on unused feature secrets.
 * **Changes**:
