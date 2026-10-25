@@ -44,6 +44,9 @@ jobs:
           # Local-only stack with mock third-party keys (STYL-210). Never live credentials.
           npm run env:local
 
+      - name: STYL-203 — validate apphosting*.yaml schema
+        run: npm run check:apphosting-yaml
+
       - name: STYL-203 — refuse live Supabase ref in App Hosting / staging config
         run: npm run check:staging-no-live-ref
 

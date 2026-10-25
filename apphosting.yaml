@@ -8,9 +8,13 @@
 # BUILD still sees them even if Environment name is unset (that was the
 # /login prerender failure on build f287d45b). Secrets remain Secret Manager refs.
 #
+# Do NOT use empty-string env values — App Hosting rejects them
+# ("apphosting.yaml is not formatted properly", build 4c860af7).
+# Omit unused optional vars instead (e.g. analytics pixel IDs).
+#
 # Node runtime is Node 22 via package.json engines.node.
 # No live Supabase project ref and no secret values may appear in this file.
-# CI: npm run check:staging-no-live-ref
+# CI: npm run check:apphosting-yaml && npm run check:staging-no-live-ref
 
 runConfig:
   # Match terraform Cloud Run defaults (1 CPU / 1Gi) at the low end; staging caps instances.
@@ -38,10 +42,8 @@ env:
     availability:
       - BUILD
 
-  # ---------------------------------------------------------------------------
-  # Staging public config (plain values) — BUILD + RUNTIME
+  # Staging public config (plain values) — BUILD + RUNTIME.
   # Safe here because App Hosting in this repo is staging-only (not production).
-  # ---------------------------------------------------------------------------
   - variable: APP_ENV
     value: staging
     availability:
@@ -74,30 +76,6 @@ env:
 
   - variable: NEXT_PUBLIC_SITE_URL
     value: https://delightful-kepler--styleflo-staging.europe-west4.hosted.app
-    availability:
-      - BUILD
-      - RUNTIME
-
-  - variable: NEXT_PUBLIC_GA_MEASUREMENT_ID
-    value: ""
-    availability:
-      - BUILD
-      - RUNTIME
-
-  - variable: NEXT_PUBLIC_FB_PIXEL_ID
-    value: ""
-    availability:
-      - BUILD
-      - RUNTIME
-
-  - variable: NEXT_PUBLIC_GTM_ID
-    value: ""
-    availability:
-      - BUILD
-      - RUNTIME
-
-  - variable: NEXT_PUBLIC_TIKTOK_PIXEL_ID
-    value: ""
     availability:
       - BUILD
       - RUNTIME

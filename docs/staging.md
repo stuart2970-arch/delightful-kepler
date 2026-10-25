@@ -202,6 +202,12 @@ Repo fix:
 * Base `apphosting.yaml` carries staging plain `NEXT_PUBLIC_*` + anon secret with **BUILD + RUNTIME**.
 * `/login`, `/register`, `/onboard` create the browser Supabase client lazily (`src/lib/supabase-browser.ts`) so prerender cannot throw.
 
+#### Empty `value: ""` rejected by App Hosting (STYL-203)
+
+Build `4c860af7` failed **before** building with: `Your apphosting.yaml file … is not formatted properly`. Cause: empty-string env values (`NEXT_PUBLIC_GA_MEASUREMENT_ID: ""` and similar analytics IDs). App Hosting forbids empty strings — omit unused variables instead.
+
+CI: `npm run check:apphosting-yaml` (also in the Playwright workflow) validates `apphosting*.yaml` against the documented schema offline.
+
 ### 6. Smoke-check the staging URL
 
 Open `https://delightful-kepler--styleflo-staging.europe-west4.hosted.app`:

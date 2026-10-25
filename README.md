@@ -100,6 +100,11 @@ This runbook documents the key fixes and architecture enhancements implemented d
 
 ### Session Chat History Log
 
+### Session (STYL-203 follow-up - apphosting.yaml schema / empty values - 25 Oct 2026)
+* **User / Jira**: STYL-203 — PR #12 merged (`85daa48`) but rollout build `4c860af7` failed before building: `apphosting.yaml is not formatted properly`.
+* **Cause**: Empty-string env values (`value: ""` for unused analytics pixel IDs) — App Hosting rejects them.
+* **Fix**: Remove those entries from `apphosting.yaml`; add `scripts/check-apphosting-yaml.mjs` + CI step `npm run check:apphosting-yaml`. Production Cloud Run unchanged.
+
 ### Session (STYL-203 follow-up - /login prerender missing Supabase env - 25 Oct 2026)
 * **User / Jira**: STYL-203 follow-up — PR #11 heap fix worked (build compiled ~62s) but rollout `f287d45b` failed prerendering `/login`: `Supabase environment variables are missing` (`NEXT_PUBLIC_SUPABASE_URL` / `ANON_KEY` undefined at BUILD). `assert-staging-env.mjs` had passed just before.
 * **Cause**: App Hosting BUILD did not have staging `NEXT_PUBLIC_*` (likely `apphosting.staging.yaml` not merged because Environment name ≠ `staging`), while `/login` threw from a `useState` initializer during prerender; assert no-op'd when `APP_ENV` was unset.
