@@ -84,12 +84,15 @@ Optional: enable the Custom Access Token hook `public.custom_access_token_hook` 
 
 | Variable | Kind | Where |
 | :--- | :--- | :--- |
-| `NEXT_PUBLIC_SUPABASE_URL` / `SUPABASE_URL` | Plain value | `apphosting.staging.yaml` (staging API URL above) |
-| `APP_ENV` / `NEXT_PUBLIC_ENV` | Plain value | `apphosting.staging.yaml` → `staging` |
-| `NEXT_PUBLIC_APP_URL` / `NEXT_PUBLIC_SITE_URL` | Plain value | `apphosting.staging.yaml` (App Hosting URL above) |
-| `NEXT_PUBLIC_TURNSTILE_SITE_KEY` | Plain value | Cloudflare always-pass site key (see Turnstile note below) |
-| **Six core secrets** | Secret Manager | Listed in the runbook below — only these are referenced in `apphosting.staging.yaml` |
+| `NEXT_PUBLIC_SUPABASE_URL` / `SUPABASE_URL` | Plain value | **`apphosting.yaml`** (base — BUILD + RUNTIME; staging-only Firebase project) |
+| `APP_ENV` / `NEXT_PUBLIC_ENV` | Plain value | **`apphosting.yaml`** → `staging` (also re-asserted in `apphosting.staging.yaml`) |
+| `NEXT_PUBLIC_APP_URL` / `NEXT_PUBLIC_SITE_URL` | Plain value | **`apphosting.yaml`** (App Hosting URL above) |
+| `NEXT_PUBLIC_TURNSTILE_SITE_KEY` | Plain value | **`apphosting.yaml`** — Cloudflare always-pass site key (see Turnstile note below) |
+| `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Secret Manager | Base + staging yaml — **BUILD + RUNTIME** (must be grantaccess’d) |
+| **Six core secrets** | Secret Manager | Listed in the runbook below — referenced in `apphosting.staging.yaml` (anon also in base) |
 | Feature secrets (Stripe, Twilio, …) | Optional later | See **Feature secrets to add later** — not required for build/boot |
+
+Plain `NEXT_PUBLIC_*` values live in **base** `apphosting.yaml` so App Hosting BUILD still sees them even if the backend Environment name is unset (that caused the `/login` prerender failure on build `f287d45b`). This Firebase project hosts staging only; production Cloud Run via `deploy.yml` does **not** read `apphosting.yaml`.
 
 Production Cloud Run continues to use production secrets. `deploy.yml` typechecks on **Node 22** (aligned with `package.json` engines); deploy behaviour is otherwise unchanged. `deploy.yml` does **not** apply database migrations.
 
@@ -100,7 +103,8 @@ Production Cloud Run continues to use production secrets. `deploy.yml` typecheck
 ### Prerequisites (already done)
 
 * Firebase project `styleflo-staging` on **Blaze**, budget alert from STYL-209.
-* App Hosting backend **`delightful-kepler`**: region **europe-west4**, app root `/`, live branch `main`, **automatic rollouts OFF**, Environment name **`staging`** (so `apphosting.staging.yaml` is merged).
+* App Hosting backend **`delightful-kepler`**: region **europe-west4**, app root `/`, live branch `main`, **automatic rollouts OFF**.
+* **Required:** Environment name **`staging`** (Settings → Environment) so `apphosting.staging.yaml` is merged for secrets. Public `NEXT_PUBLIC_*` also live in base `apphosting.yaml` as a safety net.
 * Repo `apphosting.yaml` + `apphosting.staging.yaml` on `main`. Node **22** via `package.json` `engines.node`.
 
 ### Cloudflare Turnstile on staging (always-pass test keys)
@@ -157,14 +161,23 @@ firebase apphosting:secrets:grantaccess TOKEN_ENC_KEY --backend delightful-keple
 
 Alternatively, in Cloud Console → Secret Manager → each secret → Permissions → grant **Secret Manager Secret Accessor** to the App Hosting runtime service account (`firebase-app-hosting-compute@styleflo-staging.iam.gserviceaccount.com`).
 
-### 3. Confirm Environment name is `staging`
+### 3. Confirm Environment name is `staging` (Stuart — console)
 
-Firebase console → App Hosting → backend `delightful-kepler` → Settings → Environment → Environment name = **`staging`**.  
-That selects `apphosting.staging.yaml` over the base `apphosting.yaml`.
+Firebase console → App Hosting → backend `delightful-kepler` → **Settings → Environment** → Environment name = exactly **`staging`**.
 
-### 4. Trigger a manual rollout
+Without that name, `apphosting.staging.yaml` is **not** merged (service-role and other secrets missing at RUNTIME). Public env is still applied from base `apphosting.yaml`.
 
-Automatic rollouts are **OFF**. After the six secrets are set:
+### 4. Grant BUILD access for the anon key (Stuart — CLI if rollout still fails prerender)
+
+`NEXT_PUBLIC_SUPABASE_ANON_KEY` must be available at **BUILD** (Next inlines `NEXT_PUBLIC_*` into prerendered pages). If Secret Manager access was only granted for runtime, re-run:
+
+```bash
+firebase apphosting:secrets:grantaccess NEXT_PUBLIC_SUPABASE_ANON_KEY --backend delightful-kepler --project styleflo-staging
+```
+
+### 5. Trigger a manual rollout
+
+Automatic rollouts are **OFF**. After the six secrets are set and Environment name is `staging`:
 
 * Console: App Hosting → `delightful-kepler` → **Roll out** / create rollout from `main`, **or**
 * CLI: `firebase apphosting:rollouts:create delightful-kepler --git-branch main --project styleflo-staging`
@@ -180,7 +193,16 @@ App Hosting Cloud Build uses **e2-medium (~4 GB RAM)** by default (not configura
 
 Neither variable is available at **RUNTIME** (Cloud Run staging stays at `memoryMiB: 1024`). Production Cloud Run Docker builds do **not** set `STYL_APPHOSTING_BUILD`, so they still typecheck inside `next build` after CI has already passed.
 
-### 5. Smoke-check the staging URL
+#### `/login` prerender + missing `NEXT_PUBLIC_*` (STYL-203)
+
+Build `f287d45b` compiled in ~62s (heap fix) then failed prerendering `/login` because `NEXT_PUBLIC_SUPABASE_URL` / `NEXT_PUBLIC_SUPABASE_ANON_KEY` were undefined at BUILD. `assert-staging-env.mjs` had passed because `APP_ENV` was unset when `apphosting.staging.yaml` was not merged.
+
+Repo fix:
+
+* Base `apphosting.yaml` carries staging plain `NEXT_PUBLIC_*` + anon secret with **BUILD + RUNTIME**.
+* `/login`, `/register`, `/onboard` create the browser Supabase client lazily (`src/lib/supabase-browser.ts`) so prerender cannot throw.
+
+### 6. Smoke-check the staging URL
 
 Open `https://delightful-kepler--styleflo-staging.europe-west4.hosted.app`:
 

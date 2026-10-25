@@ -26,10 +26,15 @@ test.describe('STYL-203: Firebase App Hosting staging guards', () => {
 
     expect(stagingText).toContain('APP_ENV');
     expect(stagingText).toContain('staging');
-    expect(stagingText).toContain(STAGING_SUPABASE_PROJECT_REF);
     expect(stagingText).toContain('secret: SUPABASE_SERVICE_ROLE_KEY');
     expect(stagingText).toMatch(/minInstances:\s*0/);
     expect(stagingText).toMatch(/maxInstances:\s*2/);
+
+    // Staging Supabase URL / Turnstile site key live in base apphosting.yaml
+    // so BUILD works even when Environment name is unset.
+    expect(baseText).toContain(STAGING_SUPABASE_PROJECT_REF);
+    expect(baseText).toContain('NEXT_PUBLIC_TURNSTILE_SITE_KEY');
+    expect(baseText).toContain('1x0000000000000000000000000000000AA');
   });
 
   test('apphosting.staging.yaml keeps only the six core secrets (plus aliases)', () => {
@@ -72,9 +77,58 @@ test.describe('STYL-203: Firebase App Hosting staging guards', () => {
     ]) {
       expect(secretNames, forbidden).not.toContain(forbidden);
     }
+  });
 
-    expect(stagingText).toContain('NEXT_PUBLIC_TURNSTILE_SITE_KEY');
-    expect(stagingText).toContain('1x0000000000000000000000000000000AA');
+  test('base apphosting.yaml exposes staging NEXT_PUBLIC_* + anon secret at BUILD and RUNTIME', () => {
+    const baseText = readFileSync(join(root, 'apphosting.yaml'), 'utf8');
+
+    for (const name of [
+      'APP_ENV',
+      'NEXT_PUBLIC_ENV',
+      'NEXT_PUBLIC_SUPABASE_URL',
+      'NEXT_PUBLIC_APP_URL',
+      'NEXT_PUBLIC_TURNSTILE_SITE_KEY',
+      'NEXT_PUBLIC_SUPABASE_ANON_KEY',
+    ]) {
+      const start = baseText.indexOf(`variable: ${name}`);
+      expect(start, name).toBeGreaterThanOrEqual(0);
+      const nextVar = baseText.indexOf('\n  - variable:', start + 1);
+      const block = baseText.slice(start, nextVar === -1 ? undefined : nextVar);
+      expect(block, `${name} BUILD`).toMatch(/-\s*BUILD\b/);
+      expect(block, `${name} RUNTIME`).toMatch(/-\s*RUNTIME\b/);
+    }
+
+    expect(baseText).toContain(STAGING_SUPABASE_URL);
+    expect(baseText).toMatch(
+      /variable:\s*NEXT_PUBLIC_SUPABASE_ANON_KEY[\s\S]*?secret:\s*NEXT_PUBLIC_SUPABASE_ANON_KEY/,
+    );
+    // Production Cloud Run must not be implied — comment documents staging-only.
+    expect(baseText).toMatch(/staging only|Cloud Run.*does NOT read/i);
+  });
+
+  test('login/register/onboard lazy-init Supabase (no prerender throw)', () => {
+    const login = readFileSync(join(root, 'src/app/login/page.tsx'), 'utf8');
+    const register = readFileSync(join(root, 'src/app/register/page.tsx'), 'utf8');
+    const onboard = readFileSync(join(root, 'src/app/onboard/page.tsx'), 'utf8');
+    const helper = readFileSync(join(root, 'src/lib/supabase-browser.ts'), 'utf8');
+
+    expect(helper).toContain('export function getSupabaseBrowserClient');
+    expect(helper).toContain('export function hasSupabaseBrowserEnv');
+
+    for (const [name, src] of [
+      ['login', login],
+      ['register', register],
+      ['onboard', onboard],
+    ] as const) {
+      expect(src, name).toContain('getSupabaseBrowserClient');
+      // Regression: useState initializer that threw during prerender (build f287d45b).
+      expect(src, name).not.toMatch(
+        /useState\s*\(\s*\(\s*\)\s*=>\s*\{[\s\S]*?Supabase environment variables are missing/,
+      );
+      expect(src, name).not.toContain("from '@supabase/ssr'");
+    }
+
+    expect(login).toContain('hasSupabaseBrowserEnv');
   });
 
   test('production deploy workflow typechecks on Node 22', () => {
@@ -193,10 +247,24 @@ test.describe('STYL-203: Firebase App Hosting staging guards', () => {
         ...process.env,
         APP_ENV: 'staging',
         NEXT_PUBLIC_SUPABASE_URL: `https://${LIVE_REF}.supabase.co`,
+        NEXT_PUBLIC_SUPABASE_ANON_KEY: 'test-anon-key',
       },
     });
     expect(fail.status).toBe(1);
     expect(fail.stderr + fail.stdout).toMatch(/STYL-203/);
+
+    const missingAnon = spawnSync(process.execPath, [script], {
+      encoding: 'utf8',
+      env: {
+        ...process.env,
+        APP_ENV: 'staging',
+        NEXT_PUBLIC_SUPABASE_URL: STAGING_SUPABASE_URL,
+        NEXT_PUBLIC_SUPABASE_ANON_KEY: '',
+        SUPABASE_ANON_KEY: '',
+      },
+    });
+    expect(missingAnon.status).toBe(1);
+    expect(missingAnon.stderr + missingAnon.stdout).toMatch(/ANON_KEY/);
 
     const ok = spawnSync(process.execPath, [script], {
       encoding: 'utf8',
@@ -204,6 +272,7 @@ test.describe('STYL-203: Firebase App Hosting staging guards', () => {
         ...process.env,
         APP_ENV: 'staging',
         NEXT_PUBLIC_SUPABASE_URL: STAGING_SUPABASE_URL,
+        NEXT_PUBLIC_SUPABASE_ANON_KEY: 'test-anon-key',
       },
     });
     expect(ok.status).toBe(0);

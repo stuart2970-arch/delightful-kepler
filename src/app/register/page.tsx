@@ -1,10 +1,10 @@
 "use client";
 
 import { useEffect, useState, Suspense } from 'react';
-import { createBrowserClient } from '@supabase/ssr';
 import { useRouter, useSearchParams } from 'next/navigation';
 import LegalModal from '@/components/LegalModal';
 import { trackSignUp, trackVisitorNotSignedUp, trackLeadIntent } from '@/lib/analytics';
+import { getSupabaseBrowserClient } from '@/lib/supabase-browser';
 
 function RegisterContent() {
   const router = useRouter();
@@ -96,16 +96,6 @@ function RegisterContent() {
     suggestions: string[];
   } | null>(null);
 
-  // Initialize Supabase client
-  const [supabase] = useState(() => {
-    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-    const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
-    if (!supabaseUrl || !supabaseAnonKey) {
-      throw new Error('Supabase environment variables are missing');
-    }
-    return createBrowserClient(supabaseUrl, supabaseAnonKey);
-  });
-
   useEffect(() => {
     const nameToCheck = customSlug || companyName;
     if (!nameToCheck.trim()) {
@@ -191,6 +181,7 @@ function RegisterContent() {
         : `https://app.styleflo.ai/auth/callback?next=${encodeURIComponent(checkoutNext)}`;
 
       trackSignUp('google', planParam);
+      const supabase = getSupabaseBrowserClient();
       const { error } = await (supabase.auth.signInWithOAuth as any)({
         provider: 'google',
         options: {
@@ -243,6 +234,7 @@ function RegisterContent() {
         return;
       }
 
+      const supabase = getSupabaseBrowserClient();
       const { error: otpError } = await supabase.auth.signInWithOtp({
         email: email.trim(),
         options: {
@@ -308,6 +300,7 @@ function RegisterContent() {
         ? `${window.location.origin}/auth/callback?next=/dashboard`
         : 'https://app.styleflo.ai/auth/callback?next=/dashboard';
 
+      const supabase = getSupabaseBrowserClient();
       const { data, error } = await supabase.auth.signUp({
         email,
         password,
