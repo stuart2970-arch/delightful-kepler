@@ -17,6 +17,7 @@
     "build:widget": "node scripts/build-widget.js",
     "prepare": "node -e \"try{require('child_process').execSync('husky',{stdio:'inherit'})}catch(e){}\"",
     "check:staging-no-live-ref": "node scripts/check-staging-no-live-ref.mjs",
+    "check:apphosting-yaml": "node scripts/check-apphosting-yaml.mjs",
     "test:server": "dotenv -e .env.test --override -- next dev -p 3001",
     "test:e2e": "playwright test",
     "test:e2e:ui": "playwright test --ui"

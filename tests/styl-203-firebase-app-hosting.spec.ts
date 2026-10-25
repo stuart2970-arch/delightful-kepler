@@ -104,6 +104,53 @@ test.describe('STYL-203: Firebase App Hosting staging guards', () => {
     );
     // Production Cloud Run must not be implied — comment documents staging-only.
     expect(baseText).toMatch(/staging only|Cloud Run.*does NOT read/i);
+
+    // Regression: App Hosting rejects empty env values (build 4c860af7).
+    // Ignore comments; assert no real env entry uses an empty string.
+    const envBody = baseText
+      .split('\n')
+      .filter((l) => !/^\s*#/.test(l))
+      .join('\n');
+    expect(envBody).not.toMatch(/^\s*value:\s*["']{2}\s*$/m);
+  });
+
+  test('check-apphosting-yaml.mjs passes on repo and rejects empty value', async () => {
+    const { spawnSync } = await import('node:child_process');
+    const { mkdtempSync, writeFileSync, rmSync } = await import('node:fs');
+    const { tmpdir } = await import('node:os');
+    const { join: pathJoin } = await import('node:path');
+    const script = join(root, 'scripts/check-apphosting-yaml.mjs');
+
+    const ok = spawnSync(process.execPath, [script], {
+      encoding: 'utf8',
+      cwd: root,
+    });
+    expect(ok.status, ok.stderr + ok.stdout).toBe(0);
+    expect(ok.stdout).toContain('apphosting');
+
+    const dir = mkdtempSync(pathJoin(tmpdir(), 'apphosting-schema-'));
+    try {
+      writeFileSync(
+        pathJoin(dir, 'apphosting.yaml'),
+        [
+          'runConfig:',
+          '  cpu: 1',
+          'env:',
+          '  - variable: EMPTY_BAD',
+          '    value: ""',
+          '    availability:',
+          '      - BUILD',
+        ].join('\n'),
+      );
+      const bad = spawnSync(process.execPath, [script], {
+        encoding: 'utf8',
+        cwd: dir,
+      });
+      expect(bad.status).toBe(1);
+      expect(bad.stderr + bad.stdout).toMatch(/empty string/i);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
   });
 
   test('login/register/onboard lazy-init Supabase (no prerender throw)', () => {
