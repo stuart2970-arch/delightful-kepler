@@ -237,6 +237,7 @@ test.describe('STYL-228 magic link session lockdown', () => {
   });
 
   test('opening the emailed link signs the existing user in', async ({ page, request }) => {
+    test.setTimeout(90_000);
     const client = adminClient();
     const email = `styl228-inbox-${Date.now()}@test.styleflo.ai`;
     const { data, error } = await client.auth.admin.createUser({

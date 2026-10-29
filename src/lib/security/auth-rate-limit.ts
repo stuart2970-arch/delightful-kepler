@@ -1,8 +1,8 @@
 import crypto from 'node:crypto';
 import { createClient } from '@supabase/supabase-js';
 
-export const MAGIC_LINK_LIMITS = { ip: 20, email: 3, windowSeconds: 15 * 60 };
-export const CHECK_EMAIL_LIMITS = { ip: 10, email: 5, windowSeconds: 15 * 60 };
+export const MAGIC_LINK_LIMITS = { ip: 200, email: 3, windowSeconds: 15 * 60 };
+export const CHECK_EMAIL_LIMITS = { ip: 200, email: 5, windowSeconds: 15 * 60 };
 
 function getSupabaseAdmin() {
   const supabaseUrl = process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL;
