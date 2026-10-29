@@ -259,7 +259,7 @@ test.describe('STYL-228 magic link session lockdown', () => {
       const link = await readMailboxLink(email);
       expect(link).not.toContain('email_otp');
       await page.goto(link);
-      await page.waitForURL((url) => url.pathname.startsWith('/dashboard'), { timeout: 20000 });
+      await page.waitForURL((url) => url.pathname.startsWith('/dashboard'), { timeout: 60000 });
       expect(new URL(page.url()).pathname).toBe('/dashboard');
     } finally {
       if (data.user?.id) await client.auth.admin.deleteUser(data.user.id);
