@@ -3951,3 +3951,14 @@ Highlighted adjustments in the modal:
          - Build and Push Docker Image: SUCCESS
          - Deploy to Cloud Run (`styleflo-new`): SUCCESS
          - All post-deploy smoke checks: SUCCESS
+
+## Session Chat History Log
+
+* **User**: STYL-228 (Highest, security). `POST /api/auth/magic-link` minted a logged-in session for any email, including a superadmin, without the inbox. Plan only, then Stuart signed off (Jira comment 10168) and asked for the fix on a feature branch. Do not merge to main. Do not delete sessions or touch live Supabase `tkoasyjvrgaglofpzduq`.
+* **Answer & Action**:
+  1. Confirmed the route called `auth.admin.generateLink` with the service role, verified `email_otp` / `hashed_token` on the caller's response, returned `action_link` on failure, created confirmed users, allowed `Access-Control-Allow-Origin: *` (including the proxy `OPTIONS` shortcut), and logged the link. `check-email` returned `exists` for any origin.
+  2. Magic-link now sends `signInWithOtp` with `shouldCreateUser: false` and returns `{ ok: true }` only. No session cookie, link, or token. Same-origin only. Turnstile plus fail-closed per-IP and per-email limits. `check-email` returns the same body for every valid address.
+  3. Login and register show the existing "check your email" state and keep the amber "already registered" panel from the `signUp` error. The widget dashboard button opens `/login`. FloBot no longer says the account is already created.
+  4. Migration `20261029170000_styl228_auth_rate_limits.sql` was applied to local Supabase only.
+  5. Playwright: `tests/styl-228-magic-link-auth.spec.ts` and `tests/auth.spec.ts` — 13 passed. `tsc --noEmit` passed.
+  6. Session invalidation and hosted Auth changes were not run. They are documented on the pull request for Stuart.

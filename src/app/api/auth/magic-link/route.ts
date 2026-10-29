@@ -1,166 +1,107 @@
 import { NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
-import { createServerClient } from '@supabase/ssr';
-import { cookies } from 'next/headers';
+import { isAllowedOrigin } from '@/lib/auth/request-origin';
+import {
+  MAGIC_LINK_LIMITS,
+  clientIp,
+  consumeAuthRateLimit,
+  hashEmail,
+} from '@/lib/security/auth-rate-limit';
+import { verifyTurnstileToken } from '@/lib/security/turnstile';
 
-const corsHeaders = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Methods': 'POST, OPTIONS',
-  'Access-Control-Allow-Headers': 'Content-Type, authorization',
-};
+export const dynamic = 'force-dynamic';
+
+const EMAIL_RE = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/;
+
+function json(body: Record<string, unknown>, status: number) {
+  return NextResponse.json(body, { status });
+}
+
+/**
+ * The emailed link lands on /login so the browser can read the session
+ * fragment. The redirect is chosen on the server, never from the request body.
+ */
+function emailRedirectTo(request: Request): string {
+  const host = request.headers.get('x-forwarded-host') || request.headers.get('host') || '';
+  const hostname = host.split(':')[0];
+  const isLocal = hostname === 'localhost' || hostname === '127.0.0.1';
+  if (isLocal) {
+    const proto = request.headers.get('x-forwarded-proto') || 'http';
+    return `${proto}://${host}/login`;
+  }
+
+  const appUrl = process.env.NEXT_PUBLIC_APP_URL;
+  if (appUrl) {
+    try {
+      return `${new URL(appUrl).origin}/login`;
+    } catch {
+      // Fall through to the production app origin.
+    }
+  }
+  return 'https://app.styleflo.ai/login';
+}
 
 export async function OPTIONS() {
-  return new NextResponse(null, { status: 200, headers: corsHeaders });
+  return new NextResponse(null, { status: 204 });
 }
 
 export async function POST(request: Request) {
-  try {
-    const body = await request.json().catch(() => ({}));
-    const email = (body.email || body.clientEmail || '').trim();
-    const name = (body.name || body.clientName || '').trim();
-
-    if (!email || !/[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/.test(email)) {
-      return NextResponse.json(
-        { redirectUrl: '/login', error: 'Valid email address required' },
-        { status: 200, headers: corsHeaders }
-      );
-    }
-
-    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.SUPABASE_URL;
-    const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
-    const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || process.env.SUPABASE_ANON_KEY;
-
-    if (!supabaseUrl || !serviceRoleKey || !anonKey) {
-      console.warn('[Magic Link Route] Supabase environment variables missing.');
-      return NextResponse.json(
-        { redirectUrl: '/login' },
-        { status: 200, headers: corsHeaders }
-      );
-    }
-
-    const supabaseAdmin = createClient(supabaseUrl, serviceRoleKey, {
-      auth: { persistSession: false, autoRefreshToken: false },
-    });
-
-    console.log(`[Magic Link Route] Ensuring user account exists for ${email}...`);
-
-    // 1. Ensure user exists in Supabase Auth and generate magic link token
-    let { data: linkData, error: linkError } = await supabaseAdmin.auth.admin.generateLink({
-      type: 'magiclink',
-      email: email,
-    });
-
-    if (linkError && (linkError.message.includes('User not found') || linkError.status === 404)) {
-      console.log(`[Magic Link Route] Creating account for ${email}...`);
-      const { data: newUser, error: createError } = await supabaseAdmin.auth.admin.createUser({
-        email: email,
-        email_confirm: true,
-        user_metadata: {
-          full_name: name || email.split('@')[0],
-          source: 'onboarding_flobot',
-        },
-      });
-
-      if (!createError && newUser?.user) {
-        const retryRes = await supabaseAdmin.auth.admin.generateLink({
-          type: 'magiclink',
-          email: email,
-        });
-        linkData = retryRes.data;
-        linkError = retryRes.error;
-      }
-    }
-
-    const emailOtp = linkData?.properties?.email_otp;
-    const hashedToken = linkData?.properties?.hashed_token;
-
-    // 2. Server-side session authentication using createServerClient so cookies are set directly on response!
-    const cookieStore = await cookies();
-    const supabaseServer = createServerClient(supabaseUrl, anonKey, {
-      cookies: {
-        getAll() {
-          return cookieStore.getAll();
-        },
-        setAll(cookiesToSet) {
-          try {
-            cookiesToSet.forEach(({ name, value, options }) =>
-              cookieStore.set(name, value, options)
-            );
-          } catch {
-            // Safe to ignore in Route Handlers
-          }
-        },
-      },
-    });
-
-    // 3. Attempt server-side OTP verification with email_otp
-    if (emailOtp) {
-      console.log(`[Magic Link Route] Verifying OTP server-side for ${email}...`);
-      let { data: verifyData, error: verifyError } = await supabaseServer.auth.verifyOtp({
-        email,
-        token: emailOtp,
-        type: 'email',
-      });
-
-      if (verifyError) {
-        const fallbackRes = await supabaseServer.auth.verifyOtp({
-          email,
-          token: emailOtp,
-          type: 'magiclink',
-        });
-        verifyData = fallbackRes.data;
-        verifyError = fallbackRes.error;
-      }
-
-      if (!verifyError && verifyData?.session) {
-        console.log(`[Magic Link Route] Successfully authenticated session for ${email}. Session cookies set!`);
-        return NextResponse.json(
-          { success: true, authenticated: true, redirectUrl: '/dashboard' },
-          { status: 200, headers: corsHeaders }
-        );
-      } else {
-        console.warn('[Magic Link Route] verifyOtp by emailOtp failed:', verifyError?.message);
-      }
-    }
-
-    // 4. Attempt server-side verification with hashed_token
-    if (hashedToken) {
-      console.log(`[Magic Link Route] Verifying token_hash server-side for ${email}...`);
-      const hashRes = await supabaseServer.auth.verifyOtp({
-        token_hash: hashedToken,
-        type: 'magiclink',
-      });
-
-      if (!hashRes.error && hashRes.data?.session) {
-        console.log(`[Magic Link Route] Successfully authenticated session via token_hash for ${email}. Session cookies set!`);
-        return NextResponse.json(
-          { success: true, authenticated: true, redirectUrl: '/dashboard' },
-          { status: 200, headers: corsHeaders }
-        );
-      } else {
-        console.warn('[Magic Link Route] verifyOtp by token_hash failed:', hashRes.error?.message);
-      }
-    }
-
-    // 5. Fallback: Return action_link if direct server session creation failed
-    const actionLink = linkData?.properties?.action_link;
-    if (actionLink) {
-      console.log(`[Magic Link Route] Fallback to action_link: ${actionLink}`);
-      return NextResponse.json(
-        { success: true, redirectUrl: actionLink },
-        { status: 200, headers: corsHeaders }
-      );
-    }
-
-    return NextResponse.json(
-      { redirectUrl: '/dashboard' },
-      { status: 200, headers: corsHeaders }
-    );
-  } catch (err: any) {
-    console.error('[Magic Link Route] Error:', err);
-    return NextResponse.json(
-      { redirectUrl: '/dashboard', error: err?.message || 'Internal error' },
-      { status: 200, headers: corsHeaders }
-    );
+  if (!isAllowedOrigin(request)) {
+    console.warn('[Magic Link] Rejected foreign origin.');
+    return json({ ok: false }, 403);
   }
+
+  const ip = clientIp(request);
+  const turnstile = await verifyTurnstileToken(request.headers.get('x-turnstile-token'), ip);
+  if (!turnstile.ok) {
+    return json({ ok: false }, turnstile.status);
+  }
+
+  const body = await request.json().catch(() => ({}));
+  const email = String(body.email || body.clientEmail || '').trim().toLowerCase();
+  if (!EMAIL_RE.test(email)) {
+    return json({ ok: false, error: 'Valid email address required' }, 400);
+  }
+
+  const ipAllowed = await consumeAuthRateLimit(
+    `auth:magic:ip:${ip}`,
+    MAGIC_LINK_LIMITS.ip,
+    MAGIC_LINK_LIMITS.windowSeconds,
+  );
+  const emailAllowed = await consumeAuthRateLimit(
+    `auth:magic:email:${hashEmail(email)}`,
+    MAGIC_LINK_LIMITS.email,
+    MAGIC_LINK_LIMITS.windowSeconds,
+  );
+  if (!ipAllowed || !emailAllowed) {
+    console.warn('[Magic Link] Rate limited.');
+    return json({ ok: false }, 429);
+  }
+
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.SUPABASE_URL;
+  const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || process.env.SUPABASE_ANON_KEY;
+  if (!supabaseUrl || !anonKey) {
+    console.error('[Magic Link] Auth is not configured.');
+    return json({ ok: false }, 503);
+  }
+
+  const supabase = createClient(supabaseUrl, anonKey, {
+    auth: { persistSession: false, autoRefreshToken: false },
+  });
+
+  const { error } = await supabase.auth.signInWithOtp({
+    email,
+    options: {
+      shouldCreateUser: false,
+      emailRedirectTo: emailRedirectTo(request),
+    },
+  });
+
+  if (error) {
+    console.warn('[Magic Link] Sign-in email was not dispatched.');
+  } else {
+    console.info('[Magic Link] Sign-in email accepted.');
+  }
+
+  return json({ ok: true }, 200);
 }

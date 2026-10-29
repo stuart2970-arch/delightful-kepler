@@ -1,16 +1,15 @@
 "use client";
 
 import { useEffect, useState } from 'react';
-import { useRouter } from 'next/navigation';
 import LegalModal from '@/components/LegalModal';
 import { trackSignUp } from '@/lib/analytics';
 import {
   getSupabaseBrowserClient,
   hasSupabaseBrowserEnv,
 } from '@/lib/supabase-browser';
+import { getBrowserTurnstileToken } from '@/lib/turnstile-client';
 
 export default function LoginPage() {
-  const router = useRouter();
   const [isLogin, setIsLogin] = useState(true);
   const [selectedPlan, setSelectedPlan] = useState('base_tier');
   const [isPlanLocked, setIsPlanLocked] = useState(false);
@@ -128,32 +127,56 @@ export default function LoginPage() {
       });
     }
 
+    let leftLogin = false;
+    const goToApp = () => {
+      if (leftLogin) return;
+      leftLogin = true;
+      const isEmbedded = window.self !== window.top;
+      if (isEmbedded && window.top) {
+        const isLocal = process.env.NODE_ENV === 'development' || process.env.NEXT_PUBLIC_ENV === 'development';
+        const wpAppUrl = isLocal ? 'https://styleflo.test/app' : 'https://styleflo.ai/app';
+        window.top.location.href = wpAppUrl;
+      } else {
+        window.location.assign('/dashboard');
+      }
+    };
+
+    const hashParams = new URLSearchParams(window.location.hash.startsWith('#') ? window.location.hash.slice(1) : '');
+    const accessToken = hashParams.get('access_token');
+    const refreshToken = hashParams.get('refresh_token');
+    const arrivedFromEmail = Boolean(accessToken) || hashParams.get('type') === 'magiclink' || hashParams.get('type') === 'signup';
+
     if (window.location.hash) {
-      const hashParams = new URLSearchParams(window.location.hash.substring(1));
       const hashError = hashParams.get('error_description') || hashParams.get('error');
       if (hashError) {
         setError(decodeURIComponent(hashError));
-      } else if (hashParams.get('type') === 'signup' || hashParams.get('access_token')) {
+      } else if (arrivedFromEmail) {
         setSuccessMessage("Email verified! Redirecting to your dashboard...");
       }
+    }
+
+    // Server-sent magic links arrive as an implicit session fragment. The
+    // browser client uses PKCE for Google, so apply the fragment directly.
+    if (accessToken && refreshToken) {
+      supabase.auth.setSession({ access_token: accessToken, refresh_token: refreshToken }).then(({ error }) => {
+        window.history.replaceState({}, document.title, window.location.pathname + window.location.search);
+        if (error) {
+          setError('That sign-in link could not be used. Request a new one.');
+          return;
+        }
+        goToApp();
+      });
     }
 
     const {
       data: { subscription },
     } = supabase.auth.onAuthStateChange((event) => {
       if (event === 'SIGNED_IN') {
-        const isEmbedded = window.self !== window.top;
-        if (isEmbedded && window.top) {
-          const isLocal = process.env.NODE_ENV === 'development' || process.env.NEXT_PUBLIC_ENV === 'development';
-          const wpAppUrl = isLocal ? 'https://styleflo.test/app' : 'https://styleflo.ai/app';
-          window.top.location.href = wpAppUrl;
-        } else {
-          router.push('/dashboard');
-        }
+        goToApp();
       }
     });
     return () => subscription.unsubscribe();
-  }, [router]);
+  }, []);
 
   const handleSendMagicLink = async () => {
     if (!email || !email.trim() || !email.includes('@')) {
@@ -164,43 +187,27 @@ export default function LoginPage() {
     setError(null);
     setSuccessMessage(null);
     try {
+      const turnstileToken = await getBrowserTurnstileToken();
       const res = await fetch('/api/auth/magic-link', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email: email.trim(), clientEmail: email.trim(), name: fullName }),
+        headers: {
+          'Content-Type': 'application/json',
+          'x-turnstile-token': turnstileToken,
+        },
+        body: JSON.stringify({ email: email.trim() }),
       });
-      const data = await res.json().catch(() => ({}));
 
-      const isLocal = typeof window !== 'undefined' && (
-        window.location.hostname === 'localhost' || 
-        window.location.hostname === '127.0.0.1'
-      );
-      const redirectUrl = isLocal 
-        ? `${window.location.origin}/auth/callback?next=/dashboard`
-        : 'https://app.styleflo.ai/auth/callback?next=/dashboard';
-
-      // 1. If server already authenticated the session (e.g. cookie set) or returned actionLink
-      if (data?.authenticated && data?.redirectUrl) {
-        window.location.href = data.redirectUrl;
+      if (res.status === 429) {
+        setError('Too many sign-in emails were requested. Please wait and try again.');
+        return;
+      }
+      if (!res.ok) {
+        setError('We could not send a sign-in email. Please try again.');
         return;
       }
 
-      // 2. Dispatch OTP email through Supabase client
-      const supabase = getSupabaseBrowserClient();
-      const { error: otpError } = await supabase.auth.signInWithOtp({
-        email: email.trim(),
-        options: {
-          emailRedirectTo: redirectUrl,
-        },
-      });
-
-      if (otpError) {
-        console.error('Supabase signInWithOtp error:', otpError);
-        setError(otpError.message);
-      } else {
-        setMagicLinkSent(true);
-        setDuplicateEmailDetected(false);
-      }
+      setMagicLinkSent(true);
+      setDuplicateEmailDetected(false);
     } catch (e: any) {
       console.error('Magic link error:', e);
       setError(e?.message || 'Failed to send magic login link.');
@@ -228,22 +235,6 @@ export default function LoginPage() {
            throw error;
         }
       } else {
-        // Check email uniqueness before signup
-        const checkRes = await fetch('/api/auth/check-email', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ email: email.trim() }),
-        });
-
-        if (checkRes.ok) {
-          const checkData = await checkRes.json();
-          if (checkData.exists) {
-            setDuplicateEmailDetected(true);
-            setLoading(false);
-            return;
-          }
-        }
-
         if (slugStatus && !slugStatus.available) {
           throw new Error(`The URL slug "${slugStatus.slug}" is already registered by another business. Please pick one of the available suggestions below.`);
         }
@@ -271,7 +262,14 @@ export default function LoginPage() {
             },
           },
         });
-        if (error) throw error;
+        if (error) {
+          if (/already registered|already been registered/i.test(error.message || '')) {
+            setDuplicateEmailDetected(true);
+            setLoading(false);
+            return;
+          }
+          throw error;
+        }
 
         trackSignUp('email', selectedPlan, data?.user?.id);
         

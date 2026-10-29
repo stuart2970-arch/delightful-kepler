@@ -52,8 +52,10 @@ test.describe('Authentication Flows', () => {
 
     await page.getByRole('button', { name: /Send Magic Login Link/i }).click();
 
-    // In automated testing with local Supabase, the server logs in and redirects to /dashboard.
-    // In live cloud usage with email dispatch, it shows the confirmation banner.
-    await expect(page).toHaveURL(/.*dashboard.*/, { timeout: 10000 });
+    // The route emails a link. It must not sign the browser in by itself.
+    await expect(page.getByText('Magic Login Link Sent!')).toBeVisible({ timeout: 10000 });
+    await expect(page).toHaveURL(/\/login/);
+    const cookies = await page.context().cookies();
+    expect(cookies.some((cookie) => /auth-token/i.test(cookie.name))).toBe(false);
   });
 });
