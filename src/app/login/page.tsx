@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useState } from 'react';
-import { useRouter } from 'next/navigation';
 import LegalModal from '@/components/LegalModal';
 import { trackSignUp } from '@/lib/analytics';
 import {
@@ -11,7 +10,6 @@ import {
 import { getBrowserTurnstileToken } from '@/lib/turnstile-client';
 
 export default function LoginPage() {
-  const router = useRouter();
   const [isLogin, setIsLogin] = useState(true);
   const [selectedPlan, setSelectedPlan] = useState('base_tier');
   const [isPlanLocked, setIsPlanLocked] = useState(false);
@@ -139,7 +137,7 @@ export default function LoginPage() {
         const wpAppUrl = isLocal ? 'https://styleflo.test/app' : 'https://styleflo.ai/app';
         window.top.location.href = wpAppUrl;
       } else {
-        router.push('/dashboard');
+        window.location.assign('/dashboard');
       }
     };
 
@@ -178,7 +176,7 @@ export default function LoginPage() {
       }
     });
     return () => subscription.unsubscribe();
-  }, [router]);
+  }, []);
 
   const handleSendMagicLink = async () => {
     if (!email || !email.trim() || !email.includes('@')) {
