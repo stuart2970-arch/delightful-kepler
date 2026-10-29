@@ -1027,7 +1027,6 @@ import { resolveChatFooter } from '../lib/billing/branding';
       if (existing) existing.remove();
 
       const activeEmail = (storedEmail || localStorage.getItem('styleflo-client-email') || '').trim();
-      const activeName = (storedName || localStorage.getItem('styleflo-client-name') || '').trim();
 
       const container = document.createElement('div');
       container.id = 'styleflo-dashboard-btn-container';
@@ -1059,38 +1058,20 @@ import { resolveChatFooter } from '../lib/billing/branding';
       messagesContainer.appendChild(container);
       messagesContainer.scrollTop = messagesContainer.scrollHeight;
 
-      const triggerMagicLink = async (emailVal: string, nameVal: string, btnEl?: HTMLButtonElement | null) => {
+      const openSignIn = (btnEl?: HTMLButtonElement | null) => {
         if (btnEl) {
           btnEl.disabled = true;
           btnEl.style.opacity = '0.75';
-          btnEl.innerHTML = `<span>⏳</span><span>Logging in to Dashboard...</span>`;
+          btnEl.innerHTML = `<span>⏳</span><span>Opening sign in...</span>`;
         }
 
-        try {
-          const hostUrl = apiHost || (typeof window !== 'undefined' ? window.location.origin : '');
-          const res = await fetch(`${hostUrl}/api/auth/magic-link`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ email: emailVal, name: nameVal }),
-          });
-          const data = await res.json().catch(() => ({}));
-          const targetUrl = data.redirectUrl || '/dashboard';
-          
-          if (typeof window !== 'undefined') {
-            if (window.top && window.top !== window) {
-              window.top.location.href = targetUrl;
-            } else {
-              window.location.href = targetUrl;
-            }
-          }
-        } catch (err) {
-          console.error('[Magic Link] Dashboard redirect error:', err);
-          if (typeof window !== 'undefined') {
-            if (window.top && window.top !== window) {
-              window.top.location.href = '/dashboard';
-            } else {
-              window.location.href = '/dashboard';
-            }
+        const hostUrl = apiHost || (typeof window !== 'undefined' ? window.location.origin : '');
+        const targetUrl = `${hostUrl}/login`;
+        if (typeof window !== 'undefined') {
+          if (window.top && window.top !== window) {
+            window.top.location.href = targetUrl;
+          } else {
+            window.location.href = targetUrl;
           }
         }
       };
@@ -1104,7 +1085,7 @@ import { resolveChatFooter } from '../lib/billing/branding';
             localStorage.setItem('styleflo-client-email', emailInput);
             storedEmail = emailInput;
             const submitBtn = emailForm.querySelector('button[type="submit"]') as HTMLButtonElement | null;
-            triggerMagicLink(emailInput, activeName, submitBtn);
+            openSignIn(submitBtn);
           }
         });
       }
@@ -1112,7 +1093,7 @@ import { resolveChatFooter } from '../lib/billing/branding';
       const btn = container.querySelector('.styleflo-dashboard-btn') as HTMLButtonElement | null;
       if (btn && !emailForm) {
         btn.addEventListener('click', () => {
-          triggerMagicLink(activeEmail, activeName, btn);
+          openSignIn(btn);
         });
       }
     }

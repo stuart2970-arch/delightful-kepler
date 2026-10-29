@@ -15,8 +15,15 @@ const corsHeaders = {
 };
 
 export async function proxy(request: NextRequest) {
-  // 0. Always allow CORS OPTIONS preflight requests to pass through cleanly
+  // 0. CORS preflight. Auth routes stay same-origin: no wildcard header.
   if (request.method === 'OPTIONS') {
+    const preflightPath = request.nextUrl.pathname;
+    if (
+      preflightPath.startsWith('/api/auth/magic-link') ||
+      preflightPath.startsWith('/api/auth/check-email')
+    ) {
+      return new NextResponse(null, { status: 204 });
+    }
     return new NextResponse(null, {
       status: 200,
       headers: corsHeaders,

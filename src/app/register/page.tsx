@@ -5,6 +5,7 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import LegalModal from '@/components/LegalModal';
 import { trackSignUp, trackVisitorNotSignedUp, trackLeadIntent } from '@/lib/analytics';
 import { getSupabaseBrowserClient } from '@/lib/supabase-browser';
+import { getBrowserTurnstileToken } from '@/lib/turnstile-client';
 
 function RegisterContent() {
   const router = useRouter();
@@ -214,41 +215,27 @@ function RegisterContent() {
     setSendingMagicLink(true);
     setError(null);
     try {
-      const isLocal = typeof window !== 'undefined' && (
-        window.location.hostname === 'localhost' || 
-        window.location.hostname === '127.0.0.1'
-      );
-      const redirectUrl = isLocal 
-        ? `${window.location.origin}/auth/callback?next=/dashboard`
-        : 'https://app.styleflo.ai/auth/callback?next=/dashboard';
-
+      const turnstileToken = await getBrowserTurnstileToken();
       const res = await fetch('/api/auth/magic-link', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email: email.trim(), clientEmail: email.trim(), name: fullName }),
+        headers: {
+          'Content-Type': 'application/json',
+          'x-turnstile-token': turnstileToken,
+        },
+        body: JSON.stringify({ email: email.trim() }),
       });
-      const data = await res.json().catch(() => ({}));
 
-      if (data?.authenticated && data?.redirectUrl) {
-        window.location.href = data.redirectUrl;
+      if (res.status === 429) {
+        setError('Too many sign-in emails were requested. Please wait and try again.');
+        return;
+      }
+      if (!res.ok) {
+        setError('We could not send a sign-in email. Please try again.');
         return;
       }
 
-      const supabase = getSupabaseBrowserClient();
-      const { error: otpError } = await supabase.auth.signInWithOtp({
-        email: email.trim(),
-        options: {
-          emailRedirectTo: redirectUrl,
-        },
-      });
-
-      if (otpError) {
-        console.error('Supabase signInWithOtp error:', otpError);
-        setError(otpError.message);
-      } else {
-        setMagicLinkSent(true);
-        setDuplicateEmailDetected(false);
-      }
+      setMagicLinkSent(true);
+      setDuplicateEmailDetected(false);
     } catch (e: any) {
       console.error('Magic link error:', e);
       setError(e?.message || 'Failed to send magic login link.');
@@ -270,22 +257,6 @@ function RegisterContent() {
     setMagicLinkSent(false);
 
     try {
-      // 1. Verify master email address uniqueness across all account profiles
-      const checkRes = await fetch('/api/auth/check-email', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email: email.trim() }),
-      });
-
-      if (checkRes.ok) {
-        const checkData = await checkRes.json();
-        if (checkData.exists) {
-          setDuplicateEmailDetected(true);
-          setLoading(false);
-          return;
-        }
-      }
-
       if (slugStatus && !slugStatus.available) {
         throw new Error(`The URL slug "${slugStatus.slug}" is already registered by another business. Please pick one of the available suggestions below.`);
       }
@@ -318,7 +289,14 @@ function RegisterContent() {
           },
         },
       });
-      if (error) throw error;
+      if (error) {
+        if (/already registered|already been registered/i.test(error.message || '')) {
+          setDuplicateEmailDetected(true);
+          setLoading(false);
+          return;
+        }
+        throw error;
+      }
       
       trackSignUp('email', planParam, data?.user?.id);
 
