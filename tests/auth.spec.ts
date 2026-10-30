@@ -48,7 +48,8 @@ test.describe('Authentication Flows', () => {
     await page.goto('/login');
 
     const emailInput = page.locator('input[type="email"]');
-    await emailInput.fill('test001@styleflo.ai');
+    // Unique address: per-email magic-link limit is 3 per 15 minutes.
+    await emailInput.fill(`auth-magic-${Date.now()}@test.styleflo.ai`);
 
     await page.getByRole('button', { name: /Send Magic Login Link/i }).click();
 

@@ -3978,3 +3978,4 @@ Highlighted adjustments in the modal:
 * **Changes**:
   - `getBrowserTurnstileToken` consumes the current slot, then clears it and calls `turnstile.reset(widgetId)` on the still-mounted widget. Error and timeout paths do the same. The 15s timer is cleared when the wait settles.
   - Playwright: two sequential magic-link sends with a mocked `window.turnstile` must send `token-1` then `token-2`.
+  - `tests/auth.spec.ts` uses a unique email so the per-email cap of 3 does not fail a later suite run in the same 15-minute window.
