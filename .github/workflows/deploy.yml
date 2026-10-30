@@ -75,9 +75,13 @@ jobs:
           context: .
           file: ./Dockerfile
           push: true
+          # NEXT_PUBLIC_TURNSTILE_SITE_KEY is public. If the GitHub secret is unset,
+          # fall back to the site key already committed for the production widget.
+          # Do not pass CLOUDFLARE_TURNSTILE_SECRET_KEY as a build-arg.
           build-args: |
             NEXT_PUBLIC_SUPABASE_URL=${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
             NEXT_PUBLIC_SUPABASE_ANON_KEY=${{ secrets.NEXT_PUBLIC_SUPABASE_ANON_KEY }}
+            NEXT_PUBLIC_TURNSTILE_SITE_KEY=${{ secrets.NEXT_PUBLIC_TURNSTILE_SITE_KEY || '0x4AAAAAAEcGPat6Ll-AhKbf' }}
           tags: |
             ${{ env.GCP_REGION }}-docker.pkg.dev/${{ env.GCP_PROJECT_ID }}/${{ env.AR_REPO_NAME }}/${{ env.SERVICE_NAME }}:${{ github.sha }}
             ${{ env.GCP_REGION }}-docker.pkg.dev/${{ env.GCP_PROJECT_ID }}/${{ env.AR_REPO_NAME }}/${{ env.SERVICE_NAME }}:latest
@@ -85,6 +89,13 @@ jobs:
           cache-to: type=gha,mode=max,scope=${{ github.workflow }}-v2
 
       # 6. Deploy Docker container image to Google Cloud Run (zero-downtime rolling release)
+      # Runtime only (names, not values): CLOUDFLARE_TURNSTILE_SECRET_KEY is already
+      # on the Cloud Run service, from Secret Manager secret turnstile_secret_key
+      # (terraform/main.tf). This step does not set env_vars, so that variable is
+      # kept on the new revision. The server reads CLOUDFLARE_TURNSTILE_SECRET_KEY
+      # at request time (src/lib/security/turnstile.ts, src/proxy.ts). It must not
+      # be baked into the image. AUTH_RATE_LIMIT_PER_IP is optional; unset means 20
+      # requests per IP per 15 minutes.
       - name: Deploy to Cloud Run
         id: deploy
         uses: google-github-actions/deploy-cloudrun@v2
@@ -206,3 +217,49 @@ jobs:
             exit 1
           fi
           echo "PASS: /widget.js contains per-session gate logic."
+
+      # 13. Post-Deploy Login Turnstile Site Key (STYL-228)
+      # The public site key must be inside the /login document or its JS chunks.
+      # A missing key is what made production show "Security check is not configured".
+      - name: Post-Deploy Login Turnstile Site Key Smoke Check
+        env:
+          TURNSTILE_SITE_KEY: ${{ secrets.NEXT_PUBLIC_TURNSTILE_SITE_KEY || '0x4AAAAAAEcGPat6Ll-AhKbf' }}
+        run: |
+          APP_URL="${{ steps.deploy.outputs.url }}"
+          echo "Checking /login embeds the public Turnstile site key..."
+
+          if [ -z "$TURNSTILE_SITE_KEY" ]; then
+            echo "::error::Post-deploy smoke check FAILED: Turnstile site key is empty."
+            exit 1
+          fi
+
+          LOGIN_HTML=$(curl -fsSL "$APP_URL/login") || {
+            echo "::error::Post-deploy smoke check FAILED: GET /login failed."
+            exit 1
+          }
+
+          if echo "$LOGIN_HTML" | grep -F -q "data-sitekey=\"${TURNSTILE_SITE_KEY}\""; then
+            echo "PASS: /login HTML renders the Turnstile widget with the site key."
+            exit 0
+          fi
+
+          if echo "$LOGIN_HTML" | grep -F -q "$TURNSTILE_SITE_KEY"; then
+            echo "PASS: /login HTML contains the Turnstile site key."
+            exit 0
+          fi
+
+          FOUND=0
+          while IFS= read -r src; do
+            [ -z "$src" ] && continue
+            BODY=$(curl -fsSL "$APP_URL$src" || true)
+            if echo "$BODY" | grep -F -q "$TURNSTILE_SITE_KEY"; then
+              FOUND=1
+              break
+            fi
+          done < <(echo "$LOGIN_HTML" | grep -oE '/_next/static/[^"'"'"' ]+\.js' | sort -u)
+
+          if [ "$FOUND" != "1" ]; then
+            echo "::error::Post-deploy smoke check FAILED: Turnstile site key not found in /login HTML or JS bundles. Magic-link login will show that the security check is not configured."
+            exit 1
+          fi
+          echo "PASS: /login JS bundle contains the Turnstile site key."

@@ -3962,3 +3962,20 @@ Highlighted adjustments in the modal:
   4. Migration `20261029170000_styl228_auth_rate_limits.sql` was applied to local Supabase only.
   5. Playwright: `tests/styl-228-magic-link-auth.spec.ts` and `tests/auth.spec.ts` — 13 passed. `tsc --noEmit` passed.
   6. Session invalidation and hosted Auth changes were not run. They are documented on the pull request for Stuart.
+
+### Session (STYL-228 hotfix - production Turnstile site key - 30 Oct 2026)
+* **User / Jira**: STYL-228 production hotfix. PR #14 was deployed, then "Send Magic Login Link" on https://app.styleflo.ai/login showed "Security check is not configured" and sent nothing. The production Docker build never received `NEXT_PUBLIC_TURNSTILE_SITE_KEY`. Traffic was rolled back to the 25 Oct revision. Do not merge (merging main deploys production). No writes to live Supabase.
+* **Cause**: `NEXT_PUBLIC_*` is inlined at `next build`. The Dockerfile builder declared Supabase, GA, and Facebook pixel args only, and `deploy.yml` passed only the two Supabase build-args. Staging `apphosting.yaml` sets the site key, but that file is not the Cloud Run build. The server already reads `CLOUDFLARE_TURNSTILE_SECRET_KEY` at runtime; that secret was not the failure.
+* **Changes**:
+  - Dockerfile builder: `ARG`/`ENV NEXT_PUBLIC_TURNSTILE_SITE_KEY`, defaulting to the public site key already in the widget, and failing the build if the value is empty. The Turnstile secret is not a build-arg.
+  - `deploy.yml`: pass `NEXT_PUBLIC_TURNSTILE_SITE_KEY` with a GitHub secret fallback to that public key. Comment how Cloud Run keeps runtime `CLOUDFLARE_TURNSTILE_SECRET_KEY` (Secret Manager `turnstile_secret_key`). Post-deploy smoke check that `GET /login` HTML or JS contains the site key.
+  - Login page renders a Turnstile widget when the site key is set. Playwright: `tests/styl-228-turnstile-site-key.spec.ts`.
+  - Per-IP auth limit is `AUTH_RATE_LIMIT_PER_IP`, default 20 per 15 minutes. Per-email stays 3. `.env.test` / Playwright webServer use 10000. `.env.local` is unchanged.
+  - `npm run typecheck` passed. Playwright: 301 passed (`tests/styl-228-turnstile-site-key.spec.ts` included). Not merged.
+
+### Session (STYL-228 follow-up - single-use Turnstile tokens - 30 Oct 2026)
+* **User / Jira**: STYL-228 review on PR #15. `tokenSlot` was resolved once and reused, so a second "Send Magic Login Link" (or a retry) would send an already-used Turnstile token. Do not merge.
+* **Changes**:
+  - `getBrowserTurnstileToken` consumes the current slot, then clears it and calls `turnstile.reset(widgetId)` on the still-mounted widget. Error and timeout paths do the same. The 15s timer is cleared when the wait settles.
+  - Playwright: two sequential magic-link sends with a mocked `window.turnstile` must send `token-1` then `token-2`.
+  - `tests/auth.spec.ts` uses a unique email so the per-email cap of 3 does not fail a later suite run in the same 15-minute window.

@@ -1,18 +1,30 @@
 "use client";
 
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import LegalModal from '@/components/LegalModal';
 import { trackSignUp } from '@/lib/analytics';
 import {
   getSupabaseBrowserClient,
   hasSupabaseBrowserEnv,
 } from '@/lib/supabase-browser';
-import { getBrowserTurnstileToken } from '@/lib/turnstile-client';
+import {
+  getBrowserTurnstileToken,
+  getTurnstileSiteKey,
+  isDummyTurnstileSiteKey,
+  mountTurnstileWidget,
+} from '@/lib/turnstile-client';
 
 export default function LoginPage() {
+  const turnstileSiteKey = getTurnstileSiteKey();
+  const turnstileHostRef = useRef<HTMLDivElement>(null);
   const [isLogin, setIsLogin] = useState(true);
   const [selectedPlan, setSelectedPlan] = useState('base_tier');
   const [isPlanLocked, setIsPlanLocked] = useState(false);
+
+  useEffect(() => {
+    if (!isLogin || !turnstileHostRef.current) return;
+    mountTurnstileWidget(turnstileHostRef.current);
+  }, [turnstileSiteKey, isLogin]);
 
   useEffect(() => {
     if (typeof window !== 'undefined') {
@@ -670,6 +682,21 @@ export default function LoginPage() {
               >
                 {loading ? 'Signing In...' : '🔑 Sign In with Password'}
               </button>
+
+              {turnstileSiteKey ? (
+                <div
+                  ref={turnstileHostRef}
+                  data-testid="turnstile-widget"
+                  data-sitekey={turnstileSiteKey}
+                  data-turnstile-rendered={isDummyTurnstileSiteKey(turnstileSiteKey) ? 'test' : 'live'}
+                  aria-label="Security check"
+                  className={
+                    isDummyTurnstileSiteKey(turnstileSiteKey)
+                      ? 'h-px w-full overflow-hidden'
+                      : 'flex min-h-[65px] w-full items-center justify-center'
+                  }
+                />
+              ) : null}
 
               <button
                 type="button"

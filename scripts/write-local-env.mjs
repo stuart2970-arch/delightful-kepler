@@ -78,6 +78,9 @@ function buildEnvFile({ apiUrl, anon, service, appUrl, appEnv, playwright }) {
   if (playwright) {
     lines.push('PLAYWRIGHT_TEST=true');
     lines.push('NODE_ENV=test');
+    // Production default is 20/15min. The suite shares one IP against a
+    // 15-minute window, so tests need a high ceiling. Do not copy this to Cloud Run.
+    lines.push('AUTH_RATE_LIMIT_PER_IP=10000');
   }
   lines.push('');
   return lines.join('\n');

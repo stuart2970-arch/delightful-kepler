@@ -1,8 +1,36 @@
 import crypto from 'node:crypto';
 import { createClient } from '@supabase/supabase-js';
 
-export const MAGIC_LINK_LIMITS = { ip: 200, email: 3, windowSeconds: 15 * 60 };
-export const CHECK_EMAIL_LIMITS = { ip: 200, email: 5, windowSeconds: 15 * 60 };
+/** Production default: 20 requests per IP per 15 minutes. Tests raise this via AUTH_RATE_LIMIT_PER_IP. */
+const DEFAULT_AUTH_RATE_LIMIT_PER_IP = 20;
+
+/**
+ * Per-IP ceiling for magic-link and check-email. Unset, blank, or invalid
+ * values use the production default. Per-email limits are not affected.
+ */
+export function authRateLimitPerIp(): number {
+  const raw = process.env.AUTH_RATE_LIMIT_PER_IP;
+  if (raw == null || raw.trim() === '') return DEFAULT_AUTH_RATE_LIMIT_PER_IP;
+  const parsed = Number.parseInt(raw, 10);
+  if (!Number.isFinite(parsed) || parsed < 1) return DEFAULT_AUTH_RATE_LIMIT_PER_IP;
+  return parsed;
+}
+
+export const MAGIC_LINK_LIMITS = {
+  get ip() {
+    return authRateLimitPerIp();
+  },
+  email: 3,
+  windowSeconds: 15 * 60,
+};
+
+export const CHECK_EMAIL_LIMITS = {
+  get ip() {
+    return authRateLimitPerIp();
+  },
+  email: 5,
+  windowSeconds: 15 * 60,
+};
 
 function getSupabaseAdmin() {
   const supabaseUrl = process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL;

@@ -28,7 +28,10 @@ export default defineConfig({
     reuseExistingServer: false,
     timeout: 120 * 1000,
     env: {
+      ...process.env,
       PLAYWRIGHT_TEST: 'true',
+      // High ceiling so the shared test IP is not blocked. Production omits this (default 20).
+      AUTH_RATE_LIMIT_PER_IP: process.env.AUTH_RATE_LIMIT_PER_IP || '10000',
     },
   },
 });
