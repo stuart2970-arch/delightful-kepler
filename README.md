@@ -3972,3 +3972,9 @@ Highlighted adjustments in the modal:
   - Login page renders a Turnstile widget when the site key is set. Playwright: `tests/styl-228-turnstile-site-key.spec.ts`.
   - Per-IP auth limit is `AUTH_RATE_LIMIT_PER_IP`, default 20 per 15 minutes. Per-email stays 3. `.env.test` / Playwright webServer use 10000. `.env.local` is unchanged.
   - `npm run typecheck` passed. Playwright: 301 passed (`tests/styl-228-turnstile-site-key.spec.ts` included). Not merged.
+
+### Session (STYL-228 follow-up - single-use Turnstile tokens - 30 Oct 2026)
+* **User / Jira**: STYL-228 review on PR #15. `tokenSlot` was resolved once and reused, so a second "Send Magic Login Link" (or a retry) would send an already-used Turnstile token. Do not merge.
+* **Changes**:
+  - `getBrowserTurnstileToken` consumes the current slot, then clears it and calls `turnstile.reset(widgetId)` on the still-mounted widget. Error and timeout paths do the same. The 15s timer is cleared when the wait settles.
+  - Playwright: two sequential magic-link sends with a mocked `window.turnstile` must send `token-1` then `token-2`.

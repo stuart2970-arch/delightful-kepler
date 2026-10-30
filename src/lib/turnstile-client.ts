@@ -1,19 +1,32 @@
 const DUMMY_SITE_KEY_PREFIXES = ['1x', '2x', '3x'];
 
-type TurnstileApi = {
-  render: (
-    container: HTMLElement,
-    options: {
-      sitekey: string;
-      callback: (token: string) => void;
-      'error-callback'?: () => void;
-      appearance?: 'always' | 'execute' | 'interaction-only';
-    },
-  ) => string;
+type TurnstileRenderOptions = {
+  sitekey: string;
+  callback: (token: string) => void;
+  'error-callback'?: () => void;
+  appearance?: 'always' | 'execute' | 'interaction-only';
 };
+
+type TurnstileApi = {
+  render: (container: HTMLElement, options: TurnstileRenderOptions) => string;
+  reset?: (widgetId: string) => void;
+};
+
+type TurnstileWindow = Window & {
+  turnstile?: TurnstileApi;
+  __STYLEFLO_TEST_TURNSTILE_TOKEN__?: string;
+  __STYLEFLO_TEST_TURNSTILE_SITE_KEY__?: string;
+};
+
+function turnstileWindow(): TurnstileWindow | undefined {
+  if (typeof window === 'undefined') return undefined;
+  return window as TurnstileWindow;
+}
 
 /** Literal NEXT_PUBLIC_ access so Next inlines the value at `next build`. */
 export function getTurnstileSiteKey(): string {
+  const testKey = turnstileWindow()?.__STYLEFLO_TEST_TURNSTILE_SITE_KEY__;
+  if (testKey) return testKey;
   return process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY || '';
 }
 
@@ -33,7 +46,15 @@ type TokenSlot = {
   settled: boolean;
 };
 
+type MountedWidget = {
+  container: HTMLElement;
+  widgetId: string;
+  siteKey: string;
+};
+
 let tokenSlot: TokenSlot | null = null;
+let mountedWidget: MountedWidget | null = null;
+let mountInFlight = false;
 
 function createTokenSlot(): TokenSlot {
   let resolve!: (token: string) => void;
@@ -45,6 +66,11 @@ function createTokenSlot(): TokenSlot {
   return { promise, resolve, reject, settled: false };
 }
 
+function ensureSlot(): TokenSlot {
+  if (!tokenSlot) tokenSlot = createTokenSlot();
+  return tokenSlot;
+}
+
 function settle(slot: TokenSlot, error: Error | null, token?: string) {
   if (slot.settled) return;
   slot.settled = true;
@@ -52,9 +78,50 @@ function settle(slot: TokenSlot, error: Error | null, token?: string) {
   else slot.resolve(token || '');
 }
 
+function resetMountedWidget() {
+  const widgetId = mountedWidget?.widgetId;
+  const reset = turnstileWindow()?.turnstile?.reset;
+  if (!widgetId || !reset) return;
+  try {
+    reset(widgetId);
+  } catch {
+    // The next getBrowserTurnstileToken call will wait on a new slot.
+  }
+}
+
+/**
+ * Drop a consumed or failed token so the next request cannot reuse it.
+ * Turnstile tokens are single-use; reset the still-mounted widget for a fresh one.
+ */
+function releaseSlot(slot: TokenSlot | null) {
+  if (slot && tokenSlot === slot) {
+    tokenSlot = null;
+  }
+  resetMountedWidget();
+}
+
+function waitForToken(slot: TokenSlot, timeoutMs: number): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const timeoutId = window.setTimeout(() => {
+      settle(slot, new Error('Security check timed out.'));
+    }, timeoutMs);
+    slot.promise.then(
+      (token) => {
+        window.clearTimeout(timeoutId);
+        resolve(token);
+      },
+      (error) => {
+        window.clearTimeout(timeoutId);
+        reject(error);
+      },
+    );
+  });
+}
+
 function loadTurnstileScript(): Promise<void> {
-  if (typeof window === 'undefined') return Promise.resolve();
-  if ((window as Window & { turnstile?: TurnstileApi }).turnstile) return Promise.resolve();
+  const win = turnstileWindow();
+  if (!win) return Promise.resolve();
+  if (win.turnstile) return Promise.resolve();
   return new Promise((resolve, reject) => {
     const existing = document.querySelector('script[data-styleflo-turnstile="1"]');
     if (existing) {
@@ -73,24 +140,31 @@ function loadTurnstileScript(): Promise<void> {
   });
 }
 
-function renderInto(container: HTMLElement, siteKey: string, slot: TokenSlot) {
+function renderInto(container: HTMLElement, siteKey: string) {
   loadTurnstileScript()
     .then(() => {
-      const turnstile = (window as Window & { turnstile?: TurnstileApi }).turnstile;
+      const turnstile = turnstileWindow()?.turnstile;
       if (!turnstile) {
-        settle(slot, new Error('Security check could not start.'));
+        mountInFlight = false;
+        settle(ensureSlot(), new Error('Security check could not start.'));
         return;
       }
       container.dataset.turnstileRendered = 'live';
-      turnstile.render(container, {
-        sitekey: siteKey,
-        appearance: 'interaction-only',
-        callback: (token: string) => settle(slot, null, token),
-        'error-callback': () => settle(slot, new Error('Security check failed.')),
-      });
+      mountedWidget = { container, widgetId: '', siteKey };
+      const widgetId = String(
+        turnstile.render(container, {
+          sitekey: siteKey,
+          appearance: 'interaction-only',
+          callback: (token: string) => settle(ensureSlot(), null, token),
+          'error-callback': () => settle(ensureSlot(), new Error('Security check failed.')),
+        }),
+      );
+      mountedWidget.widgetId = widgetId;
+      mountInFlight = false;
     })
     .catch(() => {
-      settle(slot, new Error('Security check could not start.'));
+      mountInFlight = false;
+      settle(ensureSlot(), new Error('Security check could not start.'));
     });
 }
 
@@ -102,21 +176,22 @@ function renderInto(container: HTMLElement, siteKey: string, slot: TokenSlot) {
 export function mountTurnstileWidget(container: HTMLElement): void {
   const siteKey = getTurnstileSiteKey();
   if (!siteKey || isDummyTurnstileSiteKey(siteKey)) return;
-  if (tokenSlot) return;
-  const slot = createTokenSlot();
-  tokenSlot = slot;
-  renderInto(container, siteKey, slot);
+  if (mountedWidget || mountInFlight) return;
+  mountInFlight = true;
+  ensureSlot();
+  renderInto(container, siteKey);
 }
 
 /**
  * Token for same-origin auth requests. Dummy site keys (local and staging
  * always-pass keys) are sent as the token. A real site key renders Turnstile.
+ * Each returned token is consumed exactly once; the mounted widget is reset
+ * so the next call receives a fresh token.
  */
 export async function getBrowserTurnstileToken(): Promise<string> {
-  if (typeof window !== 'undefined') {
-    const testToken = (window as Window & { __STYLEFLO_TEST_TURNSTILE_TOKEN__?: string })
-      .__STYLEFLO_TEST_TURNSTILE_TOKEN__;
-    if (testToken) return testToken;
+  const win = turnstileWindow();
+  if (win?.__STYLEFLO_TEST_TURNSTILE_TOKEN__) {
+    return win.__STYLEFLO_TEST_TURNSTILE_TOKEN__;
   }
 
   const siteKey = getTurnstileSiteKey();
@@ -126,7 +201,7 @@ export async function getBrowserTurnstileToken(): Promise<string> {
     throw new Error('Security check is not configured.');
   }
 
-  if (!tokenSlot) {
+  if (!mountedWidget && !mountInFlight) {
     const container = document.createElement('div');
     container.style.position = 'absolute';
     container.style.width = '0';
@@ -135,10 +210,14 @@ export async function getBrowserTurnstileToken(): Promise<string> {
     document.body.appendChild(container);
     mountTurnstileWidget(container);
   }
-  if (!tokenSlot) throw new Error('Security check is not configured.');
 
-  const timeout = new Promise<string>((_, reject) => {
-    window.setTimeout(() => reject(new Error('Security check timed out.')), 15000);
-  });
-  return Promise.race([tokenSlot.promise, timeout]);
+  const slot = ensureSlot();
+  try {
+    const token = await waitForToken(slot, 15000);
+    releaseSlot(slot);
+    return token;
+  } catch (error) {
+    releaseSlot(slot);
+    throw error;
+  }
 }

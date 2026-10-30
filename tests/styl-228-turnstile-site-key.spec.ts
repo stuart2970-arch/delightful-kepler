@@ -114,4 +114,61 @@ test.describe('STYL-228 Turnstile site key and auth rate limit', () => {
     await expect(page.getByText('Security check is not configured')).toHaveCount(0);
     await expect(page.getByRole('button', { name: /Send Magic Login Link/i })).toBeVisible();
   });
+
+  test('two magic-link sends consume distinct Turnstile tokens', async ({ page }) => {
+    await page.addInitScript(() => {
+      const win = window as Window & {
+        __STYLEFLO_TEST_TURNSTILE_SITE_KEY__?: string;
+        turnstile?: {
+          render: (
+            container: HTMLElement,
+            options: { callback: (token: string) => void; 'error-callback'?: () => void },
+          ) => string;
+          reset: (widgetId: string) => void;
+        };
+      };
+      win.__STYLEFLO_TEST_TURNSTILE_SITE_KEY__ = '0xTEST_SITE_KEY_NOT_DUMMY';
+      let seq = 0;
+      let lastCallback: ((token: string) => void) | null = null;
+      const issue = () => {
+        seq += 1;
+        const token = `token-${seq}`;
+        queueMicrotask(() => lastCallback?.(token));
+        return token;
+      };
+      win.turnstile = {
+        render(_container, options) {
+          lastCallback = options.callback;
+          issue();
+          return 'widget-1';
+        },
+        reset() {
+          issue();
+        },
+      };
+    });
+
+    const tokens: string[] = [];
+    await page.route('**/api/auth/magic-link', async (route) => {
+      tokens.push(route.request().headers()['x-turnstile-token'] || '');
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({ ok: true }),
+      });
+    });
+
+    await page.goto('/login');
+    const widget = page.getByTestId('turnstile-widget');
+    await expect(widget).toBeVisible();
+    await page.locator('input[type="email"]').fill('retry@test.styleflo.ai');
+    await page.getByRole('button', { name: /Send Magic Login Link/i }).click();
+    await expect.poll(() => tokens.length).toBe(1);
+    await page.getByRole('button', { name: /Send Magic Login Link/i }).click();
+    await expect.poll(() => tokens.length).toBe(2);
+    expect(tokens[0]).toBe('token-1');
+    expect(tokens[1]).toBe('token-2');
+    expect(tokens[0]).not.toBe(tokens[1]);
+    await expect(widget).toBeVisible();
+  });
 });
