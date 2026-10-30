@@ -1,4 +1,4 @@
-# Firebase App Hosting — STAGING environment overrides (STYL-203).
+# Firebase App Hosting — STAGING environment overrides (STYL-203 / STYL-226).
 # Backend: delightful-kepler in Firebase project styleflo-staging (europe-west4).
 #
 # IMPORTANT: Set the backend Environment name to exactly "staging" in Firebase
@@ -8,6 +8,7 @@
 #
 # Stuart: create secrets with `firebase apphosting:secrets:set` — see docs/staging.md.
 # FORBIDDEN: the live Supabase project ref (CI: npm run check:staging-no-live-ref).
+# Do NOT use empty-string env values. WordPress secrets stay unwired.
 
 runConfig:
   minInstances: 0
@@ -26,6 +27,19 @@ env:
 
   - variable: NEXT_PUBLIC_ENV
     value: staging
+    availability:
+      - BUILD
+      - RUNTIME
+
+  # Re-assert the custom domain so a missing Environment name cannot keep hosted.app.
+  - variable: NEXT_PUBLIC_APP_URL
+    value: https://staging.styleflo.ai
+    availability:
+      - BUILD
+      - RUNTIME
+
+  - variable: NEXT_PUBLIC_SITE_URL
+    value: https://staging.styleflo.ai
     availability:
       - BUILD
       - RUNTIME
@@ -73,5 +87,138 @@ env:
 
   - variable: TOKEN_ENC_KEY
     secret: TOKEN_ENC_KEY
+    availability:
+      - RUNTIME
+
+  # ---------------------------------------------------------------------------
+  # Feature secrets (STYL-226) — names only, already saved in Secret Manager
+  # ---------------------------------------------------------------------------
+  - variable: STRIPE_SECRET_KEY
+    secret: STRIPE_SECRET_KEY
+    availability:
+      - RUNTIME
+
+  - variable: STRIPE_WEBHOOK_SECRET
+    secret: STRIPE_WEBHOOK_SECRET
+    availability:
+      - RUNTIME
+
+  - variable: TWILIO_ACCOUNT_SID
+    secret: TWILIO_ACCOUNT_SID
+    availability:
+      - RUNTIME
+
+  - variable: TWILIO_AUTH_TOKEN
+    secret: TWILIO_AUTH_TOKEN
+    availability:
+      - RUNTIME
+
+  - variable: VAPI_API_KEY
+    secret: VAPI_API_KEY
+    availability:
+      - RUNTIME
+
+  - variable: NEXT_PUBLIC_VAPI_PUBLIC_KEY
+    secret: NEXT_PUBLIC_VAPI_PUBLIC_KEY
+    availability:
+      - BUILD
+      - RUNTIME
+
+  - variable: VAPI_MASTER_ASSISTANT_ID
+    secret: VAPI_MASTER_ASSISTANT_ID
+    availability:
+      - RUNTIME
+
+  # Aliases for existing readers (same Secret Manager names).
+  - variable: VAPI_PRIVATE_API_KEY
+    secret: VAPI_API_KEY
+    availability:
+      - RUNTIME
+
+  - variable: VAPI_PRIVATE_KEY
+    secret: VAPI_API_KEY
+    availability:
+      - RUNTIME
+
+  - variable: VAPI_PUBLIC_KEY
+    secret: NEXT_PUBLIC_VAPI_PUBLIC_KEY
+    availability:
+      - BUILD
+      - RUNTIME
+
+  - variable: VAPI_SECRET_KEY
+    secret: VAPI_API_KEY
+    availability:
+      - RUNTIME
+
+  - variable: MAILGUN_API_KEY
+    secret: MAILGUN_API_KEY
+    availability:
+      - RUNTIME
+
+  - variable: MAILGUN_DOMAIN
+    secret: MAILGUN_DOMAIN
+    availability:
+      - RUNTIME
+
+  - variable: CRON_SECRET
+    secret: CRON_SECRET
+    availability:
+      - RUNTIME
+
+  - variable: GOOGLE_CLIENT_ID
+    secret: GOOGLE_CLIENT_ID
+    availability:
+      - RUNTIME
+
+  - variable: GOOGLE_CLIENT_SECRET
+    secret: GOOGLE_CLIENT_SECRET
+    availability:
+      - RUNTIME
+
+  - variable: MICROSOFT_CLIENT_ID
+    secret: MICROSOFT_CLIENT_ID
+    availability:
+      - RUNTIME
+
+  - variable: MICROSOFT_CLIENT_SECRET
+    secret: MICROSOFT_CLIENT_SECRET
+    availability:
+      - RUNTIME
+
+  - variable: ELEVENLABS_API_KEY
+    secret: ELEVENLABS_API_KEY
+    availability:
+      - RUNTIME
+
+  - variable: GOOGLE_PLACES_SERVER_API_KEY
+    secret: GOOGLE_PLACES_SERVER_API_KEY
+    availability:
+      - RUNTIME
+
+  # Twilio Regulatory SIDs — plain values from Jira STYL-226 comment 10163.
+  # Staging subaccount only. Do not buy numbers.
+  - variable: TWILIO_BUNDLE_SID_LOCAL
+    value: BU21ce482f825c7263e4ba8556a1c94b11
+    availability:
+      - RUNTIME
+
+  - variable: TWILIO_BUNDLE_SID_MOBILE
+    value: BU6ae684fb23275d19795ddbc24f181ce4
+    availability:
+      - RUNTIME
+
+  - variable: TWILIO_ADDRESS_SID
+    value: ADd983d6a7a08dd1b1cf9f1daed1f52ce9
+    availability:
+      - RUNTIME
+
+  - variable: TWILIO_ADDRESS_SID_LOCAL
+    value: ADd983d6a7a08dd1b1cf9f1daed1f52ce9
+    availability:
+      - RUNTIME
+
+  - variable: TWILIO_ADDRESS_SID_MOBILE
+    value: AD61be22428bc7bf96a243c6d83a42e57f
     availability:
       - RUNTIME

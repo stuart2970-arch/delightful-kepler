@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createServerClient } from '@supabase/ssr';
 import { cookies } from 'next/headers';
+import { getWordpressPublishConfig } from '@/lib/env/wordpress-publish';
 
 export async function POST(req: NextRequest) {
   try {
@@ -65,11 +66,18 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: updateErr.message }, { status: 500 });
     }
 
-    // 2. Dispatch manual creation / sync call to WordPress
-    const wordpressSiteUrl = process.env.WORDPRESS_SITE_URL || 'https://styleflo.ai';
-    const wpApiUrl = `${wordpressSiteUrl}/wp-json/styleflo/v1/create-business`;
-    const token = process.env.STYLEFLO_WP_CREATE_BUSINESS_TOKEN || 'd1f5e82b79a83604f05c48b2';
+    const wpConfig = getWordpressPublishConfig();
+    if (!wpConfig.enabled) {
+      return NextResponse.json({
+        success: true,
+        slug: finalSlug,
+        company_name: cleanName,
+        wordpressPublished: false,
+        error: wpConfig.reason,
+      }, { status: 200 });
+    }
 
+    const wpApiUrl = `${wpConfig.wordpressSiteUrl}/wp-json/styleflo/v1/create-business`;
     console.log(`[Publish Business Page] Dispatching page creation for "${cleanName}" (${finalSlug}) to WordPress: ${wpApiUrl}`);
 
     const wpRes = await fetch(wpApiUrl, {
@@ -78,7 +86,7 @@ export async function POST(req: NextRequest) {
       body: JSON.stringify({
         slug: finalSlug,
         title: cleanName,
-        token: token
+        token: wpConfig.token
       })
     });
 
@@ -89,7 +97,7 @@ export async function POST(req: NextRequest) {
     }
 
     const wpResult = await wpRes.json();
-    const pageUrl = `${wordpressSiteUrl}/business/${finalSlug}`;
+    const pageUrl = `${wpConfig.wordpressSiteUrl}/business/${finalSlug}`;
 
     return NextResponse.json({
       success: true,

@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import { allocateRollingCredits } from '@/lib/entitlements';
 import { resolvePricePaidPence } from '@/lib/billing/account-ownership';
+import { parseStripeWebhookEvent } from '@/lib/env/stripe-webhook';
 
 export const dynamic = 'force-dynamic';
 
@@ -160,12 +161,17 @@ async function processAddonLineItems(
 
 export async function POST(req: Request) {
   try {
-    const rawBody = await req.json().catch(() => ({}));
-    const eventType = rawBody.type || 'direct_payload';
+    const payload = await req.text();
+    // Signature check uses stripe.webhooks.constructEvent inside parseStripeWebhookEvent.
+    const parsed = parseStripeWebhookEvent(payload, req.headers.get('stripe-signature'));
+    if (!parsed.ok) {
+      return NextResponse.json({ error: parsed.error }, { status: 400 });
+    }
+    const event = parsed.event;
+    const eventType: string = event.type || 'direct_payload';
     console.log('[Stripe Webhook] Event received:', eventType);
 
-    const event = rawBody;
-    const dataObject = event.data?.object || rawBody;
+    const dataObject = (event.data && 'object' in event.data ? event.data.object : {}) as Record<string, any>;
 
     const supabaseAdmin = getSupabaseAdmin();
 
