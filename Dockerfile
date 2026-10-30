@@ -51,6 +51,19 @@ ENV NEXT_PUBLIC_GA_MEASUREMENT_ID=$NEXT_PUBLIC_GA_MEASUREMENT_ID
 ARG NEXT_PUBLIC_FB_PIXEL_ID=
 ENV NEXT_PUBLIC_FB_PIXEL_ID=$NEXT_PUBLIC_FB_PIXEL_ID
 
+# STYL-228: Next inlines NEXT_PUBLIC_* at `next build`. Without this, /login
+# throws "Security check is not configured" and never calls Turnstile.
+# The default is the public production site key already shipped in the widget
+# (src/widget/index.ts). It is not a secret. An empty --build-arg must fail
+# rather than bake a blank key. Never pass CLOUDFLARE_TURNSTILE_SECRET_KEY here.
+ARG NEXT_PUBLIC_TURNSTILE_SITE_KEY=0x4AAAAAAEcGPat6Ll-AhKbf
+ENV NEXT_PUBLIC_TURNSTILE_SITE_KEY=$NEXT_PUBLIC_TURNSTILE_SITE_KEY
+
+RUN if [ -z "$NEXT_PUBLIC_TURNSTILE_SITE_KEY" ]; then \
+      echo "ERROR (STYL-228): NEXT_PUBLIC_TURNSTILE_SITE_KEY is empty. Refusing to build a login page with no Turnstile site key."; \
+      exit 1; \
+    fi
+
 # Run the build script (triggers Next.js build + widget.js bundling)
 RUN npm run build
 
