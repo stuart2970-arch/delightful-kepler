@@ -3,6 +3,7 @@ import Stripe from 'stripe';
 import { createClient } from '@supabase/supabase-js';
 import { buildCheckoutLineDescription } from '@/lib/addon-text';
 import { applyPublicAddonFilter, isAddonSellable } from '@/lib/addons/public-catalogue';
+import { publicAppPath } from '@/lib/env/public-app-url';
 
 export const dynamic = 'force-dynamic';
 
@@ -155,7 +156,7 @@ export async function GET(req: Request) {
       sessionMetadata.selected_addons = selectedAddonIds.join(',');
     }
 
-    const defaultConfirmedUrl = isLocal ? 'http://localhost:3000/payment-confirmed' : 'https://app.styleflo.ai/payment-confirmed';
+    const defaultConfirmedUrl = publicAppPath('/payment-confirmed');
     const targetSuccessUrl = returnUrl || defaultConfirmedUrl;
 
     const session = await stripe.checkout.sessions.create({
@@ -561,7 +562,7 @@ export async function POST(req: Request) {
         sessionMetadata.selected_addons = selectedAddonIds.join(',');
       }
 
-      const defaultConfirmedUrl = isLocal ? 'http://localhost:3000/payment-confirmed' : 'https://app.styleflo.ai/payment-confirmed';
+      const defaultConfirmedUrl = publicAppPath('/payment-confirmed');
       const targetSuccessUrl = returnUrl || defaultConfirmedUrl;
 
       const session = await stripe.checkout.sessions.create({

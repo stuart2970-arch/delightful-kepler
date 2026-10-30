@@ -13,6 +13,7 @@ import {
   isDummyTurnstileSiteKey,
   mountTurnstileWidget,
 } from '@/lib/turnstile-client';
+import { publicAppPath } from '@/lib/env/public-app-url';
 
 export default function LoginPage() {
   const turnstileSiteKey = getTurnstileSiteKey();
@@ -253,13 +254,7 @@ export default function LoginPage() {
 
         const finalSlug = slugStatus?.slug || companyName.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
 
-        const isLocal = typeof window !== 'undefined' && (
-          window.location.hostname === 'localhost' || 
-          window.location.hostname === '127.0.0.1'
-        );
-        const redirectUrl = isLocal 
-          ? `${window.location.origin}/auth/callback?next=/dashboard`
-          : 'https://app.styleflo.ai/auth/callback?next=/dashboard';
+        const redirectUrl = publicAppPath('/auth/callback?next=/dashboard');
 
         const { data, error } = await supabase.auth.signUp({
           email,
@@ -336,13 +331,7 @@ export default function LoginPage() {
     setLoading(true);
     setError(null);
     try {
-      const isLocal = typeof window !== 'undefined' && (
-        window.location.hostname === 'localhost' || 
-        window.location.hostname === '127.0.0.1'
-      );
-      const redirectUrl = isLocal 
-        ? `${window.location.origin}/dashboard`
-        : 'https://app.styleflo.ai/dashboard';
+      const redirectUrl = publicAppPath('/dashboard');
 
       const supabase = getSupabaseBrowserClient();
       const { error } = await supabase.auth.signInWithOAuth({

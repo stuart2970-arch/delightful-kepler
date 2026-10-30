@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { google } from 'googleapis';
 import { createServerClient } from '@/utils/supabase-server';
+import { publicAppPath } from '@/lib/env/public-app-url';
 
 export async function GET(request: NextRequest) {
   try {
@@ -14,7 +15,7 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const appUrl = process.env.NEXT_PUBLIC_APP_URL || process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000';
+    const appUrl = publicAppPath('');
 
     // Verify tenant has active Google Calendar bolt-on or entitlement
     const { data: profile } = await supabase

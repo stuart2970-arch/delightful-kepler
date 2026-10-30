@@ -3979,3 +3979,11 @@ Highlighted adjustments in the modal:
   - `getBrowserTurnstileToken` consumes the current slot, then clears it and calls `turnstile.reset(widgetId)` on the still-mounted widget. Error and timeout paths do the same. The 15s timer is cleared when the wait settles.
   - Playwright: two sequential magic-link sends with a mocked `window.turnstile` must send `token-1` then `token-2`.
   - `tests/auth.spec.ts` uses a unique email so the per-email cap of 3 does not fail a later suite run in the same 15-minute window.
+
+### Session (STYL-226 items 2–4 - staging gate into staging - 30 Oct 2026)
+* **User / Jira**: STYL-226 signed-off staging plan items 2, 3 and 4. One PR whose base is `staging` (7071e18). Stuart D1–D8 override the plan: no `deploy-staging.yml`; no GitHub `production` environment on `deploy.yml`; WordPress off on staging with no live fallback; no Twilio buys or real calls; wire `STRIPE_WEBHOOK_SECRET` and verify signatures; one long-lived `staging` branch plus same-day hotfix back-merge; production auto-rollback out of scope.
+* **Changes**:
+  - Item 2: `playwright.yml` runs on PRs to `main` and `staging`. `docs/staging.md` documents live branch `staging`, `https://staging.styleflo.ai`, the merge flow, and same-day hotfix back-merge. `tests/styl-226-release-source.spec.ts` (no production-environment assertion).
+  - Item 3: `apphosting.yaml` / `apphosting.staging.yaml` set public URLs to `https://staging.styleflo.ai` and reference Stripe, Twilio (staging SIDs from Jira comment 10163), Vapi (+ aliases), Mailgun, `CRON_SECRET`, Google/Microsoft OAuth, ElevenLabs, and Places by Secret Manager **name**. WordPress secrets stay unwired. STYL-203 tests updated.
+  - Item 4a–4g: `getPublicAppOrigin` / `publicAppPath` for login, register, onboard, checkout, magic-link, and OAuth callbacks; widget Turnstile from env only; host-only SSO cookies on staging; WordPress guard; Vapi from env only; inbound no longer selects dropped `chatbots.vapi_assistant_id`; Stripe `constructEvent` verification.
+  - Playwright: `tests/styl-226-*.spec.ts`. Full local suite against `.env.test` / local Supabase (never live).

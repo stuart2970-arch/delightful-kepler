@@ -1,6 +1,7 @@
 import { verifyChatSessionToken } from '@/lib/chat-session';
 import { createServerClient } from '@supabase/ssr';
 import { NextResponse, type NextRequest } from 'next/server';
+import { resolveSsoCookieDomain } from '@/lib/env/cookie-domain';
 
 // Unauthenticated public routes requiring Cloudflare Turnstile bot verification
 const PUBLIC_TURNSTILE_ROUTES = ['/api/chat/public-init'];
@@ -176,9 +177,12 @@ export async function proxy(request: NextRequest) {
     return NextResponse.next({ request });
   }
 
-  // Determine the shared domain for SSO based on environment
   const isLocal = process.env.NODE_ENV === 'development' || process.env.NEXT_PUBLIC_ENV === 'development';
-  const sharedDomain = isLocal ? '.styleflo.test' : '.styleflo.ai';
+  const sharedDomain = resolveSsoCookieDomain({
+    appEnv: process.env.APP_ENV || process.env.NEXT_PUBLIC_ENV,
+    nodeEnv: process.env.NODE_ENV,
+    hostname: request.nextUrl.hostname,
+  });
 
   const supabase = createServerClient(
     supabaseUrl,
@@ -243,7 +247,7 @@ export async function proxy(request: NextRequest) {
   // Sync SSO token for WordPress
   if (session?.access_token) {
     supabaseResponse.cookies.set('styleflo_sso_token', session.access_token, {
-      domain: sharedDomain,
+      ...(sharedDomain ? { domain: sharedDomain } : {}),
       path: '/',
       sameSite: 'lax',
       secure: !isLocal,
@@ -252,7 +256,7 @@ export async function proxy(request: NextRequest) {
   } else {
     supabaseResponse.cookies.delete({
       name: 'styleflo_sso_token',
-      domain: sharedDomain,
+      ...(sharedDomain ? { domain: sharedDomain } : {}),
       path: '/'
     });
   }
