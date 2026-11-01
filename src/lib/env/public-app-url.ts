@@ -61,3 +61,38 @@ export function publicAppPath(
   const path = pathname.startsWith('/') ? pathname : `/${pathname}`;
   return `${origin}${path}`;
 }
+
+function originOf(raw: string): string | null {
+  try {
+    const url = new URL(raw);
+    if (url.protocol !== 'http:' && url.protocol !== 'https:') return null;
+    return url.origin;
+  } catch {
+    return null;
+  }
+}
+
+/** True when `candidate` is an absolute http(s) URL on this app's public origin. */
+export function isSameOriginPublicUrl(
+  candidate: string | undefined | null,
+  env: NodeJS.ProcessEnv = process.env,
+): boolean {
+  if (!candidate || typeof candidate !== 'string') return false;
+  const candidateOrigin = originOf(candidate.trim());
+  if (!candidateOrigin) return false;
+  return candidateOrigin === getPublicAppOrigin(env);
+}
+
+/**
+ * Use a client-supplied return URL only when it is same-origin.
+ * Off-origin values (open redirects) fall back to `fallback`.
+ */
+export function safePublicReturnUrl(
+  candidate: string | undefined | null,
+  fallback: string,
+  env: NodeJS.ProcessEnv = process.env,
+): string {
+  const value = typeof candidate === 'string' ? candidate.trim() : '';
+  if (!isSameOriginPublicUrl(value, env)) return fallback;
+  return new URL(value).href;
+}

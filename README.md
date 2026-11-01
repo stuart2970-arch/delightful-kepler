@@ -3987,3 +3987,23 @@ Highlighted adjustments in the modal:
   - Item 3: `apphosting.yaml` / `apphosting.staging.yaml` set public URLs to `https://staging.styleflo.ai` and reference Stripe, Twilio (staging SIDs from Jira comment 10163), Vapi (+ aliases), Mailgun, `CRON_SECRET`, Google/Microsoft OAuth, ElevenLabs, and Places by Secret Manager **name**. WordPress secrets stay unwired. STYL-203 tests updated.
   - Item 4a–4g: `getPublicAppOrigin` / `publicAppPath` for login, register, onboard, checkout, magic-link, and OAuth callbacks; widget Turnstile from env only; host-only SSO cookies on staging; WordPress guard; Vapi from env only; inbound no longer selects dropped `chatbots.vapi_assistant_id`; Stripe `constructEvent` verification.
   - Playwright: `tests/styl-226-*.spec.ts`. Full local suite against `.env.test` / local Supabase (never live).
+
+### Session (fixed-price bolt-on checkout + staging return URLs - 1 Nov 2026)
+* **User**: Branch off `staging` (1d5a875), PR targeting `staging` only. Do not merge. Never `--no-verify`. Do not touch live Supabase or production.
+* **Bug 1**: `AddOnUpsellModal` sent `customPricePence = monthly_price_pence` for every non-slider add-on except `remove_branding`. Checkout rejected that when `!addon.is_sliding` (`google_calendar_addon`, `microsoft_calendar_addon`, `data_pack_500` at 499p).
+* **Bug 2**: Checkout/portal return URLs were hard-coded to `https://styleflo.ai/app`, so staging sent users back to production.
+* **Changes**:
+  - Client: only send `customPricePence` for sliding add-ons.
+  - Server: accept a custom price equal to the catalogue price on fixed add-ons; clearer 400 when a non-sliding add-on gets any other custom price.
+  - Return URLs first used `publicAppPath('/app')` / `/#pricing` (no `/app` route; cancel lost pricing). PO review on PR 17: switch to `/dashboard?tab=…` and `/register`.
+  - Playwright: targeted checkout/origin specs 35 passed; full suite 337 passed locally against `.env.test` / local Supabase / `sk_test_mock` (never live).
+
+### Session (PR 17 PO review - dashboard return URLs - 1 Nov 2026)
+* **User**: Same branch. Do not merge. Never `--no-verify`. Product Owner blockers on PR 17.
+* **Changes**:
+  - Checkout, portal, login, proxy, and `/dashboard/billing` now return to `publicAppPath('/dashboard')` with the matching `?tab=` (`scheduling`, `crawler`, `telephony`, `billing`). There is no `/app` route.
+  - New-plan checkout cancel goes to `/register` (in-app Foundation pricing), not `/#pricing`.
+  - `safePublicReturnUrl` returns `new URL(value).href`. Extra returnUrl edge-case tests.
+  - Tests cover `microsoft_calendar_addon` and `remove_styleflo_branding`, existing routes (not 404), staging vs production `success_url` hosts, and signed-in `/login` → `/dashboard`.
+  - WordPress `styleflo.ai/app` wrapper: embedded login now sends `window.top` to `{login origin}/dashboard`, which leaves the WP iframe. Top-level login was already `/dashboard`.
+  - Local: typecheck passed; targeted specs 42 passed; full Playwright 344 passed (`.env.test` / local Supabase / `sk_test_mock`).
