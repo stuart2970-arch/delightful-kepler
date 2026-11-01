@@ -3995,5 +3995,15 @@ Highlighted adjustments in the modal:
 * **Changes**:
   - Client: only send `customPricePence` for sliding add-ons.
   - Server: accept a custom price equal to the catalogue price on fixed add-ons; clearer 400 when a non-sliding add-on gets any other custom price.
-  - Return URLs use `publicAppPath('/app')` / `publicAppPath('/#pricing')`. Client-supplied `returnUrl` must be same-origin (`safePublicReturnUrl`).
-  - Playwright: `tests/addons-sliding-scale.spec.ts` and `tests/styl-226-app-origin.spec.ts` — 35 passed locally against `.env.test` / local Supabase / `sk_test_mock` (never live).
+  - Return URLs first used `publicAppPath('/app')` / `/#pricing` (no `/app` route; cancel lost pricing). PO review on PR 17: switch to `/dashboard?tab=…` and `/register`.
+  - Playwright: targeted checkout/origin specs 35 passed; full suite 337 passed locally against `.env.test` / local Supabase / `sk_test_mock` (never live).
+
+### Session (PR 17 PO review - dashboard return URLs - 1 Nov 2026)
+* **User**: Same branch. Do not merge. Never `--no-verify`. Product Owner blockers on PR 17.
+* **Changes**:
+  - Checkout, portal, login, proxy, and `/dashboard/billing` now return to `publicAppPath('/dashboard')` with the matching `?tab=` (`scheduling`, `crawler`, `telephony`, `billing`). There is no `/app` route.
+  - New-plan checkout cancel goes to `/register` (in-app Foundation pricing), not `/#pricing`.
+  - `safePublicReturnUrl` returns `new URL(value).href`. Extra returnUrl edge-case tests.
+  - Tests cover `microsoft_calendar_addon` and `remove_styleflo_branding`, existing routes (not 404), staging vs production `success_url` hosts, and signed-in `/login` → `/dashboard`.
+  - WordPress `styleflo.ai/app` wrapper: embedded login now sends `window.top` to `{login origin}/dashboard`, which leaves the WP iframe. Top-level login was already `/dashboard`.
+  - Local: typecheck passed; targeted specs 42 passed; full Playwright 344 passed (`.env.test` / local Supabase / `sk_test_mock`).

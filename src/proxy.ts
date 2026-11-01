@@ -291,8 +291,7 @@ export async function proxy(request: NextRequest) {
   }
 
   if (request.nextUrl.pathname === '/login' && user) {
-    // We want to bounce them back to the WordPress wrapper now that they have the SSO cookie
-    return redirectWithCookies(new URL(publicAppPath('/app')));
+    return redirectWithCookies(new URL(publicAppPath('/dashboard')));
   }
 
   // Ensure public cross-origin endpoints under /api/chat/* carry full CORS headers

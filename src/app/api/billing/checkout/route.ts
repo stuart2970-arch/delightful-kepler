@@ -36,6 +36,43 @@ function parseAddonIds(input: any): string[] {
   return [];
 }
 
+function dashboardPathForAddon(addonCatalogId: string): string {
+  if (
+    addonCatalogId === 'google_calendar_addon' ||
+    addonCatalogId === 'microsoft_calendar_addon'
+  ) {
+    return '/dashboard?tab=scheduling';
+  }
+  if (addonCatalogId === 'data_pack_500') {
+    return '/dashboard?tab=crawler';
+  }
+  if (
+    addonCatalogId === 'landline_addon' ||
+    addonCatalogId === 'mobile_addon' ||
+    addonCatalogId.startsWith('voice_pack') ||
+    addonCatalogId.startsWith('sms_pack')
+  ) {
+    return '/dashboard?tab=telephony';
+  }
+  return '/dashboard?tab=billing';
+}
+
+function planCheckoutCancelUrl(returnUrl: string | undefined | null): string {
+  const registerUrl = publicAppPath('/register');
+  const safe = safePublicReturnUrl(returnUrl, registerUrl);
+  try {
+    const path = new URL(safe).pathname;
+    if (path === '/payment-confirmed' || path === '/app') return registerUrl;
+    return safe;
+  } catch {
+    return registerUrl;
+  }
+}
+
+function isPlaywrightStripeMock(apiKey: string): boolean {
+  return process.env.PLAYWRIGHT_TEST === 'true' && apiKey === 'sk_test_mock';
+}
+
 export async function OPTIONS() {
   return new NextResponse(null, { status: 204, headers: corsHeaders });
 }
@@ -155,9 +192,8 @@ export async function GET(req: Request) {
     }
 
     const defaultConfirmedUrl = publicAppPath('/payment-confirmed');
-    const defaultCancelUrl = publicAppPath('/#pricing');
     const targetSuccessUrl = safePublicReturnUrl(returnUrl, defaultConfirmedUrl);
-    const targetCancelUrl = safePublicReturnUrl(returnUrl, defaultCancelUrl);
+    const targetCancelUrl = planCheckoutCancelUrl(returnUrl);
 
     const session = await stripe.checkout.sessions.create({
       mode: 'subscription',
@@ -250,7 +286,7 @@ export async function POST(req: Request) {
         }, { status: 200 });
       }
 
-      const defaultReturnUrl = publicAppPath('/app');
+      const defaultReturnUrl = publicAppPath('/dashboard?tab=billing');
 
       const session = await stripe.billingPortal.sessions.create({
         customer: stripeCustomerId,
@@ -363,7 +399,7 @@ export async function POST(req: Request) {
         quantity: 1,
       };
 
-      const defaultAppUrl = publicAppPath('/app');
+      const defaultAppUrl = publicAppPath(dashboardPathForAddon(addonCatalogId));
       const targetSuccessUrl = safePublicReturnUrl(returnUrl, defaultAppUrl);
       const targetCancelUrl = safePublicReturnUrl(returnUrl, defaultAppUrl);
 
@@ -565,11 +601,10 @@ export async function POST(req: Request) {
       }
 
       const defaultConfirmedUrl = publicAppPath('/payment-confirmed');
-      const defaultCancelUrl = publicAppPath('/#pricing');
       const targetSuccessUrl = safePublicReturnUrl(returnUrl, defaultConfirmedUrl);
-      const targetCancelUrl = safePublicReturnUrl(returnUrl, defaultCancelUrl);
+      const targetCancelUrl = planCheckoutCancelUrl(returnUrl);
 
-      const session = await stripe.checkout.sessions.create({
+      const sessionParams: Stripe.Checkout.SessionCreateParams = {
         mode: 'subscription',
         payment_method_types: ['card'],
         customer_email: customerEmail || undefined,
@@ -580,8 +615,18 @@ export async function POST(req: Request) {
         metadata: sessionMetadata,
         success_url: appendQueryParams(targetSuccessUrl, 'checkout_status=success&session_id={CHECKOUT_SESSION_ID}'),
         cancel_url: appendQueryParams(targetCancelUrl, 'checkout_status=cancelled'),
-      });
+      };
 
+      if (isPlaywrightStripeMock(apiKey)) {
+        return NextResponse.json({
+          url: 'https://checkout.stripe.com/c/pay/cs_test_mock',
+          sessionId: 'cs_test_mock',
+          success_url: sessionParams.success_url,
+          cancel_url: sessionParams.cancel_url,
+        }, { headers: corsHeaders });
+      }
+
+      const session = await stripe.checkout.sessions.create(sessionParams);
       return NextResponse.json({ url: session.url, sessionId: session.id }, { headers: corsHeaders });
     }
 

@@ -93,5 +93,6 @@ export function safePublicReturnUrl(
   env: NodeJS.ProcessEnv = process.env,
 ): string {
   const value = typeof candidate === 'string' ? candidate.trim() : '';
-  return isSameOriginPublicUrl(value, env) ? value : fallback;
+  if (!isSameOriginPublicUrl(value, env)) return fallback;
+  return new URL(value).href;
 }

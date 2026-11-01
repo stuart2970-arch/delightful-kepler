@@ -970,7 +970,7 @@ const globalBotId = '00000000-0000-0000-0000-000000000000';
                       }, 10000);
 
                       try {
-                        const wpAppUrl = publicAppPath('/app');
+                        const wpAppUrl = publicAppPath('/dashboard?tab=billing');
                         const res = await fetch('/api/billing/checkout', {
                           method: 'POST',
                           headers: { 'Content-Type': 'application/json' },

@@ -92,13 +92,13 @@ export default function AddOnUpsellModal({ isOpen, onClose, category, tenantId }
     setIsSubscribing(addonCatalogId);
     setError(null);
     try {
-      const baseUrl = publicAppPath('/app');
+      const baseUrl = publicAppPath('/dashboard');
 
       let targetTab = 'telephony';
       if (category === 'google_calendar' || addonCatalogId === 'google_calendar_addon' || category === 'microsoft_calendar' || addonCatalogId === 'microsoft_calendar_addon') {
         targetTab = 'scheduling';
       } else if (category === 'data_pack' || addonCatalogId === 'data_pack_500') {
-        targetTab = 'knowledge';
+        targetTab = 'crawler';
       } else if (category === 'remove_branding' || addonCatalogId === 'remove_styleflo_branding') {
         targetTab = 'billing';
       }

@@ -1,6 +1,7 @@
 import { test, expect } from '@playwright/test';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { createTestNormalUser, TestUserSession } from './test-auth-helper';
 import {
   getPublicAppOrigin,
   publicAppPath,
@@ -73,19 +74,48 @@ test.describe('STYL-226: public app origin helper', () => {
     expect(publicAppPath('/login', { NEXT_PUBLIC_APP_URL: 'https://staging.styleflo.ai' })).toBe(
       'https://staging.styleflo.ai/login',
     );
+    expect(publicAppPath('/dashboard', { NEXT_PUBLIC_APP_URL: 'https://staging.styleflo.ai' })).toBe(
+      'https://staging.styleflo.ai/dashboard',
+    );
+    expect(publicAppPath('/dashboard?tab=billing', { NODE_ENV: 'production' })).toBe(
+      'https://app.styleflo.ai/dashboard?tab=billing',
+    );
     expect(getPublicAppOrigin({ NEXT_PUBLIC_APP_URL: 'https://staging.styleflo.ai/' })).toBe(
       'https://staging.styleflo.ai',
     );
   });
 
-  test('safePublicReturnUrl only accepts same-origin URLs', () => {
-    const env = { NEXT_PUBLIC_APP_URL: 'https://staging.styleflo.ai' };
-    const fallback = publicAppPath('/app', env);
-    expect(safePublicReturnUrl('https://staging.styleflo.ai/app?tab=billing', fallback, env)).toBe(
-      'https://staging.styleflo.ai/app?tab=billing',
+  test('checkout success_url follows staging versus production public app config', () => {
+    expect(publicAppPath('/dashboard?tab=scheduling', { NEXT_PUBLIC_APP_URL: 'https://staging.styleflo.ai' })).toBe(
+      'https://staging.styleflo.ai/dashboard?tab=scheduling',
     );
+    expect(publicAppPath('/payment-confirmed', { NEXT_PUBLIC_APP_URL: 'https://app.styleflo.ai' })).toBe(
+      'https://app.styleflo.ai/payment-confirmed',
+    );
+    expect(publicAppPath('/register', { NODE_ENV: 'production' })).toBe('https://app.styleflo.ai/register');
+    const checkoutSrc = codeWithoutComments(readFileSync(join(root, 'src/app/api/billing/checkout/route.ts'), 'utf8'));
+    expect(checkoutSrc).toContain("publicAppPath('/dashboard");
+    expect(checkoutSrc).toContain("publicAppPath('/register')");
+    expect(checkoutSrc).not.toContain("publicAppPath('/app')");
+    expect(checkoutSrc).not.toContain("publicAppPath('/#pricing')");
+  });
+
+  test('safePublicReturnUrl only accepts same-origin URLs and returns URL.href', () => {
+    const env = { NEXT_PUBLIC_APP_URL: 'https://staging.styleflo.ai' };
+    const fallback = publicAppPath('/dashboard?tab=billing', env);
+    expect(safePublicReturnUrl('https://staging.styleflo.ai/dashboard?tab=billing', fallback, env)).toBe(
+      'https://staging.styleflo.ai/dashboard?tab=billing',
+    );
+    expect(
+      safePublicReturnUrl('  https://staging.styleflo.ai/dashboard?tab=scheduling  ', fallback, env),
+    ).toBe('https://staging.styleflo.ai/dashboard?tab=scheduling');
     expect(safePublicReturnUrl('https://styleflo.ai/app', fallback, env)).toBe(fallback);
     expect(safePublicReturnUrl('https://evil.example/phish', fallback, env)).toBe(fallback);
+    expect(safePublicReturnUrl('javascript:alert(1)', fallback, env)).toBe(fallback);
+    expect(safePublicReturnUrl('/dashboard?tab=billing', fallback, env)).toBe(fallback);
+    expect(safePublicReturnUrl('//evil.example/phish', fallback, env)).toBe(fallback);
+    expect(safePublicReturnUrl('https://staging.styleflo.ai.evil.example/dashboard', fallback, env)).toBe(fallback);
+    expect(safePublicReturnUrl('', fallback, env)).toBe(fallback);
   });
 
   test('Google sign-in on /login does not send users to the production app host', async ({ page }) => {
@@ -110,6 +140,27 @@ test.describe('STYL-226: public app origin helper', () => {
       const loginSrc = codeWithoutComments(readFileSync(join(root, 'src/app/login/page.tsx'), 'utf8'));
       expect(loginSrc).not.toContain(PROD_HOST);
       expect(loginSrc).toContain('publicAppPath');
+    }
+  });
+
+  test('signed-in /login redirects to /dashboard, not /app', async ({ page, request }) => {
+    let session: TestUserSession | undefined;
+    try {
+      session = await createTestNormalUser();
+      await page.goto('/login');
+      await page.locator('input[type="email"]').fill(session.user.email);
+      await page.locator('input[type="password"]').fill('Password123!');
+      await page.locator('form button[type="submit"]').click();
+      await expect(page).toHaveURL(/\/dashboard/, { timeout: 20000 });
+
+      await page.goto('/login');
+      await expect(page).toHaveURL(/\/dashboard/, { timeout: 20000 });
+      expect(page.url()).not.toContain('/app');
+
+      const missing = await request.get('/app');
+      expect(missing.status()).toBe(404);
+    } finally {
+      if (session) await session.cleanup();
     }
   });
 });

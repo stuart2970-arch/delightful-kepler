@@ -146,7 +146,7 @@ export default function LoginPage() {
       leftLogin = true;
       const isEmbedded = window.self !== window.top;
       if (isEmbedded && window.top) {
-        window.top.location.href = publicAppPath('/app');
+        window.top.location.href = publicAppPath('/dashboard');
       } else {
         window.location.assign('/dashboard');
       }

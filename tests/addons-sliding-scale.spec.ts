@@ -5,9 +5,17 @@ import { publicAppPath } from '../src/lib/env/public-app-url';
 const SEEDED_TENANT_ID = '10000000-0000-0000-0000-000000000001';
 const FIXED_PRICE_ADDONS = [
   { id: 'google_calendar_addon', cataloguePricePence: 499 },
+  { id: 'microsoft_calendar_addon', cataloguePricePence: 499 },
   { id: 'data_pack_500', cataloguePricePence: 499 },
+  { id: 'remove_styleflo_branding', cataloguePricePence: 499 },
 ] as const;
-const PUBLIC_APP_URL = publicAppPath('/app');
+const PUBLIC_DASHBOARD_URL = publicAppPath('/dashboard');
+const PUBLIC_REGISTER_URL = publicAppPath('/register');
+
+function appPathFromReturnUrl(url: string): string {
+  const parsed = new URL(String(url).replaceAll('{CHECKOUT_SESSION_ID}', 'cs_test'));
+  return `${parsed.pathname}${parsed.search}`;
+}
 
 test.describe('Modular Add-Ons & Sliding Scale Checkout API', () => {
   let superadminSession: TestUserSession;
@@ -315,8 +323,10 @@ test.describe('Modular Add-Ons & Sliding Scale Checkout API', () => {
       expect(res.status()).toBe(200);
       const json = await res.json();
       expect(json.url).toContain('stripe.com');
-      expect(json.success_url).toContain(PUBLIC_APP_URL);
-      expect(json.cancel_url).toContain(PUBLIC_APP_URL);
+      expect(json.success_url).toContain(PUBLIC_DASHBOARD_URL);
+      expect(json.cancel_url).toContain(PUBLIC_DASHBOARD_URL);
+      expect(json.success_url).not.toMatch(/\/app(\?|$)/);
+      expect(json.cancel_url).not.toMatch(/\/app(\?|$)/);
     });
 
     test(`POST /api/billing/checkout accepts fixed-price ${addon.id} with customPricePence equal to catalogue`, async ({ request }) => {
@@ -346,10 +356,10 @@ test.describe('Modular Add-Ons & Sliding Scale Checkout API', () => {
     });
     expect(res.status()).toBe(200);
     const json = await res.json();
-    expect(json.success_url).toContain(PUBLIC_APP_URL);
-    expect(json.cancel_url).toContain(PUBLIC_APP_URL);
-    expect(json.success_url).not.toContain('https://styleflo.ai/app');
-    expect(json.cancel_url).not.toContain('https://styleflo.ai/app');
+    expect(json.success_url).toContain(PUBLIC_DASHBOARD_URL);
+    expect(json.cancel_url).toContain(PUBLIC_DASHBOARD_URL);
+    expect(json.success_url).not.toContain('/app');
+    expect(json.cancel_url).not.toContain('/app');
   });
 
   test('POST /api/billing/checkout ignores off-origin returnUrl (open redirect)', async ({ request }) => {
@@ -363,8 +373,8 @@ test.describe('Modular Add-Ons & Sliding Scale Checkout API', () => {
     });
     expect(res.status()).toBe(200);
     const json = await res.json();
-    expect(json.success_url).toContain(PUBLIC_APP_URL);
-    expect(json.cancel_url).toContain(PUBLIC_APP_URL);
+    expect(json.success_url).toContain(PUBLIC_DASHBOARD_URL);
+    expect(json.cancel_url).toContain(PUBLIC_DASHBOARD_URL);
     expect(json.success_url).not.toContain('evil.example');
     expect(json.cancel_url).not.toContain('evil.example');
   });
@@ -382,6 +392,36 @@ test.describe('Modular Add-Ons & Sliding Scale Checkout API', () => {
     const json = await res.json();
     expect(json.error).toMatch(/sliding/i);
     expect(json.error).not.toBe('Invalid custom price: out of allowed range');
+  });
+
+  test('mocked Stripe return and cancel URLs resolve to existing app routes', async ({ request }) => {
+    const addonRes = await request.post('/api/billing/checkout', {
+      headers: { 'Content-Type': 'application/json' },
+      data: { addonCatalogId: 'google_calendar_addon', tenantId: SEEDED_TENANT_ID },
+    });
+    expect(addonRes.status()).toBe(200);
+    const addonJson = await addonRes.json();
+
+    const planRes = await request.post('/api/billing/checkout', {
+      headers: { 'Content-Type': 'application/json' },
+      data: { plan: 'foundation', planTier: 'base_tier' },
+    });
+    expect(planRes.status()).toBe(200);
+    const planJson = await planRes.json();
+    expect(planJson.cancel_url).toContain(PUBLIC_REGISTER_URL);
+    expect(planJson.success_url).toContain(publicAppPath('/payment-confirmed'));
+    expect(planJson.cancel_url).not.toContain('/#pricing');
+
+    const urls = [addonJson.success_url, addonJson.cancel_url, planJson.success_url, planJson.cancel_url];
+    for (const url of urls) {
+      const path = appPathFromReturnUrl(url);
+      const res = await request.get(path);
+      expect(res.status(), path).not.toBe(404);
+      expect(res.status(), path).toBeLessThan(400);
+    }
+
+    const missingApp = await request.get('/app');
+    expect(missingApp.status()).toBe(404);
   });
 
   test('POST /api/billing/checkout rejects unknown addon ID with HTTP 400', async ({ request }) => {
