@@ -196,7 +196,7 @@ export async function POST(request: Request) {
       .filter((c) => c.length > 0);
 
     if (chunks.length === 0) {
-      return NextResponse.json({ error: 'Text splitting generated zero chunks' }, { status: 400 });
+      return NextResponse.json({ error: 'Text splitting generated zero knowledge items' }, { status: 400 });
     }
 
     // 7. Enforce quota considering existing chunks for this URL on this chatbot (STYL-186 re-crawl)
@@ -227,7 +227,7 @@ export async function POST(request: Request) {
 
     if (!embeddings || embeddings.length === 0) {
       return NextResponse.json(
-        { error: 'Failed to generate any embeddings for the chunks' },
+        { error: 'Failed to generate embeddings for the knowledge items' },
         { status: 502 }
       );
     }
@@ -262,7 +262,7 @@ export async function POST(request: Request) {
     if (dbInsertError) {
       console.error(`[Ingest Route][${requestId}] Supabase INSERT failed:`, dbInsertError);
       return NextResponse.json(
-        { error: `Failed to save chunks to database: ${dbInsertError.message}` },
+        { error: `Failed to save knowledge items to database: ${dbInsertError.message}` },
         { status: 500 }
       );
     }
@@ -272,7 +272,7 @@ export async function POST(request: Request) {
       success: true,
       requestId,
       chunksCount: recordsToInsert.length,
-      message: `Successfully crawled and ingested ${recordsToInsert.length} chunks from ${url}.`,
+      message: `Successfully crawled and ingested ${recordsToInsert.length} knowledge items from ${url}.`,
     });
 
   } catch (err: any) {
