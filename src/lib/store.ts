@@ -125,7 +125,7 @@ export interface BillingData {
   entitlements: Array<{ feature_id: string; limit_value: number | null; features?: { name: string; is_metered: boolean } }>;
   usage: { chunks: number; messages: number };
   addons: Array<{ id: string; addon_catalog_id: string; name: string; category: string; monthly_price_pence: number; included_voice_minutes: number; included_sms: number; included_messages: number; included_data_chunks: number; is_active: boolean; activated_at: string }>;
-  channelFlags: { has_landline: boolean; has_mobile: boolean; has_whatsapp: boolean; has_google_calendar?: boolean };
+  channelFlags: { has_landline: boolean; has_mobile: boolean; has_whatsapp: boolean; has_google_calendar?: boolean; has_microsoft_calendar?: boolean };
   rolloverUsage: { voice_minutes_allocated: number; voice_minutes_consumed: number; voice_minutes_remaining: number; sms_allocated: number; sms_consumed: number; sms_remaining: number };
   thresholds: Array<{ featureId: string; featureName: string; percentUsed: number; currentUsage: number; limit: number; upgradeCategory: string; upgradeAddonId: string; upgradeAddonName: string; upgradePricePence: number }>;
   catalog?: any[];
@@ -322,7 +322,7 @@ export const useDashboardStore = create<DashboardState>((set) => ({
     entitlements: [],
     usage: { chunks: 0, messages: 0 },
     addons: [],
-    channelFlags: { has_landline: false, has_mobile: false, has_whatsapp: false, has_google_calendar: false },
+    channelFlags: { has_landline: false, has_mobile: false, has_whatsapp: false, has_google_calendar: false, has_microsoft_calendar: false },
     rolloverUsage: { voice_minutes_allocated: 0, voice_minutes_consumed: 0, voice_minutes_remaining: 0, sms_allocated: 0, sms_consumed: 0, sms_remaining: 0 },
     thresholds: []
   },

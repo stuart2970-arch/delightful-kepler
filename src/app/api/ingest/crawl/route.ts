@@ -196,7 +196,7 @@ export async function POST(request: Request) {
       .filter((c) => c.length > 0);
 
     if (chunks.length === 0) {
-      return NextResponse.json({ error: 'Text splitting generated zero chunks' }, { status: 400 });
+      return NextResponse.json({ error: 'Text splitting generated zero knowledge items' }, { status: 400 });
     }
 
     // 7. Enforce quota considering existing chunks for this URL on this chatbot (STYL-186 re-crawl)

@@ -118,11 +118,12 @@ export default async function DashboardPage(props: { searchParams?: Promise<{ [k
     entitlements: [],
     usage: { chunks: 0, messages: 0 },
     addons: [],
-    channelFlags: { has_landline: false, has_mobile: false, has_whatsapp: false, has_google_calendar: false },
+    channelFlags: { has_landline: false, has_mobile: false, has_whatsapp: false, has_google_calendar: false, has_microsoft_calendar: false },
     rolloverUsage: { voice_minutes_allocated: 0, voice_minutes_consumed: 0, voice_minutes_remaining: 0, sms_allocated: 0, sms_consumed: 0, sms_remaining: 0 },
     thresholds: [],
   };
   let initialHasGoogleCalendarAddon = false;
+  let initialHasMicrosoftCalendarAddon = false;
   let superadminData: any = null;
 
   try {
@@ -142,13 +143,16 @@ export default async function DashboardPage(props: { searchParams?: Promise<{ [k
       
       const { data: tenant } = await supabase
         .from('tenants')
-        .select('company_name, domain, business_address, postcode, plan_tier, is_rwg_enabled, rwg_business_name, rwg_street_address, rwg_city, rwg_postcode, rwg_phone, is_registered_business_address, booking_mode, booking_url, general_operating_hours, operating_hours_overrides, holiday_settings, twilio_shadow_number, twilio_mobile_number, trading_address_street, trading_address_city, trading_address_postcode, trading_address_phone, company_registration_number, registered_address_street, registered_address_city, registered_address_postcode, is_registered_company, registered_address_same_as_trading, rwg_address_same_as_trading, has_google_calendar')
+        .select('company_name, domain, business_address, postcode, plan_tier, is_rwg_enabled, rwg_business_name, rwg_street_address, rwg_city, rwg_postcode, rwg_phone, is_registered_business_address, booking_mode, booking_url, general_operating_hours, operating_hours_overrides, holiday_settings, twilio_shadow_number, twilio_mobile_number, trading_address_street, trading_address_city, trading_address_postcode, trading_address_phone, company_registration_number, registered_address_street, registered_address_city, registered_address_postcode, is_registered_company, registered_address_same_as_trading, rwg_address_same_as_trading, has_google_calendar, has_microsoft_calendar')
         .eq('id', tenantId)
         .maybeSingle();
       
       if (tenant) {
         if (tenant.has_google_calendar) {
           initialHasGoogleCalendarAddon = true;
+        }
+        if (tenant.has_microsoft_calendar) {
+          initialHasMicrosoftCalendarAddon = true;
         }
         tenantName = tenant.company_name;
         domain = tenant.domain || '';
@@ -368,16 +372,22 @@ export default async function DashboardPage(props: { searchParams?: Promise<{ [k
         if (flags.has_google_calendar) {
           initialHasGoogleCalendarAddon = true;
         }
+        if (flags.has_microsoft_calendar) {
+          initialHasMicrosoftCalendarAddon = true;
+        }
       } catch (flagErr) {
         console.warn('[Dashboard] Could not fetch channel flags:', flagErr);
       }
 
-      const { data: tenantData } = await queryClient.from('tenants').select('plan_tier, has_landline, has_mobile, has_whatsapp, has_google_calendar').eq('id', tenantId).maybeSingle();
+      const { data: tenantData } = await queryClient.from('tenants').select('plan_tier, has_landline, has_mobile, has_whatsapp, has_google_calendar, has_microsoft_calendar').eq('id', tenantId).maybeSingle();
       const currentTierId = tenantData?.plan_tier || 'base_tier';
       billingData.planTier = currentTierId;
 
       if (tenantData?.has_google_calendar) {
         initialHasGoogleCalendarAddon = true;
+      }
+      if (tenantData?.has_microsoft_calendar) {
+        initialHasMicrosoftCalendarAddon = true;
       }
 
       // Fetch dynamic tier info from subscription_tiers
@@ -497,8 +507,11 @@ export default async function DashboardPage(props: { searchParams?: Promise<{ [k
         catalog_is_active: a.addon_catalog?.is_active ?? true,
         activated_at: a.activated_at,
       }));
-      if (billingData.addons.some((a: any) => a.category === 'google_calendar')) {
+      if (billingData.addons.some((a: any) => a.category === 'google_calendar' || a.addon_catalog_id === 'google_calendar_addon')) {
         initialHasGoogleCalendarAddon = true;
+      }
+      if (billingData.addons.some((a: any) => a.category === 'microsoft_calendar' || a.addon_catalog_id === 'microsoft_calendar_addon')) {
+        initialHasMicrosoftCalendarAddon = true;
       }
 
       const { data: inclusionRows, error: inclusionError } = await queryClient
@@ -724,6 +737,7 @@ export default async function DashboardPage(props: { searchParams?: Promise<{ [k
         initialGoogleConnected={initialGoogleConnected}
         initialGoogleConnectedEmail={initialGoogleConnectedEmail}
         initialHasGoogleCalendarAddon={initialHasGoogleCalendarAddon}
+        initialHasMicrosoftCalendarAddon={initialHasMicrosoftCalendarAddon}
         initialGlobalVoiceDisclaimer={globalVoiceDisclaimer}
         billingData={billingData}
         superadminData={superadminData}

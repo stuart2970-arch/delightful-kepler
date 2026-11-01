@@ -3,6 +3,7 @@ import { createPortal } from 'react-dom';
 import { useDashboardStore, DailySchedule, WeeklySchedule } from '../../lib/store';
 import ServiceEditor from '../ServiceEditor';
 import AddOnUpsellModal from '../AddOnUpsellModal';
+import { resolveCalendarAddonFlags } from '@/lib/billing/bolt-on';
 import { getMondayDate, formatMondayTabLabel, formatMondayFull, generateRollingSchedule, addDaysToDate } from '../../lib/dateUtils';
 
 
@@ -20,8 +21,8 @@ export default function SchedulingView() {
     setBookingUrl,
     isGoogleConnected,
     setIsGoogleConnected,
-    hasGoogleCalendarAddon,
-    hasMicrosoftCalendarAddon,
+    hasGoogleCalendarAddon: storeHasGoogleCalendarAddon,
+    hasMicrosoftCalendarAddon: storeHasMicrosoftCalendarAddon,
     maxAdvanceWeeks,
     setMaxAdvanceWeeks,
     generalOperatingHours,
@@ -36,6 +37,13 @@ export default function SchedulingView() {
     setAppointments,
     billingData
   } = useDashboardStore();
+
+  const { hasGoogleCalendarAddon, hasMicrosoftCalendarAddon } = resolveCalendarAddonFlags({
+    initialHasGoogleCalendarAddon: storeHasGoogleCalendarAddon,
+    initialHasMicrosoftCalendarAddon: storeHasMicrosoftCalendarAddon,
+    channelFlags: billingData?.channelFlags,
+    addons: billingData?.addons,
+  });
 
   const googleAddon = billingData?.catalog?.find((c: any) => c.id === 'google_calendar_addon' || c.category === 'google_calendar');
   const microsoftAddon = billingData?.catalog?.find((c: any) => c.id === 'microsoft_calendar_addon' || c.category === 'microsoft_calendar');

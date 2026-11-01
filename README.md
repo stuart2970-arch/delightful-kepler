@@ -4026,3 +4026,16 @@ Highlighted adjustments in the modal:
   - Activation is idempotent (redelivery does not insert a second row or double-grant credits). `data_pack_500` raises knowledge allowance via the active add-on; Google/Microsoft Calendar bolt-ons are marked active. `microsoft_calendar` maps to the Microsoft Calendar feature.
   - Extra Knowledge success banner uses British English “knowledge items” and “Payment received. Your bolt-on will switch on in a moment.” — it does not say the bolt-on is already active, and does not mention chunks or vector storage.
   - Tests: `tests/unit/bolton-activation.spec.ts`, checkout metadata cases in `tests/addons-sliding-scale.spec.ts`, dashboard banner cases in `tests/dashboard-return-tabs.spec.ts`. Mock config / `.env.test` only. Full Playwright suite: **368 passed** locally against local Supabase and `sk_test_mock` (never live).
+
+### Session (PR 19 PO review - Microsoft flag, knowledge total, webhook fall-through - 1 Nov 2026)
+* **User**: Product Owner BLOCK on PR 19. Same branch, base `staging`, do not merge.
+* **Blockers fixed**:
+  - Microsoft Calendar flag: dashboard + `DashboardClient` now set `hasMicrosoftCalendarAddon` from the bolt-on row / `has_microsoft_calendar`. Scheduling reads that flag (plus billing add-ons as fallback).
+  - Extra Knowledge total: Subscriptions shows `knowledgeItemsTotal` (base entitlement + active data-pack allowance), not the base-only 50/500 figure.
+  - Bolt-on checkout with a missing catalogue row or missing `addon_catalog_id` returns early and never rewrites `plan_tier` or grants +10 voice minutes.
+* **Medium**:
+  - `customer.subscription.updated` only activates when Stripe status is `active` or `trialing`.
+  - One-off voice/SMS packs are idempotent on checkout session ID.
+  - Customer-facing ingest/billing copy uses “knowledge items”, not chunks/vectorized.
+  - STYL-200 nav click restored.
+  - Tests for update-status gating, one-off redelivery, missing-catalogue fall-through, Microsoft flag and knowledge total in the UI.

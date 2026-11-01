@@ -197,6 +197,18 @@ async function activateBoltOnByCatalogId(options: {
   const alreadyActive = Boolean(existing?.is_active);
   const featureId = mapAddonCategoryToFeatureId(addon.category);
 
+  let alreadyGrantedForSession = false;
+  if (stripeSessionId) {
+    const { data: priorAudits } = await supabaseAdmin
+      .from('addon_audit_log')
+      .select('id, new_value')
+      .eq('tenant_id', tenantId)
+      .eq('addon_catalog_id', addon.id);
+    alreadyGrantedForSession = Boolean(
+      (priorAudits || []).some((row: any) => row?.new_value?.stripe_session_id === stripeSessionId),
+    );
+  }
+
   if (!isOneOff) {
     if (existing) {
       const updatePayload: Record<string, any> = {
@@ -231,7 +243,7 @@ async function activateBoltOnByCatalogId(options: {
     }
   }
 
-  if (!alreadyActive) {
+  if (!alreadyActive && !alreadyGrantedForSession) {
     if (voiceMinutes > 0) {
       await allocateRollingCredits?.(tenantId, 'voice_minutes', voiceMinutes, addon.id);
     }
@@ -257,7 +269,7 @@ async function activateBoltOnByCatalogId(options: {
       .eq('id', tenantId);
   }
 
-  if (!alreadyActive) {
+  if (!alreadyActive && !alreadyGrantedForSession) {
     await supabaseAdmin.from('addon_audit_log').insert({
       tenant_id: tenantId,
       addon_catalog_id: addon.id,
@@ -369,6 +381,13 @@ export async function handleStripeBillingEvent(
     const items = dataObject.items?.data || [];
 
     if (tenantId && isBoltOnMetadata(metadata) && metadata.addon_catalog_id) {
+      const status = String(dataObject.status || '').toLowerCase();
+      if (status !== 'active' && status !== 'trialing') {
+        return {
+          status: 200,
+          body: { success: true, message: `Bolt-on subscription update ignored (status ${status || 'unknown'})` },
+        };
+      }
       const firstItem = items[0];
       const activated = await activateBoltOnByCatalogId({
         supabaseAdmin,
@@ -517,28 +536,48 @@ export async function handleStripeBillingEvent(
           .eq('id', targetTenantId);
       }
 
-      if (addonCatalogId) {
-        const activated = await activateBoltOnByCatalogId({
-          supabaseAdmin,
-          tenantId: targetTenantId,
-          addonCatalogId,
-          metadata: sessionMetadata,
-          subscriptionItemId: dataObject.subscription || null,
-          stripeSessionId: dataObject.id,
-          allocateRollingCredits,
-        });
-
-        if (activated.ok) {
-          return {
-            status: 200,
-            body: {
-              success: true,
-              message: `Add-on ${activated.addonId} processed for tenant ${targetTenantId}`,
-              tenant_id: targetTenantId,
-            },
-          };
-        }
+      if (!addonCatalogId) {
+        console.error('[Stripe Webhook] Bolt-on checkout is missing addon_catalog_id; leaving plan_tier and minutes unchanged');
+        return {
+          status: 200,
+          body: {
+            success: false,
+            error: 'Bolt-on checkout is missing addon_catalog_id',
+            tenant_id: targetTenantId,
+          },
+        };
       }
+
+      const activated = await activateBoltOnByCatalogId({
+        supabaseAdmin,
+        tenantId: targetTenantId,
+        addonCatalogId,
+        metadata: sessionMetadata,
+        subscriptionItemId: dataObject.subscription || null,
+        stripeSessionId: dataObject.id,
+        allocateRollingCredits,
+      });
+
+      if (!activated.ok) {
+        console.error(`[Stripe Webhook] Bolt-on catalogue row missing for ${addonCatalogId}; leaving plan_tier and minutes unchanged`);
+        return {
+          status: 200,
+          body: {
+            success: false,
+            error: `Bolt-on catalogue row missing for ${addonCatalogId}`,
+            tenant_id: targetTenantId,
+          },
+        };
+      }
+
+      return {
+        status: 200,
+        body: {
+          success: true,
+          message: `Add-on ${activated.addonId} processed for tenant ${targetTenantId}`,
+          tenant_id: targetTenantId,
+        },
+      };
     }
 
     const updatePayload: any = {

@@ -72,6 +72,56 @@ export function mapAddonCategoryToFeatureId(category: string): string {
 
 const PENDING_ACTIVATION = 'Payment received. Your bolt-on will switch on in a moment.';
 
+export function resolveCalendarAddonFlags(input: {
+  initialHasGoogleCalendarAddon?: boolean;
+  initialHasMicrosoftCalendarAddon?: boolean;
+  channelFlags?: {
+    has_google_calendar?: boolean;
+    has_microsoft_calendar?: boolean;
+  } | null;
+  addons?: Array<{ category?: string; addon_catalog_id?: string; is_active?: boolean }> | null;
+}): { hasGoogleCalendarAddon: boolean; hasMicrosoftCalendarAddon: boolean } {
+  const addons = (input.addons || []).filter((row) => row?.is_active !== false);
+  const hasGoogleFromAddons = addons.some(
+    (addon) => addon.category === 'google_calendar' || addon.addon_catalog_id === 'google_calendar_addon',
+  );
+  const hasMicrosoftFromAddons = addons.some(
+    (addon) => addon.category === 'microsoft_calendar' || addon.addon_catalog_id === 'microsoft_calendar_addon',
+  );
+
+  return {
+    hasGoogleCalendarAddon: Boolean(
+      input.initialHasGoogleCalendarAddon || input.channelFlags?.has_google_calendar || hasGoogleFromAddons,
+    ),
+    hasMicrosoftCalendarAddon: Boolean(
+      input.initialHasMicrosoftCalendarAddon || input.channelFlags?.has_microsoft_calendar || hasMicrosoftFromAddons,
+    ),
+  };
+}
+
+export function knowledgeItemsTotal(input: {
+  entitlements?: Array<{ feature_id: string; limit_value: number | null }> | null;
+  addons?: Array<{
+    category?: string;
+    addon_catalog_id?: string;
+    included_data_chunks?: number | null;
+    is_active?: boolean;
+  }> | null;
+  baseFallback?: number;
+}): number {
+  const entitlement = (input.entitlements || []).find(
+    (row) => row.feature_id === 'knowledge_data_chunks' || row.feature_id === 'data_chunks_addon',
+  );
+  const base = entitlement?.limit_value == null
+    ? (input.baseFallback ?? 500)
+    : Number(entitlement.limit_value);
+  const bonus = (input.addons || [])
+    .filter((addon) => addon.is_active !== false)
+    .filter((addon) => addon.category === 'data_pack' || addon.addon_catalog_id === 'data_pack_500')
+    .reduce((sum, addon) => sum + Number(addon.included_data_chunks || 0), 0);
+  return base + bonus;
+}
+
 export function resolveCheckoutSuccessBanner(input: {
   addonId?: string | null;
   tab?: string | null;
