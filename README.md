@@ -4016,3 +4016,13 @@ Highlighted adjustments in the modal:
   - Embedded login wraps `window.top` navigation in try/catch and falls back to `window.location.assign('/dashboard')`.
   - `safePublicReturnUrl` rejects backslash and userinfo-@ URLs.
   - Playwright: signed-in tab loads for billing/scheduling/crawler/telephony; Extra Knowledge success redirect; returnUrl edge cases. Full suite 351 passed locally.
+
+### Session (paid bolt-on activation after Stripe checkout - 1 Nov 2026)
+* **User**: Follow the Bolton fix brief. Branch off `staging` (566a854). Open a PR with base `staging`, not `main`. Do not merge. Never `--no-verify`. No live Stripe, live Supabase, WordPress publishing, or Vapi/number provisioning.
+* **Root cause**: Bolt-on Checkout Sessions used inline `price_data` and omitted `is_addon: 'true'`. `/api/webhooks/stripe` only treated a session as a bolt-on when `metadata.is_addon === 'true'`, so paid bolt-ons fell into the base-plan path (`plan_tier='base_tier'`, +10 voice minutes, no `tenant_active_addons` row). `customer.subscription.updated` looked up add-ons by `stripe_price_id` (never matches inline prices). `customer.subscription.deleted` without `is_addon` cancelled the whole tenant. The category map had no `microsoft_calendar` entry.
+* **Changes**:
+  - Bolt-on checkout writes `is_addon='true'` and `addon_catalog_id` on session and `subscription_data` metadata (sliding included).
+  - Webhook detects bolt-ons by `is_addon` **or** `addon_catalog_id`. Base-plan activate/cancel paths never run for a bolt-on. Updated/deleted handlers read subscription metadata. Cancelling a bolt-on deactivates only that row; the tenant stays active.
+  - Activation is idempotent (redelivery does not insert a second row or double-grant credits). `data_pack_500` raises knowledge allowance via the active add-on; Google/Microsoft Calendar bolt-ons are marked active. `microsoft_calendar` maps to the Microsoft Calendar feature.
+  - Extra Knowledge success banner uses British English “knowledge items” and “Payment received. Your bolt-on will switch on in a moment.” — it does not say the bolt-on is already active, and does not mention chunks or vector storage.
+  - Tests: `tests/unit/bolton-activation.spec.ts`, checkout metadata cases in `tests/addons-sliding-scale.spec.ts`, dashboard banner cases in `tests/dashboard-return-tabs.spec.ts`. Mock config / `.env.test` only. Full Playwright suite: **368 passed** locally against local Supabase and `sk_test_mock` (never live).

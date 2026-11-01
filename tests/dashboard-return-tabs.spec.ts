@@ -44,15 +44,19 @@ test.describe('Dashboard return tabs after checkout', () => {
     await signIn(page);
     await page.goto('/dashboard?tab=knowledge&checkout_status=success&addon=data_pack_500');
     await expect(panel(page)).toContainText('Add Knowledge to Chatbot', { timeout: 15000 });
-    await expect(panel(page)).toContainText('Knowledge Base Capacity');
-    await expect(panel(page)).not.toContainText('Google Calendar Integration payment successful');
+    await expect(panel(page)).toContainText('Payment received. Your bolt-on will switch on in a moment.');
+    await expect(panel(page)).toContainText('knowledge items');
+    await expect(panel(page)).not.toContainText(/chunk|vector storage|now active/i);
+    await expect(panel(page)).not.toContainText('Google Calendar');
   });
 
   test('Microsoft Calendar success banner does not say Google Calendar', async ({ page }) => {
     await signIn(page);
-    await page.goto('/dashboard?tab=scheduling&checkout_status=success&addon=microsoft_calendar_addon');
-    await expect(panel(page)).toContainText('Microsoft Calendar Integration payment successful', { timeout: 15000 });
+    await page.goto('/dashboard?tab=scheduling&checkout_status=success&addon_id=microsoft_calendar_addon');
+    await expect(panel(page)).toContainText('Payment received. Your bolt-on will switch on in a moment.', { timeout: 15000 });
+    await expect(panel(page)).toContainText('Microsoft Calendar');
     await expect(panel(page)).not.toContainText('Google Calendar Integration payment successful');
+    await expect(panel(page)).not.toContainText(/now active/i);
     await expect(panel(page)).toContainText('Services & Treatment Catalog');
   });
 });

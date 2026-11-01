@@ -20,6 +20,7 @@ import CapacityThresholdBanner from './CapacityThresholdBanner';
 import AddOnUpsellModal, { AddOnCategory } from './AddOnUpsellModal';
 import { useDashboardStore, type ActiveTab } from '../lib/store';
 import { formatAllowanceRange } from '@/lib/addon-text';
+import { resolveCheckoutSuccessBanner } from '@/lib/billing/bolt-on';
 import { publicAppPath } from '@/lib/env/public-app-url';
 
 const BILLING_CATEGORIES: AddOnCategory[] = [
@@ -354,7 +355,7 @@ export default function DashboardClient({
     if (typeof window !== 'undefined') {
       const params = new URLSearchParams(window.location.search);
       const checkoutStatus = params.get('checkout_status');
-      const addon = params.get('addon') || params.get('addonCatalogId');
+      const addon = params.get('addon') || params.get('addonCatalogId') || params.get('addon_id');
       const tabParam = params.get('tab');
 
       if (checkoutStatus === 'success') {
@@ -365,20 +366,16 @@ export default function DashboardClient({
         }
 
         let targetTab: any = 'telephony';
-        let notificationMessage = '🎉 Subscription & Add-on payment successful! Your workspace features have been updated.';
+        const notificationMessage = resolveCheckoutSuccessBanner({ addonId: addon, tab: tabParam });
 
         if (addon === 'microsoft_calendar_addon') {
           targetTab = 'scheduling';
-          notificationMessage = '🎉 Microsoft Calendar Integration payment successful! Two-way real-time calendar synchronization is now active.';
         } else if (addon === 'google_calendar_addon' || tabParam === 'scheduling') {
           targetTab = 'scheduling';
-          notificationMessage = '🎉 Google Calendar Integration payment successful! Two-way real-time calendar synchronization is now active.';
         } else if (addon === 'data_pack_500' || tabParam === 'knowledge' || tabParam === 'crawler') {
           targetTab = 'crawler';
-          notificationMessage = '🎉 Knowledge Base Capacity payment successful! Additional vector storage chunks have been added to your workspace.';
         } else if (addon === 'landline_addon' || addon === 'mobile_addon' || addon === 'sms_pack_100' || addon === 'voice_pack_20' || tabParam === 'telephony') {
           targetTab = 'telephony';
-          notificationMessage = '🎉 Subscription & Add-on payment successful! Your telephone channel is active. Search and select your preferred number below.';
         } else if (tabParam) {
           targetTab = tabParam;
         }

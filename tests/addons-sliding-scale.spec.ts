@@ -362,6 +362,50 @@ test.describe('Modular Add-Ons & Sliding Scale Checkout API', () => {
     expect(json.cancel_url).not.toContain('/app');
   });
 
+  test('POST /api/billing/checkout bolt-on session carries is_addon metadata on session and subscription', async ({ request }) => {
+    const res = await request.post('/api/billing/checkout', {
+      headers: { 'Content-Type': 'application/json' },
+      data: {
+        addonCatalogId: 'data_pack_500',
+        tenantId: SEEDED_TENANT_ID,
+      },
+    });
+    expect(res.status(), await res.text()).toBe(200);
+    const json = await res.json();
+    expect(json.metadata?.is_addon).toBe('true');
+    expect(json.metadata?.addon_catalog_id).toBe('data_pack_500');
+    expect(json.metadata?.tenant_id).toBe(SEEDED_TENANT_ID);
+    expect(json.subscription_data?.metadata?.is_addon).toBe('true');
+    expect(json.subscription_data?.metadata?.addon_catalog_id).toBe('data_pack_500');
+  });
+
+  test('POST /api/billing/checkout sliding bolt-on session still sets is_addon metadata', async ({ request }) => {
+    const res = await request.post('/api/billing/checkout', {
+      headers: { 'Content-Type': 'application/json' },
+      data: {
+        addonCatalogId: 'landline_addon',
+        tenantId: SEEDED_TENANT_ID,
+        customPricePence: 899,
+      },
+    });
+    expect(res.status(), await res.text()).toBe(200);
+    const json = await res.json();
+    expect(json.metadata?.is_addon).toBe('true');
+    expect(json.metadata?.addon_catalog_id).toBe('landline_addon');
+    expect(json.subscription_data?.metadata?.is_addon).toBe('true');
+  });
+
+  test('POST /api/billing/checkout base-plan session does not set is_addon', async ({ request }) => {
+    const res = await request.post('/api/billing/checkout', {
+      headers: { 'Content-Type': 'application/json' },
+      data: { plan: 'foundation', planTier: 'base_tier' },
+    });
+    expect(res.status(), await res.text()).toBe(200);
+    const json = await res.json();
+    expect(json.metadata?.is_addon).not.toBe('true');
+    expect(json.metadata?.plan_tier).toBe('base_tier');
+  });
+
   test('POST /api/billing/checkout ignores off-origin returnUrl (open redirect)', async ({ request }) => {
     const res = await request.post('/api/billing/checkout', {
       headers: { 'Content-Type': 'application/json' },
