@@ -112,4 +112,36 @@ test.describe('Dashboard return tabs after checkout', () => {
       await admin.from('tenant_active_addons').delete().eq('tenant_id', GLOBEX).eq('addon_catalog_id', 'data_pack_500');
     }
   });
+
+  test('knowledge items total drops after Extra Knowledge bolt-on cancel', async ({ page }) => {
+    await admin.from('tenant_active_addons').delete().eq('tenant_id', GLOBEX).eq('addon_catalog_id', 'data_pack_500');
+    const { error } = await admin.from('tenant_active_addons').insert({
+      tenant_id: GLOBEX,
+      addon_catalog_id: 'data_pack_500',
+      feature_id: 'data_chunks_addon',
+      quantity: 1,
+      is_active: true,
+    });
+    expect(error).toBeNull();
+
+    try {
+      await signIn(page);
+      await page.goto('/dashboard?tab=billing');
+      await expect(panel(page)).toContainText('1000 total', { timeout: 15000 });
+
+      const { error: cancelError } = await admin
+        .from('tenant_active_addons')
+        .update({ is_active: false, deactivated_at: new Date().toISOString() })
+        .eq('tenant_id', GLOBEX)
+        .eq('addon_catalog_id', 'data_pack_500');
+      expect(cancelError).toBeNull();
+
+      await page.reload();
+      await expect(panel(page)).toContainText('Knowledge items', { timeout: 15000 });
+      await expect(panel(page)).toContainText('500 total');
+      await expect(panel(page)).not.toContainText('1000 total');
+    } finally {
+      await admin.from('tenant_active_addons').delete().eq('tenant_id', GLOBEX).eq('addon_catalog_id', 'data_pack_500');
+    }
+  });
 });

@@ -4039,3 +4039,12 @@ Highlighted adjustments in the modal:
   - Customer-facing ingest/billing copy uses “knowledge items”, not chunks/vectorized.
   - STYL-200 nav click restored.
   - Tests for update-status gating, one-off redelivery, missing-catalogue fall-through, Microsoft flag and knowledge total in the UI.
+
+### Session (PR 19 PO wording re-review - knowledge items + capacity banner - 1 Nov 2026)
+* **User**: Functionally PASS, BLOCKED on wording. Same PR 19 branch, do not merge. Customer-visible “chunks” in ingest text/crawl JSON must become “knowledge items”. Superadmin “500 chunks” examples stay. Capacity banner must use `knowledgeItemsTotal`. If small: cancel-total test + unique one-off checkout-session constraint (staging/local migrations only).
+* **Changes**:
+  - `src/app/api/ingest/text/route.ts` and `src/app/api/ingest/crawl/route.ts` customer `error`/`message` strings now say “knowledge items”.
+  - Dashboard 85% knowledge banner uses `knowledgeItemsTotal` so an Extra Knowledge +500 does not fire a false upgrade warning against the base limit.
+  - Unit + Playwright coverage that the knowledge total drops when Extra Knowledge is cancelled (`is_active=false`).
+  - Migration `20261101210000_one_off_checkout_session_unique.sql`: allow `one_off_addon_purchased` on `addon_audit_log.action` and unique-index `(tenant_id, addon_catalog_id, stripe_session_id)` for that action.
+  - Local: `npm run typecheck` passed. Playwright **377 passed** against `.env.test` / local Supabase / `sk_test_mock` (never live).

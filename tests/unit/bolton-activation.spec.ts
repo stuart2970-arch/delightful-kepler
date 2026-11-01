@@ -664,6 +664,20 @@ test.describe('Bolt-on flags and knowledge totals', () => {
       addons: [{ category: 'data_pack', addon_catalog_id: DATA_PACK_ID, included_data_chunks: 500, is_active: true }],
     })).toBe(550);
   });
+
+  test('knowledge items total drops when Extra Knowledge is cancelled', () => {
+    const entitlements = [{ feature_id: 'knowledge_data_chunks', limit_value: 500 }];
+    const active = knowledgeItemsTotal({
+      entitlements,
+      addons: [{ category: 'data_pack', addon_catalog_id: DATA_PACK_ID, included_data_chunks: 500, is_active: true }],
+    });
+    const cancelled = knowledgeItemsTotal({
+      entitlements,
+      addons: [{ category: 'data_pack', addon_catalog_id: DATA_PACK_ID, included_data_chunks: 500, is_active: false }],
+    });
+    expect(active).toBe(1000);
+    expect(cancelled).toBe(500);
+  });
 });
 
 test.describe('Bolt-on success banners', () => {

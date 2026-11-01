@@ -7,6 +7,7 @@ import { redirect } from 'next/navigation';
 import { getTenantChannelFlags } from '@/lib/entitlements';
 import { applyPublicAddonFilter } from '@/lib/addons/public-catalogue';
 import { buildAccountOwnership } from '@/lib/billing/account-ownership';
+import { knowledgeItemsTotal } from '@/lib/billing/bolt-on';
 import type { CatalogAddon, InclusionRecord, PurchaseRecord } from '@/lib/billing/account-ownership';
 
 export const dynamic = 'force-dynamic';
@@ -584,9 +585,14 @@ export default async function DashboardPage(props: { searchParams?: Promise<{ [k
       for (const ent of (billingData.entitlements || [])) {
         if (!ent.limit_value || ent.limit_value <= 0) continue;
         let currentUsage = 0;
+        let limit = Number(ent.limit_value);
 
         if (ent.feature_id === 'knowledge_data_chunks') {
           currentUsage = chunksCount || 0;
+          limit = knowledgeItemsTotal({
+            entitlements: billingData.entitlements,
+            addons: billingData.addons,
+          });
         } else if (ent.feature_id === 'message_allowance') {
           currentUsage = billingData.usage.messages || 0;
         } else if (ent.feature_id === 'voice_minutes') {
@@ -595,7 +601,8 @@ export default async function DashboardPage(props: { searchParams?: Promise<{ [k
           currentUsage = billingData.rolloverUsage.sms_consumed || 0;
         }
 
-        const percentUsed = Math.round((currentUsage / ent.limit_value) * 100);
+        if (!limit || limit <= 0) continue;
+        const percentUsed = Math.round((currentUsage / limit) * 100);
         if (percentUsed >= 85) {
           const upgrade = featureUpgradeMap[ent.feature_id];
           if (upgrade) {
@@ -608,7 +615,7 @@ export default async function DashboardPage(props: { searchParams?: Promise<{ [k
               featureName: ent.features?.name || ent.feature_id,
               percentUsed,
               currentUsage,
-              limit: ent.limit_value,
+              limit,
               upgradeCategory: upgrade.category,
               upgradeAddonId: upgrade.addonId,
               upgradeAddonName,
