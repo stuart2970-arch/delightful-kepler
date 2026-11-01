@@ -4055,3 +4055,11 @@ Highlighted adjustments in the modal:
   - One-off fulfilment inserts `addon_audit_log` first. Postgres `23505` is treated as already granted (200, no credits). Any other insert error returns 500 so Stripe retries, and credits are not allocated.
   - Credits are allocated only after a successful one-off audit insert.
   - Test: redelivered one-off grants once; failed audit insert grants nothing.
+
+### Session (PR after 19 - atomic one-off grant on allocation failure - 1 Nov 2026)
+* **User**: PR 19 squash-merged to staging (`584fc848`). New small PR off latest staging. `allocateRollingCredits` ignored `usage_ledger` insert errors. Must throw. One-off webhook must not leave an audit row if allocation fails (500 so Stripe retries). Prefer one Postgres function for audit + ledger. Multi-credit packs must not be partly granted. Do not apply the migration. Do not merge.
+* **Changes**:
+  - `allocateRollingCredits` throws when the ledger insert fails.
+  - One-off fulfilment calls `grant_one_off_pack` (audit + every credit in one transaction). If the RPC is missing, it inserts the audit row, allocates all credits, and on any allocation error deletes the new audit row and any ledger rows from that attempt, then returns 500.
+  - Migration `20261101223000_grant_one_off_pack_atomic.sql` is added only (not applied here).
+  - Tests: failed allocation → 500 and no audit row, retry grants exactly once; a two-credit pack rolls back a partial grant.

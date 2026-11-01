@@ -120,19 +120,34 @@ function createFakeBillingDb(seed?: {
       included_messages: 0,
       included_data_chunks: 0,
     },
+    {
+      id: 'combo_pack_voice_sms',
+      category: 'voice_pack',
+      is_active: true,
+      monthly_price_pence: 2100,
+      included_voice_minutes: 20,
+      included_sms: 100,
+      included_messages: 0,
+      included_data_chunks: 0,
+    },
   ];
 
   const activeAddons: ActiveAddonRow[] = [...(seed?.activeAddons || [])];
   const audit: any[] = [];
+  const ledger: any[] = [];
   const rpcCalls: Array<{ name: string; args: any }> = [];
 
   const matches = (row: Record<string, any>, filters: Array<[string, any]>) =>
-    filters.every(([col, val]) => row[col] === val);
+    filters.every(([col, val]) => {
+      if (Array.isArray(val)) return val.includes(row[col]);
+      return row[col] === val;
+    });
 
   function from(table: string) {
     const filters: Array<[string, any]> = [];
     let pendingUpdate: Record<string, any> | null = null;
     let pendingInsert: any = null;
+    let pendingDelete = false;
 
     const api: any = {
       select() {
@@ -140,6 +155,14 @@ function createFakeBillingDb(seed?: {
       },
       eq(col: string, val: any) {
         filters.push([col, val]);
+        return api;
+      },
+      in(col: string, vals: any[]) {
+        filters.push([col, vals]);
+        return api;
+      },
+      delete() {
+        pendingDelete = true;
         return api;
       },
       async maybeSingle() {
@@ -204,9 +227,35 @@ function createFakeBillingDb(seed?: {
                     };
                   }
                 }
-                audit.push(...rows);
+                const withIds = rows.map((row, index) => ({
+                  id: row.id || `audit-${audit.length + index + 1}`,
+                  ...row,
+                }));
+                audit.push(...withIds);
+                return { data: withIds, error: null };
+              }
+              if (table === 'usage_ledger') {
+                const withIds = rows.map((row, index) => ({
+                  id: row.id || `led-${ledger.length + index + 1}`,
+                  ...row,
+                }));
+                ledger.push(...withIds);
+                return { data: withIds, error: null };
               }
               return { data: rows, error: null };
+            }
+            if (pendingDelete) {
+              if (table === 'addon_audit_log') {
+                for (let i = audit.length - 1; i >= 0; i -= 1) {
+                  if (matches(audit[i], filters)) audit.splice(i, 1);
+                }
+              }
+              if (table === 'usage_ledger') {
+                for (let i = ledger.length - 1; i >= 0; i -= 1) {
+                  if (matches(ledger[i], filters)) ledger.splice(i, 1);
+                }
+              }
+              return { data: null, error: null };
             }
             if (pendingUpdate) {
               if (table === 'tenants') {
@@ -236,10 +285,16 @@ function createFakeBillingDb(seed?: {
   }
 
   return {
-    state: { tenants, catalog, activeAddons, audit, rpcCalls },
+    state: { tenants, catalog, activeAddons, audit, ledger, rpcCalls },
     from,
     rpc: async (name: string, args: any) => {
       rpcCalls.push({ name, args });
+      if (name === 'grant_one_off_pack') {
+        return {
+          data: null,
+          error: { code: 'PGRST202', message: 'Could not find the function public.grant_one_off_pack' },
+        };
+      }
       return { data: null, error: null };
     },
     auth: { admin: { listUsers: async () => ({ data: { users: [] } }) } },
@@ -682,6 +737,102 @@ test.describe('Bolt-on webhook detection and fulfilment', () => {
     expect(failed.body.success).toBe(false);
     expect(failedAllocations).toHaveLength(0);
     expect(failedDb.state.audit).toHaveLength(0);
+  });
+
+  test('failed allocation returns 500 with no audit row, then retry grants exactly once', async () => {
+    const db = createFakeBillingDb();
+    const allocations: Array<[string, string, number, string?]> = [];
+    let shouldFail = true;
+    const comboEvent = {
+      type: 'checkout.session.completed',
+      data: {
+        object: {
+          id: 'cs_combo_atomic',
+          metadata: {
+            tenant_id: TENANT_ID,
+            addon_catalog_id: 'combo_pack_voice_sms',
+            is_addon: 'true',
+            is_one_off: 'true',
+          },
+        },
+      },
+    };
+    const deps = {
+      supabaseAdmin: db,
+      allocateRollingCredits: async (tenantId: string, featureId: string, quantity: number, addonId?: string) => {
+        if (shouldFail) {
+          throw new Error('usage_ledger insert failed');
+        }
+        allocations.push([tenantId, featureId, quantity, addonId]);
+        return { id: `led-${allocations.length}` };
+      },
+    };
+
+    const first = await handleStripeBillingEvent(comboEvent, deps);
+    expect(first.status).toBe(500);
+    expect(first.body.success).toBe(false);
+    expect(allocations).toHaveLength(0);
+    expect(db.state.audit).toHaveLength(0);
+    expect(db.state.ledger).toHaveLength(0);
+
+    shouldFail = false;
+    const retry = await handleStripeBillingEvent(comboEvent, deps);
+    const replay = await handleStripeBillingEvent(comboEvent, deps);
+
+    expect(retry.status).toBe(200);
+    expect(replay.status).toBe(200);
+    expect(allocations).toEqual([
+      [TENANT_ID, 'voice_minutes', 20, 'combo_pack_voice_sms'],
+      [TENANT_ID, 'sms_messages', 100, 'combo_pack_voice_sms'],
+    ]);
+    expect(db.state.audit).toHaveLength(1);
+  });
+
+  test('multi-credit pack rolls back a partial allocation so nothing is granted', async () => {
+    const db = createFakeBillingDb();
+    const allocations: Array<[string, string, number, string?]> = [];
+    const comboEvent = {
+      type: 'checkout.session.completed',
+      data: {
+        object: {
+          id: 'cs_combo_partial',
+          metadata: {
+            tenant_id: TENANT_ID,
+            addon_catalog_id: 'combo_pack_voice_sms',
+            is_addon: 'true',
+            is_one_off: 'true',
+          },
+        },
+      },
+    };
+
+    const first = await handleStripeBillingEvent(comboEvent, {
+      supabaseAdmin: db,
+      allocateRollingCredits: async (tenantId, featureId, quantity, addonId) => {
+        allocations.push([tenantId, featureId, quantity, addonId]);
+        if (featureId === 'sms_messages') {
+          throw new Error('second credit insert failed');
+        }
+        return { id: `led-${allocations.length}` };
+      },
+    });
+
+    expect(first.status).toBe(500);
+    expect(db.state.audit).toHaveLength(0);
+    expect(db.state.ledger).toHaveLength(0);
+
+    const retry = await handleStripeBillingEvent(comboEvent, {
+      supabaseAdmin: db,
+      allocateRollingCredits: async (tenantId, featureId, quantity, addonId) => {
+        allocations.push([tenantId, featureId, quantity, addonId]);
+        return { id: `led-retry-${allocations.length}` };
+      },
+    });
+
+    expect(retry.status).toBe(200);
+    expect(allocations.filter((row) => row[1] === 'voice_minutes')).toHaveLength(2);
+    expect(allocations.filter((row) => row[1] === 'sms_messages')).toHaveLength(2);
+    expect(db.state.audit).toHaveLength(1);
   });
 
   test('missing catalogue or addon_catalog_id never falls through to the base-plan path', async () => {

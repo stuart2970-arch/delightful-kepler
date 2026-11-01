@@ -14,7 +14,7 @@ export type StripeWebhookDeps = {
     featureId: string,
     quantity: number,
     addonCatalogId?: string,
-  ) => Promise<void>;
+  ) => Promise<{ id?: string } | void>;
 };
 
 export type StripeWebhookResult = {
@@ -33,6 +33,46 @@ type ActivateBoltOnResult = {
 
 function isUniqueViolation(error: any): boolean {
   return String(error?.code ?? '') === '23505';
+}
+
+function isMissingRpc(error: any): boolean {
+  const code = String(error?.code ?? '');
+  const message = String(error?.message ?? '');
+  return code === 'PGRST202' || code === '42883' || /could not find the function/i.test(message);
+}
+
+function creditLines(voiceMinutes: number, smsCount: number, messagesCount: number) {
+  const credits: Array<{ feature_id: string; quantity: number }> = [];
+  if (voiceMinutes > 0) credits.push({ feature_id: 'voice_minutes', quantity: voiceMinutes });
+  if (smsCount > 0) credits.push({ feature_id: 'sms_messages', quantity: smsCount });
+  if (messagesCount > 0) credits.push({ feature_id: 'whatsapp_messages', quantity: messagesCount });
+  return credits;
+}
+
+async function tryGrantOneOffAtomically(options: {
+  supabaseAdmin: any;
+  tenantId: string;
+  addonCatalogId: string;
+  stripeSessionId?: string | null;
+  auditNewValue: Record<string, any>;
+  auditSummary: string;
+  credits: Array<{ feature_id: string; quantity: number }>;
+}): Promise<{ used: boolean; alreadyGranted?: boolean; retry?: boolean; error?: string }> {
+  const { data, error } = await options.supabaseAdmin.rpc('grant_one_off_pack', {
+    p_tenant_id: options.tenantId,
+    p_addon_catalog_id: options.addonCatalogId,
+    p_stripe_session_id: options.stripeSessionId || null,
+    p_audit_new_value: options.auditNewValue,
+    p_audit_summary: options.auditSummary,
+    p_credits: options.credits,
+  });
+  if (error && isMissingRpc(error)) return { used: false };
+  if (error && isUniqueViolation(error)) return { used: true, alreadyGranted: true };
+  if (error) {
+    return { used: true, retry: true, error: error.message || 'Atomic one-off grant failed' };
+  }
+  if (data?.already_granted) return { used: true, alreadyGranted: true };
+  return { used: true };
 }
 
 async function syncChannelFlags(supabaseAdmin: any, tenantId: string) {
@@ -232,8 +272,39 @@ async function activateBoltOnByCatalogId(options: {
       : `Activated ${addon.id} (${voiceMinutes} voice mins, ${smsCount} SMS) via Stripe checkout.`,
   };
 
+  const oneOffCredits = creditLines(voiceMinutes, smsCount, messagesCount);
+
   if (isOneOff) {
-    const { error: auditError } = await supabaseAdmin.from('addon_audit_log').insert(auditRow);
+    const atomic = await tryGrantOneOffAtomically({
+      supabaseAdmin,
+      tenantId,
+      addonCatalogId: addon.id,
+      stripeSessionId,
+      auditNewValue: auditRow.new_value,
+      auditSummary: auditRow.summary,
+      credits: oneOffCredits,
+    });
+    if (atomic.used) {
+      if (atomic.retry) {
+        return {
+          ok: false,
+          retry: true,
+          oneOff: true,
+          addonId: addon.id,
+          error: atomic.error || 'Failed to grant one-off pack',
+        };
+      }
+      if (atomic.alreadyGranted) {
+        return { ok: true, alreadyGranted: true, addonId: addon.id, oneOff: true };
+      }
+      await syncChannelFlags(supabaseAdmin, tenantId);
+      return { ok: true, addonId: addon.id, oneOff: true };
+    }
+
+    const { data: insertedAudit, error: auditError } = await supabaseAdmin
+      .from('addon_audit_log')
+      .insert(auditRow)
+      .select('id');
     if (auditError) {
       if (isUniqueViolation(auditError)) {
         return { ok: true, alreadyGranted: true, addonId: addon.id, oneOff: true };
@@ -245,6 +316,29 @@ async function activateBoltOnByCatalogId(options: {
         oneOff: true,
         addonId: addon.id,
         error: auditError.message || 'Failed to record one-off pack grant',
+      };
+    }
+    const auditId = Array.isArray(insertedAudit) ? insertedAudit[0]?.id : insertedAudit?.id;
+    const grantedLedgerIds: string[] = [];
+    try {
+      for (const credit of oneOffCredits) {
+        const granted = await allocateRollingCredits?.(tenantId, credit.feature_id, credit.quantity, addon.id);
+        if (granted?.id) grantedLedgerIds.push(granted.id);
+      }
+    } catch (allocErr: any) {
+      console.error('[Stripe Webhook] One-off allocation failed; rolling back audit grant:', allocErr);
+      if (grantedLedgerIds.length > 0) {
+        await supabaseAdmin.from('usage_ledger').delete().in('id', grantedLedgerIds);
+      }
+      if (auditId) {
+        await supabaseAdmin.from('addon_audit_log').delete().eq('id', auditId);
+      }
+      return {
+        ok: false,
+        retry: true,
+        oneOff: true,
+        addonId: addon.id,
+        error: allocErr?.message || 'Failed to allocate one-off credits',
       };
     }
   } else if (existing) {
@@ -279,15 +373,9 @@ async function activateBoltOnByCatalogId(options: {
     if (insertErr) console.error('[Stripe Webhook] Error inserting active addon:', insertErr);
   }
 
-  if (isOneOff || !alreadyActive) {
-    if (voiceMinutes > 0) {
-      await allocateRollingCredits?.(tenantId, 'voice_minutes', voiceMinutes, addon.id);
-    }
-    if (smsCount > 0) {
-      await allocateRollingCredits?.(tenantId, 'sms_messages', smsCount, addon.id);
-    }
-    if (messagesCount > 0) {
-      await allocateRollingCredits?.(tenantId, 'whatsapp_messages', messagesCount, addon.id);
+  if (!isOneOff && !alreadyActive) {
+    for (const credit of oneOffCredits) {
+      await allocateRollingCredits?.(tenantId, credit.feature_id, credit.quantity, addon.id);
     }
   }
 
