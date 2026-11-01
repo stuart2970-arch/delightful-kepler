@@ -4048,3 +4048,10 @@ Highlighted adjustments in the modal:
   - Unit + Playwright coverage that the knowledge total drops when Extra Knowledge is cancelled (`is_active=false`).
   - Migration `20261101210000_one_off_checkout_session_unique.sql`: allow `one_off_addon_purchased` on `addon_audit_log.action` and unique-index `(tenant_id, addon_catalog_id, stripe_session_id)` for that action.
   - Local: `npm run typecheck` passed. Playwright **377 passed** against `.env.test` / local Supabase / `sk_test_mock` (never live).
+
+### Session (PR 19 PO re-check - one-off audit insert before credits - 1 Nov 2026)
+* **User**: BLOCK. Unique index does not protect grants because credits are allocated before the audit insert, and insert errors are ignored. Same PR 19, do not merge.
+* **Changes**:
+  - One-off fulfilment inserts `addon_audit_log` first. Postgres `23505` is treated as already granted (200, no credits). Any other insert error returns 500 so Stripe retries, and credits are not allocated.
+  - Credits are allocated only after a successful one-off audit insert.
+  - Test: redelivered one-off grants once; failed audit insert grants nothing.

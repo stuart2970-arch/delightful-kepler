@@ -53,6 +53,7 @@ function createFakeBillingDb(seed?: {
   tenant?: Partial<TenantRow>;
   catalog?: AddonCatalogRow[];
   activeAddons?: ActiveAddonRow[];
+  auditInsertError?: { code?: string; message?: string };
 }) {
   const tenants: TenantRow[] = [
     {
@@ -180,6 +181,29 @@ function createFakeBillingDb(seed?: {
                 }
               }
               if (table === 'addon_audit_log') {
+                if (seed?.auditInsertError) {
+                  return { data: null, error: seed.auditInsertError };
+                }
+                for (const row of rows) {
+                  const sessionId = row?.new_value?.stripe_session_id;
+                  const isDuplicateOneOff = row.action === 'one_off_addon_purchased'
+                    && sessionId
+                    && audit.some((existingRow) => (
+                      existingRow.action === 'one_off_addon_purchased'
+                      && existingRow.tenant_id === row.tenant_id
+                      && existingRow.addon_catalog_id === row.addon_catalog_id
+                      && existingRow.new_value?.stripe_session_id === sessionId
+                    ));
+                  if (isDuplicateOneOff) {
+                    return {
+                      data: null,
+                      error: {
+                        code: '23505',
+                        message: 'duplicate key value violates unique constraint "addon_audit_log_one_off_checkout_session_uidx"',
+                      },
+                    };
+                  }
+                }
                 audit.push(...rows);
               }
               return { data: rows, error: null };
@@ -603,6 +627,61 @@ test.describe('Bolt-on webhook detection and fulfilment', () => {
     expect(allocations.filter((row) => row[1] === 'voice_minutes')).toEqual([[TENANT_ID, 'voice_minutes', 20, 'voice_pack_20']]);
     expect(allocations.filter((row) => row[1] === 'sms_messages')).toEqual([[TENANT_ID, 'sms_messages', 100, 'sms_pack_100']]);
     expect(db.state.tenants[0].plan_tier).toBe('premium');
+    expect(db.state.audit.filter((row) => row.action === 'one_off_addon_purchased')).toHaveLength(2);
+  });
+
+  test('redelivered one-off grants once and a failed audit insert grants nothing', async () => {
+    const grantedDb = createFakeBillingDb();
+    const granted: Array<[string, string, number, string?]> = [];
+    const voiceEvent = {
+      type: 'checkout.session.completed',
+      data: {
+        object: {
+          id: 'cs_voice_claim_once',
+          metadata: {
+            tenant_id: TENANT_ID,
+            addon_catalog_id: 'voice_pack_20',
+            is_addon: 'true',
+            is_one_off: 'true',
+            voice_minutes: '20',
+          },
+        },
+      },
+    };
+
+    const first = await handleStripeBillingEvent(voiceEvent, {
+      supabaseAdmin: grantedDb,
+      allocateRollingCredits: async (tenantId, featureId, quantity, addonId) => {
+        granted.push([tenantId, featureId, quantity, addonId]);
+      },
+    });
+    const replay = await handleStripeBillingEvent(voiceEvent, {
+      supabaseAdmin: grantedDb,
+      allocateRollingCredits: async (tenantId, featureId, quantity, addonId) => {
+        granted.push([tenantId, featureId, quantity, addonId]);
+      },
+    });
+
+    expect(first.status).toBe(200);
+    expect(replay.status).toBe(200);
+    expect(granted).toEqual([[TENANT_ID, 'voice_minutes', 20, 'voice_pack_20']]);
+    expect(grantedDb.state.audit).toHaveLength(1);
+
+    const failedDb = createFakeBillingDb({
+      auditInsertError: { code: '57014', message: 'audit insert failed' },
+    });
+    const failedAllocations: Array<[string, string, number, string?]> = [];
+    const failed = await handleStripeBillingEvent(voiceEvent, {
+      supabaseAdmin: failedDb,
+      allocateRollingCredits: async (tenantId, featureId, quantity, addonId) => {
+        failedAllocations.push([tenantId, featureId, quantity, addonId]);
+      },
+    });
+
+    expect(failed.status).toBe(500);
+    expect(failed.body.success).toBe(false);
+    expect(failedAllocations).toHaveLength(0);
+    expect(failedDb.state.audit).toHaveLength(0);
   });
 
   test('missing catalogue or addon_catalog_id never falls through to the base-plan path', async () => {

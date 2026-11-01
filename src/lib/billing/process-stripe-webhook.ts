@@ -22,6 +22,19 @@ export type StripeWebhookResult = {
   body: Record<string, any>;
 };
 
+type ActivateBoltOnResult = {
+  ok: boolean;
+  addonId?: string;
+  oneOff?: boolean;
+  alreadyGranted?: boolean;
+  retry?: boolean;
+  error?: string;
+};
+
+function isUniqueViolation(error: any): boolean {
+  return String(error?.code ?? '') === '23505';
+}
+
 async function syncChannelFlags(supabaseAdmin: any, tenantId: string) {
   await supabaseAdmin.rpc('sync_tenant_channel_flags', { p_tenant_id: tenantId });
 }
@@ -151,7 +164,7 @@ async function activateBoltOnByCatalogId(options: {
   stripeSessionId?: string | null;
   stripeUnitAmount?: number | null;
   allocateRollingCredits: StripeWebhookDeps['allocateRollingCredits'];
-}): Promise<{ ok: boolean; addonId?: string; oneOff?: boolean }> {
+}): Promise<ActivateBoltOnResult> {
   const {
     supabaseAdmin,
     tenantId,
@@ -197,53 +210,76 @@ async function activateBoltOnByCatalogId(options: {
   const alreadyActive = Boolean(existing?.is_active);
   const featureId = mapAddonCategoryToFeatureId(addon.category);
 
-  let alreadyGrantedForSession = false;
-  if (stripeSessionId) {
-    const { data: priorAudits } = await supabaseAdmin
-      .from('addon_audit_log')
-      .select('id, new_value')
-      .eq('tenant_id', tenantId)
-      .eq('addon_catalog_id', addon.id);
-    alreadyGrantedForSession = Boolean(
-      (priorAudits || []).some((row: any) => row?.new_value?.stripe_session_id === stripeSessionId),
-    );
-  }
+  const auditRow = {
+    tenant_id: tenantId,
+    addon_catalog_id: addon.id,
+    action: isOneOff ? 'one_off_addon_purchased' : 'addon_activated',
+    new_value: {
+      is_one_off: isOneOff,
+      custom_price_pence: customPricePence ?? pricePaidPence,
+      price_paid_pence: pricePaidPence,
+      voice_minutes: voiceMinutes,
+      sms: smsCount,
+      auto_topup: metadata.auto_topup === 'true',
+      auto_topup_threshold: metadata.auto_topup_threshold || null,
+      stripe_subscription_id: subscriptionItemId || null,
+      stripe_session_id: stripeSessionId,
+    },
+    summary: isOneOff
+      ? (addon.category === 'voice_pack'
+          ? `Purchased one-off pack of ${voiceMinutes} voice minutes for £${((customPricePence || addon.monthly_price_pence) / 100).toFixed(2)} (valid for 3 months).`
+          : `Purchased one-off pack of ${smsCount} SMS messages for £${((customPricePence || addon.monthly_price_pence) / 100).toFixed(2)} (valid for 3 months).`)
+      : `Activated ${addon.id} (${voiceMinutes} voice mins, ${smsCount} SMS) via Stripe checkout.`,
+  };
 
-  if (!isOneOff) {
-    if (existing) {
-      const updatePayload: Record<string, any> = {
+  if (isOneOff) {
+    const { error: auditError } = await supabaseAdmin.from('addon_audit_log').insert(auditRow);
+    if (auditError) {
+      if (isUniqueViolation(auditError)) {
+        return { ok: true, alreadyGranted: true, addonId: addon.id, oneOff: true };
+      }
+      console.error('[Stripe Webhook] One-off audit insert failed; leaving credits unchanged:', auditError);
+      return {
+        ok: false,
+        retry: true,
+        oneOff: true,
+        addonId: addon.id,
+        error: auditError.message || 'Failed to record one-off pack grant',
+      };
+    }
+  } else if (existing) {
+    const updatePayload: Record<string, any> = {
+      is_active: true,
+      deactivated_at: null,
+      stripe_subscription_item_id: subscriptionItemId || null,
+      price_paid_pence: pricePaidPence,
+      feature_id: featureId,
+    };
+    if (!existing.is_active) {
+      updatePayload.activated_at = new Date().toISOString();
+    }
+    const { error: updateErr } = await supabaseAdmin
+      .from('tenant_active_addons')
+      .update(updatePayload)
+      .eq('id', existing.id);
+    if (updateErr) console.error('[Stripe Webhook] Error updating active addon:', updateErr);
+  } else {
+    const { error: insertErr } = await supabaseAdmin
+      .from('tenant_active_addons')
+      .insert({
+        tenant_id: tenantId,
+        addon_catalog_id: addon.id,
+        feature_id: featureId,
+        quantity: 1,
         is_active: true,
-        deactivated_at: null,
+        activated_at: new Date().toISOString(),
         stripe_subscription_item_id: subscriptionItemId || null,
         price_paid_pence: pricePaidPence,
-        feature_id: featureId,
-      };
-      if (!existing.is_active) {
-        updatePayload.activated_at = new Date().toISOString();
-      }
-      const { error: updateErr } = await supabaseAdmin
-        .from('tenant_active_addons')
-        .update(updatePayload)
-        .eq('id', existing.id);
-      if (updateErr) console.error('[Stripe Webhook] Error updating active addon:', updateErr);
-    } else {
-      const { error: insertErr } = await supabaseAdmin
-        .from('tenant_active_addons')
-        .insert({
-          tenant_id: tenantId,
-          addon_catalog_id: addon.id,
-          feature_id: featureId,
-          quantity: 1,
-          is_active: true,
-          activated_at: new Date().toISOString(),
-          stripe_subscription_item_id: subscriptionItemId || null,
-          price_paid_pence: pricePaidPence,
-        });
-      if (insertErr) console.error('[Stripe Webhook] Error inserting active addon:', insertErr);
-    }
+      });
+    if (insertErr) console.error('[Stripe Webhook] Error inserting active addon:', insertErr);
   }
 
-  if (!alreadyActive && !alreadyGrantedForSession) {
+  if (isOneOff || !alreadyActive) {
     if (voiceMinutes > 0) {
       await allocateRollingCredits?.(tenantId, 'voice_minutes', voiceMinutes, addon.id);
     }
@@ -269,28 +305,8 @@ async function activateBoltOnByCatalogId(options: {
       .eq('id', tenantId);
   }
 
-  if (!alreadyActive && !alreadyGrantedForSession) {
-    await supabaseAdmin.from('addon_audit_log').insert({
-      tenant_id: tenantId,
-      addon_catalog_id: addon.id,
-      action: isOneOff ? 'one_off_addon_purchased' : 'addon_activated',
-      new_value: {
-        is_one_off: isOneOff,
-        custom_price_pence: customPricePence ?? pricePaidPence,
-        price_paid_pence: pricePaidPence,
-        voice_minutes: voiceMinutes,
-        sms: smsCount,
-        auto_topup: metadata.auto_topup === 'true',
-        auto_topup_threshold: metadata.auto_topup_threshold || null,
-        stripe_subscription_id: subscriptionItemId || null,
-        stripe_session_id: stripeSessionId,
-      },
-      summary: isOneOff
-        ? (addon.category === 'voice_pack'
-            ? `Purchased one-off pack of ${voiceMinutes} voice minutes for £${((customPricePence || addon.monthly_price_pence) / 100).toFixed(2)} (valid for 3 months).`
-            : `Purchased one-off pack of ${smsCount} SMS messages for £${((customPricePence || addon.monthly_price_pence) / 100).toFixed(2)} (valid for 3 months).`)
-        : `Activated ${addon.id} (${voiceMinutes} voice mins, ${smsCount} SMS) via Stripe checkout.`,
-    });
+  if (!isOneOff && !alreadyActive) {
+    await supabaseAdmin.from('addon_audit_log').insert(auditRow);
   }
 
   return { ok: true, addonId: addon.id, oneOff: isOneOff };
@@ -398,6 +414,9 @@ export async function handleStripeBillingEvent(
         stripeUnitAmount: firstItem?.price?.unit_amount ?? null,
         allocateRollingCredits,
       });
+      if (activated.retry) {
+        return { status: 500, body: { success: false, error: activated.error || 'Bolt-on fulfilment failed' } };
+      }
       if (activated.ok) {
         return { status: 200, body: { success: true, message: 'Add-ons synced' } };
       }
@@ -557,6 +576,17 @@ export async function handleStripeBillingEvent(
         stripeSessionId: dataObject.id,
         allocateRollingCredits,
       });
+
+      if (activated.retry) {
+        return {
+          status: 500,
+          body: {
+            success: false,
+            error: activated.error || 'Failed to record one-off pack grant',
+            tenant_id: targetTenantId,
+          },
+        };
+      }
 
       if (!activated.ok) {
         console.error(`[Stripe Webhook] Bolt-on catalogue row missing for ${addonCatalogId}; leaving plan_tier and minutes unchanged`);
