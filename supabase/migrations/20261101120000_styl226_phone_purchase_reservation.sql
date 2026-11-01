@@ -4,9 +4,23 @@
 ALTER TABLE public.tenant_active_addons
   ADD COLUMN IF NOT EXISTS subscription_status TEXT;
 
+-- Copy the tenant's known Stripe status onto add-ons. Do not blanket-set 'active'.
+UPDATE public.tenant_active_addons AS taa
+SET subscription_status = CASE
+  WHEN lower(t.subscription_status) = 'canceled' THEN 'cancelled'
+  WHEN lower(t.subscription_status) = 'unpaid' THEN 'past_due'
+  ELSE lower(t.subscription_status)
+END
+FROM public.tenants AS t
+WHERE taa.tenant_id = t.id
+  AND taa.subscription_status IS NULL
+  AND t.subscription_status IS NOT NULL
+  AND btrim(t.subscription_status) <> '';
+
 UPDATE public.tenant_active_addons
-  SET subscription_status = 'active'
-  WHERE is_active IS TRUE AND subscription_status IS NULL;
+  SET subscription_status = 'cancelled'
+  WHERE subscription_status IS NULL
+    AND is_active IS NOT TRUE;
 
 COMMENT ON COLUMN public.tenant_active_addons.subscription_status IS
   'Stripe/subscription state for the bolt-on. Paid phone buys require active or trialing.';

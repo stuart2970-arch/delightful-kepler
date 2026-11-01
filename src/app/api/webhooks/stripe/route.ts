@@ -3,6 +3,11 @@ import { createClient } from '@supabase/supabase-js';
 import { allocateRollingCredits } from '@/lib/entitlements';
 import { resolvePricePaidPence } from '@/lib/billing/account-ownership';
 import { parseStripeWebhookEvent } from '@/lib/env/stripe-webhook';
+import {
+  addonActivateStatusFields,
+  addonDeactivateStatusFields,
+  addonPastDueStatusFields,
+} from '@/lib/billing/addon-subscription-status';
 
 export const dynamic = 'force-dynamic';
 
@@ -53,11 +58,12 @@ function mapAddonCategoryToFeatureId(category: string): string {
  * Process add-on line items from a Stripe subscription.
  * Matches stripe_price_id to addon_catalog and activates/deactivates add-ons.
  */
-async function processAddonLineItems(
+export async function processAddonLineItems(
   supabaseAdmin: any,
   tenantId: string,
   lineItems: any[],
-  action: 'activate' | 'deactivate'
+  action: 'activate' | 'deactivate',
+  stripeSubscriptionStatus?: string | null,
 ) {
   for (const item of lineItems) {
     const priceId = item.price?.id || item.plan?.id;
@@ -91,7 +97,7 @@ async function processAddonLineItems(
         const { error: updateErr } = await supabaseAdmin
           .from('tenant_active_addons')
           .update({
-            is_active: true,
+            ...addonActivateStatusFields(stripeSubscriptionStatus),
             activated_at: new Date().toISOString(),
             deactivated_at: null,
             stripe_subscription_item_id: item.id || null,
@@ -107,7 +113,7 @@ async function processAddonLineItems(
             addon_catalog_id: addon.id,
             feature_id: featureId,
             quantity: 1,
-            is_active: true,
+            ...addonActivateStatusFields(stripeSubscriptionStatus),
             activated_at: new Date().toISOString(),
             stripe_subscription_item_id: item.id || null,
             price_paid_pence: pricePaidPence,
@@ -139,7 +145,7 @@ async function processAddonLineItems(
       await supabaseAdmin
         .from('tenant_active_addons')
         .update({
-          is_active: false,
+          ...addonDeactivateStatusFields(),
           deactivated_at: new Date().toISOString(),
         })
         .eq('tenant_id', tenantId)
@@ -157,6 +163,39 @@ async function processAddonLineItems(
 
   // Sync channel flags after processing all line items
   await syncChannelFlags(supabaseAdmin, tenantId);
+}
+
+export async function syncAddonStatusAfterInvoice(
+  supabaseAdmin: any,
+  tenantId: string,
+  outcome: 'succeeded' | 'failed',
+) {
+  if (outcome === 'failed') {
+    return supabaseAdmin
+      .from('tenant_active_addons')
+      .update(addonPastDueStatusFields())
+      .eq('tenant_id', tenantId);
+  }
+  return supabaseAdmin
+    .from('tenant_active_addons')
+    .update(addonActivateStatusFields('active'))
+    .eq('tenant_id', tenantId)
+    .eq('is_active', true);
+}
+
+export async function deactivateAddonsForCancelledSubscription(
+  supabaseAdmin: any,
+  tenantId: string,
+  addonCatalogId?: string,
+) {
+  let query = supabaseAdmin
+    .from('tenant_active_addons')
+    .update({ ...addonDeactivateStatusFields(), deactivated_at: new Date().toISOString() })
+    .eq('tenant_id', tenantId);
+  if (addonCatalogId) {
+    query = query.eq('addon_catalog_id', addonCatalogId);
+  }
+  return query;
 }
 
 export async function POST(req: Request) {
@@ -200,6 +239,8 @@ export async function POST(req: Request) {
           .from('tenants')
           .update({ is_active: true, subscription_status: 'active' })
           .eq('id', tenantId);
+
+        await syncAddonStatusAfterInvoice(supabaseAdmin, tenantId, 'succeeded');
 
         // Re-allocate rolling credits for all active add-ons on renewal
         const { data: activeAddons } = await supabaseAdmin
@@ -245,6 +286,8 @@ export async function POST(req: Request) {
           .update({ subscription_status: 'past_due' })
           .eq('id', tenantId);
 
+        await syncAddonStatusAfterInvoice(supabaseAdmin, tenantId, 'failed');
+
         console.log(`[Stripe Webhook] Payment failed for tenant ${tenantId}, marked as past_due`);
         return NextResponse.json({ success: true, message: `Tenant ${tenantId} marked past_due` });
       }
@@ -258,7 +301,7 @@ export async function POST(req: Request) {
       const items = dataObject.items?.data || [];
 
       if (tenantId && items.length > 0) {
-        await processAddonLineItems(supabaseAdmin, tenantId, items, 'activate');
+        await processAddonLineItems(supabaseAdmin, tenantId, items, 'activate', dataObject.status);
         console.log(`[Stripe Webhook] Subscription updated for tenant ${tenantId}, ${items.length} items processed`);
         return NextResponse.json({ success: true, message: 'Add-ons synced' });
       }
@@ -275,11 +318,7 @@ export async function POST(req: Request) {
       if (tenantId) {
         if (isAddon && addonCatalogId) {
           // Deactivate ONLY this specific add-on
-          await supabaseAdmin
-            .from('tenant_active_addons')
-            .update({ is_active: false, deactivated_at: new Date().toISOString() })
-            .eq('tenant_id', tenantId)
-            .eq('addon_catalog_id', addonCatalogId);
+          await deactivateAddonsForCancelledSubscription(supabaseAdmin, tenantId, addonCatalogId);
 
           await syncChannelFlags(supabaseAdmin, tenantId);
 
@@ -296,10 +335,7 @@ export async function POST(req: Request) {
         }
 
         // Deactivate all add-ons for this tenant when base subscription is cancelled
-        await supabaseAdmin
-          .from('tenant_active_addons')
-          .update({ is_active: false, deactivated_at: new Date().toISOString() })
-          .eq('tenant_id', tenantId);
+        await deactivateAddonsForCancelledSubscription(supabaseAdmin, tenantId);
 
         // Update tenant status
         await supabaseAdmin
@@ -445,7 +481,7 @@ export async function POST(req: Request) {
                 const { error: updateErr } = await supabaseAdmin
                   .from('tenant_active_addons')
                   .update({
-                    is_active: true,
+                    ...addonActivateStatusFields('active'),
                     activated_at: new Date().toISOString(),
                     deactivated_at: null,
                     stripe_subscription_item_id: dataObject.subscription || null,
@@ -461,7 +497,7 @@ export async function POST(req: Request) {
                     addon_catalog_id: addon.id,
                     feature_id: featureId,
                     quantity: 1,
-                    is_active: true,
+                    ...addonActivateStatusFields('active'),
                     activated_at: new Date().toISOString(),
                     stripe_subscription_item_id: dataObject.subscription || null,
                     price_paid_pence: pricePaidPence,
@@ -551,7 +587,7 @@ export async function POST(req: Request) {
 
       // Process any add-on line items from the checkout session
       if (dataObject.line_items?.data) {
-        await processAddonLineItems(supabaseAdmin, targetTenantId, dataObject.line_items.data, 'activate');
+        await processAddonLineItems(supabaseAdmin, targetTenantId, dataObject.line_items.data, 'activate', 'active');
       }
 
       // Process any selected_addons bundled in checkout session metadata
@@ -581,7 +617,7 @@ export async function POST(req: Request) {
               await supabaseAdmin
                 .from('tenant_active_addons')
                 .update({
-                  is_active: true,
+                  ...addonActivateStatusFields('active'),
                   activated_at: new Date().toISOString(),
                   deactivated_at: null,
                   price_paid_pence: pricePaidPence,
@@ -595,7 +631,7 @@ export async function POST(req: Request) {
                   addon_catalog_id: addon.id,
                   feature_id: featureId,
                   quantity: 1,
-                  is_active: true,
+                  ...addonActivateStatusFields('active'),
                   activated_at: new Date().toISOString(),
                   price_paid_pence: pricePaidPence,
                 });
