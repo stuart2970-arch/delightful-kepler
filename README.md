@@ -3996,4 +3996,4 @@ Highlighted adjustments in the modal:
   - Client: only send `customPricePence` for sliding add-ons.
   - Server: accept a custom price equal to the catalogue price on fixed add-ons; clearer 400 when a non-sliding add-on gets any other custom price.
   - Return URLs use `publicAppPath('/app')` / `publicAppPath('/#pricing')`. Client-supplied `returnUrl` must be same-origin (`safePublicReturnUrl`).
-  - Playwright: `tests/addons-sliding-scale.spec.ts` and `tests/styl-226-app-origin.spec.ts` (local `.env.test` / mock Stripe only).
+  - Playwright: `tests/addons-sliding-scale.spec.ts` and `tests/styl-226-app-origin.spec.ts` — 35 passed locally against `.env.test` / local Supabase / `sk_test_mock` (never live).
