@@ -18,7 +18,7 @@ import WhatsAppMetaView from './dashboard-views/WhatsAppMetaView';
 import SetPasswordBanner from './SetPasswordBanner';
 import CapacityThresholdBanner from './CapacityThresholdBanner';
 import AddOnUpsellModal, { AddOnCategory } from './AddOnUpsellModal';
-import { useDashboardStore } from '../lib/store';
+import { useDashboardStore, type ActiveTab } from '../lib/store';
 import { formatAllowanceRange } from '@/lib/addon-text';
 import { publicAppPath } from '@/lib/env/public-app-url';
 
@@ -28,6 +28,12 @@ const BILLING_CATEGORIES: AddOnCategory[] = [
 
 function asBillingCategory(category: string): AddOnCategory | null {
   return BILLING_CATEGORIES.includes(category as AddOnCategory) ? (category as AddOnCategory) : null;
+}
+
+function resolveDashboardTab(tab?: string | null): ActiveTab | null {
+  if (!tab) return null;
+  if (tab === 'knowledge') return 'crawler';
+  return tab as ActiveTab;
 }
 
 function billingProductEmoji(category: string): string {
@@ -213,7 +219,7 @@ export default function DashboardClient({
       userName,
       isSuperAdmin,
       role,
-      ...(initialTab ? { activeTab: initialTab as any } : {}),
+      ...(resolveDashboardTab(initialTab) ? { activeTab: resolveDashboardTab(initialTab)! } : {}),
       chatbots: initialChatbots || [],
       conversations: initialConversations || [],
       services: initialServices || [],
@@ -333,12 +339,13 @@ export default function DashboardClient({
   useEffect(() => {
     if (typeof window !== 'undefined') {
       const params = new URLSearchParams(window.location.search);
-      const tabParam = params.get('tab') || initialTab;
+      const tabParam = resolveDashboardTab(params.get('tab') || initialTab);
       if (tabParam) {
-        setActiveTab(tabParam as any);
+        setActiveTab(tabParam);
       }
-    } else if (initialTab) {
-      setActiveTab(initialTab as any);
+    } else {
+      const fromProp = resolveDashboardTab(initialTab);
+      if (fromProp) setActiveTab(fromProp);
     }
   }, [initialTab, setActiveTab]);
 
@@ -360,11 +367,14 @@ export default function DashboardClient({
         let targetTab: any = 'telephony';
         let notificationMessage = '🎉 Subscription & Add-on payment successful! Your workspace features have been updated.';
 
-        if (addon === 'google_calendar_addon' || tabParam === 'scheduling') {
+        if (addon === 'microsoft_calendar_addon') {
+          targetTab = 'scheduling';
+          notificationMessage = '🎉 Microsoft Calendar Integration payment successful! Two-way real-time calendar synchronization is now active.';
+        } else if (addon === 'google_calendar_addon' || tabParam === 'scheduling') {
           targetTab = 'scheduling';
           notificationMessage = '🎉 Google Calendar Integration payment successful! Two-way real-time calendar synchronization is now active.';
-        } else if (addon === 'data_pack_500' || tabParam === 'knowledge') {
-          targetTab = 'knowledge';
+        } else if (addon === 'data_pack_500' || tabParam === 'knowledge' || tabParam === 'crawler') {
+          targetTab = 'crawler';
           notificationMessage = '🎉 Knowledge Base Capacity payment successful! Additional vector storage chunks have been added to your workspace.';
         } else if (addon === 'landline_addon' || addon === 'mobile_addon' || addon === 'sms_pack_100' || addon === 'voice_pack_20' || tabParam === 'telephony') {
           targetTab = 'telephony';
