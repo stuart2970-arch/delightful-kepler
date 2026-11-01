@@ -67,7 +67,6 @@ async function tryGrantOneOffAtomically(options: {
     p_credits: options.credits,
   });
   if (error && isMissingRpc(error)) return { used: false };
-  if (error && isUniqueViolation(error)) return { used: true, alreadyGranted: true };
   if (error) {
     return { used: true, retry: true, error: error.message || 'Atomic one-off grant failed' };
   }
@@ -297,49 +296,70 @@ async function activateBoltOnByCatalogId(options: {
       if (atomic.alreadyGranted) {
         return { ok: true, alreadyGranted: true, addonId: addon.id, oneOff: true };
       }
-      await syncChannelFlags(supabaseAdmin, tenantId);
-      return { ok: true, addonId: addon.id, oneOff: true };
-    }
-
-    const { data: insertedAudit, error: auditError } = await supabaseAdmin
-      .from('addon_audit_log')
-      .insert(auditRow)
-      .select('id');
-    if (auditError) {
-      if (isUniqueViolation(auditError)) {
-        return { ok: true, alreadyGranted: true, addonId: addon.id, oneOff: true };
+    } else {
+      const { data: insertedAudit, error: auditError } = await supabaseAdmin
+        .from('addon_audit_log')
+        .insert(auditRow)
+        .select('id');
+      if (auditError) {
+        if (isUniqueViolation(auditError)) {
+          return { ok: true, alreadyGranted: true, addonId: addon.id, oneOff: true };
+        }
+        console.error('[Stripe Webhook] One-off audit insert failed; leaving credits unchanged:', auditError);
+        return {
+          ok: false,
+          retry: true,
+          oneOff: true,
+          addonId: addon.id,
+          error: auditError.message || 'Failed to record one-off pack grant',
+        };
       }
-      console.error('[Stripe Webhook] One-off audit insert failed; leaving credits unchanged:', auditError);
-      return {
-        ok: false,
-        retry: true,
-        oneOff: true,
-        addonId: addon.id,
-        error: auditError.message || 'Failed to record one-off pack grant',
-      };
-    }
-    const auditId = Array.isArray(insertedAudit) ? insertedAudit[0]?.id : insertedAudit?.id;
-    const grantedLedgerIds: string[] = [];
-    try {
-      for (const credit of oneOffCredits) {
-        const granted = await allocateRollingCredits?.(tenantId, credit.feature_id, credit.quantity, addon.id);
-        if (granted?.id) grantedLedgerIds.push(granted.id);
+      const auditId = Array.isArray(insertedAudit) ? insertedAudit[0]?.id : insertedAudit?.id;
+      const grantedLedgerIds: string[] = [];
+      try {
+        for (const credit of oneOffCredits) {
+          const granted = await allocateRollingCredits?.(tenantId, credit.feature_id, credit.quantity, addon.id);
+          if (granted?.id) grantedLedgerIds.push(granted.id);
+        }
+      } catch (allocErr: any) {
+        console.error('[Stripe Webhook] One-off allocation failed; rolling back audit grant:', allocErr);
+        let rollbackFailed = false;
+        if (grantedLedgerIds.length > 0) {
+          const { error: ledgerDeleteError } = await supabaseAdmin
+            .from('usage_ledger')
+            .delete()
+            .in('id', grantedLedgerIds);
+          if (ledgerDeleteError) {
+            console.error(
+              '[Stripe Webhook] CRITICAL: failed to roll back one-off usage_ledger rows after allocation failure. Retry must not grant twice.',
+              ledgerDeleteError,
+            );
+            rollbackFailed = true;
+          }
+        }
+        if (auditId) {
+          const { error: auditDeleteError } = await supabaseAdmin
+            .from('addon_audit_log')
+            .delete()
+            .eq('id', auditId);
+          if (auditDeleteError) {
+            console.error(
+              '[Stripe Webhook] CRITICAL: failed to roll back one-off addon_audit_log row after allocation failure. Retry must not grant twice.',
+              auditDeleteError,
+            );
+            rollbackFailed = true;
+          }
+        }
+        return {
+          ok: false,
+          retry: true,
+          oneOff: true,
+          addonId: addon.id,
+          error: rollbackFailed
+            ? 'Failed to roll back one-off grant after allocation error'
+            : (allocErr?.message || 'Failed to allocate one-off credits'),
+        };
       }
-    } catch (allocErr: any) {
-      console.error('[Stripe Webhook] One-off allocation failed; rolling back audit grant:', allocErr);
-      if (grantedLedgerIds.length > 0) {
-        await supabaseAdmin.from('usage_ledger').delete().in('id', grantedLedgerIds);
-      }
-      if (auditId) {
-        await supabaseAdmin.from('addon_audit_log').delete().eq('id', auditId);
-      }
-      return {
-        ok: false,
-        retry: true,
-        oneOff: true,
-        addonId: addon.id,
-        error: allocErr?.message || 'Failed to allocate one-off credits',
-      };
     }
   } else if (existing) {
     const updatePayload: Record<string, any> = {

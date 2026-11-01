@@ -23,6 +23,10 @@ type TenantRow = {
   has_landline?: boolean;
   has_mobile?: boolean;
   has_whatsapp?: boolean;
+  voice_auto_topup?: boolean;
+  voice_auto_topup_threshold?: number;
+  voice_auto_topup_amount?: number;
+  voice_auto_topup_price_pence?: number;
 };
 
 type AddonCatalogRow = {
@@ -54,6 +58,9 @@ function createFakeBillingDb(seed?: {
   catalog?: AddonCatalogRow[];
   activeAddons?: ActiveAddonRow[];
   auditInsertError?: { code?: string; message?: string };
+  ledgerDeleteError?: { code?: string; message?: string };
+  auditDeleteError?: { code?: string; message?: string };
+  grantOneOffRpc?: 'success' | 'already_granted' | 'unique_violation' | 'missing_42883' | 'missing';
 }) {
   const tenants: TenantRow[] = [
     {
@@ -245,6 +252,12 @@ function createFakeBillingDb(seed?: {
               return { data: rows, error: null };
             }
             if (pendingDelete) {
+              if (table === 'usage_ledger' && seed?.ledgerDeleteError) {
+                return { data: null, error: seed.ledgerDeleteError };
+              }
+              if (table === 'addon_audit_log' && seed?.auditDeleteError) {
+                return { data: null, error: seed.auditDeleteError };
+              }
               if (table === 'addon_audit_log') {
                 for (let i = audit.length - 1; i >= 0; i -= 1) {
                   if (matches(audit[i], filters)) audit.splice(i, 1);
@@ -290,6 +303,37 @@ function createFakeBillingDb(seed?: {
     rpc: async (name: string, args: any) => {
       rpcCalls.push({ name, args });
       if (name === 'grant_one_off_pack') {
+        const mode = seed?.grantOneOffRpc || 'missing';
+        if (mode === 'missing_42883') {
+          return { data: null, error: { code: '42883', message: 'function public.grant_one_off_pack does not exist' } };
+        }
+        if (mode === 'unique_violation') {
+          return { data: null, error: { code: '23505', message: 'duplicate key value violates unique constraint' } };
+        }
+        if (mode === 'already_granted') {
+          return { data: { granted: false, already_granted: true }, error: null };
+        }
+        if (mode === 'success') {
+          audit.push({
+            id: `audit-rpc-${audit.length + 1}`,
+            tenant_id: args.p_tenant_id,
+            addon_catalog_id: args.p_addon_catalog_id,
+            action: 'one_off_addon_purchased',
+            new_value: args.p_audit_new_value,
+            summary: args.p_audit_summary,
+          });
+          for (const credit of args.p_credits || []) {
+            ledger.push({
+              id: `led-rpc-${ledger.length + 1}`,
+              tenant_id: args.p_tenant_id,
+              feature_id: credit.feature_id,
+              quantity: credit.quantity,
+              usage_type: 'allocation',
+              addon_catalog_id: args.p_addon_catalog_id,
+            });
+          }
+          return { data: { granted: true, already_granted: false }, error: null };
+        }
         return {
           data: null,
           error: { code: 'PGRST202', message: 'Could not find the function public.grant_one_off_pack' },
@@ -298,6 +342,42 @@ function createFakeBillingDb(seed?: {
       return { data: null, error: null };
     },
     auth: { admin: { listUsers: async () => ({ data: { users: [] } }) } },
+  };
+}
+
+async function recordLedgerAllocation(
+  db: ReturnType<typeof createFakeBillingDb>,
+  tenantId: string,
+  featureId: string,
+  quantity: number,
+  addonId?: string,
+) {
+  const { data, error } = await db.from('usage_ledger').insert({
+    tenant_id: tenantId,
+    feature_id: featureId,
+    quantity,
+    usage_type: 'allocation',
+    addon_catalog_id: addonId || null,
+  }).select('id');
+  if (error) throw new Error(error.message);
+  const row = Array.isArray(data) ? data[0] : data;
+  return { id: row?.id as string };
+}
+
+function oneOffCheckoutEvent(sessionId: string, metadata: Record<string, string>) {
+  return {
+    type: 'checkout.session.completed',
+    data: {
+      object: {
+        id: sessionId,
+        metadata: {
+          tenant_id: TENANT_ID,
+          is_addon: 'true',
+          is_one_off: 'true',
+          ...metadata,
+        },
+      },
+    },
   };
 }
 
@@ -764,7 +844,7 @@ test.describe('Bolt-on webhook detection and fulfilment', () => {
           throw new Error('usage_ledger insert failed');
         }
         allocations.push([tenantId, featureId, quantity, addonId]);
-        return { id: `led-${allocations.length}` };
+        return recordLedgerAllocation(db, tenantId, featureId, quantity, addonId);
       },
     };
 
@@ -786,6 +866,7 @@ test.describe('Bolt-on webhook detection and fulfilment', () => {
       [TENANT_ID, 'sms_messages', 100, 'combo_pack_voice_sms'],
     ]);
     expect(db.state.audit).toHaveLength(1);
+    expect(db.state.ledger).toHaveLength(2);
   });
 
   test('multi-credit pack rolls back a partial allocation so nothing is granted', async () => {
@@ -813,7 +894,7 @@ test.describe('Bolt-on webhook detection and fulfilment', () => {
         if (featureId === 'sms_messages') {
           throw new Error('second credit insert failed');
         }
-        return { id: `led-${allocations.length}` };
+        return recordLedgerAllocation(db, tenantId, featureId, quantity, addonId);
       },
     });
 
@@ -825,7 +906,7 @@ test.describe('Bolt-on webhook detection and fulfilment', () => {
       supabaseAdmin: db,
       allocateRollingCredits: async (tenantId, featureId, quantity, addonId) => {
         allocations.push([tenantId, featureId, quantity, addonId]);
-        return { id: `led-retry-${allocations.length}` };
+        return recordLedgerAllocation(db, tenantId, featureId, quantity, addonId);
       },
     });
 
@@ -833,6 +914,133 @@ test.describe('Bolt-on webhook detection and fulfilment', () => {
     expect(allocations.filter((row) => row[1] === 'voice_minutes')).toHaveLength(2);
     expect(allocations.filter((row) => row[1] === 'sms_messages')).toHaveLength(2);
     expect(db.state.audit).toHaveLength(1);
+    expect(db.state.ledger).toHaveLength(2);
+  });
+
+  test('ledger rollback delete failure returns 500 and leaves the granted credit', async () => {
+    const db = createFakeBillingDb({
+      ledgerDeleteError: { code: '57014', message: 'ledger delete failed' },
+    });
+    const result = await handleStripeBillingEvent(
+      oneOffCheckoutEvent('cs_ledger_delete_fail', { addon_catalog_id: 'combo_pack_voice_sms' }),
+      {
+        supabaseAdmin: db,
+        allocateRollingCredits: async (tenantId, featureId, quantity, addonId) => {
+          if (featureId === 'sms_messages') throw new Error('second credit insert failed');
+          return recordLedgerAllocation(db, tenantId, featureId, quantity, addonId);
+        },
+      },
+    );
+
+    expect(result.status).toBe(500);
+    expect(result.body.error).toMatch(/roll back/i);
+    expect(db.state.ledger).toHaveLength(1);
+    expect(db.state.ledger[0].feature_id).toBe('voice_minutes');
+  });
+
+  test('audit rollback delete failure returns 500 and leaves the audit row', async () => {
+    const db = createFakeBillingDb({
+      auditDeleteError: { code: '57014', message: 'audit delete failed' },
+    });
+    const result = await handleStripeBillingEvent(
+      oneOffCheckoutEvent('cs_audit_delete_fail', { addon_catalog_id: 'voice_pack_20' }),
+      {
+        supabaseAdmin: db,
+        allocateRollingCredits: async () => {
+          throw new Error('usage_ledger insert failed');
+        },
+      },
+    );
+
+    expect(result.status).toBe(500);
+    expect(result.body.error).toMatch(/roll back/i);
+    expect(db.state.audit).toHaveLength(1);
+    expect(db.state.ledger).toHaveLength(0);
+  });
+
+  test('successful RPC grant sets voice auto top-up', async () => {
+    const db = createFakeBillingDb({ grantOneOffRpc: 'success' });
+    const allocations: Array<[string, string, number, string?]> = [];
+    const result = await handleStripeBillingEvent(
+      oneOffCheckoutEvent('cs_rpc_autotopup', {
+        addon_catalog_id: 'voice_pack_20',
+        auto_topup: 'true',
+        auto_topup_threshold: '15',
+      }),
+      {
+        supabaseAdmin: db,
+        allocateRollingCredits: async (tenantId, featureId, quantity, addonId) => {
+          allocations.push([tenantId, featureId, quantity, addonId]);
+        },
+      },
+    );
+
+    expect(result.status).toBe(200);
+    expect(allocations).toHaveLength(0);
+    expect(db.state.audit).toHaveLength(1);
+    expect(db.state.ledger).toHaveLength(1);
+    expect(db.state.tenants[0].voice_auto_topup).toBe(true);
+    expect(db.state.tenants[0].voice_auto_topup_threshold).toBe(15);
+    expect(db.state.tenants[0].voice_auto_topup_amount).toBe(20);
+    expect(db.state.rpcCalls.some((call) => call.name === 'sync_tenant_channel_flags')).toBe(true);
+  });
+
+  test('RPC already_granted skips a second credit grant', async () => {
+    const db = createFakeBillingDb({ grantOneOffRpc: 'already_granted' });
+    const allocations: Array<[string, string, number, string?]> = [];
+    const result = await handleStripeBillingEvent(
+      oneOffCheckoutEvent('cs_rpc_already', { addon_catalog_id: 'voice_pack_20' }),
+      {
+        supabaseAdmin: db,
+        allocateRollingCredits: async (tenantId, featureId, quantity, addonId) => {
+          allocations.push([tenantId, featureId, quantity, addonId]);
+        },
+      },
+    );
+
+    expect(result.status).toBe(200);
+    expect(allocations).toHaveLength(0);
+    expect(db.state.ledger).toHaveLength(0);
+    expect(db.state.tenants[0].voice_auto_topup).toBeUndefined();
+  });
+
+  test('RPC unique-violation error is not treated as already granted', async () => {
+    const db = createFakeBillingDb({ grantOneOffRpc: 'unique_violation' });
+    const allocations: Array<[string, string, number, string?]> = [];
+    const result = await handleStripeBillingEvent(
+      oneOffCheckoutEvent('cs_rpc_23505', { addon_catalog_id: 'voice_pack_20' }),
+      {
+        supabaseAdmin: db,
+        allocateRollingCredits: async (tenantId, featureId, quantity, addonId) => {
+          allocations.push([tenantId, featureId, quantity, addonId]);
+        },
+      },
+    );
+
+    expect(result.status).toBe(500);
+    expect(result.body.success).toBe(false);
+    expect(allocations).toHaveLength(0);
+    expect(db.state.audit).toHaveLength(0);
+  });
+
+  test('missing grant_one_off_pack RPC falls back to JS allocation', async () => {
+    const db = createFakeBillingDb({ grantOneOffRpc: 'missing_42883' });
+    const allocations: Array<[string, string, number, string?]> = [];
+    const result = await handleStripeBillingEvent(
+      oneOffCheckoutEvent('cs_rpc_missing', { addon_catalog_id: 'voice_pack_20' }),
+      {
+        supabaseAdmin: db,
+        allocateRollingCredits: async (tenantId, featureId, quantity, addonId) => {
+          allocations.push([tenantId, featureId, quantity, addonId]);
+          return recordLedgerAllocation(db, tenantId, featureId, quantity, addonId);
+        },
+      },
+    );
+
+    expect(result.status).toBe(200);
+    expect(allocations).toEqual([[TENANT_ID, 'voice_minutes', 20, 'voice_pack_20']]);
+    expect(db.state.audit).toHaveLength(1);
+    expect(db.state.ledger).toHaveLength(1);
   });
 
   test('missing catalogue or addon_catalog_id never falls through to the base-plan path', async () => {

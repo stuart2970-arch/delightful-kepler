@@ -15,7 +15,7 @@ CREATE OR REPLACE FUNCTION public.grant_one_off_pack(
 RETURNS jsonb
 LANGUAGE plpgsql
 SECURITY DEFINER
-SET search_path = public
+SET search_path = public, pg_temp
 AS $$
 DECLARE
   v_credit jsonb;

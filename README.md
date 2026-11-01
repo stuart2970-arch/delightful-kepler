@@ -4063,3 +4063,12 @@ Highlighted adjustments in the modal:
   - One-off fulfilment calls `grant_one_off_pack` (audit + every credit in one transaction). If the RPC is missing, it inserts the audit row, allocates all credits, and on any allocation error deletes the new audit row and any ledger rows from that attempt, then returns 500.
   - Migration `20261101223000_grant_one_off_pack_atomic.sql` is added only (not applied here).
   - Tests: failed allocation → 500 and no audit row, retry grants exactly once; a two-credit pack rolls back a partial grant.
+
+### Session (PR 21 review - auto top-up after RPC + rollback checks - 1 Nov 2026)
+* **User**: BLOCK on PR 21. Same branch. RPC success returned before `voice_auto_topup`. Check rollback delete errors. Trust only `data.already_granted` from the RPC. Make ledger assertions real. RPC success / already_granted / missing-function tests. `search_path = public, pg_temp`. Do not apply the migration. Do not merge.
+* **Changes**:
+  - Successful RPC and JS fallback both run channel sync and the auto top-up tenant update.
+  - Rollback delete errors on `usage_ledger` or `addon_audit_log` are logged as CRITICAL and return 500.
+  - RPC `23505` is no longer treated as already granted.
+  - Tests cover auto top-up after a successful RPC, both delete failures, RPC already_granted, RPC unique-violation, missing-function fallback, and a partial pack whose mock writes the ledger.
+  - Local: `npm run typecheck` passed. Playwright **386 passed** against `.env.test` / local Supabase / `sk_test_mock` (never live). Migration not applied.
