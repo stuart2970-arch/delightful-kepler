@@ -12,6 +12,7 @@ import {
   tenantHasExistingNumber,
   tenantHasPaidPhoneAddon,
   verifyVapiPrivateKeyWorks,
+  withVendorTimeout,
 } from '@/lib/telephony/provision-safety';
 
 export type ProvisionQueryResult<T> = { data: T; error: { message?: string; code?: string } | null };
@@ -21,6 +22,7 @@ export type ProvisionQuery = {
   eq: (column: string, value: string) => ProvisionQuery;
   in: (column: string, values: string[]) => ProvisionQuery;
   single: () => Promise<ProvisionQueryResult<any>>;
+  maybeSingle: () => Promise<ProvisionQueryResult<any>>;
   then: Promise<ProvisionQueryResult<any>>['then'];
   insert: (row: Record<string, unknown>) => Promise<{ error: { code?: string; message?: string } | null }>;
   update: (row: Record<string, unknown>) => {
@@ -138,8 +140,20 @@ export async function handleProvisionPost(
     }
 
     const releaseReservation = async () => {
-      await clearTenantPhonePurchase(deps.adminSupabase, tenant_id);
+      const cleared = await clearTenantPhonePurchase(deps.adminSupabase, tenant_id);
+      if (cleared.error) {
+        console.error('[Telephony Provisioning] Failed to clear reservation', {
+          message: cleared.error.message,
+          tenantId: tenant_id,
+        });
+      }
+      return cleared;
     };
+
+    let purchasedNumber: ProvisionTwilioNumber | null = null;
+    let vapiPhoneId: string | null = null;
+    let twilioClient: ProvisionTwilioClient | null = null;
+    const vapiPrivateKey = getVapiPrivateKey(env);
 
     try {
       const { data: addonRows } = await deps.userSupabase
@@ -170,6 +184,7 @@ export async function handleProvisionPost(
       }
 
       const client = deps.createTwilio(accountSid, authToken);
+      twilioClient = client;
 
       let isMobile = number_type === 'mobile';
       if (!number_type) {
@@ -188,7 +203,6 @@ export async function handleProvisionPost(
       const bundleSidMobile = env.TWILIO_BUNDLE_SID_MOBILE || env.TWILIO_MOBILE_BUNDLE_SID || env.TWILIO_BUNDLE_SID;
       const bundleSid = isMobile ? bundleSidMobile : bundleSidLocal;
 
-      let purchasedNumber: ProvisionTwilioNumber;
       try {
         purchasedNumber = await purchaseTwilioNumber({
           client,
@@ -208,7 +222,11 @@ export async function handleProvisionPost(
         }, { status: 400 });
       }
 
-      const vapiPrivateKey = getVapiPrivateKey(env);
+      if (!purchasedNumber) {
+        await releaseReservation();
+        return NextResponse.json({ error: 'Twilio purchase returned no number.' }, { status: 500 });
+      }
+
       const importPayload = buildVapiPhoneImportPayload({
         phoneNumber: purchasedNumber.phoneNumber,
         twilioAccountSid: accountSid,
@@ -235,6 +253,7 @@ export async function handleProvisionPost(
           fetchImpl,
         });
       }
+      vapiPhoneId = imported.id || null;
 
       const updateData = isMobile
         ? { twilio_mobile_number: purchasedNumber.phoneNumber }
@@ -258,11 +277,24 @@ export async function handleProvisionPost(
         });
       }
 
-      await markTenantPhonePurchaseActive(deps.adminSupabase, tenant_id, {
+      const marked = await markTenantPhonePurchaseActive(deps.adminSupabase, tenant_id, {
         twilioSid: purchasedNumber.sid,
         phoneNumber: purchasedNumber.phoneNumber,
         vapiPhoneId: imported.id,
       });
+      if (marked.error) {
+        console.error('[Telephony Provisioning] Failed to mark reservation active', {
+          message: marked.error.message,
+          tenantId: tenant_id,
+          sid: purchasedNumber.sid,
+        });
+        return NextResponse.json({
+          success: true,
+          number: purchasedNumber.phoneNumber,
+          number_type: isMobile ? 'mobile' : 'local',
+          warning: 'Number was saved but the reservation could not be marked active.',
+        });
+      }
 
       return NextResponse.json({
         success: true,
@@ -270,6 +302,18 @@ export async function handleProvisionPost(
         number_type: isMobile ? 'mobile' : 'local',
       });
     } catch (error: any) {
+      if (purchasedNumber && twilioClient) {
+        return unwindPaidNumber({
+          reason: error?.message || 'Unexpected error after purchasing the Twilio number.',
+          purchasedNumber,
+          vapiPhoneId,
+          client: twilioClient,
+          adminSupabase: deps.adminSupabase,
+          tenantId: tenant_id,
+          vapiPrivateKey,
+          fetchImpl,
+        });
+      }
       await releaseReservation();
       throw error;
     }
@@ -337,7 +381,10 @@ async function purchaseTwilioNumber(input: {
     country: input.country,
     isMobile: input.isMobile,
   });
-  return input.client.incomingPhoneNumbers.create(purchaseParams);
+  return withVendorTimeout(
+    input.client.incomingPhoneNumbers.create(purchaseParams),
+    'Twilio purchase',
+  );
 }
 
 async function unwindPaidNumber(input: {
@@ -355,21 +402,33 @@ async function unwindPaidNumber(input: {
     tenantId: input.tenantId,
   });
 
-  await deleteVapiPhoneNumber({
+  const vapiDeleted = await deleteVapiPhoneNumber({
     apiKey: input.vapiPrivateKey,
     phoneId: input.vapiPhoneId,
     phoneNumber: input.purchasedNumber.phoneNumber,
     fetchImpl: input.fetchImpl,
-  }).catch(() => ({ ok: false as const, error: 'Vapi delete skipped' }));
+  });
 
+  let twilioReleased = false;
   try {
     await releaseTwilioIncomingNumber(input.client, input.purchasedNumber.sid);
-    await clearTenantPhonePurchase(input.adminSupabase, input.tenantId);
-    return NextResponse.json({
-      error: `${input.reason} The Twilio number was released.`,
-    }, { status: 502 });
+    twilioReleased = true;
   } catch {
-    const orphanError = `${input.reason} The Twilio number was NOT released. Orphan SID ${input.purchasedNumber.sid} needs clean-up.`;
+    twilioReleased = false;
+  }
+
+  if (!vapiDeleted.ok || !twilioReleased) {
+    const parts = [input.reason];
+    if (!vapiDeleted.ok) {
+      parts.push(`Vapi delete failed (${vapiDeleted.error}).`);
+    }
+    if (!twilioReleased) {
+      parts.push(`The Twilio number was NOT released. Orphan SID ${input.purchasedNumber.sid} needs clean-up.`);
+    } else {
+      parts.push('The Twilio number was released.');
+    }
+    const orphanError = parts.join(' ');
+    // TODO(STYL-227): persist orphan alerts to an ops channel; console.error is temporary.
     console.error('[Telephony Provisioning] ORPHANED paid number', {
       sid: input.purchasedNumber.sid,
       tenantId: input.tenantId,
@@ -382,4 +441,10 @@ async function unwindPaidNumber(input: {
     });
     return NextResponse.json({ error: orphanError }, { status: 502 });
   }
+
+  const cleared = await clearTenantPhonePurchase(input.adminSupabase, input.tenantId);
+  const releasedText = cleared.error
+    ? `${input.reason} The Twilio number was released, but the reservation could not be cleared.`
+    : `${input.reason} The Twilio number was released.`;
+  return NextResponse.json({ error: releasedText }, { status: 502 });
 }

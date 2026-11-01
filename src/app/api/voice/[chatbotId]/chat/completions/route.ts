@@ -9,6 +9,7 @@ import { splitAtToolTag } from '@/lib/calendar/tool-tags';
 import { getActiveGeminiModel } from '@/lib/gemini-config';
 import { generateEmbedding } from '@/lib/embeddings';
 import { buildGreeting, getFirstName, isEchoOfGreeting } from '@/lib/greeting';
+import { voiceLogError } from '@/lib/voice/log-error';
 
 export const maxDuration = 300;
 
@@ -175,7 +176,7 @@ export async function POST(
           .eq('id', preConv.id);
       }
     } catch (preConvErr) {
-      console.error('[Vapi Custom LLM] Pre-logging conversation error:', preConvErr);
+      voiceLogError('[Vapi Custom LLM] Pre-logging conversation error', preConvErr);
     }
     const agentName = ((configData.agent_name as string) || chatbotName || 'AI Assistant').trim();
     const businessName = (configData.businessName as string)?.trim() || tenantCompany || chatbotName || agentName || 'our business';
@@ -299,7 +300,7 @@ export async function POST(
           new Promise<string>((resolve) => setTimeout(() => resolve(''), 2500))
         ]);
       } catch (e) {
-        console.error('[Vapi Custom LLM] RAG embedding/match error:', e);
+        voiceLogError('[Vapi Custom LLM] RAG embedding/match error', e);
       }
     }
 
@@ -597,7 +598,7 @@ ${globalDisclaimer}`;
                 toolResult = await Promise.race([bookPromise, timeoutPromise]);
               }
             } catch (toolErr: any) {
-              console.error('[Vapi Custom LLM] Calendar tool error:', toolErr);
+              voiceLogError('[Vapi Custom LLM] Calendar tool error', toolErr);
               toolFailed = true;
               toolResult = `Failed to process calendar request: ${toolErr?.message || 'Tool error'}`;
             }
@@ -652,7 +653,7 @@ ${globalDisclaimer}`;
                   }
                 }
               } catch (pass2Err: any) {
-                console.error('[Vapi Custom LLM] Pass 2 streaming error:', pass2Err);
+                voiceLogError('[Vapi Custom LLM] Pass 2 streaming error', pass2Err);
                 if (!pass2SpokenText) {
                   const errorFallback = "I'm sorry, I encountered a brief issue checking our calendar. Please try again in a moment.";
                   pass2SpokenText = errorFallback;
@@ -761,13 +762,13 @@ actualSpokenBotText = (availMatch || bookMatch)
               }
             }
           } catch (dbErr) {
-            console.error('[Vapi Custom LLM] Database voice logging error:', dbErr);
+            voiceLogError('[Vapi Custom LLM] Database voice logging error', dbErr);
           } finally {
             controller.close();
           }
 
         } catch (err: any) {
-          console.error('[Vapi Custom LLM Stream Error]:', err);
+          voiceLogError('[Vapi Custom LLM Stream Error]', err);
 
           // Record failed turn to database if not aborted
           if (!req.signal.aborted) {
@@ -814,7 +815,7 @@ actualSpokenBotText = (availMatch || bookMatch)
                 });
               }
             } catch (logErr) {
-              console.error('[Vapi Custom LLM] Failed turn logging error:', logErr);
+              voiceLogError('[Vapi Custom LLM] Failed turn logging error', logErr);
             }
           }
 
@@ -856,7 +857,7 @@ actualSpokenBotText = (availMatch || bookMatch)
     });
 
   } catch (error: any) {
-    console.error('[Vapi Custom LLM] Unexpected failure:', error);
+    voiceLogError('[Vapi Custom LLM] Unexpected failure', error);
     return NextResponse.json({ error: 'Internal server error', details: error?.message || String(error) }, { status: 500, headers: corsHeaders });
   }
 }

@@ -18,7 +18,15 @@ const SAFE_ENV = {
 
 type Row = Record<string, any>;
 
-function createHarness(opts?: { failTenantSave?: boolean; failTwilioRelease?: boolean }) {
+function createHarness(opts?: {
+  failTenantSave?: boolean;
+  throwAfterBuy?: boolean;
+  failTwilioRelease?: boolean;
+  failVapiDelete?: boolean;
+  failMarkActive?: boolean;
+  failReserveWith?: { code?: string; message?: string };
+  seedPurchase?: Row;
+}) {
   const purchases: Row[] = [];
   const tenants: Row[] = [{
     id: TENANT,
@@ -66,12 +74,18 @@ function createHarness(opts?: { failTenantSave?: boolean; failTwilioRelease?: bo
       async single() {
         return { data: matched()[0] || null, error: null };
       },
+      async maybeSingle() {
+        return { data: matched()[0] || null, error: null };
+      },
       async insert(row: Row) {
         const store = rowsFor(name);
+        if (name === 'tenant_phone_number_purchases' && opts?.failReserveWith) {
+          return { error: opts.failReserveWith };
+        }
         if (name === 'tenant_phone_number_purchases' && store.some((item) => item.tenant_id === row.tenant_id)) {
           return { error: { code: '23505', message: 'duplicate key' } };
         }
-        store.push({ ...row });
+        store.push({ created_at: new Date().toISOString(), ...row });
         return { error: null };
       },
       update(row: Row) {
@@ -79,6 +93,12 @@ function createHarness(opts?: { failTenantSave?: boolean; failTwilioRelease?: bo
           async eq(column: string, value: string) {
             if (name === 'tenants' && opts?.failTenantSave) {
               return { error: { message: 'save failed' } };
+            }
+            if (name === 'tenants' && opts?.throwAfterBuy) {
+              throw new Error('boom after Twilio buy');
+            }
+            if (name === 'tenant_phone_number_purchases' && opts?.failMarkActive && row.status === 'active') {
+              return { error: { message: 'mark active failed' } };
             }
             for (const item of rowsFor(name)) {
               if (item[column] === value) Object.assign(item, row);
@@ -122,7 +142,14 @@ function createHarness(opts?: { failTenantSave?: boolean; failTwilioRelease?: bo
     incomingPhoneNumbers: incoming,
   };
 
+  if (opts?.seedPurchase) {
+    purchases.push({ ...opts.seedPurchase });
+  }
+
   const fetchImpl: typeof fetch = async (url, init) => {
+    if (init?.signal?.aborted) {
+      throw new DOMException('Aborted', 'AbortError');
+    }
     const target = String(url);
     if (target.includes('/org')) {
       return new Response(JSON.stringify({ id: 'org' }), { status: 200 });
@@ -131,6 +158,7 @@ function createHarness(opts?: { failTenantSave?: boolean; failTwilioRelease?: bo
       return new Response(JSON.stringify({ id: 'vapiphone_1' }), { status: 200 });
     }
     if (target.includes('/phone-number/') && init?.method === 'DELETE') {
+      if (opts?.failVapiDelete) return new Response('no', { status: 500 });
       return new Response('', { status: 200 });
     }
     return new Response('no', { status: 404 });
@@ -189,5 +217,73 @@ test.describe('STYL-226: provision route with mocked Twilio and Vapi', () => {
     expect(purchases).toHaveLength(1);
     expect(purchases[0].status).toBe('orphan');
     expect(purchases[0].twilio_sid).toBe('PN1');
+  });
+
+  test('non-unique reservation errors return 500, not 409', async () => {
+    const { deps, counters } = createHarness({
+      failReserveWith: { code: '42501', message: 'permission denied' },
+    });
+    const res = await handleProvisionPost(provisionRequest(), deps);
+    expect(res.status).toBe(500);
+    expect(counters.purchases).toBe(0);
+    const body = await res.json();
+    expect(body.error).toMatch(/permission denied|Failed to reserve/i);
+  });
+
+  test('stale pending reservations older than 10 minutes can be reclaimed', async () => {
+    const { deps, counters, purchases } = createHarness({
+      seedPurchase: {
+        tenant_id: TENANT,
+        status: 'pending',
+        created_at: new Date(Date.now() - 11 * 60 * 1000).toISOString(),
+      },
+    });
+    const res = await handleProvisionPost(provisionRequest(), deps);
+    expect(res.status).toBe(200);
+    expect(counters.purchases).toBe(1);
+    expect(purchases.filter((row) => row.status === 'active')).toHaveLength(1);
+  });
+
+  test('fresh pending reservations still block a second buy', async () => {
+    const { deps, counters } = createHarness({
+      seedPurchase: {
+        tenant_id: TENANT,
+        status: 'pending',
+        created_at: new Date().toISOString(),
+      },
+    });
+    const res = await handleProvisionPost(provisionRequest(), deps);
+    expect(res.status).toBe(409);
+    expect(counters.purchases).toBe(0);
+  });
+
+  test('unexpected throw after Twilio buy unwinds the paid number', async () => {
+    const { deps, purchases } = createHarness({ throwAfterBuy: true });
+    const res = await handleProvisionPost(provisionRequest(), deps);
+    expect(res.status).toBe(502);
+    const body = await res.json();
+    expect(body.error).toMatch(/boom after Twilio buy/i);
+    expect(body.error).toMatch(/released/i);
+    expect(purchases).toHaveLength(0);
+  });
+
+  test('failed Vapi delete during unwind is reported and recorded as an orphan', async () => {
+    const { deps, purchases } = createHarness({ failTenantSave: true, failVapiDelete: true });
+    const res = await handleProvisionPost(provisionRequest(), deps);
+    expect(res.status).toBe(502);
+    const body = await res.json();
+    expect(body.error).toMatch(/Vapi delete failed/i);
+    expect(purchases).toHaveLength(1);
+    expect(purchases[0].status).toBe('orphan');
+  });
+
+  test('mark-active failure is reported without releasing a saved number', async () => {
+    const { deps, purchases } = createHarness({ failMarkActive: true });
+    const res = await handleProvisionPost(provisionRequest(), deps);
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(body.number).toBe('+441234567890');
+    expect(body.warning).toMatch(/could not be marked active/i);
+    expect(purchases[0].status).toBe('pending');
   });
 });

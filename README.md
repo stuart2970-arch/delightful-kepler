@@ -4037,3 +4037,10 @@ Highlighted adjustments in the modal:
   - Paid bolt-on gate is `subscription_status` `active`/`trialing` only (price_paid is not enough).
   - Voice completion logs are ids only. Removed the unused private-key alias everywhere. `VOICE_ENABLED` is a plain `false` env value. `VAPI_WEBHOOK_SECRET` stays a secret ref (must exist before rollout).
   - Web-call secret: Vapi has no safe server-headers path for a transient browser `vapi.start()` assistant. `server.secret` / `server.headers` would leak; a client `server.url` also stops Vapi attaching the org credential. Widget omits `server`. Set org-level Server URL + `X-Vapi-Secret` credential. Dropped legacy `serverUrl`. Recording stays off on phone and web.
+
+### Session (STYL-226 PR 20 PO re-review - 1 Nov 2026)
+* **User**: Product Owner BLOCK on head 8a39956. Same branch. Base `staging`. Do not merge. Do not apply migrations.
+* **Changes**:
+  - Stripe writes `tenant_active_addons.subscription_status` on activate, deactivate, invoice success/failure, and subscription cancel. Backfill copies the tenant's known Stripe status instead of blanket `active`.
+  - Reservation 409 only on Postgres 23505; other errors 500. Stale pending rows older than 10 minutes are reclaimed. Deprovision clears the reservation. Vapi/Twilio vendor calls time out at 15s via AbortController / Promise.race.
+  - Unexpected throw after a Twilio buy unwinds the number. Failed Vapi delete is reported and recorded as an orphan (`TODO(STYL-227)` for ops alerts). markActive/clear errors are checked. Voice routes log `{ message, code }` only.
