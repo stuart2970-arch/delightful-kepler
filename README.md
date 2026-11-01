@@ -3987,3 +3987,13 @@ Highlighted adjustments in the modal:
   - Item 3: `apphosting.yaml` / `apphosting.staging.yaml` set public URLs to `https://staging.styleflo.ai` and reference Stripe, Twilio (staging SIDs from Jira comment 10163), Vapi (+ aliases), Mailgun, `CRON_SECRET`, Google/Microsoft OAuth, ElevenLabs, and Places by Secret Manager **name**. WordPress secrets stay unwired. STYL-203 tests updated.
   - Item 4a–4g: `getPublicAppOrigin` / `publicAppPath` for login, register, onboard, checkout, magic-link, and OAuth callbacks; widget Turnstile from env only; host-only SSO cookies on staging; WordPress guard; Vapi from env only; inbound no longer selects dropped `chatbots.vapi_assistant_id`; Stripe `constructEvent` verification.
   - Playwright: `tests/styl-226-*.spec.ts`. Full local suite against `.env.test` / local Supabase (never live).
+
+### Session (fixed-price bolt-on checkout + staging return URLs - 1 Nov 2026)
+* **User**: Branch off `staging` (1d5a875), PR targeting `staging` only. Do not merge. Never `--no-verify`. Do not touch live Supabase or production.
+* **Bug 1**: `AddOnUpsellModal` sent `customPricePence = monthly_price_pence` for every non-slider add-on except `remove_branding`. Checkout rejected that when `!addon.is_sliding` (`google_calendar_addon`, `microsoft_calendar_addon`, `data_pack_500` at 499p).
+* **Bug 2**: Checkout/portal return URLs were hard-coded to `https://styleflo.ai/app`, so staging sent users back to production.
+* **Changes**:
+  - Client: only send `customPricePence` for sliding add-ons.
+  - Server: accept a custom price equal to the catalogue price on fixed add-ons; clearer 400 when a non-sliding add-on gets any other custom price.
+  - Return URLs use `publicAppPath('/app')` / `publicAppPath('/#pricing')`. Client-supplied `returnUrl` must be same-origin (`safePublicReturnUrl`).
+  - Playwright: `tests/addons-sliding-scale.spec.ts` and `tests/styl-226-app-origin.spec.ts` (local `.env.test` / mock Stripe only).

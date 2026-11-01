@@ -146,9 +146,7 @@ export default function LoginPage() {
       leftLogin = true;
       const isEmbedded = window.self !== window.top;
       if (isEmbedded && window.top) {
-        const isLocal = process.env.NODE_ENV === 'development' || process.env.NEXT_PUBLIC_ENV === 'development';
-        const wpAppUrl = isLocal ? 'https://styleflo.test/app' : 'https://styleflo.ai/app';
-        window.top.location.href = wpAppUrl;
+        window.top.location.href = publicAppPath('/app');
       } else {
         window.location.assign('/dashboard');
       }

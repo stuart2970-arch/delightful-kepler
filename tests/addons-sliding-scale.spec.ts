@@ -1,5 +1,13 @@
 import { createTestSuperadminUser, TestUserSession } from './test-auth-helper';
 import { test, expect } from '@playwright/test';
+import { publicAppPath } from '../src/lib/env/public-app-url';
+
+const SEEDED_TENANT_ID = '10000000-0000-0000-0000-000000000001';
+const FIXED_PRICE_ADDONS = [
+  { id: 'google_calendar_addon', cataloguePricePence: 499 },
+  { id: 'data_pack_500', cataloguePricePence: 499 },
+] as const;
+const PUBLIC_APP_URL = publicAppPath('/app');
 
 test.describe('Modular Add-Ons & Sliding Scale Checkout API', () => {
   let superadminSession: TestUserSession;
@@ -292,6 +300,88 @@ test.describe('Modular Add-Ons & Sliding Scale Checkout API', () => {
     expect(res.status()).toBe(400);
     const json = await res.json();
     expect(json.error).toContain('must be a multiple of step increments');
+  });
+
+  for (const addon of FIXED_PRICE_ADDONS) {
+    test(`POST /api/billing/checkout accepts fixed-price ${addon.id} without customPricePence`, async ({ request }) => {
+      const res = await request.post('/api/billing/checkout', {
+        headers: { 'Content-Type': 'application/json' },
+        data: {
+          addonCatalogId: addon.id,
+          tenantId: SEEDED_TENANT_ID,
+        },
+      });
+      expect(res.status(), await res.text()).not.toBe(400);
+      expect(res.status()).toBe(200);
+      const json = await res.json();
+      expect(json.url).toContain('stripe.com');
+      expect(json.success_url).toContain(PUBLIC_APP_URL);
+      expect(json.cancel_url).toContain(PUBLIC_APP_URL);
+    });
+
+    test(`POST /api/billing/checkout accepts fixed-price ${addon.id} with customPricePence equal to catalogue`, async ({ request }) => {
+      const res = await request.post('/api/billing/checkout', {
+        headers: { 'Content-Type': 'application/json' },
+        data: {
+          addonCatalogId: addon.id,
+          tenantId: SEEDED_TENANT_ID,
+          customPricePence: addon.cataloguePricePence,
+        },
+      });
+      expect(res.status(), await res.text()).not.toBe(400);
+      expect(res.status()).toBe(200);
+      const json = await res.json();
+      expect(json.url).toContain('stripe.com');
+      expect(json.cataloguePricePence).toBe(addon.cataloguePricePence);
+    });
+  }
+
+  test('POST /api/billing/checkout mocked Stripe session uses configured public app success/cancel URLs', async ({ request }) => {
+    const res = await request.post('/api/billing/checkout', {
+      headers: { 'Content-Type': 'application/json' },
+      data: {
+        addonCatalogId: 'google_calendar_addon',
+        tenantId: SEEDED_TENANT_ID,
+      },
+    });
+    expect(res.status()).toBe(200);
+    const json = await res.json();
+    expect(json.success_url).toContain(PUBLIC_APP_URL);
+    expect(json.cancel_url).toContain(PUBLIC_APP_URL);
+    expect(json.success_url).not.toContain('https://styleflo.ai/app');
+    expect(json.cancel_url).not.toContain('https://styleflo.ai/app');
+  });
+
+  test('POST /api/billing/checkout ignores off-origin returnUrl (open redirect)', async ({ request }) => {
+    const res = await request.post('/api/billing/checkout', {
+      headers: { 'Content-Type': 'application/json' },
+      data: {
+        addonCatalogId: 'google_calendar_addon',
+        tenantId: SEEDED_TENANT_ID,
+        returnUrl: 'https://evil.example/phish',
+      },
+    });
+    expect(res.status()).toBe(200);
+    const json = await res.json();
+    expect(json.success_url).toContain(PUBLIC_APP_URL);
+    expect(json.cancel_url).toContain(PUBLIC_APP_URL);
+    expect(json.success_url).not.toContain('evil.example');
+    expect(json.cancel_url).not.toContain('evil.example');
+  });
+
+  test('POST /api/billing/checkout rejects a non-catalogue custom price on a non-sliding add-on with a clear error', async ({ request }) => {
+    const res = await request.post('/api/billing/checkout', {
+      headers: { 'Content-Type': 'application/json' },
+      data: {
+        addonCatalogId: 'google_calendar_addon',
+        tenantId: SEEDED_TENANT_ID,
+        customPricePence: 1299,
+      },
+    });
+    expect(res.status()).toBe(400);
+    const json = await res.json();
+    expect(json.error).toMatch(/sliding/i);
+    expect(json.error).not.toBe('Invalid custom price: out of allowed range');
   });
 
   test('POST /api/billing/checkout rejects unknown addon ID with HTTP 400', async ({ request }) => {

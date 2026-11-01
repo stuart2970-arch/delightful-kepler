@@ -5,6 +5,7 @@ import {
   getPublicAppOrigin,
   publicAppPath,
   resolveServerPublicAppOrigin,
+  safePublicReturnUrl,
 } from '../src/lib/env/public-app-url';
 
 const root = process.cwd();
@@ -21,11 +22,21 @@ test.describe('STYL-226: public app origin helper', () => {
     'src/app/onboard/page.tsx',
     'src/app/api/auth/magic-link/route.ts',
     'src/app/api/billing/checkout/route.ts',
+    'src/components/AddOnUpsellModal.tsx',
+    'src/components/DashboardClient.tsx',
+    'src/app/dashboard/billing/page.tsx',
+    'src/proxy.ts',
     'src/app/api/integrations/google/authorize/route.ts',
     'src/app/api/integrations/google/callback/route.ts',
     'src/app/api/integrations/microsoft/authorize/route.ts',
     'src/app/api/integrations/microsoft/callback/route.ts',
   ];
+
+  test('AddOnUpsellModal only sends customPricePence for sliding add-ons', () => {
+    const src = codeWithoutComments(readFileSync(join(root, 'src/components/AddOnUpsellModal.tsx'), 'utf8'));
+    expect(src).toMatch(/if\s*\(\s*!addon\.is_sliding\s*\)/);
+    expect(src).toContain('handleSubscribe(addon.id)');
+  });
 
   test('redirect and success_url builders do not hard-code the production host', () => {
     for (const rel of sourceFiles) {
@@ -65,6 +76,16 @@ test.describe('STYL-226: public app origin helper', () => {
     expect(getPublicAppOrigin({ NEXT_PUBLIC_APP_URL: 'https://staging.styleflo.ai/' })).toBe(
       'https://staging.styleflo.ai',
     );
+  });
+
+  test('safePublicReturnUrl only accepts same-origin URLs', () => {
+    const env = { NEXT_PUBLIC_APP_URL: 'https://staging.styleflo.ai' };
+    const fallback = publicAppPath('/app', env);
+    expect(safePublicReturnUrl('https://staging.styleflo.ai/app?tab=billing', fallback, env)).toBe(
+      'https://staging.styleflo.ai/app?tab=billing',
+    );
+    expect(safePublicReturnUrl('https://styleflo.ai/app', fallback, env)).toBe(fallback);
+    expect(safePublicReturnUrl('https://evil.example/phish', fallback, env)).toBe(fallback);
   });
 
   test('Google sign-in on /login does not send users to the production app host', async ({ page }) => {

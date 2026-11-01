@@ -20,6 +20,7 @@ import CapacityThresholdBanner from './CapacityThresholdBanner';
 import AddOnUpsellModal, { AddOnCategory } from './AddOnUpsellModal';
 import { useDashboardStore } from '../lib/store';
 import { formatAllowanceRange } from '@/lib/addon-text';
+import { publicAppPath } from '@/lib/env/public-app-url';
 
 const BILLING_CATEGORIES: AddOnCategory[] = [
   'landline', 'mobile', 'whatsapp', 'voice_pack', 'sms_pack', 'data_pack', 'google_calendar', 'microsoft_calendar', 'remove_branding',
@@ -969,8 +970,7 @@ const globalBotId = '00000000-0000-0000-0000-000000000000';
                       }, 10000);
 
                       try {
-                        const isLocal = typeof window !== 'undefined' && (window.location.hostname.includes('localhost') || window.location.hostname.includes('.test'));
-                        const wpAppUrl = isLocal ? 'https://styleflo.test/app' : 'https://styleflo.ai/app';
+                        const wpAppUrl = publicAppPath('/app');
                         const res = await fetch('/api/billing/checkout', {
                           method: 'POST',
                           headers: { 'Content-Type': 'application/json' },

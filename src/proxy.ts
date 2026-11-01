@@ -2,6 +2,7 @@ import { verifyChatSessionToken } from '@/lib/chat-session';
 import { createServerClient } from '@supabase/ssr';
 import { NextResponse, type NextRequest } from 'next/server';
 import { resolveSsoCookieDomain } from '@/lib/env/cookie-domain';
+import { publicAppPath } from '@/lib/env/public-app-url';
 
 // Unauthenticated public routes requiring Cloudflare Turnstile bot verification
 const PUBLIC_TURNSTILE_ROUTES = ['/api/chat/public-init'];
@@ -291,8 +292,7 @@ export async function proxy(request: NextRequest) {
 
   if (request.nextUrl.pathname === '/login' && user) {
     // We want to bounce them back to the WordPress wrapper now that they have the SSO cookie
-    const wpAppUrl = isLocal ? 'https://styleflo.test/app' : 'https://styleflo.ai/app';
-    return redirectWithCookies(new URL(wpAppUrl));
+    return redirectWithCookies(new URL(publicAppPath('/app')));
   }
 
   // Ensure public cross-origin endpoints under /api/chat/* carry full CORS headers

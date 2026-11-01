@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { publicAppPath } from '@/lib/env/public-app-url';
 
 export type AddOnCategory = 'landline' | 'mobile' | 'whatsapp' | 'voice_pack' | 'sms_pack' | 'data_pack' | 'google_calendar' | 'microsoft_calendar' | 'remove_branding';
 
@@ -91,8 +92,7 @@ export default function AddOnUpsellModal({ isOpen, onClose, category, tenantId }
     setIsSubscribing(addonCatalogId);
     setError(null);
     try {
-      const isLocal = typeof window !== 'undefined' && (window.location.hostname.includes('localhost') || window.location.hostname.includes('.test'));
-      const baseUrl = isLocal ? 'https://styleflo.test/app' : 'https://styleflo.ai/app';
+      const baseUrl = publicAppPath('/app');
 
       let targetTab = 'telephony';
       if (category === 'google_calendar' || addonCatalogId === 'google_calendar_addon' || category === 'microsoft_calendar' || addonCatalogId === 'microsoft_calendar_addon') {
@@ -770,9 +770,9 @@ export default function AddOnUpsellModal({ isOpen, onClose, category, tenantId }
                             <button
                               onClick={() => {
                                 if (isWhatsapp) return;
-                                // A fixed monthly price is the catalogue price. Sending it as a custom
-                                // price is rejected for bolt-ons that are not on a sliding scale.
-                                if (addon.category === 'remove_branding') {
+                                // Fixed-price bolt-ons must not send customPricePence — the checkout
+                                // API rejects it unless the add-on is on a sliding scale.
+                                if (!addon.is_sliding) {
                                   handleSubscribe(addon.id);
                                   return;
                                 }
