@@ -4028,3 +4028,12 @@ Highlighted adjustments in the modal:
   - Removed unused `VAPI_SECRET_KEY` alias from connected-accounts.
   - `apphosting.staging.yaml` references `VAPI_WEBHOOK_SECRET` and `VOICE_ENABLED` by name only.
   - Playwright: `tests/styl-226-voice-gate.spec.ts`, `tests/styl-226-telephony-provision-safety.spec.ts`, `tests/styl-226-vapi-webhook-auth.spec.ts`, `tests/styl-226-widget-voice-recording.spec.ts`, `tests/styl-226-connected-accounts-no-vapi-secret-alias.spec.ts`. Existing `tests/styl-226-vapi-no-prod-fallback.spec.ts` kept. Full suite **362 passed** locally against `.env.test` / local Supabase / mock keys (never live).
+
+### Session (STYL-226 PR 20 PO review - 1 Nov 2026)
+* **User**: Product Owner BLOCK on PR 20. Same branch. Base `staging`. Do not merge.
+* **Changes**:
+  - Reserve a unique `tenant_phone_number_purchases` row (pending + unique `tenant_id`) before any Twilio buy; clear it on failure; mark `active` or `orphan`.
+  - On DB save failure, release Twilio and delete the Vapi import. If release fails, do not claim it was released; persist an orphan row with the SID and return honest error text.
+  - Paid bolt-on gate is `subscription_status` `active`/`trialing` only (price_paid is not enough).
+  - Voice completion logs are ids only. Removed the unused private-key alias everywhere. `VOICE_ENABLED` is a plain `false` env value. `VAPI_WEBHOOK_SECRET` stays a secret ref (must exist before rollout).
+  - Web-call secret: Vapi has no safe server-headers path for a transient browser `vapi.start()` assistant. `server.secret` / `server.headers` would leak; a client `server.url` also stops Vapi attaching the org credential. Widget omits `server`. Set org-level Server URL + `X-Vapi-Secret` credential. Dropped legacy `serverUrl`. Recording stays off on phone and web.

@@ -11,13 +11,14 @@ test.describe('STYL-226: widget web calls do not record and use our webhook', ()
       const src = readFileSync(join(root, rel), 'utf8');
       expect(src).toContain('recordingEnabled: false');
       expect(src).toContain('artifactPlan');
-      expect(src).toContain('/api/webhooks/vapi');
+      expect(src).toContain('Org-level Vapi Server URL');
+      expect(src).not.toContain('serverUrl');
+      expect(src).not.toContain('VAPI_WEBHOOK_SECRET');
       expect(src).not.toContain('vapiInstance.delete');
     }
     expect(buildWebCallVapiStartFields('https://staging.styleflo.ai')).toEqual({
       recordingEnabled: false,
       artifactPlan: { recordingEnabled: false },
-      server: { url: 'https://staging.styleflo.ai/api/webhooks/vapi' },
     });
   });
 });

@@ -244,7 +244,6 @@ firebase apphosting:secrets:grantaccess VAPI_API_KEY --backend delightful-kepler
 firebase apphosting:secrets:grantaccess NEXT_PUBLIC_VAPI_PUBLIC_KEY --backend delightful-kepler --project styleflo-staging
 firebase apphosting:secrets:grantaccess VAPI_MASTER_ASSISTANT_ID --backend delightful-kepler --project styleflo-staging
 firebase apphosting:secrets:grantaccess VAPI_WEBHOOK_SECRET --backend delightful-kepler --project styleflo-staging
-firebase apphosting:secrets:grantaccess VOICE_ENABLED --backend delightful-kepler --project styleflo-staging
 firebase apphosting:secrets:grantaccess MAILGUN_API_KEY --backend delightful-kepler --project styleflo-staging
 firebase apphosting:secrets:grantaccess MAILGUN_DOMAIN --backend delightful-kepler --project styleflo-staging
 firebase apphosting:secrets:grantaccess CRON_SECRET --backend delightful-kepler --project styleflo-staging
@@ -256,13 +255,22 @@ firebase apphosting:secrets:grantaccess ELEVENLABS_API_KEY --backend delightful-
 firebase apphosting:secrets:grantaccess GOOGLE_PLACES_SERVER_API_KEY --backend delightful-kepler --project styleflo-staging
 ```
 
-Aliases (same Secret Manager name, no extra create): `VAPI_PRIVATE_API_KEY` / `VAPI_PRIVATE_KEY` / `VAPI_SECRET_KEY` → `VAPI_API_KEY`; `VAPI_PUBLIC_KEY` → `NEXT_PUBLIC_VAPI_PUBLIC_KEY`.
+Aliases (same Secret Manager name, no extra create): `VAPI_PRIVATE_API_KEY` / `VAPI_PRIVATE_KEY` → `VAPI_API_KEY`; `VAPI_PUBLIC_KEY` → `NEXT_PUBLIC_VAPI_PUBLIC_KEY`. Do not add a third private-key alias.
 
 Mailgun on staging uses the **EU** API (`api.eu.mailgun.net`, already in `src/lib/lead-notifier.ts`) and domain `staging.styleflo.ai`. Product Owner tests should use the agreed test inbox only.
 
 Twilio bundle and address SIDs are **plain values** in yaml (Jira STYL-226 comment 10163), not secrets. Do not buy numbers. Do not copy production bundle SIDs.
 
-`VOICE_ENABLED` is a Secret Manager name only. Leave it unset or `false` on staging until Vapi values are non-placeholder and not production IDs. `VAPI_WEBHOOK_SECRET` must be set before inbound Vapi webhooks or number import will work.
+`VOICE_ENABLED` is a **plain** App Hosting env value (`false` in `apphosting.staging.yaml`), not a Secret Manager reference, so rollouts do not fail on a missing secret. Leave it `false` until Vapi values are non-placeholder and not production IDs.
+
+`VAPI_WEBHOOK_SECRET` is a Secret Manager reference. The staging rollout **will fail unless that secret already exists** and the backend has `grantaccess`. Create it before the next App Hosting rollout:
+
+```bash
+firebase apphosting:secrets:set VAPI_WEBHOOK_SECRET --project styleflo-staging
+firebase apphosting:secrets:grantaccess VAPI_WEBHOOK_SECRET --backend delightful-kepler --project styleflo-staging
+```
+
+Web-call webhook auth: Vapi has no safe server-headers mechanism for a **transient** web-call assistant created in the browser. Putting `server.secret`, `server.headers`, or a credential token on `vapi.start()` would expose `VAPI_WEBHOOK_SECRET`. Sending only `server.url` from the client also stops Vapi attaching the org credential. The widget therefore omits `server` entirely. Set the **org-level Server URL** in the Vapi dashboard to `https://staging.styleflo.ai/api/webhooks/vapi` with an `X-Vapi-Secret` credential (Bearer Token credential, header name `X-Vapi-Secret`, Bearer prefix off). Phone-number imports still send `server.secret` from the server-side provision route. Do not send legacy `serverUrl`.
 
 `STRIPE_WEBHOOK_SECRET` is wired and verified with `stripe.webhooks.constructEvent`. Stuart creates the Stripe **test-mode** endpoint for `https://staging.styleflo.ai/api/webhooks/stripe`.
 

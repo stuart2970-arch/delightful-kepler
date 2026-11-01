@@ -135,7 +135,7 @@ env:
       - RUNTIME
 
   - variable: VOICE_ENABLED
-    secret: VOICE_ENABLED
+    value: "false"
     availability:
       - BUILD
       - RUNTIME
@@ -155,11 +155,6 @@ env:
     secret: NEXT_PUBLIC_VAPI_PUBLIC_KEY
     availability:
       - BUILD
-      - RUNTIME
-
-  - variable: VAPI_SECRET_KEY
-    secret: VAPI_API_KEY
-    availability:
       - RUNTIME
 
   - variable: MAILGUN_API_KEY

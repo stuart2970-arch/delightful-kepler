@@ -333,7 +333,7 @@ ${globalDisclaimer}`;
       const startStr = bookMatch[6].trim().replace(/['"]/g, '');
       const endStr = bookMatch[7].trim().replace(/['"]/g, '');
 
-      console.log(`[Vapi Custom LLM Legacy] Executing bookMeeting for ${custName} (${custEmail}, ${custPhone})`);
+      console.log('[Vapi Custom LLM Legacy] Executing bookMeeting', { tenantId, staffId, serviceId });
       const bookResult = await bookMeeting(tenantId, staffId, serviceId, custName, custEmail, custPhone, startStr, endStr, timezone);
 
       const { text: pass2Text } = await generateText({

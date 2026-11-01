@@ -1533,9 +1533,9 @@ import { resolveChatFooter } from '../lib/billing/branding';
             artifactPlan: {
               recordingEnabled: false,
             },
-            server: {
-              url: `${targetVoiceHost}/api/webhooks/vapi`,
-            },
+            // No client `server` object: a transient server.url would drop the
+            // org credential, and server.secret/headers would leak in the browser.
+            // Org-level Vapi Server URL + X-Vapi-Secret must be set in the dashboard.
             model: {
               provider: "custom-llm",
               url: `${targetVoiceHost}/api/voice/${chatbotId}/chat/completions`,

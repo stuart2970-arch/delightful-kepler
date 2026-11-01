@@ -201,10 +201,11 @@ export async function POST(request: Request) {
       firstMessage: config.welcome_message || 'Hello, how can I help you today?',
       backgroundSound: resolvedBgSound,
       backchannelingEnabled: true,
+      recordingEnabled: false,
       server: {
         url: `${appUrl}/api/webhooks/vapi`,
+        secret: (process.env.VAPI_WEBHOOK_SECRET || '').trim() || undefined,
       },
-      serverUrl: `${appUrl}/api/webhooks/vapi`,
       artifactPlan: {
         recordingEnabled: false,
       },

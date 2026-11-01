@@ -20,11 +20,14 @@ test.describe('STYL-226: safer telephony provision', () => {
     expect(assistant).not.toContain('https://app.styleflo.ai');
     expect(src).not.toContain('BUf676ba5c4a24f355ecdcc59d0e61e818');
     expect(src).not.toContain('AD11e6b1f650f21544d4ef5e9447fad0e5');
-    expect(src).toContain('releaseTwilioIncomingNumber');
-    expect(src).toContain('buildVapiPhoneImportPayload');
-    expect(src).toContain('verifyVapiPrivateKeyWorks');
-    expect(src).toContain('tenantHasExistingNumber');
-    expect(src).toContain('tenantHasPaidPhoneAddon');
+    const flow = readFileSync(join(root, 'src/lib/telephony/provision-flow.ts'), 'utf8');
+    expect(src).toContain('handleProvisionPost');
+    expect(flow).toContain('reserveTenantPhonePurchase');
+    expect(flow).toContain('releaseTwilioIncomingNumber');
+    expect(flow).toContain('deleteVapiPhoneNumber');
+    expect(flow).toContain('recordOrphanedPhonePurchase');
+    expect(flow).toContain('subscription_status');
+    expect(flow).toMatch(/reserveTenantPhonePurchase[\s\S]*deps\.createTwilio\(/);
   });
 
   test('buy-once, paid bolt-on, Vapi key check, import payload, and release on import failure', async () => {
@@ -33,12 +36,22 @@ test.describe('STYL-226: safer telephony provision', () => {
 
     expect(
       tenantHasPaidPhoneAddon([
-        { addon_catalog_id: 'landline_addon', is_active: true, price_paid_pence: 899 },
+        { addon_catalog_id: 'landline_addon', is_active: true, subscription_status: 'active' },
       ]),
     ).toBe(true);
     expect(
       tenantHasPaidPhoneAddon([
-        { addon_catalog_id: 'google_calendar_addon', is_active: true, price_paid_pence: 500 },
+        { addon_catalog_id: 'landline_addon', is_active: true, subscription_status: 'trialing' },
+      ]),
+    ).toBe(true);
+    expect(
+      tenantHasPaidPhoneAddon([
+        { addon_catalog_id: 'landline_addon', is_active: true, price_paid_pence: 899 },
+      ]),
+    ).toBe(false);
+    expect(
+      tenantHasPaidPhoneAddon([
+        { addon_catalog_id: 'google_calendar_addon', is_active: true, subscription_status: 'active' },
       ]),
     ).toBe(false);
 

@@ -216,7 +216,7 @@ export async function POST(
     const isEchoedGreeting = isEchoOfGreeting(queryText, formattedGreeting);
 
     if (isEchoedGreeting) {
-      console.log('[Vapi Custom LLM] Ignoring echoed assistant greeting turn:', queryText);
+      console.log('[Vapi Custom LLM] Ignoring echoed assistant greeting turn', { chatbotId });
       const isStream = body.stream !== false;
       if (!isStream) {
         return NextResponse.json({
