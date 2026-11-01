@@ -7,7 +7,7 @@ import {
   REMOVE_STYLEFLO_BRANDING_ADDON_ID,
   tenantHidesStyleFloBranding,
 } from '@/lib/billing/branding';
-import { getVapiRuntimeConfig } from '@/lib/env/vapi-config';
+import { getVapiRuntimeConfig, publicVoiceFields } from '@/lib/env/vapi-config';
 
 export const dynamic = 'force-dynamic';
 
@@ -81,8 +81,7 @@ export async function GET(
         voiceEnabled: floConfig.voiceEnabled ?? false,
         voiceId: floConfig.voiceId || null,
         voiceProvider: '11labs',
-        vapiPublicKey: getVapiRuntimeConfig().vapiPublicKey,
-        vapiAssistantId: getVapiRuntimeConfig().vapiAssistantId,
+        ...publicVoiceFields(),
         requireClientName: false
       }, { headers: corsHeaders });
     }
@@ -102,8 +101,7 @@ export async function GET(
         hideStyleFloBranding: false,
         brandingUrl: 'https://styleflo.ai',
         voiceEnabled: true,
-        vapiPublicKey: getVapiRuntimeConfig().vapiPublicKey,
-        vapiAssistantId: getVapiRuntimeConfig().vapiAssistantId,
+        ...publicVoiceFields(),
         globalVoiceDisclaimer: '',
         voiceProvider: '11labs',
         voiceId: 'bIHbv24MWmeRgasZH58o',
@@ -129,8 +127,7 @@ export async function GET(
         hideStyleFloBranding: false,
         brandingUrl: 'https://styleflo.ai',
         voiceEnabled: true,
-        vapiPublicKey: getVapiRuntimeConfig().vapiPublicKey,
-        vapiAssistantId: getVapiRuntimeConfig().vapiAssistantId,
+        ...publicVoiceFields(),
         globalVoiceDisclaimer: '',
         voiceProvider: '11labs',
         voiceId: 'bIHbv24MWmeRgasZH58o',
@@ -164,8 +161,7 @@ export async function GET(
           hideStyleFloBranding: false,
           brandingUrl: 'https://styleflo.ai',
           voiceEnabled: true,
-          vapiPublicKey: getVapiRuntimeConfig().vapiPublicKey,
-          vapiAssistantId: getVapiRuntimeConfig().vapiAssistantId,
+          ...publicVoiceFields(),
           globalVoiceDisclaimer: '',
           voiceProvider: '11labs',
           voiceId: 'dqTe8OSrj3PERbkXF8Kx',
@@ -321,6 +317,10 @@ export async function GET(
     }
 
     const storedBranding = typeof globalConfig.branding_html === 'string' ? globalConfig.branding_html.trim() : '';
+    const voiceFields = publicVoiceFields();
+    const storedAssistantId = (typeof config.vapi_assistant_id === 'string' && config.vapi_assistant_id.trim())
+      ? config.vapi_assistant_id.trim()
+      : getVapiRuntimeConfig().vapiAssistantId;
 
     return NextResponse.json({
       tenantId: chatbot.tenant_id,
@@ -336,10 +336,8 @@ export async function GET(
       hideStyleFloBranding,
       brandingUrl: globalConfig.branding_url || 'https://styleflo.ai',
       voiceEnabled: isVoiceActive,
-      vapiPublicKey: getVapiRuntimeConfig().vapiPublicKey,
-      vapiAssistantId: (typeof config.vapi_assistant_id === 'string' && config.vapi_assistant_id.trim())
-        ? config.vapi_assistant_id.trim()
-        : getVapiRuntimeConfig().vapiAssistantId,
+      ...voiceFields,
+      vapiAssistantId: voiceFields.voiceRuntimeAllowed ? storedAssistantId : '',
       globalVoiceDisclaimer: globalConfig.global_voice_disclaimer || '',
       voiceProvider: voiceProvider,
       voiceId: resolvedVoiceId,

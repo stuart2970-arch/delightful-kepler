@@ -2,6 +2,15 @@ import { NextResponse } from 'next/server';
 import { createServerClient } from '@supabase/ssr';
 import { cookies } from 'next/headers';
 import twilio from 'twilio';
+import { evaluateVoiceGate, getVapiPrivateKey, requireConfiguredAppUrl } from '@/lib/env/vapi-config';
+import {
+  buildVapiPhoneImportPayload,
+  importTwilioNumberToVapi,
+  releaseTwilioIncomingNumber,
+  tenantHasExistingNumber,
+  tenantHasPaidPhoneAddon,
+  verifyVapiPrivateKeyWorks,
+} from '@/lib/telephony/provision-safety';
 
 export const dynamic = 'force-dynamic';
 
@@ -71,12 +80,52 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Unauthorized to provision for this tenant' }, { status: 403 });
     }
 
-    // Fetch tenant channel flags to know if they have landline vs mobile
+    const voiceGate = evaluateVoiceGate();
+    if (!voiceGate.allowed) {
+      return NextResponse.json({ error: voiceGate.reason }, { status: 403 });
+    }
+
+    const appUrlResult = requireConfiguredAppUrl();
+    if (!appUrlResult.ok) {
+      return NextResponse.json({ error: appUrlResult.error }, { status: 500 });
+    }
+    const appBaseUrl = appUrlResult.url;
+    const webhookSecret = (process.env.VAPI_WEBHOOK_SECRET || '').trim();
+    if (!webhookSecret) {
+      return NextResponse.json({ error: 'VAPI_WEBHOOK_SECRET is not configured.' }, { status: 500 });
+    }
+
+    // Fetch tenant channel flags and any existing numbers
     const { data: tenant } = await supabase
       .from('tenants')
-      .select('has_landline, has_mobile')
+      .select('has_landline, has_mobile, twilio_shadow_number, twilio_mobile_number')
       .eq('id', tenant_id)
       .single();
+
+    if (tenantHasExistingNumber(tenant)) {
+      return NextResponse.json(
+        { error: 'This tenant already has a phone number. Number purchase is buy-once.' },
+        { status: 409 },
+      );
+    }
+
+    const { data: addonRows } = await supabase
+      .from('tenant_active_addons')
+      .select('addon_catalog_id, is_active, price_paid_pence')
+      .eq('tenant_id', tenant_id)
+      .in('addon_catalog_id', ['landline_addon', 'mobile_addon']);
+
+    if (!tenantHasPaidPhoneAddon(addonRows)) {
+      return NextResponse.json(
+        { error: 'An active paid landline or mobile bolt-on is required before buying a number.' },
+        { status: 403 },
+      );
+    }
+
+    const vapiKeyCheck = await verifyVapiPrivateKeyWorks();
+    if (!vapiKeyCheck.ok) {
+      return NextResponse.json({ error: vapiKeyCheck.error }, { status: 502 });
+    }
 
     const accountSid = process.env.TWILIO_ACCOUNT_SID;
     const authToken = process.env.TWILIO_AUTH_TOKEN;
@@ -102,7 +151,6 @@ export async function POST(request: Request) {
     }
 
     const primaryCountry = process.env.TWILIO_PHONE_COUNTRY || 'GB';
-    const appBaseUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://app.styleflo.ai';
     const addressSid = process.env.TWILIO_ADDRESS_SID_LOCAL || process.env.TWILIO_ADDRESS_SID;
 
     // Support separate bundle SIDs for mobile vs local regulatory compliance
@@ -180,11 +228,6 @@ export async function POST(request: Request) {
         } catch (err: any) {
           console.warn('[Telephony Provisioning] Could not query bundle items, falling back to configured address:', err.message);
         }
-
-        // Hardened fallback for StyleFlo UK local bundle (Basecamp Liverpool)
-        if (!resolvedAddressSid && bundleSid === 'BUf676ba5c4a24f355ecdcc59d0e61e818') {
-          resolvedAddressSid = 'AD11e6b1f650f21544d4ef5e9447fad0e5';
-        }
       }
 
       if (resolvedAddressSid && !isMobile) purchaseParams.addressSid = resolvedAddressSid;
@@ -205,43 +248,35 @@ export async function POST(request: Request) {
       }, { status: 400 });
     }
 
-    // 2.5. Automatically import and link this number to Vapi!
-    // Since Vapi no longer supports direct TwiML WebSocket streams from Twilio, we must register the number in Vapi.
-    const vapiPrivateKey = process.env.VAPI_PRIVATE_API_KEY;
-    const vapiAssistantId = process.env.VAPI_MASTER_ASSISTANT_ID;
-
-    if (vapiPrivateKey && vapiAssistantId) {
-      console.log('[Telephony Provisioning] Importing Twilio number into Vapi...');
+    const vapiPrivateKey = getVapiPrivateKey();
+    const importPayload = buildVapiPhoneImportPayload({
+      phoneNumber: purchasedNumber.phoneNumber,
+      twilioAccountSid: accountSid,
+      twilioAuthToken: authToken,
+      tenantId: tenant_id,
+      appUrl: appBaseUrl,
+      webhookSecret,
+    });
+    const imported = await importTwilioNumberToVapi({
+      payload: importPayload,
+      apiKey: vapiPrivateKey,
+    });
+    if (!imported.ok) {
+      console.error('[Telephony Provisioning] Vapi import failed; releasing Twilio number', {
+        sid: purchasedNumber.sid,
+        number: purchasedNumber.phoneNumber,
+      });
       try {
-        const vapiRes = await fetch('https://api.vapi.ai/phone-number', {
-          method: 'POST',
-          headers: {
-            'Authorization': `Bearer ${vapiPrivateKey}`,
-            'Content-Type': 'application/json'
-          },
-          body: JSON.stringify({
-            provider: 'twilio',
-            number: purchasedNumber.phoneNumber,
-            twilioAccountSid: accountSid,
-            twilioAuthToken: authToken,
-            assistantId: vapiAssistantId,
-            serverUrl: `${process.env.NEXT_PUBLIC_APP_URL || 'https://app.styleflo.ai'}/api/webhooks/vapi/assistant`,
-            name: `StyleFlo Tenant ${tenant_id}`
-          })
+        await releaseTwilioIncomingNumber(client, purchasedNumber.sid);
+      } catch {
+        console.error('[Telephony Provisioning] Failed to release Twilio number after Vapi import error', {
+          sid: purchasedNumber.sid,
         });
-        
-        if (!vapiRes.ok) {
-          const vapiErr = await vapiRes.text();
-          console.error('[Telephony Provisioning] Failed to import into Vapi:', vapiErr);
-          // We don't fail the whole request, but it means it won't route correctly until fixed.
-        } else {
-          console.log('[Telephony Provisioning] Successfully linked number to Vapi Assistant!');
-        }
-      } catch (err) {
-        console.error('[Telephony Provisioning] Vapi import request failed:', err);
       }
-    } else {
-      console.warn('[Telephony Provisioning] VAPI_PRIVATE_API_KEY or VAPI_MASTER_ASSISTANT_ID missing, skipping Vapi registration.');
+      return NextResponse.json(
+        { error: imported.error || 'Failed to import number into Vapi. The Twilio number was released.' },
+        { status: 502 },
+      );
     }
 
     // 3. Save it to Supabase

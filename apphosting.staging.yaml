@@ -129,6 +129,17 @@ env:
     availability:
       - RUNTIME
 
+  - variable: VAPI_WEBHOOK_SECRET
+    secret: VAPI_WEBHOOK_SECRET
+    availability:
+      - RUNTIME
+
+  - variable: VOICE_ENABLED
+    secret: VOICE_ENABLED
+    availability:
+      - BUILD
+      - RUNTIME
+
   # Aliases for existing readers (same Secret Manager names).
   - variable: VAPI_PRIVATE_API_KEY
     secret: VAPI_API_KEY

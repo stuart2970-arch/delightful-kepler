@@ -4016,3 +4016,15 @@ Highlighted adjustments in the modal:
   - Embedded login wraps `window.top` navigation in try/catch and falls back to `window.location.assign('/dashboard')`.
   - `safePublicReturnUrl` rejects backslash and userinfo-@ URLs.
   - Playwright: signed-in tab loads for billing/scheduling/crawler/telephony; Extra Knowledge success redirect; returnUrl edge cases. Full suite 351 passed locally.
+
+### Session (STYL-226 item 3 - Vapi orchestration safety - 1 Nov 2026)
+* **User / Jira**: STYL-226 item 3. PR base `staging` (not main). Do not merge. Signed off by Stuart on 1 Nov 2026 at 19:56 UK.
+* **Changes**:
+  - `VOICE_ENABLED` off by default. Widget will not start a live Vapi call; inbound assistant webhook returns a short voice-unavailable message; `/api/telephony/provision` refuses. Placeholder or known production Vapi IDs also refuse voice.
+  - Safer number buy: verify Vapi key, require an active paid landline/mobile bolt-on, one number per tenant, release the Twilio number if Vapi import fails, import with `server` (no `assistantId` / no `serverUrl`).
+  - Removed production `app.styleflo.ai` fallbacks from provision and the assistant webhook, and the hard-coded production Twilio bundle/address SIDs.
+  - Vapi webhooks require `X-Vapi-Secret` (`VAPI_WEBHOOK_SECRET`, constant-time). No first-business chatbot fallback. Log ids only.
+  - Widget web calls set `recordingEnabled: false` and point `server.url` at `/api/webhooks/vapi`. No Vapi call deletion.
+  - Removed unused `VAPI_SECRET_KEY` alias from connected-accounts.
+  - `apphosting.staging.yaml` references `VAPI_WEBHOOK_SECRET` and `VOICE_ENABLED` by name only.
+  - Playwright: `tests/styl-226-voice-gate.spec.ts`, `tests/styl-226-telephony-provision-safety.spec.ts`, `tests/styl-226-vapi-webhook-auth.spec.ts`, `tests/styl-226-widget-voice-recording.spec.ts`, `tests/styl-226-connected-accounts-no-vapi-secret-alias.spec.ts`. Existing `tests/styl-226-vapi-no-prod-fallback.spec.ts` kept. Full suite **362 passed** locally against `.env.test` / local Supabase / mock keys (never live).

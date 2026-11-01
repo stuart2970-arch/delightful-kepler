@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import twilio from 'twilio';
-import { getVapiMasterAssistantId } from '@/lib/env/vapi-config';
+import { evaluateVoiceGate, getVapiMasterAssistantId } from '@/lib/env/vapi-config';
 
 export const dynamic = 'force-dynamic';
 
@@ -74,6 +74,15 @@ export async function POST(request: Request) {
 
     const VoiceResponse = twilio.twiml.VoiceResponse;
     const twiml = new VoiceResponse();
+
+    const voiceGate = evaluateVoiceGate();
+    if (!voiceGate.allowed) {
+      twiml.say({ voice: 'Polly.Amy' }, 'Voice is currently unavailable.');
+      return new NextResponse(twiml.toString(), {
+        status: 200,
+        headers: { 'Content-Type': 'text/xml' },
+      });
+    }
 
     if (remainingMinutes <= 0 && !tierHasVoice) {
       console.warn(`[Telephony Inbound] Tenant ${tenant.id} has exhausted voice minutes.`);

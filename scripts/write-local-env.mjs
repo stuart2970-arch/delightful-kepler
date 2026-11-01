@@ -69,6 +69,8 @@ function buildEnvFile({ apiUrl, anon, service, appUrl, appEnv, playwright }) {
     'NEXT_PUBLIC_VAPI_PUBLIC_KEY=mock-vapi-public-key',
     'VAPI_PUBLIC_KEY=mock-vapi-public-key',
     'VAPI_MASTER_ASSISTANT_ID=00000000-0000-0000-0000-0000000000va',
+    'VAPI_WEBHOOK_SECRET=test-vapi-webhook-secret',
+    'VOICE_ENABLED=',
     'STRIPE_WEBHOOK_SECRET=whsec_test_local_mock_secret',
     'TWILIO_ACCOUNT_SID=ACmocktwilioaccountsid000000000000',
     'TWILIO_AUTH_TOKEN=mock_twilio_auth_token',
