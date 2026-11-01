@@ -1,6 +1,39 @@
 import { getVapiPrivateKey, requireConfiguredAppUrl } from '@/lib/env/vapi-config';
 
 export const PAID_PHONE_ADDON_IDS = ['landline_addon', 'mobile_addon'] as const;
+export const VENDOR_FETCH_TIMEOUT_MS = 15_000;
+export const PENDING_RESERVATION_TTL_MS = 10 * 60 * 1000;
+
+export async function withVendorTimeout<T>(
+  work: Promise<T>,
+  label: string,
+  timeoutMs = VENDOR_FETCH_TIMEOUT_MS,
+): Promise<T> {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const timeout = new Promise<never>((_, reject) => {
+    timer = setTimeout(() => reject(new Error(`${label} timed out after ${timeoutMs}ms`)), timeoutMs);
+  });
+  try {
+    return await Promise.race([work, timeout]);
+  } finally {
+    if (timer) clearTimeout(timer);
+  }
+}
+
+export async function fetchWithVendorTimeout(
+  fetchImpl: typeof fetch,
+  url: string,
+  init?: RequestInit,
+  timeoutMs = VENDOR_FETCH_TIMEOUT_MS,
+): Promise<Response> {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    return await fetchImpl(url, { ...init, signal: controller.signal });
+  } finally {
+    clearTimeout(timer);
+  }
+}
 
 export type PhoneAddonRow = {
   addon_catalog_id?: string | null;
@@ -64,9 +97,9 @@ export async function verifyVapiPrivateKeyWorks(
   }
   try {
     const headers = { Authorization: `Bearer ${key}` };
-    const orgRes = await fetchImpl('https://api.vapi.ai/org', { headers, cache: 'no-store' });
+    const orgRes = await fetchWithVendorTimeout(fetchImpl, 'https://api.vapi.ai/org', { headers, cache: 'no-store' });
     if (orgRes.ok) return { ok: true };
-    const assistantRes = await fetchImpl('https://api.vapi.ai/assistant?limit=1', {
+    const assistantRes = await fetchWithVendorTimeout(fetchImpl, 'https://api.vapi.ai/assistant?limit=1', {
       headers,
       cache: 'no-store',
     });
@@ -84,7 +117,7 @@ export async function importTwilioNumberToVapi(input: {
 }): Promise<{ ok: true; id?: string } | { ok: false; error: string }> {
   const fetchImpl = input.fetchImpl || fetch;
   try {
-    const res = await fetchImpl('https://api.vapi.ai/phone-number', {
+    const res = await fetchWithVendorTimeout(fetchImpl, 'https://api.vapi.ai/phone-number', {
       method: 'POST',
       headers: {
         Authorization: `Bearer ${input.apiKey}`,
@@ -113,7 +146,7 @@ export async function deleteVapiPhoneNumber(input: {
   try {
     let phoneId = (input.phoneId || '').trim();
     if (!phoneId && input.phoneNumber) {
-      const list = await fetchImpl('https://api.vapi.ai/phone-number', {
+      const list = await fetchWithVendorTimeout(fetchImpl, 'https://api.vapi.ai/phone-number', {
         headers,
         cache: 'no-store',
       });
@@ -128,7 +161,7 @@ export async function deleteVapiPhoneNumber(input: {
     if (!phoneId) {
       return { ok: false, error: 'Vapi phone id is unknown; cannot delete the import.' };
     }
-    const res = await fetchImpl(`https://api.vapi.ai/phone-number/${phoneId}`, {
+    const res = await fetchWithVendorTimeout(fetchImpl, `https://api.vapi.ai/phone-number/${phoneId}`, {
       method: 'DELETE',
       headers,
     });
@@ -145,7 +178,7 @@ export async function releaseTwilioIncomingNumber(
   client: { incomingPhoneNumbers: (sid: string) => { remove: () => Promise<unknown> } },
   sid: string,
 ): Promise<void> {
-  await client.incomingPhoneNumbers(sid).remove();
+  await withVendorTimeout(client.incomingPhoneNumbers(sid).remove(), 'Twilio release');
 }
 
 export type PurchaseReservationRow = {
@@ -155,33 +188,67 @@ export type PurchaseReservationRow = {
   phone_number?: string | null;
   vapi_phone_id?: string | null;
   error?: string | null;
+  created_at?: string | null;
 };
 
 export type PurchaseStore = {
-  from: (table: string) => {
-    insert: (row: Record<string, unknown>) => Promise<{ error: { code?: string; message?: string } | null }>;
-    update: (row: Record<string, unknown>) => {
-      eq: (column: string, value: string) => Promise<{ error: { message?: string } | null }>;
-    };
-    delete: () => {
-      eq: (column: string, value: string) => Promise<{ error: { message?: string } | null }>;
-    };
-  };
+  from: (table: string) => any;
 };
+
+export function isPendingReservationExpired(
+  row: { status?: string | null; created_at?: string | null },
+  nowMs = Date.now(),
+  ttlMs = PENDING_RESERVATION_TTL_MS,
+): boolean {
+  if ((row.status || '').trim() !== 'pending') return false;
+  const created = row.created_at ? Date.parse(row.created_at) : NaN;
+  if (!Number.isFinite(created)) return false;
+  return nowMs - created >= ttlMs;
+}
 
 export async function reserveTenantPhonePurchase(
   store: PurchaseStore,
   tenantId: string,
-): Promise<{ ok: true } | { ok: false; status: 409; error: string }> {
+  nowMs = Date.now(),
+): Promise<{ ok: true } | { ok: false; status: 409 | 500; error: string }> {
+  const table = store.from('tenant_phone_number_purchases');
+  if (typeof table.select === 'function') {
+    const existing = await table.select('*').eq('tenant_id', tenantId).maybeSingle();
+    if (existing.error && existing.error.code !== 'PGRST116') {
+      return { ok: false, status: 500, error: existing.error.message || 'Failed to read phone number reservation.' };
+    }
+    if (existing.data) {
+      if (isPendingReservationExpired(existing.data, nowMs)) {
+        const cleared = await clearTenantPhonePurchase(store, tenantId);
+        if (cleared.error) {
+          return { ok: false, status: 500, error: cleared.error.message || 'Failed to reclaim a stale phone number reservation.' };
+        }
+      } else {
+        return {
+          ok: false,
+          status: 409,
+          error: 'This tenant already has a phone number reservation. Number purchase is buy-once.',
+        };
+      }
+    }
+  }
+
   const { error } = await store.from('tenant_phone_number_purchases').insert({
     tenant_id: tenantId,
     status: 'pending',
   });
-  if (error) {
+  if (error?.code === '23505') {
     return {
       ok: false,
       status: 409,
       error: 'This tenant already has a phone number reservation. Number purchase is buy-once.',
+    };
+  }
+  if (error) {
+    return {
+      ok: false,
+      status: 500,
+      error: error.message || 'Failed to reserve a phone number purchase.',
     };
   }
   return { ok: true };
@@ -190,8 +257,8 @@ export async function reserveTenantPhonePurchase(
 export async function clearTenantPhonePurchase(
   store: PurchaseStore,
   tenantId: string,
-): Promise<void> {
-  await store.from('tenant_phone_number_purchases').delete().eq('tenant_id', tenantId);
+): Promise<{ error: { message?: string } | null }> {
+  return store.from('tenant_phone_number_purchases').delete().eq('tenant_id', tenantId);
 }
 
 export async function markTenantPhonePurchaseActive(

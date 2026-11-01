@@ -3,11 +3,15 @@ import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import {
   buildVapiPhoneImportPayload,
+  fetchWithVendorTimeout,
   importTwilioNumberToVapi,
+  isPendingReservationExpired,
   releaseTwilioIncomingNumber,
+  reserveTenantPhonePurchase,
   tenantHasExistingNumber,
   tenantHasPaidPhoneAddon,
   verifyVapiPrivateKeyWorks,
+  VENDOR_FETCH_TIMEOUT_MS,
 } from '../src/lib/telephony/provision-safety';
 
 const root = process.cwd();
@@ -105,5 +109,57 @@ test.describe('STYL-226: safer telephony provision', () => {
       'PNimported',
     );
     expect(released).toBe('PNimported');
+  });
+
+  test('only Postgres 23505 maps to a 409 reservation, and stale pending can expire', async () => {
+    expect(VENDOR_FETCH_TIMEOUT_MS).toBe(15_000);
+    expect(isPendingReservationExpired({
+      status: 'pending',
+      created_at: new Date(Date.now() - 11 * 60 * 1000).toISOString(),
+    })).toBe(true);
+    expect(isPendingReservationExpired({
+      status: 'pending',
+      created_at: new Date().toISOString(),
+    })).toBe(false);
+
+    const unique = await reserveTenantPhonePurchase({
+      from: () => ({
+        select: () => ({
+          eq: () => ({
+            maybeSingle: async () => ({ data: null, error: null }),
+          }),
+        }),
+        insert: async () => ({ error: { code: '23505', message: 'duplicate key' } }),
+        update: () => ({ eq: async () => ({ error: null }) }),
+        delete: () => ({ eq: async () => ({ error: null }) }),
+      }),
+    } as any, 'tenant-1');
+    expect(unique).toEqual(expect.objectContaining({ ok: false, status: 409 }));
+
+    const other = await reserveTenantPhonePurchase({
+      from: () => ({
+        select: () => ({
+          eq: () => ({
+            maybeSingle: async () => ({ data: null, error: null }),
+          }),
+        }),
+        insert: async () => ({ error: { code: '42501', message: 'permission denied' } }),
+        update: () => ({ eq: async () => ({ error: null }) }),
+        delete: () => ({ eq: async () => ({ error: null }) }),
+      }),
+    } as any, 'tenant-1');
+    expect(other).toEqual(expect.objectContaining({ ok: false, status: 500 }));
+  });
+
+  test('Vapi fetches use AbortController at 15s', async () => {
+    const src = readFileSync(join(root, 'src/lib/telephony/provision-safety.ts'), 'utf8');
+    expect(src).toContain('AbortController');
+    expect(src).toContain('VENDOR_FETCH_TIMEOUT_MS');
+    let sawSignal = false;
+    await fetchWithVendorTimeout(async (_url, init) => {
+      sawSignal = Boolean(init?.signal);
+      return new Response('ok', { status: 200 });
+    }, 'https://api.vapi.ai/org', { headers: {} });
+    expect(sawSignal).toBe(true);
   });
 });
