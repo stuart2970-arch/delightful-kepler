@@ -33,6 +33,13 @@ test.describe('STYL-226: public app origin helper', () => {
     'src/app/api/integrations/microsoft/callback/route.ts',
   ];
 
+  test('login embedded top navigation falls back to location.assign', () => {
+    const src = codeWithoutComments(readFileSync(join(root, 'src/app/login/page.tsx'), 'utf8'));
+    expect(src).toMatch(/try\s*\{/);
+    expect(src).toContain("window.location.assign('/dashboard')");
+    expect(src).toMatch(/catch/);
+  });
+
   test('AddOnUpsellModal only sends customPricePence for sliding add-ons', () => {
     const src = codeWithoutComments(readFileSync(join(root, 'src/components/AddOnUpsellModal.tsx'), 'utf8'));
     expect(src).toMatch(/if\s*\(\s*!addon\.is_sliding\s*\)/);
@@ -116,6 +123,10 @@ test.describe('STYL-226: public app origin helper', () => {
     expect(safePublicReturnUrl('//evil.example/phish', fallback, env)).toBe(fallback);
     expect(safePublicReturnUrl('https://staging.styleflo.ai.evil.example/dashboard', fallback, env)).toBe(fallback);
     expect(safePublicReturnUrl('', fallback, env)).toBe(fallback);
+    expect(safePublicReturnUrl('https://evil.example@staging.styleflo.ai/dashboard', fallback, env)).toBe(fallback);
+    expect(safePublicReturnUrl('https://user:pass@staging.styleflo.ai/dashboard', fallback, env)).toBe(fallback);
+    expect(safePublicReturnUrl('https://staging.styleflo.ai\\@evil.example', fallback, env)).toBe(fallback);
+    expect(safePublicReturnUrl('https://evil.example\\@staging.styleflo.ai/dashboard', fallback, env)).toBe(fallback);
   });
 
   test('Google sign-in on /login does not send users to the production app host', async ({ page }) => {

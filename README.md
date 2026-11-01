@@ -4007,3 +4007,12 @@ Highlighted adjustments in the modal:
   - Tests cover `microsoft_calendar_addon` and `remove_styleflo_branding`, existing routes (not 404), staging vs production `success_url` hosts, and signed-in `/login` → `/dashboard`.
   - WordPress `styleflo.ai/app` wrapper: embedded login now sends `window.top` to `{login origin}/dashboard`, which leaves the WP iframe. Top-level login was already `/dashboard`.
   - Local: typecheck passed; targeted specs 42 passed; full Playwright 344 passed (`.env.test` / local Supabase / `sk_test_mock`).
+
+### Session (PR 17 follow-up - dashboard tabs and login fallback - 1 Nov 2026)
+* **User**: PR 17 merged as `fc65c917`. New branch off latest staging. Do not merge. Never `--no-verify`.
+* **Changes**:
+  - Extra Knowledge checkout success maps `knowledge` → `crawler` so the Knowledge Base panel renders.
+  - Microsoft Calendar success banner no longer says Google Calendar.
+  - Embedded login wraps `window.top` navigation in try/catch and falls back to `window.location.assign('/dashboard')`.
+  - `safePublicReturnUrl` rejects backslash and userinfo-@ URLs.
+  - Playwright: signed-in tab loads for billing/scheduling/crawler/telephony; Extra Knowledge success redirect; returnUrl edge cases. Full suite 351 passed locally.

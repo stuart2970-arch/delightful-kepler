@@ -63,9 +63,11 @@ export function publicAppPath(
 }
 
 function originOf(raw: string): string | null {
+  if (raw.includes('\\')) return null;
   try {
     const url = new URL(raw);
     if (url.protocol !== 'http:' && url.protocol !== 'https:') return null;
+    if (url.username || url.password) return null;
     return url.origin;
   } catch {
     return null;

@@ -146,10 +146,14 @@ export default function LoginPage() {
       leftLogin = true;
       const isEmbedded = window.self !== window.top;
       if (isEmbedded && window.top) {
-        window.top.location.href = publicAppPath('/dashboard');
-      } else {
-        window.location.assign('/dashboard');
+        try {
+          window.top.location.href = publicAppPath('/dashboard');
+          return;
+        } catch {
+          // Sandboxed iframes cannot assign window.top.
+        }
       }
+      window.location.assign('/dashboard');
     };
 
     const hashParams = new URLSearchParams(window.location.hash.startsWith('#') ? window.location.hash.slice(1) : '');
