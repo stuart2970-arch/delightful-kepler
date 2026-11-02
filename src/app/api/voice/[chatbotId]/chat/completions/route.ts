@@ -858,6 +858,6 @@ actualSpokenBotText = (availMatch || bookMatch)
 
   } catch (error: any) {
     voiceLogError('[Vapi Custom LLM] Unexpected failure', error);
-    return NextResponse.json({ error: 'Internal server error', details: error?.message || String(error) }, { status: 500, headers: corsHeaders });
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500, headers: corsHeaders });
   }
 }

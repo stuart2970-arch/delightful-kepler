@@ -14,6 +14,7 @@ const SAFE_ENV = {
   APP_URL: 'https://staging.styleflo.ai',
   TWILIO_ACCOUNT_SID: 'ACxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx',
   TWILIO_AUTH_TOKEN: 'twilio-auth-token-for-tests',
+  VENDOR_FETCH_TIMEOUT_MS: '40',
 } as NodeJS.ProcessEnv;
 
 type Row = Record<string, any>;
@@ -26,6 +27,7 @@ function createHarness(opts?: {
   failMarkActive?: boolean;
   failReserveWith?: { code?: string; message?: string };
   seedPurchase?: Row;
+  purchaseDelayMs?: number;
 }) {
   const purchases: Row[] = [];
   const tenants: Row[] = [{
@@ -108,14 +110,44 @@ function createHarness(opts?: {
         };
       },
       delete() {
-        return {
-          async eq(column: string, value: string) {
-            const store = rowsFor(name);
-            const index = store.findIndex((item) => item[column] === value);
-            if (index >= 0) store.splice(index, 1);
-            return { error: null };
+        const deleteFilters: Array<[string, string, any]> = [];
+        const apply = async () => {
+          const store = rowsFor(name);
+          const removed: Row[] = [];
+          for (let index = store.length - 1; index >= 0; index -= 1) {
+            const item = store[index];
+            const ok = deleteFilters.every(([op, column, value]) => {
+              if (op === 'eq') return item[column] === value;
+              if (op === 'neq') return item[column] !== value;
+              if (op === 'lt') return item[column] < value;
+              return true;
+            });
+            if (ok) {
+              removed.unshift(store[index]);
+              store.splice(index, 1);
+            }
+          }
+          return { data: removed, error: null };
+        };
+        const chain: any = {
+          eq(column: string, value: string) {
+            deleteFilters.push(['eq', column, value]);
+            return chain;
+          },
+          neq(column: string, value: string) {
+            deleteFilters.push(['neq', column, value]);
+            return chain;
+          },
+          lt(column: string, value: string) {
+            deleteFilters.push(['lt', column, value]);
+            return chain;
+          },
+          select: apply,
+          then(resolve: (value: any) => unknown, reject?: (reason: any) => unknown) {
+            return apply().then(resolve, reject);
           },
         };
+        return chain;
       },
     };
     return api;
@@ -123,15 +155,32 @@ function createHarness(opts?: {
 
   const supabase = { from };
 
+  const incomingList: Array<{ sid: string; phoneNumber: string; voiceUrl?: string }> = [];
   const incoming = ((sid: string) => ({
     remove: async () => {
       if (opts?.failTwilioRelease) throw new Error('release failed');
       return { sid };
     },
   })) as ProvisionTwilioClient['incomingPhoneNumbers'];
-  (incoming as any).create = async () => {
+  (incoming as any).list = async () => incomingList.slice();
+  (incoming as any).create = async (params: { voiceUrl?: string }) => {
     counters.purchases += 1;
-    return { sid: `PN${counters.purchases}`, phoneNumber: '+441234567890' };
+    const purchased = {
+      sid: `PN${counters.purchases}`,
+      phoneNumber: '+441234567890',
+      voiceUrl: params?.voiceUrl,
+    };
+    const delay = opts?.purchaseDelayMs || 0;
+    if (!delay) {
+      incomingList.push(purchased);
+      return purchased;
+    }
+    return new Promise((resolve) => {
+      setTimeout(() => {
+        incomingList.push(purchased);
+        resolve(purchased);
+      }, delay);
+    });
   };
 
   const client: ProvisionTwilioClient = {
@@ -275,6 +324,21 @@ test.describe('STYL-226: provision route with mocked Twilio and Vapi', () => {
     expect(body.error).toMatch(/Vapi delete failed/i);
     expect(purchases).toHaveLength(1);
     expect(purchases[0].status).toBe('orphan');
+  });
+
+  test('Twilio purchase timeout that later succeeds does not buy a second number on retry', async () => {
+    const { deps, counters, purchases } = createHarness({ purchaseDelayMs: 80 });
+    const first = await handleProvisionPost(provisionRequest(), deps);
+    expect(first.status).toBe(504);
+    expect(purchases[0].status).toBe('unknown');
+    expect(counters.purchases).toBe(1);
+    await new Promise((resolve) => setTimeout(resolve, 120));
+    const second = await handleProvisionPost(provisionRequest(), deps);
+    expect(second.status).toBe(200);
+    expect(counters.purchases).toBe(1);
+    const body = await second.json();
+    expect(body.number).toBe('+441234567890');
+    expect(purchases.filter((row) => row.status === 'active')).toHaveLength(1);
   });
 
   test('mark-active failure is reported without releasing a saved number', async () => {

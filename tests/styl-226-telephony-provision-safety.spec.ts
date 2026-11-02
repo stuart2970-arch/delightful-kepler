@@ -6,6 +6,7 @@ import {
   fetchWithVendorTimeout,
   importTwilioNumberToVapi,
   isPendingReservationExpired,
+  reclaimExpiredPendingPurchase,
   releaseTwilioIncomingNumber,
   reserveTenantPhonePurchase,
   tenantHasExistingNumber,
@@ -131,7 +132,12 @@ test.describe('STYL-226: safer telephony provision', () => {
         }),
         insert: async () => ({ error: { code: '23505', message: 'duplicate key' } }),
         update: () => ({ eq: async () => ({ error: null }) }),
-        delete: () => ({ eq: async () => ({ error: null }) }),
+        delete: () => ({
+          eq() { return this; },
+          neq() { return this; },
+          lt() { return this; },
+          select: async () => ({ data: [], error: null }),
+        }),
       }),
     } as any, 'tenant-1');
     expect(unique).toEqual(expect.objectContaining({ ok: false, status: 409 }));
@@ -145,10 +151,74 @@ test.describe('STYL-226: safer telephony provision', () => {
         }),
         insert: async () => ({ error: { code: '42501', message: 'permission denied' } }),
         update: () => ({ eq: async () => ({ error: null }) }),
-        delete: () => ({ eq: async () => ({ error: null }) }),
+        delete: () => ({
+          eq() { return this; },
+          neq() { return this; },
+          lt() { return this; },
+          select: async () => ({ data: [], error: null }),
+        }),
       }),
     } as any, 'tenant-1');
     expect(other).toEqual(expect.objectContaining({ ok: false, status: 500 }));
+  });
+
+  test('only one concurrent stale-reservation reclaim wins', async () => {
+    const purchases: Array<Record<string, any>> = [{
+      tenant_id: 'tenant-race',
+      status: 'pending',
+      created_at: new Date(Date.now() - 11 * 60 * 1000).toISOString(),
+    }];
+    let reclaimers = 0;
+    const store = {
+      from() {
+        return {
+          select: () => ({
+            eq: () => ({
+              maybeSingle: async () => ({ data: purchases[0] || null, error: null }),
+            }),
+          }),
+          insert: async (row: Record<string, any>) => {
+            if (purchases.some((item) => item.tenant_id === row.tenant_id)) {
+              return { error: { code: '23505', message: 'duplicate key' } };
+            }
+            purchases.push({ created_at: new Date().toISOString(), ...row });
+            return { error: null };
+          },
+          delete() {
+            const chain: any = {
+              eq() { return chain; },
+              neq() { return chain; },
+              lt() { return chain; },
+              async select() {
+                reclaimers += 1;
+                if (reclaimers === 1) {
+                  await new Promise((resolve) => setTimeout(resolve, 25));
+                }
+                const index = purchases.findIndex((row) => (
+                  row.status === 'pending' && Date.parse(row.created_at) < Date.now() - 10 * 60 * 1000
+                ));
+                if (index < 0) return { data: [], error: null };
+                const [row] = purchases.splice(index, 1);
+                return { data: [row], error: null };
+              },
+            };
+            return chain;
+          },
+        };
+      },
+    };
+    const [first, second] = await Promise.all([
+      reserveTenantPhonePurchase(store as any, 'tenant-race'),
+      reserveTenantPhonePurchase(store as any, 'tenant-race'),
+    ]);
+    const outcomes = [first, second];
+    expect(outcomes.filter((row) => row.ok)).toHaveLength(1);
+    expect(outcomes.filter((row) => !row.ok && row.status === 409)).toHaveLength(1);
+    expect(await reclaimExpiredPendingPurchase(store as any, 'tenant-race')).toEqual({
+      reclaimed: false,
+      error: null,
+    });
+    expect(purchases.filter((row) => row.status === 'pending')).toHaveLength(1);
   });
 
   test('Vapi fetches use AbortController at 15s', async () => {

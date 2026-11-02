@@ -12,6 +12,7 @@ test.describe('STYL-226: voice completion logs are ids only', () => {
     expect(chatbot).toContain("console.log('[Vapi Custom LLM] Ignoring echoed assistant greeting turn', { chatbotId })");
     expect(legacy).not.toContain('Executing bookMeeting for ${custName}');
     expect(legacy).toContain("console.log('[Vapi Custom LLM Legacy] Executing bookMeeting', { tenantId, staffId, serviceId })");
+    expect(chatbot).not.toContain('details: error?.message');
     expect(chatbot).toContain('voiceLogError');
     expect(legacy).toContain('voiceLogError');
     expect(chatbot).not.toMatch(/console\.error\('[^']+', (preConvErr|e|toolErr|pass2Err|dbErr|err|logErr|error)\)/);

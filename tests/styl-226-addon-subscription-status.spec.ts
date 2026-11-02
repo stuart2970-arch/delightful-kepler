@@ -2,10 +2,11 @@ import { test, expect } from '@playwright/test';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import {
+  deactivateAddonsForCancelledSubscription,
+  handleStripeBillingEvent,
   processAddonLineItems,
   syncAddonStatusAfterInvoice,
-  deactivateAddonsForCancelledSubscription,
-} from '../src/app/api/webhooks/stripe/route';
+} from '../src/lib/billing/process-stripe-webhook';
 import { tenantHasPaidPhoneAddon } from '../src/lib/telephony/provision-safety';
 import { stripeStatusToAddonStatus } from '../src/lib/billing/addon-subscription-status';
 
@@ -24,6 +25,7 @@ function createStripeStore(addons: Row[] = []) {
     included_sms: 0,
     included_messages: 0,
     included_data_chunks: 0,
+    is_active: true,
   }];
   const tables: Record<string, Row[]> = {
     addon_catalog: catalog,
@@ -33,13 +35,19 @@ function createStripeStore(addons: Row[] = []) {
 
   function from(name: string) {
     const filters: Array<[string, string, any]> = [];
-    const matched = () => (tables[name] || []).filter((row) => filters.every(([op, col, val]) => (
-      op === 'eq' ? row[col] === val : true
-    )));
+    const matched = () => (tables[name] || []).filter((row) => filters.every(([op, col, val]) => {
+      if (op === 'eq') return row[col] === val;
+      if (op === 'neq') return row[col] !== val;
+      return true;
+    }));
     const api: any = {
       select() { return api; },
       eq(column: string, value: string) {
         filters.push(['eq', column, value]);
+        return api;
+      },
+      neq(column: string, value: string) {
+        filters.push(['neq', column, value]);
         return api;
       },
       async maybeSingle() {
@@ -57,6 +65,10 @@ function createStripeStore(addons: Row[] = []) {
         const chain: any = {
           eq(column: string, value: string) {
             filters.push(['eq', column, value]);
+            return chain;
+          },
+          neq(column: string, value: string) {
+            filters.push(['neq', column, value]);
             return chain;
           },
           then(resolve: (value: any) => unknown, reject?: (reason: any) => unknown) {
@@ -77,32 +89,42 @@ function createStripeStore(addons: Row[] = []) {
 }
 
 test.describe('STYL-226: Stripe writes addon subscription_status', () => {
-  test('maps Stripe statuses and does not blanket-backfill active', () => {
+  test('maps Stripe statuses and does not copy tenants.subscription_status in the backfill', () => {
     expect(stripeStatusToAddonStatus('trialing')).toBe('trialing');
     expect(stripeStatusToAddonStatus('canceled')).toBe('cancelled');
     expect(stripeStatusToAddonStatus('unpaid')).toBe('past_due');
-    const sql = readFileSync(join(root, 'supabase/migrations/20261101120000_styl226_phone_purchase_reservation.sql'), 'utf8');
-    expect(sql).not.toMatch(/SET subscription_status = 'active'\s+WHERE is_active IS TRUE/);
-    expect(sql).toContain('tenants AS t');
-    const stripe = readFileSync(join(root, 'src/app/api/webhooks/stripe/route.ts'), 'utf8');
-    expect(stripe).toContain('addonActivateStatusFields');
-    expect(stripe).toContain('syncAddonStatusAfterInvoice');
-    expect(stripe).toContain('deactivateAddonsForCancelledSubscription');
+    const sql = readFileSync(join(root, 'supabase/migrations/20261102120000_styl226_phone_purchase_reservation.sql'), 'utf8');
+    expect(sql).not.toMatch(/UPDATE public\.tenant_active_addons[\s\S]*FROM public\.tenants/);
+    expect(sql).not.toMatch(/SET subscription_status = CASE/);
+    expect(sql).toContain('Do not copy tenants.subscription_status');
+    expect(sql).toContain('stripe_subscription_id');
+    expect(sql).toContain("'unknown'");
+    const route = readFileSync(join(root, 'src/app/api/webhooks/stripe/route.ts'), 'utf8');
+    expect(route).not.toContain('export async function processAddonLineItems');
+    expect(route).not.toContain('export async function syncAddonStatusAfterInvoice');
+    expect(route).toContain('handleStripeBillingEvent');
+    const lib = readFileSync(join(root, 'src/lib/billing/process-stripe-webhook.ts'), 'utf8');
+    expect(lib).toContain('addonActivateStatusFields');
+    expect(lib).toContain('syncAddonStatusAfterInvoice');
+    expect(lib).toContain('stripe_subscription_id');
   });
 
-  test('activate insert and update persist Stripe subscription_status', async () => {
+  test('activate insert and update persist Stripe subscription_status and subscription id', async () => {
     const store = createStripeStore();
     await processAddonLineItems(store, TENANT, [{
       id: 'si_1',
+      subscription: 'sub_landline',
       price: { id: 'price_landline', unit_amount: 899 },
-    }], 'activate', 'trialing');
+    }], 'activate', async () => undefined, { stripeSubscriptionStatus: 'trialing', stripeSubscriptionId: 'sub_landline' });
     expect(store.addons[0].subscription_status).toBe('trialing');
+    expect(store.addons[0].stripe_subscription_id).toBe('sub_landline');
     expect(store.addons[0].is_active).toBe(true);
 
     await processAddonLineItems(store, TENANT, [{
       id: 'si_1',
+      subscription: 'sub_landline',
       price: { id: 'price_landline', unit_amount: 899 },
-    }], 'activate', 'active');
+    }], 'activate', async () => undefined, { stripeSubscriptionStatus: 'active', stripeSubscriptionId: 'sub_landline' });
     expect(store.addons[0].subscription_status).toBe('active');
   });
 
@@ -113,31 +135,71 @@ test.describe('STYL-226: Stripe writes addon subscription_status', () => {
       addon_catalog_id: 'landline_addon',
       is_active: true,
       subscription_status: 'active',
+      stripe_subscription_id: 'sub_landline',
     }]);
     await processAddonLineItems(store, TENANT, [{
       id: 'si_1',
       price: { id: 'price_landline', unit_amount: 899 },
-    }], 'deactivate');
+    }], 'deactivate', async () => undefined);
     expect(store.addons[0].is_active).toBe(false);
     expect(store.addons[0].subscription_status).toBe('cancelled');
 
     store.addons[0].is_active = true;
     store.addons[0].subscription_status = 'active';
-    await deactivateAddonsForCancelledSubscription(store, TENANT, 'landline_addon');
+    await deactivateAddonsForCancelledSubscription(store, {
+      tenantId: TENANT,
+      addonCatalogId: 'landline_addon',
+    });
     expect(store.addons[0].subscription_status).toBe('cancelled');
     expect(tenantHasPaidPhoneAddon(store.addons)).toBe(false);
   });
 
-  test('a payment that fails after activation is no longer paid-gate eligible', async () => {
-    const store = createStripeStore();
-    await processAddonLineItems(store, TENANT, [{
-      id: 'si_1',
-      price: { id: 'price_landline', unit_amount: 899 },
-    }], 'activate', 'active');
+  test('invoice status updates only the matching bolt-on subscription', async () => {
+    const store = createStripeStore([
+      {
+        id: 'row-landline',
+        tenant_id: TENANT,
+        addon_catalog_id: 'landline_addon',
+        is_active: true,
+        subscription_status: 'active',
+        stripe_subscription_id: 'sub_landline',
+      },
+      {
+        id: 'row-mobile',
+        tenant_id: TENANT,
+        addon_catalog_id: 'mobile_addon',
+        is_active: true,
+        subscription_status: 'active',
+        stripe_subscription_id: 'sub_mobile',
+      },
+      {
+        id: 'row-old',
+        tenant_id: TENANT,
+        addon_catalog_id: 'google_calendar_addon',
+        is_active: false,
+        subscription_status: 'cancelled',
+        stripe_subscription_id: 'sub_landline',
+      },
+    ]);
+
+    await handleStripeBillingEvent({
+      type: 'invoice.payment_failed',
+      data: {
+        object: {
+          subscription: 'sub_landline',
+          metadata: { tenant_id: TENANT, is_addon: 'true', addon_catalog_id: 'landline_addon' },
+        },
+      },
+    }, { supabaseAdmin: store, allocateRollingCredits: async () => undefined });
+
+    expect(store.addons[0].subscription_status).toBe('past_due');
+    expect(store.addons[1].subscription_status).toBe('active');
+    expect(store.addons[2].subscription_status).toBe('cancelled');
     expect(tenantHasPaidPhoneAddon(store.addons)).toBe(true);
 
-    await syncAddonStatusAfterInvoice(store, TENANT, 'failed');
-    expect(store.addons[0].subscription_status).toBe('past_due');
-    expect(tenantHasPaidPhoneAddon(store.addons)).toBe(false);
+    await syncAddonStatusAfterInvoice(store, { stripeSubscriptionId: 'sub_landline', outcome: 'succeeded' });
+    expect(store.addons[0].subscription_status).toBe('active');
+    expect(store.addons[1].subscription_status).toBe('active');
+    expect(store.addons[2].is_active).toBe(false);
   });
 });

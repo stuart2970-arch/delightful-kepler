@@ -1,6 +1,58 @@
 import { allocateRollingCredits as allocateRollingCreditsDefault } from '@/lib/entitlements';
 import { isBoltOnMetadata, mapAddonCategoryToFeatureId } from '@/lib/billing/bolt-on';
 import { resolvePricePaidPence } from '@/lib/billing/account-ownership';
+import {
+  addonActivateStatusFields,
+  addonDeactivateStatusFields,
+  addonPastDueStatusFields,
+} from '@/lib/billing/addon-subscription-status';
+
+export type AddonLineItemContext = {
+  stripeSubscriptionStatus?: string | null;
+  stripeSubscriptionId?: string | null;
+};
+
+export function stripeSubscriptionIdFrom(object: Record<string, any> | null | undefined): string | null {
+  if (!object) return null;
+  const sub = object.subscription;
+  if (typeof sub === 'string' && sub.trim()) return sub.trim();
+  if (sub && typeof sub === 'object' && typeof sub.id === 'string' && sub.id.trim()) return sub.id.trim();
+  if (typeof object.id === 'string' && object.id.startsWith('sub_')) return object.id;
+  return null;
+}
+
+export async function syncAddonStatusAfterInvoice(
+  supabaseAdmin: any,
+  input: { stripeSubscriptionId?: string | null; outcome: 'succeeded' | 'failed' },
+) {
+  const subscriptionId = (input.stripeSubscriptionId || '').trim();
+  if (!subscriptionId) return { error: null, skipped: true };
+  const fields = input.outcome === 'failed'
+    ? addonPastDueStatusFields()
+    : addonActivateStatusFields('active');
+  return supabaseAdmin
+    .from('tenant_active_addons')
+    .update(fields)
+    .eq('stripe_subscription_id', subscriptionId)
+    .eq('is_active', true)
+    .neq('subscription_status', 'cancelled');
+}
+
+export async function deactivateAddonsForCancelledSubscription(
+  supabaseAdmin: any,
+  input: { tenantId: string; addonCatalogId?: string | null; stripeSubscriptionId?: string | null },
+) {
+  let query = supabaseAdmin
+    .from('tenant_active_addons')
+    .update({ ...addonDeactivateStatusFields(), deactivated_at: new Date().toISOString() })
+    .eq('tenant_id', input.tenantId);
+  if (input.stripeSubscriptionId) {
+    query = query.eq('stripe_subscription_id', input.stripeSubscriptionId);
+  } else if (input.addonCatalogId) {
+    query = query.eq('addon_catalog_id', input.addonCatalogId);
+  }
+  return query;
+}
 
 export type StripeBillingEvent = {
   type?: string;
@@ -89,12 +141,13 @@ function metadataNumber(metadata: Record<string, any> | undefined, ...keys: stri
   return null;
 }
 
-async function processAddonLineItems(
+export async function processAddonLineItems(
   supabaseAdmin: any,
   tenantId: string,
   lineItems: any[],
   action: 'activate' | 'deactivate',
   allocateRollingCredits: StripeWebhookDeps['allocateRollingCredits'],
+  context: AddonLineItemContext = {},
 ) {
   for (const item of lineItems) {
     const priceId = item.price?.id || item.plan?.id;
@@ -123,15 +176,18 @@ async function processAddonLineItems(
         .maybeSingle();
 
       const alreadyActive = Boolean(existing?.is_active);
+      const stripeSubscriptionId = stripeSubscriptionIdFrom(item) || context.stripeSubscriptionId || null;
+      const statusFields = addonActivateStatusFields(context.stripeSubscriptionStatus);
 
       if (existing) {
         const { error: updateErr } = await supabaseAdmin
           .from('tenant_active_addons')
           .update({
-            is_active: true,
+            ...statusFields,
             activated_at: new Date().toISOString(),
             deactivated_at: null,
             stripe_subscription_item_id: item.id || null,
+            stripe_subscription_id: stripeSubscriptionId,
             price_paid_pence: pricePaidPence,
           })
           .eq('id', existing.id);
@@ -144,9 +200,10 @@ async function processAddonLineItems(
             addon_catalog_id: addon.id,
             feature_id: featureId,
             quantity: 1,
-            is_active: true,
+            ...statusFields,
             activated_at: new Date().toISOString(),
             stripe_subscription_item_id: item.id || null,
+            stripe_subscription_id: stripeSubscriptionId,
             price_paid_pence: pricePaidPence,
           });
         if (insertErr) console.error('[Stripe Webhook] Error inserting active addon:', insertErr);
@@ -175,7 +232,7 @@ async function processAddonLineItems(
       await supabaseAdmin
         .from('tenant_active_addons')
         .update({
-          is_active: false,
+          ...addonDeactivateStatusFields(),
           deactivated_at: new Date().toISOString(),
         })
         .eq('tenant_id', tenantId)
@@ -200,6 +257,8 @@ async function activateBoltOnByCatalogId(options: {
   addonCatalogId: string;
   metadata?: Record<string, any>;
   subscriptionItemId?: string | null;
+  stripeSubscriptionId?: string | null;
+  stripeSubscriptionStatus?: string | null;
   stripeSessionId?: string | null;
   stripeUnitAmount?: number | null;
   allocateRollingCredits: StripeWebhookDeps['allocateRollingCredits'];
@@ -210,6 +269,8 @@ async function activateBoltOnByCatalogId(options: {
     addonCatalogId,
     metadata = {},
     subscriptionItemId,
+    stripeSubscriptionId,
+    stripeSubscriptionStatus,
     stripeSessionId,
     stripeUnitAmount,
     allocateRollingCredits,
@@ -363,9 +424,10 @@ async function activateBoltOnByCatalogId(options: {
     }
   } else if (existing) {
     const updatePayload: Record<string, any> = {
-      is_active: true,
+      ...addonActivateStatusFields(stripeSubscriptionStatus),
       deactivated_at: null,
       stripe_subscription_item_id: subscriptionItemId || null,
+      stripe_subscription_id: stripeSubscriptionId || null,
       price_paid_pence: pricePaidPence,
       feature_id: featureId,
     };
@@ -385,9 +447,10 @@ async function activateBoltOnByCatalogId(options: {
         addon_catalog_id: addon.id,
         feature_id: featureId,
         quantity: 1,
-        is_active: true,
+        ...addonActivateStatusFields(stripeSubscriptionStatus),
         activated_at: new Date().toISOString(),
         stripe_subscription_item_id: subscriptionItemId || null,
+        stripe_subscription_id: stripeSubscriptionId || null,
         price_paid_pence: pricePaidPence,
       });
     if (insertErr) console.error('[Stripe Webhook] Error inserting active addon:', insertErr);
@@ -432,6 +495,10 @@ export async function handleStripeBillingEvent(
   if (eventType === 'invoice.payment_succeeded') {
     const customerId = dataObject.customer;
     const invoiceMetadata = dataObject.subscription_details?.metadata || dataObject.metadata || {};
+    await syncAddonStatusAfterInvoice(supabaseAdmin, {
+      stripeSubscriptionId: stripeSubscriptionIdFrom(dataObject),
+      outcome: 'succeeded',
+    });
     if (isBoltOnMetadata(invoiceMetadata)) {
       return { status: 200, body: { success: true, message: 'Bolt-on invoice acknowledged' } };
     }
@@ -483,6 +550,10 @@ export async function handleStripeBillingEvent(
 
   if (eventType === 'invoice.payment_failed') {
     const failMetadata = dataObject.subscription_details?.metadata || dataObject.metadata || {};
+    await syncAddonStatusAfterInvoice(supabaseAdmin, {
+      stripeSubscriptionId: stripeSubscriptionIdFrom(dataObject),
+      outcome: 'failed',
+    });
     if (isBoltOnMetadata(failMetadata)) {
       return { status: 200, body: { success: true, message: 'Bolt-on invoice failure acknowledged' } };
     }
@@ -518,7 +589,9 @@ export async function handleStripeBillingEvent(
         tenantId,
         addonCatalogId: metadata.addon_catalog_id,
         metadata,
-        subscriptionItemId: firstItem?.id || dataObject.id || null,
+        subscriptionItemId: firstItem?.id || null,
+        stripeSubscriptionId: dataObject.id || stripeSubscriptionIdFrom(dataObject),
+        stripeSubscriptionStatus: dataObject.status || status,
         stripeUnitAmount: firstItem?.price?.unit_amount ?? null,
         allocateRollingCredits,
       });
@@ -531,7 +604,10 @@ export async function handleStripeBillingEvent(
     }
 
     if (tenantId && items.length > 0 && !isBoltOnMetadata(metadata)) {
-      await processAddonLineItems(supabaseAdmin, tenantId, items, 'activate', allocateRollingCredits);
+      await processAddonLineItems(supabaseAdmin, tenantId, items, 'activate', allocateRollingCredits, {
+        stripeSubscriptionStatus: dataObject.status,
+        stripeSubscriptionId: dataObject.id || stripeSubscriptionIdFrom(dataObject),
+      });
       return { status: 200, body: { success: true, message: 'Add-ons synced' } };
     }
   }
@@ -543,11 +619,10 @@ export async function handleStripeBillingEvent(
 
     if (tenantId) {
       if (isBoltOnMetadata(metadata) && addonCatalogId) {
-        await supabaseAdmin
-          .from('tenant_active_addons')
-          .update({ is_active: false, deactivated_at: new Date().toISOString() })
-          .eq('tenant_id', tenantId)
-          .eq('addon_catalog_id', addonCatalogId);
+        await deactivateAddonsForCancelledSubscription(supabaseAdmin, {
+          tenantId,
+          addonCatalogId,
+        });
 
         await syncChannelFlags(supabaseAdmin, tenantId);
 
@@ -562,10 +637,7 @@ export async function handleStripeBillingEvent(
         return { status: 200, body: { success: true, message: `Add-on ${addonCatalogId} cancelled` } };
       }
 
-      await supabaseAdmin
-        .from('tenant_active_addons')
-        .update({ is_active: false, deactivated_at: new Date().toISOString() })
-        .eq('tenant_id', tenantId);
+      await deactivateAddonsForCancelledSubscription(supabaseAdmin, { tenantId });
 
       await supabaseAdmin
         .from('tenants')
@@ -680,7 +752,9 @@ export async function handleStripeBillingEvent(
         tenantId: targetTenantId,
         addonCatalogId,
         metadata: sessionMetadata,
-        subscriptionItemId: dataObject.subscription || null,
+        subscriptionItemId: null,
+        stripeSubscriptionId: stripeSubscriptionIdFrom(dataObject),
+        stripeSubscriptionStatus: 'active',
         stripeSessionId: dataObject.id,
         allocateRollingCredits,
       });
@@ -737,7 +811,17 @@ export async function handleStripeBillingEvent(
     }
 
     if (dataObject.line_items?.data) {
-      await processAddonLineItems(supabaseAdmin, targetTenantId, dataObject.line_items.data, 'activate', allocateRollingCredits);
+      await processAddonLineItems(
+        supabaseAdmin,
+        targetTenantId,
+        dataObject.line_items.data,
+        'activate',
+        allocateRollingCredits,
+        {
+          stripeSubscriptionStatus: 'active',
+          stripeSubscriptionId: stripeSubscriptionIdFrom(dataObject),
+        },
+      );
     }
 
     const selectedAddonsStr = dataObject.metadata?.selected_addons;

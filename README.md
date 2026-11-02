@@ -4100,3 +4100,12 @@ Highlighted adjustments in the modal:
   - RPC `23505` is no longer treated as already granted.
   - Tests cover auto top-up after a successful RPC, both delete failures, RPC already_granted, RPC unique-violation, missing-function fallback, and a partial pack whose mock writes the ledger.
   - Local: `npm run typecheck` passed. Playwright **386 passed** against `.env.test` / local Supabase / `sk_test_mock` (never live). Migration not applied.
+
+### Session (STYL-226 PR 20 fix round 3 - 2 Nov 2026)
+* **User**: PR 20 blocked at `f6c747ab`. Merge `origin/staging` (do not force-push). Move subscription_status writes into `process-stripe-webhook.ts`. Per-subscription invoice updates. NULL backfill. Atomic stale reclaim. Timeout marks `unknown` and reconciles before retry. Deprovision keeps orphans. Rename migration after PR 21. Do not merge or apply migrations.
+* **Changes**:
+  - Merged staging (PRs 19/21). Stripe route stays a wrapper. Helpers are exported from the lib only.
+  - Invoice success/failure update only the matching `stripe_subscription_id` and never cancelled/inactive rows.
+  - Migration `20261102120000` leaves `subscription_status` NULL and adds `unknown` reservations.
+  - Stale reclaim is an atomic conditional delete. Twilio purchase timeout keeps the row as `unknown` and retry lists incoming numbers instead of buying again.
+  - `recordOrphanedPhonePurchase` errors are logged. Chatbot voice route returns a generic 500.

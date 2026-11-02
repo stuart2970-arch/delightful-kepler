@@ -6,11 +6,15 @@ import {
   deleteVapiPhoneNumber,
   importTwilioNumberToVapi,
   markTenantPhonePurchaseActive,
+  markTenantPhonePurchaseUnknown,
+  matchIncomingNumberForTenant,
   recordOrphanedPhonePurchase,
   releaseTwilioIncomingNumber,
   reserveTenantPhonePurchase,
   tenantHasExistingNumber,
   tenantHasPaidPhoneAddon,
+  vendorTimeoutMs,
+  VendorTimeoutError,
   verifyVapiPrivateKeyWorks,
   withVendorTimeout,
 } from '@/lib/telephony/provision-safety';
@@ -52,6 +56,11 @@ export type ProvisionTwilioClient = {
   };
   incomingPhoneNumbers: {
     create: (params: Record<string, unknown>) => Promise<ProvisionTwilioNumber>;
+    list: (opts?: { phoneNumber?: string; limit?: number }) => Promise<Array<{
+      sid: string;
+      phoneNumber: string;
+      voiceUrl?: string | null;
+    }>>;
   } & ((sid: string) => { remove: () => Promise<unknown> });
   numbers?: {
     v2: {
@@ -138,6 +147,7 @@ export async function handleProvisionPost(
     if (!reserved.ok) {
       return NextResponse.json({ error: reserved.error }, { status: reserved.status });
     }
+    const reconcileExisting = reserved.reconcile === true;
 
     const releaseReservation = async () => {
       const cleared = await clearTenantPhonePurchase(deps.adminSupabase, tenant_id);
@@ -213,9 +223,29 @@ export async function handleProvisionPost(
           appBaseUrl,
           addressSid,
           bundleSid,
+          env,
+          reconcile: 'reservation' in reserved
+            ? { phoneNumber: reserved.reservation.phone_number }
+            : null,
         });
       } catch (primaryErr: any) {
-        await releaseReservation();
+        if (primaryErr instanceof VendorTimeoutError && primaryErr.label === 'Twilio purchase') {
+          const marked = await markTenantPhonePurchaseUnknown(deps.adminSupabase, tenant_id, {
+            error: primaryErr.message,
+          });
+          if (marked.error) {
+            console.error('[Telephony Provisioning] Failed to mark reservation unknown after Twilio timeout', {
+              message: marked.error.message,
+              tenantId: tenant_id,
+            });
+          }
+          return NextResponse.json({
+            error: 'Number purchase timed out. Retry to reconcile with Twilio; a second number will not be bought.',
+          }, { status: 504 });
+        }
+        if (!reconcileExisting) {
+          await releaseReservation();
+        }
         const bundleType = isMobile ? 'TWILIO_BUNDLE_SID_MOBILE' : 'TWILIO_BUNDLE_SID_LOCAL';
         return NextResponse.json({
           error: `Failed to purchase ${primaryCountry} ${isMobile ? 'mobile' : 'local'} number: ${primaryErr.message}. (Ensure ${bundleType} or TWILIO_BUNDLE_SID is configured).`,
@@ -334,23 +364,51 @@ async function purchaseTwilioNumber(input: {
   appBaseUrl: string;
   addressSid?: string;
   bundleSid?: string;
+  env?: NodeJS.ProcessEnv;
+  reconcile?: { phoneNumber?: string | null } | null;
 }): Promise<ProvisionTwilioNumber> {
+  const timeoutMs = vendorTimeoutMs(input.env);
+  const voiceUrl = `${input.appBaseUrl.replace(/\/+$/, '')}/api/telephony/inbound`;
+
+  if (input.reconcile) {
+    const owned = await withVendorTimeout(
+      input.client.incomingPhoneNumbers.list({ limit: 1000 }),
+      'Twilio list incoming',
+      timeoutMs,
+    );
+    const match = matchIncomingNumberForTenant(owned, {
+      phoneNumber: input.reconcile.phoneNumber || input.phone_number,
+      voiceUrl,
+    });
+    if (match) {
+      return { sid: match.sid, phoneNumber: match.phoneNumber };
+    }
+  }
+
   let targetPhoneNumber = input.phone_number;
 
   if (!targetPhoneNumber) {
     let available: Array<{ phoneNumber: string }> = [];
     if (input.isMobile) {
-      available = await input.client.availablePhoneNumbers(input.country).mobile.list({ limit: 1 });
+      available = await withVendorTimeout(
+        input.client.availablePhoneNumbers(input.country).mobile.list({ limit: 1 }),
+        'Twilio list available',
+        timeoutMs,
+      );
     } else {
       const cleanCode = input.area_code
         ? input.area_code.toString().trim().replace(/^(\+44|0044|0)+/, '').replace(/[\s-]/g, '')
         : '';
       if (cleanCode) {
         const searchPattern = `+44${cleanCode}*`;
-        const rawList = await input.client.availablePhoneNumbers(input.country).local.list({
-          contains: searchPattern,
-          limit: 5,
-        });
+        const rawList = await withVendorTimeout(
+          input.client.availablePhoneNumbers(input.country).local.list({
+            contains: searchPattern,
+            limit: 5,
+          }),
+          'Twilio list available',
+          timeoutMs,
+        );
         available = (rawList || []).filter((num) =>
           num.phoneNumber && num.phoneNumber.startsWith(`+44${cleanCode}`),
         );
@@ -358,7 +416,11 @@ async function purchaseTwilioNumber(input: {
           throw new Error(`No phone numbers are currently available for area code ${input.area_code}. Please choose an available number from the list or try another area code.`);
         }
       } else {
-        available = await input.client.availablePhoneNumbers(input.country).local.list({ limit: 1 });
+        available = await withVendorTimeout(
+          input.client.availablePhoneNumbers(input.country).local.list({ limit: 1 }),
+          'Twilio list available',
+          timeoutMs,
+        );
       }
     }
     if (!available.length) {
@@ -369,9 +431,9 @@ async function purchaseTwilioNumber(input: {
 
   const purchaseParams: Record<string, unknown> = {
     phoneNumber: targetPhoneNumber,
-    voiceUrl: `${input.appBaseUrl}/api/telephony/inbound`,
+    voiceUrl,
     voiceMethod: 'POST',
-    smsUrl: `${input.appBaseUrl}/api/telephony/sms`,
+    smsUrl: `${input.appBaseUrl.replace(/\/+$/, '')}/api/telephony/sms`,
     smsMethod: 'POST',
   };
   if (input.addressSid && !input.isMobile) purchaseParams.addressSid = input.addressSid;
@@ -384,6 +446,7 @@ async function purchaseTwilioNumber(input: {
   return withVendorTimeout(
     input.client.incomingPhoneNumbers.create(purchaseParams),
     'Twilio purchase',
+    timeoutMs,
   );
 }
 
@@ -433,12 +496,19 @@ async function unwindPaidNumber(input: {
       sid: input.purchasedNumber.sid,
       tenantId: input.tenantId,
     });
-    await recordOrphanedPhonePurchase(input.adminSupabase, input.tenantId, {
+    const orphaned = await recordOrphanedPhonePurchase(input.adminSupabase, input.tenantId, {
       twilioSid: input.purchasedNumber.sid,
       phoneNumber: input.purchasedNumber.phoneNumber,
       vapiPhoneId: input.vapiPhoneId,
       error: orphanError,
     });
+    if (orphaned.error) {
+      console.error('[Telephony Provisioning] Failed to record orphaned paid number', {
+        message: orphaned.error.message,
+        sid: input.purchasedNumber.sid,
+        tenantId: input.tenantId,
+      });
+    }
     return NextResponse.json({ error: orphanError }, { status: 502 });
   }
 

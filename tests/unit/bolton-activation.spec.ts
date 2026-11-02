@@ -152,9 +152,18 @@ function createFakeBillingDb(seed?: {
 
   function from(table: string) {
     const filters: Array<[string, any]> = [];
+    const extra: Array<['neq' | 'lt', string, any]> = [];
     let pendingUpdate: Record<string, any> | null = null;
     let pendingInsert: any = null;
     let pendingDelete = false;
+
+    const rowMatches = (row: Record<string, any>) =>
+      matches(row, filters)
+      && extra.every(([op, col, val]) => {
+        if (op === 'neq') return row[col] !== val;
+        if (op === 'lt') return row[col] < val;
+        return true;
+      });
 
     const api: any = {
       select() {
@@ -162,6 +171,14 @@ function createFakeBillingDb(seed?: {
       },
       eq(col: string, val: any) {
         filters.push([col, val]);
+        return api;
+      },
+      neq(col: string, val: any) {
+        extra.push(['neq', col, val]);
+        return api;
+      },
+      lt(col: string, val: any) {
+        extra.push(['lt', col, val]);
         return api;
       },
       in(col: string, vals: any[]) {
@@ -174,16 +191,16 @@ function createFakeBillingDb(seed?: {
       },
       async maybeSingle() {
         if (table === 'tenants') {
-          return { data: tenants.find((row) => matches(row, filters)) || null, error: null };
+          return { data: tenants.find((row) => rowMatches(row)) || null, error: null };
         }
         if (table === 'addon_catalog') {
-          return { data: catalog.find((row) => matches(row, filters)) || null, error: null };
+          return { data: catalog.find((row) => rowMatches(row)) || null, error: null };
         }
         if (table === 'tenant_active_addons') {
-          return { data: activeAddons.find((row) => matches(row, filters)) || null, error: null };
+          return { data: activeAddons.find((row) => rowMatches(row)) || null, error: null };
         }
         if (table === 'addon_audit_log') {
-          return { data: audit.find((row) => matches(row, filters)) || null, error: null };
+          return { data: audit.find((row) => rowMatches(row)) || null, error: null };
         }
         return { data: null, error: null };
       },
@@ -260,12 +277,12 @@ function createFakeBillingDb(seed?: {
               }
               if (table === 'addon_audit_log') {
                 for (let i = audit.length - 1; i >= 0; i -= 1) {
-                  if (matches(audit[i], filters)) audit.splice(i, 1);
+                  if (rowMatches(audit[i])) audit.splice(i, 1);
                 }
               }
               if (table === 'usage_ledger') {
                 for (let i = ledger.length - 1; i >= 0; i -= 1) {
-                  if (matches(ledger[i], filters)) ledger.splice(i, 1);
+                  if (rowMatches(ledger[i])) ledger.splice(i, 1);
                 }
               }
               return { data: null, error: null };
@@ -273,18 +290,18 @@ function createFakeBillingDb(seed?: {
             if (pendingUpdate) {
               if (table === 'tenants') {
                 for (const row of tenants) {
-                  if (matches(row, filters)) Object.assign(row, pendingUpdate);
+                  if (rowMatches(row)) Object.assign(row, pendingUpdate);
                 }
               }
               if (table === 'tenant_active_addons') {
                 for (const row of activeAddons) {
-                  if (matches(row, filters)) Object.assign(row, pendingUpdate);
+                  if (rowMatches(row)) Object.assign(row, pendingUpdate);
                 }
               }
               return { data: null, error: null };
             }
             if (table === 'tenant_active_addons') {
-              return { data: activeAddons.filter((row) => matches(row, filters)), error: null };
+              return { data: activeAddons.filter((row) => rowMatches(row)), error: null };
             }
             if (table === 'addon_audit_log') {
               return { data: audit.filter((row) => matches(row, filters)), error: null };

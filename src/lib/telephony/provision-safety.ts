@@ -4,14 +4,28 @@ export const PAID_PHONE_ADDON_IDS = ['landline_addon', 'mobile_addon'] as const;
 export const VENDOR_FETCH_TIMEOUT_MS = 15_000;
 export const PENDING_RESERVATION_TTL_MS = 10 * 60 * 1000;
 
+export class VendorTimeoutError extends Error {
+  readonly label: string;
+  constructor(label: string, timeoutMs: number) {
+    super(`${label} timed out after ${timeoutMs}ms`);
+    this.name = 'VendorTimeoutError';
+    this.label = label;
+  }
+}
+
+export function vendorTimeoutMs(env: NodeJS.ProcessEnv = process.env): number {
+  const raw = Number(env.VENDOR_FETCH_TIMEOUT_MS);
+  return Number.isFinite(raw) && raw > 0 ? raw : VENDOR_FETCH_TIMEOUT_MS;
+}
+
 export async function withVendorTimeout<T>(
   work: Promise<T>,
   label: string,
-  timeoutMs = VENDOR_FETCH_TIMEOUT_MS,
+  timeoutMs = vendorTimeoutMs(),
 ): Promise<T> {
   let timer: ReturnType<typeof setTimeout> | undefined;
   const timeout = new Promise<never>((_, reject) => {
-    timer = setTimeout(() => reject(new Error(`${label} timed out after ${timeoutMs}ms`)), timeoutMs);
+    timer = setTimeout(() => reject(new VendorTimeoutError(label, timeoutMs)), timeoutMs);
   });
   try {
     return await Promise.race([work, timeout]);
@@ -24,7 +38,7 @@ export async function fetchWithVendorTimeout(
   fetchImpl: typeof fetch,
   url: string,
   init?: RequestInit,
-  timeoutMs = VENDOR_FETCH_TIMEOUT_MS,
+  timeoutMs = vendorTimeoutMs(),
 ): Promise<Response> {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeoutMs);
@@ -183,13 +197,38 @@ export async function releaseTwilioIncomingNumber(
 
 export type PurchaseReservationRow = {
   tenant_id: string;
-  status: 'pending' | 'active' | 'orphan';
+  status: 'pending' | 'active' | 'orphan' | 'unknown';
   twilio_sid?: string | null;
   phone_number?: string | null;
   vapi_phone_id?: string | null;
   error?: string | null;
   created_at?: string | null;
 };
+
+export type IncomingTwilioNumber = {
+  sid: string;
+  phoneNumber: string;
+  voiceUrl?: string | null;
+};
+
+export function matchIncomingNumberForTenant(
+  numbers: IncomingTwilioNumber[] | null | undefined,
+  input: { phoneNumber?: string | null; voiceUrl?: string | null },
+): IncomingTwilioNumber | null {
+  const rows = numbers || [];
+  const wanted = (input.phoneNumber || '').trim();
+  if (wanted) {
+    const exact = rows.find((row) => row.phoneNumber === wanted);
+    if (exact) return exact;
+  }
+  const voiceUrl = (input.voiceUrl || '').trim();
+  if (voiceUrl) {
+    const matches = rows.filter((row) => (row.voiceUrl || '').trim() === voiceUrl);
+    if (matches.length === 1) return matches[0];
+    if (matches.length > 1) return matches[0];
+  }
+  return null;
+}
 
 export type PurchaseStore = {
   from: (table: string) => any;
@@ -206,11 +245,36 @@ export function isPendingReservationExpired(
   return nowMs - created >= ttlMs;
 }
 
+export async function reclaimExpiredPendingPurchase(
+  store: PurchaseStore,
+  tenantId: string,
+  nowMs = Date.now(),
+  ttlMs = PENDING_RESERVATION_TTL_MS,
+): Promise<{ reclaimed: boolean; error: { message?: string } | null }> {
+  const cutoff = new Date(nowMs - ttlMs).toISOString();
+  const result = await store
+    .from('tenant_phone_number_purchases')
+    .delete()
+    .eq('tenant_id', tenantId)
+    .eq('status', 'pending')
+    .lt('created_at', cutoff)
+    .select('tenant_id');
+  if (result?.error) {
+    return { reclaimed: false, error: result.error };
+  }
+  const rows = Array.isArray(result?.data) ? result.data : result?.data ? [result.data] : [];
+  return { reclaimed: rows.length > 0, error: null };
+}
+
 export async function reserveTenantPhonePurchase(
   store: PurchaseStore,
   tenantId: string,
   nowMs = Date.now(),
-): Promise<{ ok: true } | { ok: false; status: 409 | 500; error: string }> {
+): Promise<
+  | { ok: true; reconcile?: false }
+  | { ok: true; reconcile: true; reservation: PurchaseReservationRow }
+  | { ok: false; status: 409 | 500; error: string }
+> {
   const table = store.from('tenant_phone_number_purchases');
   if (typeof table.select === 'function') {
     const existing = await table.select('*').eq('tenant_id', tenantId).maybeSingle();
@@ -218,10 +282,20 @@ export async function reserveTenantPhonePurchase(
       return { ok: false, status: 500, error: existing.error.message || 'Failed to read phone number reservation.' };
     }
     if (existing.data) {
+      if ((existing.data.status || '').trim() === 'unknown') {
+        return { ok: true, reconcile: true, reservation: existing.data };
+      }
       if (isPendingReservationExpired(existing.data, nowMs)) {
-        const cleared = await clearTenantPhonePurchase(store, tenantId);
-        if (cleared.error) {
-          return { ok: false, status: 500, error: cleared.error.message || 'Failed to reclaim a stale phone number reservation.' };
+        const reclaimed = await reclaimExpiredPendingPurchase(store, tenantId, nowMs);
+        if (reclaimed.error) {
+          return { ok: false, status: 500, error: reclaimed.error.message || 'Failed to reclaim a stale phone number reservation.' };
+        }
+        if (!reclaimed.reclaimed) {
+          return {
+            ok: false,
+            status: 409,
+            error: 'This tenant already has a phone number reservation. Number purchase is buy-once.',
+          };
         }
       } else {
         return {
@@ -258,7 +332,25 @@ export async function clearTenantPhonePurchase(
   store: PurchaseStore,
   tenantId: string,
 ): Promise<{ error: { message?: string } | null }> {
-  return store.from('tenant_phone_number_purchases').delete().eq('tenant_id', tenantId);
+  return store
+    .from('tenant_phone_number_purchases')
+    .delete()
+    .eq('tenant_id', tenantId)
+    .neq('status', 'orphan');
+}
+
+export async function markTenantPhonePurchaseUnknown(
+  store: PurchaseStore,
+  tenantId: string,
+  details?: { error?: string | null; twilioSid?: string | null; phoneNumber?: string | null },
+): Promise<{ error: { message?: string } | null }> {
+  return store.from('tenant_phone_number_purchases').update({
+    status: 'unknown',
+    error: details?.error || 'Twilio purchase timed out; reconcile before retry.',
+    twilio_sid: details?.twilioSid || null,
+    phone_number: details?.phoneNumber || null,
+    updated_at: new Date().toISOString(),
+  }).eq('tenant_id', tenantId);
 }
 
 export async function markTenantPhonePurchaseActive(
@@ -285,8 +377,8 @@ export async function recordOrphanedPhonePurchase(
     vapiPhoneId?: string | null;
     error: string;
   },
-): Promise<void> {
-  await store.from('tenant_phone_number_purchases').update({
+): Promise<{ error: { message?: string } | null }> {
+  return store.from('tenant_phone_number_purchases').update({
     status: 'orphan',
     twilio_sid: details.twilioSid || null,
     phone_number: details.phoneNumber || null,
