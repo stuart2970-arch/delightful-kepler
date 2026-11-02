@@ -38,6 +38,7 @@ function createStripeStore(addons: Row[] = []) {
     const matched = () => (tables[name] || []).filter((row) => filters.every(([op, col, val]) => {
       if (op === 'eq') return row[col] === val;
       if (op === 'neq') return row[col] !== val;
+      if (op === 'lt') return row[col] < val;
       return true;
     }));
     const api: any = {
@@ -48,6 +49,10 @@ function createStripeStore(addons: Row[] = []) {
       },
       neq(column: string, value: string) {
         filters.push(['neq', column, value]);
+        return api;
+      },
+      lt(column: string, value: string) {
+        filters.push(['lt', column, value]);
         return api;
       },
       async maybeSingle() {
@@ -69,6 +74,10 @@ function createStripeStore(addons: Row[] = []) {
           },
           neq(column: string, value: string) {
             filters.push(['neq', column, value]);
+            return chain;
+          },
+          lt(column: string, value: string) {
+            filters.push(['lt', column, value]);
             return chain;
           },
           then(resolve: (value: any) => unknown, reject?: (reason: any) => unknown) {

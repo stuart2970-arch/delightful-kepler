@@ -28,6 +28,7 @@ test.describe('STYL-226: deprovision clears the phone reservation', () => {
                 const ok = filters.every(([op, column, value]) => {
                   if (op === 'eq') return row[column] === value;
                   if (op === 'neq') return row[column] !== value;
+                  if (op === 'lt') return row[column] < value;
                   return true;
                 });
                 if (ok) purchases.splice(index, 1);
@@ -41,6 +42,10 @@ test.describe('STYL-226: deprovision clears the phone reservation', () => {
               },
               neq(column: string, value: string) {
                 filters.push(['neq', column, value]);
+                return chain;
+              },
+              lt(column: string, value: string) {
+                filters.push(['lt', column, value]);
                 return chain;
               },
               then(resolve: (value: any) => unknown, reject?: (reason: any) => unknown) {
@@ -72,6 +77,7 @@ test.describe('STYL-226: deprovision clears the phone reservation', () => {
                 const ok = filters.every(([op, column, value]) => {
                   if (op === 'eq') return row[column] === value;
                   if (op === 'neq') return row[column] !== value;
+                  if (op === 'lt') return row[column] < value;
                   return true;
                 });
                 if (ok) purchases.splice(index, 1);
@@ -85,6 +91,10 @@ test.describe('STYL-226: deprovision clears the phone reservation', () => {
               },
               neq(column: string, value: string) {
                 filters.push(['neq', column, value]);
+                return chain;
+              },
+              lt(column: string, value: string) {
+                filters.push(['lt', column, value]);
                 return chain;
               },
               then(resolve: (value: any) => unknown, reject?: (reason: any) => unknown) {

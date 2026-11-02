@@ -4109,3 +4109,4 @@ Highlighted adjustments in the modal:
   - Migration `20261102120000` leaves `subscription_status` NULL and adds `unknown` reservations.
   - Stale reclaim is an atomic conditional delete. Twilio purchase timeout keeps the row as `unknown` and retry lists incoming numbers instead of buying again.
   - `recordOrphanedPhonePurchase` errors are logged. Chatbot voice route returns a generic 500.
+  - Stripe and telephony test stores now support `neq`/`lt` filters and reservation reclaim/unknown paths.
