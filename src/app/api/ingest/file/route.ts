@@ -120,7 +120,7 @@ export async function POST(request: Request) {
       .filter((content) => content.length > 0);
 
     if (chunks.length === 0) {
-      return NextResponse.json({ error: 'Text splitting generated zero chunks' }, { status: 400 });
+      return NextResponse.json({ error: 'Text splitting generated zero knowledge items' }, { status: 400 });
     }
 
     // 6. Check entitlements against real document_chunks count (considering existing chunks for this file)
@@ -150,7 +150,7 @@ export async function POST(request: Request) {
     const embeddings = await batchEmbedTexts(chunks);
 
     if (!embeddings || embeddings.length === 0) {
-      return NextResponse.json({ error: 'Failed to generate embeddings for file chunks.' }, { status: 502 });
+      return NextResponse.json({ error: 'Failed to generate embeddings for file knowledge items.' }, { status: 502 });
     }
 
     // 8. Replace existing chunks for this file if re-uploading
@@ -177,14 +177,14 @@ export async function POST(request: Request) {
 
     if (dbInsertError) {
       console.error(`[Ingest File][${requestId}] Supabase INSERT failed:`, dbInsertError);
-      return NextResponse.json({ error: `Failed to save chunks: ${dbInsertError.message}` }, { status: 500 });
+      return NextResponse.json({ error: `Failed to save knowledge items: ${dbInsertError.message}` }, { status: 500 });
     }
 
     console.log(`[Ingest File][${requestId}] Successfully ingested ${recordsToInsert.length} chunks from ${sanitizedFileName}`);
     return NextResponse.json({
       success: true,
       chunksCount: recordsToInsert.length,
-      message: `Successfully ingested ${recordsToInsert.length} chunks from "${sanitizedFileName}".`,
+      message: `Successfully ingested ${recordsToInsert.length} knowledge items from "${sanitizedFileName}".`,
     });
   } catch (error: any) {
     console.error(`[Ingest File][${requestId}] Unhandled error:`, error);

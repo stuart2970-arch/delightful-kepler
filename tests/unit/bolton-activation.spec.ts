@@ -1,0 +1,1139 @@
+import { test, expect } from '@playwright/test';
+import {
+  buildBoltOnCheckoutMetadata,
+  isBoltOnMetadata,
+  knowledgeItemsTotal,
+  mapAddonCategoryToFeatureId,
+  resolveCalendarAddonFlags,
+  resolveCheckoutSuccessBanner,
+} from '../../src/lib/billing/bolt-on';
+import { handleStripeBillingEvent } from '../../src/lib/billing/process-stripe-webhook';
+
+const TENANT_ID = 'tenant-bolton-1';
+const DATA_PACK_ID = 'data_pack_500';
+const GOOGLE_CAL_ID = 'google_calendar_addon';
+const MS_CAL_ID = 'microsoft_calendar_addon';
+
+type TenantRow = {
+  id: string;
+  plan_tier: string;
+  is_active: boolean;
+  subscription_status: string;
+  stripe_customer_id?: string | null;
+  has_landline?: boolean;
+  has_mobile?: boolean;
+  has_whatsapp?: boolean;
+  voice_auto_topup?: boolean;
+  voice_auto_topup_threshold?: number;
+  voice_auto_topup_amount?: number;
+  voice_auto_topup_price_pence?: number;
+};
+
+type AddonCatalogRow = {
+  id: string;
+  category: string;
+  is_active: boolean;
+  monthly_price_pence: number;
+  included_voice_minutes: number;
+  included_sms: number;
+  included_messages: number;
+  included_data_chunks: number;
+};
+
+type ActiveAddonRow = {
+  id: string;
+  tenant_id: string;
+  addon_catalog_id: string;
+  feature_id: string;
+  quantity: number;
+  is_active: boolean;
+  activated_at?: string | null;
+  deactivated_at?: string | null;
+  stripe_subscription_item_id?: string | null;
+  price_paid_pence?: number | null;
+};
+
+function createFakeBillingDb(seed?: {
+  tenant?: Partial<TenantRow>;
+  catalog?: AddonCatalogRow[];
+  activeAddons?: ActiveAddonRow[];
+  auditInsertError?: { code?: string; message?: string };
+  ledgerDeleteError?: { code?: string; message?: string };
+  auditDeleteError?: { code?: string; message?: string };
+  grantOneOffRpc?: 'success' | 'already_granted' | 'unique_violation' | 'missing_42883' | 'missing';
+}) {
+  const tenants: TenantRow[] = [
+    {
+      id: TENANT_ID,
+      plan_tier: 'premium',
+      is_active: true,
+      subscription_status: 'active',
+      stripe_customer_id: 'cus_existing',
+      has_landline: true,
+      has_mobile: true,
+      has_whatsapp: true,
+      ...seed?.tenant,
+    },
+  ];
+
+  const catalog: AddonCatalogRow[] = seed?.catalog || [
+    {
+      id: DATA_PACK_ID,
+      category: 'data_pack',
+      is_active: true,
+      monthly_price_pence: 499,
+      included_voice_minutes: 0,
+      included_sms: 0,
+      included_messages: 0,
+      included_data_chunks: 500,
+    },
+    {
+      id: GOOGLE_CAL_ID,
+      category: 'google_calendar',
+      is_active: true,
+      monthly_price_pence: 499,
+      included_voice_minutes: 0,
+      included_sms: 0,
+      included_messages: 0,
+      included_data_chunks: 0,
+    },
+    {
+      id: MS_CAL_ID,
+      category: 'microsoft_calendar',
+      is_active: true,
+      monthly_price_pence: 499,
+      included_voice_minutes: 0,
+      included_sms: 0,
+      included_messages: 0,
+      included_data_chunks: 0,
+    },
+    {
+      id: 'voice_pack_20',
+      category: 'voice_pack',
+      is_active: true,
+      monthly_price_pence: 1200,
+      included_voice_minutes: 20,
+      included_sms: 0,
+      included_messages: 0,
+      included_data_chunks: 0,
+    },
+    {
+      id: 'sms_pack_100',
+      category: 'sms_pack',
+      is_active: true,
+      monthly_price_pence: 900,
+      included_voice_minutes: 0,
+      included_sms: 100,
+      included_messages: 0,
+      included_data_chunks: 0,
+    },
+    {
+      id: 'combo_pack_voice_sms',
+      category: 'voice_pack',
+      is_active: true,
+      monthly_price_pence: 2100,
+      included_voice_minutes: 20,
+      included_sms: 100,
+      included_messages: 0,
+      included_data_chunks: 0,
+    },
+  ];
+
+  const activeAddons: ActiveAddonRow[] = [...(seed?.activeAddons || [])];
+  const audit: any[] = [];
+  const ledger: any[] = [];
+  const rpcCalls: Array<{ name: string; args: any }> = [];
+
+  const matches = (row: Record<string, any>, filters: Array<[string, any]>) =>
+    filters.every(([col, val]) => {
+      if (Array.isArray(val)) return val.includes(row[col]);
+      return row[col] === val;
+    });
+
+  function from(table: string) {
+    const filters: Array<[string, any]> = [];
+    let pendingUpdate: Record<string, any> | null = null;
+    let pendingInsert: any = null;
+    let pendingDelete = false;
+
+    const api: any = {
+      select() {
+        return api;
+      },
+      eq(col: string, val: any) {
+        filters.push([col, val]);
+        return api;
+      },
+      in(col: string, vals: any[]) {
+        filters.push([col, vals]);
+        return api;
+      },
+      delete() {
+        pendingDelete = true;
+        return api;
+      },
+      async maybeSingle() {
+        if (table === 'tenants') {
+          return { data: tenants.find((row) => matches(row, filters)) || null, error: null };
+        }
+        if (table === 'addon_catalog') {
+          return { data: catalog.find((row) => matches(row, filters)) || null, error: null };
+        }
+        if (table === 'tenant_active_addons') {
+          return { data: activeAddons.find((row) => matches(row, filters)) || null, error: null };
+        }
+        if (table === 'addon_audit_log') {
+          return { data: audit.find((row) => matches(row, filters)) || null, error: null };
+        }
+        return { data: null, error: null };
+      },
+      update(payload: Record<string, any>) {
+        pendingUpdate = payload;
+        return api;
+      },
+      insert(row: any) {
+        pendingInsert = row;
+        return api;
+      },
+      then(resolve: (value: any) => void, reject?: (reason: any) => void) {
+        return Promise.resolve()
+          .then(() => {
+            if (pendingInsert) {
+              const rows = Array.isArray(pendingInsert) ? pendingInsert : [pendingInsert];
+              if (table === 'tenant_active_addons') {
+                for (const row of rows) {
+                  activeAddons.push({
+                    id: row.id || `taa-${activeAddons.length + 1}`,
+                    quantity: 1,
+                    is_active: true,
+                    ...row,
+                  });
+                }
+              }
+              if (table === 'addon_audit_log') {
+                if (seed?.auditInsertError) {
+                  return { data: null, error: seed.auditInsertError };
+                }
+                for (const row of rows) {
+                  const sessionId = row?.new_value?.stripe_session_id;
+                  const isDuplicateOneOff = row.action === 'one_off_addon_purchased'
+                    && sessionId
+                    && audit.some((existingRow) => (
+                      existingRow.action === 'one_off_addon_purchased'
+                      && existingRow.tenant_id === row.tenant_id
+                      && existingRow.addon_catalog_id === row.addon_catalog_id
+                      && existingRow.new_value?.stripe_session_id === sessionId
+                    ));
+                  if (isDuplicateOneOff) {
+                    return {
+                      data: null,
+                      error: {
+                        code: '23505',
+                        message: 'duplicate key value violates unique constraint "addon_audit_log_one_off_checkout_session_uidx"',
+                      },
+                    };
+                  }
+                }
+                const withIds = rows.map((row, index) => ({
+                  id: row.id || `audit-${audit.length + index + 1}`,
+                  ...row,
+                }));
+                audit.push(...withIds);
+                return { data: withIds, error: null };
+              }
+              if (table === 'usage_ledger') {
+                const withIds = rows.map((row, index) => ({
+                  id: row.id || `led-${ledger.length + index + 1}`,
+                  ...row,
+                }));
+                ledger.push(...withIds);
+                return { data: withIds, error: null };
+              }
+              return { data: rows, error: null };
+            }
+            if (pendingDelete) {
+              if (table === 'usage_ledger' && seed?.ledgerDeleteError) {
+                return { data: null, error: seed.ledgerDeleteError };
+              }
+              if (table === 'addon_audit_log' && seed?.auditDeleteError) {
+                return { data: null, error: seed.auditDeleteError };
+              }
+              if (table === 'addon_audit_log') {
+                for (let i = audit.length - 1; i >= 0; i -= 1) {
+                  if (matches(audit[i], filters)) audit.splice(i, 1);
+                }
+              }
+              if (table === 'usage_ledger') {
+                for (let i = ledger.length - 1; i >= 0; i -= 1) {
+                  if (matches(ledger[i], filters)) ledger.splice(i, 1);
+                }
+              }
+              return { data: null, error: null };
+            }
+            if (pendingUpdate) {
+              if (table === 'tenants') {
+                for (const row of tenants) {
+                  if (matches(row, filters)) Object.assign(row, pendingUpdate);
+                }
+              }
+              if (table === 'tenant_active_addons') {
+                for (const row of activeAddons) {
+                  if (matches(row, filters)) Object.assign(row, pendingUpdate);
+                }
+              }
+              return { data: null, error: null };
+            }
+            if (table === 'tenant_active_addons') {
+              return { data: activeAddons.filter((row) => matches(row, filters)), error: null };
+            }
+            if (table === 'addon_audit_log') {
+              return { data: audit.filter((row) => matches(row, filters)), error: null };
+            }
+            return { data: null, error: null };
+          })
+          .then(resolve, reject);
+      },
+    };
+    return api;
+  }
+
+  return {
+    state: { tenants, catalog, activeAddons, audit, ledger, rpcCalls },
+    from,
+    rpc: async (name: string, args: any) => {
+      rpcCalls.push({ name, args });
+      if (name === 'grant_one_off_pack') {
+        const mode = seed?.grantOneOffRpc || 'missing';
+        if (mode === 'missing_42883') {
+          return { data: null, error: { code: '42883', message: 'function public.grant_one_off_pack does not exist' } };
+        }
+        if (mode === 'unique_violation') {
+          return { data: null, error: { code: '23505', message: 'duplicate key value violates unique constraint' } };
+        }
+        if (mode === 'already_granted') {
+          return { data: { granted: false, already_granted: true }, error: null };
+        }
+        if (mode === 'success') {
+          audit.push({
+            id: `audit-rpc-${audit.length + 1}`,
+            tenant_id: args.p_tenant_id,
+            addon_catalog_id: args.p_addon_catalog_id,
+            action: 'one_off_addon_purchased',
+            new_value: args.p_audit_new_value,
+            summary: args.p_audit_summary,
+          });
+          for (const credit of args.p_credits || []) {
+            ledger.push({
+              id: `led-rpc-${ledger.length + 1}`,
+              tenant_id: args.p_tenant_id,
+              feature_id: credit.feature_id,
+              quantity: credit.quantity,
+              usage_type: 'allocation',
+              addon_catalog_id: args.p_addon_catalog_id,
+            });
+          }
+          return { data: { granted: true, already_granted: false }, error: null };
+        }
+        return {
+          data: null,
+          error: { code: 'PGRST202', message: 'Could not find the function public.grant_one_off_pack' },
+        };
+      }
+      return { data: null, error: null };
+    },
+    auth: { admin: { listUsers: async () => ({ data: { users: [] } }) } },
+  };
+}
+
+async function recordLedgerAllocation(
+  db: ReturnType<typeof createFakeBillingDb>,
+  tenantId: string,
+  featureId: string,
+  quantity: number,
+  addonId?: string,
+) {
+  const { data, error } = await db.from('usage_ledger').insert({
+    tenant_id: tenantId,
+    feature_id: featureId,
+    quantity,
+    usage_type: 'allocation',
+    addon_catalog_id: addonId || null,
+  }).select('id');
+  if (error) throw new Error(error.message);
+  const row = Array.isArray(data) ? data[0] : data;
+  return { id: row?.id as string };
+}
+
+function oneOffCheckoutEvent(sessionId: string, metadata: Record<string, string>) {
+  return {
+    type: 'checkout.session.completed',
+    data: {
+      object: {
+        id: sessionId,
+        metadata: {
+          tenant_id: TENANT_ID,
+          is_addon: 'true',
+          is_one_off: 'true',
+          ...metadata,
+        },
+      },
+    },
+  };
+}
+
+test.describe('Bolt-on checkout metadata', () => {
+  test('bolt-on checkout session metadata includes is_addon and addon_catalog_id', () => {
+    const metadata = buildBoltOnCheckoutMetadata({
+      tenantId: TENANT_ID,
+      addonCatalogId: DATA_PACK_ID,
+      category: 'data_pack',
+      isSliding: false,
+      pricePence: 499,
+      voiceMinutes: 0,
+      sms: 0,
+      isOneOff: false,
+    });
+
+    expect(metadata.is_addon).toBe('true');
+    expect(metadata.addon_catalog_id).toBe(DATA_PACK_ID);
+    expect(metadata.tenant_id).toBe(TENANT_ID);
+    expect(metadata.category).toBe('data_pack');
+  });
+
+  test('sliding bolt-on checkout metadata still sets is_addon', () => {
+    const metadata = buildBoltOnCheckoutMetadata({
+      tenantId: TENANT_ID,
+      addonCatalogId: 'landline_addon',
+      category: 'landline',
+      isSliding: true,
+      pricePence: 999,
+      voiceMinutes: 20,
+      sms: 0,
+      isOneOff: false,
+    });
+
+    expect(metadata.is_addon).toBe('true');
+    expect(metadata.addon_catalog_id).toBe('landline_addon');
+    expect(metadata.is_sliding).toBe('true');
+  });
+});
+
+test.describe('Bolt-on webhook detection and fulfilment', () => {
+  test('detects bolt-ons by is_addon or addon_catalog_id, but not base-plan metadata', () => {
+    expect(isBoltOnMetadata({ is_addon: 'true' })).toBe(true);
+    expect(isBoltOnMetadata({ addon_catalog_id: DATA_PACK_ID })).toBe(true);
+    expect(isBoltOnMetadata({
+      tenant_id: TENANT_ID,
+      plan_tier: 'base_tier',
+      selected_addons: DATA_PACK_ID,
+    })).toBe(false);
+    expect(isBoltOnMetadata({})).toBe(false);
+  });
+
+  test('maps microsoft_calendar to the Microsoft Calendar feature', () => {
+    expect(mapAddonCategoryToFeatureId('microsoft_calendar')).toBe('microsoft_calendar');
+    expect(mapAddonCategoryToFeatureId('google_calendar')).toBe('google_calendar');
+    expect(mapAddonCategoryToFeatureId('data_pack')).toBe('data_chunks_addon');
+  });
+
+  test('bolt-on checkout.session.completed creates the bolt-on row and leaves plan_tier and voice minutes alone', async () => {
+    const db = createFakeBillingDb();
+    const allocations: Array<[string, string, number, string?]> = [];
+
+    const result = await handleStripeBillingEvent(
+      {
+        type: 'checkout.session.completed',
+        data: {
+          object: {
+            id: 'cs_data_pack_1',
+            customer: 'cus_new',
+            metadata: {
+              tenant_id: TENANT_ID,
+              addon_catalog_id: DATA_PACK_ID,
+              is_addon: 'true',
+              price_pence: '499',
+            },
+          },
+        },
+      },
+      {
+        supabaseAdmin: db,
+        allocateRollingCredits: async (tenantId, featureId, quantity, addonId) => {
+          allocations.push([tenantId, featureId, quantity, addonId]);
+        },
+      },
+    );
+
+    expect(result.status).toBe(200);
+    expect(result.body.message).toMatch(/Add-on data_pack_500/);
+    expect(db.state.tenants[0].plan_tier).toBe('premium');
+    expect(db.state.tenants[0].is_active).toBe(true);
+    expect(allocations.filter((row) => row[1] === 'voice_minutes')).toHaveLength(0);
+    expect(db.state.activeAddons).toHaveLength(1);
+    expect(db.state.activeAddons[0].addon_catalog_id).toBe(DATA_PACK_ID);
+    expect(db.state.activeAddons[0].is_active).toBe(true);
+    expect(db.state.activeAddons[0].feature_id).toBe('data_chunks_addon');
+  });
+
+  test('bolt-on checkout without is_addon still activates via addon_catalog_id', async () => {
+    const db = createFakeBillingDb();
+    const result = await handleStripeBillingEvent(
+      {
+        type: 'checkout.session.completed',
+        data: {
+          object: {
+            id: 'cs_google_1',
+            metadata: {
+              tenant_id: TENANT_ID,
+              addon_catalog_id: GOOGLE_CAL_ID,
+            },
+          },
+        },
+      },
+      { supabaseAdmin: db, allocateRollingCredits: async () => undefined },
+    );
+
+    expect(result.status).toBe(200);
+    expect(db.state.tenants[0].plan_tier).toBe('premium');
+    expect(db.state.activeAddons[0].addon_catalog_id).toBe(GOOGLE_CAL_ID);
+    expect(db.state.activeAddons[0].is_active).toBe(true);
+    expect(db.state.activeAddons[0].feature_id).toBe('google_calendar');
+  });
+
+  test('Microsoft Calendar bolt-on is marked active', async () => {
+    const db = createFakeBillingDb();
+    await handleStripeBillingEvent(
+      {
+        type: 'checkout.session.completed',
+        data: {
+          object: {
+            id: 'cs_ms_1',
+            metadata: { tenant_id: TENANT_ID, addon_catalog_id: MS_CAL_ID, is_addon: 'true' },
+          },
+        },
+      },
+      { supabaseAdmin: db, allocateRollingCredits: async () => undefined },
+    );
+
+    expect(db.state.activeAddons[0].addon_catalog_id).toBe(MS_CAL_ID);
+    expect(db.state.activeAddons[0].feature_id).toBe('microsoft_calendar');
+    expect(db.state.activeAddons[0].is_active).toBe(true);
+  });
+
+  test('redelivered bolt-on checkout does not insert a second row', async () => {
+    const db = createFakeBillingDb();
+    const event = {
+      type: 'checkout.session.completed',
+      data: {
+        object: {
+          id: 'cs_data_pack_repeat',
+          metadata: { tenant_id: TENANT_ID, addon_catalog_id: DATA_PACK_ID, is_addon: 'true' },
+        },
+      },
+    };
+
+    await handleStripeBillingEvent(event, {
+      supabaseAdmin: db,
+      allocateRollingCredits: async () => undefined,
+    });
+    await handleStripeBillingEvent(event, {
+      supabaseAdmin: db,
+      allocateRollingCredits: async () => undefined,
+    });
+
+    expect(db.state.activeAddons).toHaveLength(1);
+    expect(db.state.activeAddons[0].is_active).toBe(true);
+  });
+
+  test('bolt-on customer.subscription.deleted deactivates only that bolt-on and leaves the tenant active', async () => {
+    const db = createFakeBillingDb({
+      activeAddons: [
+        {
+          id: 'taa-1',
+          tenant_id: TENANT_ID,
+          addon_catalog_id: DATA_PACK_ID,
+          feature_id: 'data_chunks_addon',
+          quantity: 1,
+          is_active: true,
+        },
+        {
+          id: 'taa-2',
+          tenant_id: TENANT_ID,
+          addon_catalog_id: GOOGLE_CAL_ID,
+          feature_id: 'google_calendar',
+          quantity: 1,
+          is_active: true,
+        },
+      ],
+    });
+
+    const result = await handleStripeBillingEvent(
+      {
+        type: 'customer.subscription.deleted',
+        data: {
+          object: {
+            id: 'sub_bolton_1',
+            metadata: {
+              tenant_id: TENANT_ID,
+              addon_catalog_id: DATA_PACK_ID,
+            },
+          },
+        },
+      },
+      { supabaseAdmin: db },
+    );
+
+    expect(result.status).toBe(200);
+    expect(db.state.tenants[0].is_active).toBe(true);
+    expect(db.state.tenants[0].subscription_status).toBe('active');
+    expect(db.state.tenants[0].has_landline).toBe(true);
+    expect(db.state.activeAddons.find((row) => row.addon_catalog_id === DATA_PACK_ID)?.is_active).toBe(false);
+    expect(db.state.activeAddons.find((row) => row.addon_catalog_id === GOOGLE_CAL_ID)?.is_active).toBe(true);
+  });
+
+  test('base-plan checkout.session.completed still sets plan_tier and allocates 10 voice minutes', async () => {
+    const db = createFakeBillingDb({
+      tenant: { plan_tier: 'trial', is_active: false, subscription_status: 'incomplete' },
+    });
+    const allocations: Array<[string, string, number, string?]> = [];
+
+    const result = await handleStripeBillingEvent(
+      {
+        type: 'checkout.session.completed',
+        data: {
+          object: {
+            id: 'cs_base_1',
+            customer: 'cus_base',
+            customer_details: { email: 'owner@example.com' },
+            metadata: { tenant_id: TENANT_ID, plan_tier: 'base_tier' },
+          },
+        },
+      },
+      {
+        supabaseAdmin: db,
+        allocateRollingCredits: async (tenantId, featureId, quantity, addonId) => {
+          allocations.push([tenantId, featureId, quantity, addonId]);
+        },
+      },
+    );
+
+    expect(result.status).toBe(200);
+    expect(result.body.plan_tier).toBe('base_tier');
+    expect(db.state.tenants[0].plan_tier).toBe('base_tier');
+    expect(db.state.tenants[0].is_active).toBe(true);
+    expect(db.state.tenants[0].subscription_status).toBe('active');
+    expect(allocations).toEqual([[TENANT_ID, 'voice_minutes', 10, undefined]]);
+    expect(db.state.activeAddons).toHaveLength(0);
+  });
+
+  test('base-plan subscription.deleted still deactivates the tenant', async () => {
+    const db = createFakeBillingDb({
+      activeAddons: [
+        {
+          id: 'taa-1',
+          tenant_id: TENANT_ID,
+          addon_catalog_id: DATA_PACK_ID,
+          feature_id: 'data_chunks_addon',
+          quantity: 1,
+          is_active: true,
+        },
+      ],
+    });
+
+    await handleStripeBillingEvent(
+      {
+        type: 'customer.subscription.deleted',
+        data: {
+          object: {
+            id: 'sub_base',
+            metadata: { tenant_id: TENANT_ID, plan_tier: 'base_tier' },
+          },
+        },
+      },
+      { supabaseAdmin: db },
+    );
+
+    expect(db.state.tenants[0].is_active).toBe(false);
+    expect(db.state.tenants[0].subscription_status).toBe('cancelled');
+    expect(db.state.activeAddons.every((row) => row.is_active === false)).toBe(true);
+  });
+
+  test('subscription.updated activates a bolt-on from subscription metadata, not stripe_price_id', async () => {
+    const db = createFakeBillingDb();
+    const result = await handleStripeBillingEvent(
+      {
+        type: 'customer.subscription.updated',
+        data: {
+          object: {
+            id: 'sub_inline_price',
+            status: 'active',
+            metadata: {
+              tenant_id: TENANT_ID,
+              addon_catalog_id: MS_CAL_ID,
+              is_addon: 'true',
+            },
+            items: { data: [{ id: 'si_1', price: { id: 'price_inline_unknown', unit_amount: 499 } }] },
+          },
+        },
+      },
+      { supabaseAdmin: db, allocateRollingCredits: async () => undefined },
+    );
+
+    expect(result.status).toBe(200);
+    expect(db.state.activeAddons).toHaveLength(1);
+    expect(db.state.activeAddons[0].addon_catalog_id).toBe(MS_CAL_ID);
+    expect(db.state.activeAddons[0].is_active).toBe(true);
+  });
+
+  test('subscription.updated ignores unpaid, canceled, and incomplete bolt-on statuses', async () => {
+    const allocations: Array<[string, string, number, string?]> = [];
+    for (const status of ['incomplete', 'past_due', 'unpaid', 'canceled', 'cancelled']) {
+      const db = createFakeBillingDb();
+      await handleStripeBillingEvent(
+        {
+          type: 'customer.subscription.updated',
+          data: {
+            object: {
+              id: `sub_${status}`,
+              status,
+              metadata: { tenant_id: TENANT_ID, addon_catalog_id: MS_CAL_ID, is_addon: 'true' },
+              items: { data: [{ id: 'si_1', price: { id: 'price_inline_unknown', unit_amount: 499 } }] },
+            },
+          },
+        },
+        {
+          supabaseAdmin: db,
+          allocateRollingCredits: async (tenantId, featureId, quantity, addonId) => {
+            allocations.push([tenantId, featureId, quantity, addonId]);
+          },
+        },
+      );
+      expect(db.state.activeAddons, status).toHaveLength(0);
+      expect(db.state.tenants[0].plan_tier, status).toBe('premium');
+    }
+    expect(allocations).toHaveLength(0);
+  });
+
+  test('one-off voice and SMS pack redelivery does not double-grant credits', async () => {
+    const db = createFakeBillingDb();
+    const allocations: Array<[string, string, number, string?]> = [];
+    const voiceEvent = {
+      type: 'checkout.session.completed',
+      data: {
+        object: {
+          id: 'cs_voice_once',
+          metadata: {
+            tenant_id: TENANT_ID,
+            addon_catalog_id: 'voice_pack_20',
+            is_addon: 'true',
+            is_one_off: 'true',
+            voice_minutes: '20',
+          },
+        },
+      },
+    };
+    const smsEvent = {
+      type: 'checkout.session.completed',
+      data: {
+        object: {
+          id: 'cs_sms_once',
+          metadata: {
+            tenant_id: TENANT_ID,
+            addon_catalog_id: 'sms_pack_100',
+            is_addon: 'true',
+            is_one_off: 'true',
+            sms: '100',
+          },
+        },
+      },
+    };
+    const deps = {
+      supabaseAdmin: db,
+      allocateRollingCredits: async (tenantId: string, featureId: string, quantity: number, addonId?: string) => {
+        allocations.push([tenantId, featureId, quantity, addonId]);
+      },
+    };
+
+    await handleStripeBillingEvent(voiceEvent, deps);
+    await handleStripeBillingEvent(voiceEvent, deps);
+    await handleStripeBillingEvent(smsEvent, deps);
+    await handleStripeBillingEvent(smsEvent, deps);
+
+    expect(allocations.filter((row) => row[1] === 'voice_minutes')).toEqual([[TENANT_ID, 'voice_minutes', 20, 'voice_pack_20']]);
+    expect(allocations.filter((row) => row[1] === 'sms_messages')).toEqual([[TENANT_ID, 'sms_messages', 100, 'sms_pack_100']]);
+    expect(db.state.tenants[0].plan_tier).toBe('premium');
+    expect(db.state.audit.filter((row) => row.action === 'one_off_addon_purchased')).toHaveLength(2);
+  });
+
+  test('redelivered one-off grants once and a failed audit insert grants nothing', async () => {
+    const grantedDb = createFakeBillingDb();
+    const granted: Array<[string, string, number, string?]> = [];
+    const voiceEvent = {
+      type: 'checkout.session.completed',
+      data: {
+        object: {
+          id: 'cs_voice_claim_once',
+          metadata: {
+            tenant_id: TENANT_ID,
+            addon_catalog_id: 'voice_pack_20',
+            is_addon: 'true',
+            is_one_off: 'true',
+            voice_minutes: '20',
+          },
+        },
+      },
+    };
+
+    const first = await handleStripeBillingEvent(voiceEvent, {
+      supabaseAdmin: grantedDb,
+      allocateRollingCredits: async (tenantId, featureId, quantity, addonId) => {
+        granted.push([tenantId, featureId, quantity, addonId]);
+      },
+    });
+    const replay = await handleStripeBillingEvent(voiceEvent, {
+      supabaseAdmin: grantedDb,
+      allocateRollingCredits: async (tenantId, featureId, quantity, addonId) => {
+        granted.push([tenantId, featureId, quantity, addonId]);
+      },
+    });
+
+    expect(first.status).toBe(200);
+    expect(replay.status).toBe(200);
+    expect(granted).toEqual([[TENANT_ID, 'voice_minutes', 20, 'voice_pack_20']]);
+    expect(grantedDb.state.audit).toHaveLength(1);
+
+    const failedDb = createFakeBillingDb({
+      auditInsertError: { code: '57014', message: 'audit insert failed' },
+    });
+    const failedAllocations: Array<[string, string, number, string?]> = [];
+    const failed = await handleStripeBillingEvent(voiceEvent, {
+      supabaseAdmin: failedDb,
+      allocateRollingCredits: async (tenantId, featureId, quantity, addonId) => {
+        failedAllocations.push([tenantId, featureId, quantity, addonId]);
+      },
+    });
+
+    expect(failed.status).toBe(500);
+    expect(failed.body.success).toBe(false);
+    expect(failedAllocations).toHaveLength(0);
+    expect(failedDb.state.audit).toHaveLength(0);
+  });
+
+  test('failed allocation returns 500 with no audit row, then retry grants exactly once', async () => {
+    const db = createFakeBillingDb();
+    const allocations: Array<[string, string, number, string?]> = [];
+    let shouldFail = true;
+    const comboEvent = {
+      type: 'checkout.session.completed',
+      data: {
+        object: {
+          id: 'cs_combo_atomic',
+          metadata: {
+            tenant_id: TENANT_ID,
+            addon_catalog_id: 'combo_pack_voice_sms',
+            is_addon: 'true',
+            is_one_off: 'true',
+          },
+        },
+      },
+    };
+    const deps = {
+      supabaseAdmin: db,
+      allocateRollingCredits: async (tenantId: string, featureId: string, quantity: number, addonId?: string) => {
+        if (shouldFail) {
+          throw new Error('usage_ledger insert failed');
+        }
+        allocations.push([tenantId, featureId, quantity, addonId]);
+        return recordLedgerAllocation(db, tenantId, featureId, quantity, addonId);
+      },
+    };
+
+    const first = await handleStripeBillingEvent(comboEvent, deps);
+    expect(first.status).toBe(500);
+    expect(first.body.success).toBe(false);
+    expect(allocations).toHaveLength(0);
+    expect(db.state.audit).toHaveLength(0);
+    expect(db.state.ledger).toHaveLength(0);
+
+    shouldFail = false;
+    const retry = await handleStripeBillingEvent(comboEvent, deps);
+    const replay = await handleStripeBillingEvent(comboEvent, deps);
+
+    expect(retry.status).toBe(200);
+    expect(replay.status).toBe(200);
+    expect(allocations).toEqual([
+      [TENANT_ID, 'voice_minutes', 20, 'combo_pack_voice_sms'],
+      [TENANT_ID, 'sms_messages', 100, 'combo_pack_voice_sms'],
+    ]);
+    expect(db.state.audit).toHaveLength(1);
+    expect(db.state.ledger).toHaveLength(2);
+  });
+
+  test('multi-credit pack rolls back a partial allocation so nothing is granted', async () => {
+    const db = createFakeBillingDb();
+    const allocations: Array<[string, string, number, string?]> = [];
+    const comboEvent = {
+      type: 'checkout.session.completed',
+      data: {
+        object: {
+          id: 'cs_combo_partial',
+          metadata: {
+            tenant_id: TENANT_ID,
+            addon_catalog_id: 'combo_pack_voice_sms',
+            is_addon: 'true',
+            is_one_off: 'true',
+          },
+        },
+      },
+    };
+
+    const first = await handleStripeBillingEvent(comboEvent, {
+      supabaseAdmin: db,
+      allocateRollingCredits: async (tenantId, featureId, quantity, addonId) => {
+        allocations.push([tenantId, featureId, quantity, addonId]);
+        if (featureId === 'sms_messages') {
+          throw new Error('second credit insert failed');
+        }
+        return recordLedgerAllocation(db, tenantId, featureId, quantity, addonId);
+      },
+    });
+
+    expect(first.status).toBe(500);
+    expect(db.state.audit).toHaveLength(0);
+    expect(db.state.ledger).toHaveLength(0);
+
+    const retry = await handleStripeBillingEvent(comboEvent, {
+      supabaseAdmin: db,
+      allocateRollingCredits: async (tenantId, featureId, quantity, addonId) => {
+        allocations.push([tenantId, featureId, quantity, addonId]);
+        return recordLedgerAllocation(db, tenantId, featureId, quantity, addonId);
+      },
+    });
+
+    expect(retry.status).toBe(200);
+    expect(allocations.filter((row) => row[1] === 'voice_minutes')).toHaveLength(2);
+    expect(allocations.filter((row) => row[1] === 'sms_messages')).toHaveLength(2);
+    expect(db.state.audit).toHaveLength(1);
+    expect(db.state.ledger).toHaveLength(2);
+  });
+
+  test('ledger rollback delete failure returns 500 and leaves the granted credit', async () => {
+    const db = createFakeBillingDb({
+      ledgerDeleteError: { code: '57014', message: 'ledger delete failed' },
+    });
+    const result = await handleStripeBillingEvent(
+      oneOffCheckoutEvent('cs_ledger_delete_fail', { addon_catalog_id: 'combo_pack_voice_sms' }),
+      {
+        supabaseAdmin: db,
+        allocateRollingCredits: async (tenantId, featureId, quantity, addonId) => {
+          if (featureId === 'sms_messages') throw new Error('second credit insert failed');
+          return recordLedgerAllocation(db, tenantId, featureId, quantity, addonId);
+        },
+      },
+    );
+
+    expect(result.status).toBe(500);
+    expect(result.body.error).toMatch(/roll back/i);
+    expect(db.state.ledger).toHaveLength(1);
+    expect(db.state.ledger[0].feature_id).toBe('voice_minutes');
+  });
+
+  test('audit rollback delete failure returns 500 and leaves the audit row', async () => {
+    const db = createFakeBillingDb({
+      auditDeleteError: { code: '57014', message: 'audit delete failed' },
+    });
+    const result = await handleStripeBillingEvent(
+      oneOffCheckoutEvent('cs_audit_delete_fail', { addon_catalog_id: 'voice_pack_20' }),
+      {
+        supabaseAdmin: db,
+        allocateRollingCredits: async () => {
+          throw new Error('usage_ledger insert failed');
+        },
+      },
+    );
+
+    expect(result.status).toBe(500);
+    expect(result.body.error).toMatch(/roll back/i);
+    expect(db.state.audit).toHaveLength(1);
+    expect(db.state.ledger).toHaveLength(0);
+  });
+
+  test('successful RPC grant sets voice auto top-up', async () => {
+    const db = createFakeBillingDb({ grantOneOffRpc: 'success' });
+    const allocations: Array<[string, string, number, string?]> = [];
+    const result = await handleStripeBillingEvent(
+      oneOffCheckoutEvent('cs_rpc_autotopup', {
+        addon_catalog_id: 'voice_pack_20',
+        auto_topup: 'true',
+        auto_topup_threshold: '15',
+      }),
+      {
+        supabaseAdmin: db,
+        allocateRollingCredits: async (tenantId, featureId, quantity, addonId) => {
+          allocations.push([tenantId, featureId, quantity, addonId]);
+        },
+      },
+    );
+
+    expect(result.status).toBe(200);
+    expect(allocations).toHaveLength(0);
+    expect(db.state.audit).toHaveLength(1);
+    expect(db.state.ledger).toHaveLength(1);
+    expect(db.state.tenants[0].voice_auto_topup).toBe(true);
+    expect(db.state.tenants[0].voice_auto_topup_threshold).toBe(15);
+    expect(db.state.tenants[0].voice_auto_topup_amount).toBe(20);
+    expect(db.state.rpcCalls.some((call) => call.name === 'sync_tenant_channel_flags')).toBe(true);
+  });
+
+  test('RPC already_granted skips a second credit grant', async () => {
+    const db = createFakeBillingDb({ grantOneOffRpc: 'already_granted' });
+    const allocations: Array<[string, string, number, string?]> = [];
+    const result = await handleStripeBillingEvent(
+      oneOffCheckoutEvent('cs_rpc_already', { addon_catalog_id: 'voice_pack_20' }),
+      {
+        supabaseAdmin: db,
+        allocateRollingCredits: async (tenantId, featureId, quantity, addonId) => {
+          allocations.push([tenantId, featureId, quantity, addonId]);
+        },
+      },
+    );
+
+    expect(result.status).toBe(200);
+    expect(allocations).toHaveLength(0);
+    expect(db.state.ledger).toHaveLength(0);
+    expect(db.state.tenants[0].voice_auto_topup).toBeUndefined();
+  });
+
+  test('RPC unique-violation error is not treated as already granted', async () => {
+    const db = createFakeBillingDb({ grantOneOffRpc: 'unique_violation' });
+    const allocations: Array<[string, string, number, string?]> = [];
+    const result = await handleStripeBillingEvent(
+      oneOffCheckoutEvent('cs_rpc_23505', { addon_catalog_id: 'voice_pack_20' }),
+      {
+        supabaseAdmin: db,
+        allocateRollingCredits: async (tenantId, featureId, quantity, addonId) => {
+          allocations.push([tenantId, featureId, quantity, addonId]);
+        },
+      },
+    );
+
+    expect(result.status).toBe(500);
+    expect(result.body.success).toBe(false);
+    expect(allocations).toHaveLength(0);
+    expect(db.state.audit).toHaveLength(0);
+  });
+
+  test('missing grant_one_off_pack RPC falls back to JS allocation', async () => {
+    const db = createFakeBillingDb({ grantOneOffRpc: 'missing_42883' });
+    const allocations: Array<[string, string, number, string?]> = [];
+    const result = await handleStripeBillingEvent(
+      oneOffCheckoutEvent('cs_rpc_missing', { addon_catalog_id: 'voice_pack_20' }),
+      {
+        supabaseAdmin: db,
+        allocateRollingCredits: async (tenantId, featureId, quantity, addonId) => {
+          allocations.push([tenantId, featureId, quantity, addonId]);
+          return recordLedgerAllocation(db, tenantId, featureId, quantity, addonId);
+        },
+      },
+    );
+
+    expect(result.status).toBe(200);
+    expect(allocations).toEqual([[TENANT_ID, 'voice_minutes', 20, 'voice_pack_20']]);
+    expect(db.state.audit).toHaveLength(1);
+    expect(db.state.ledger).toHaveLength(1);
+  });
+
+  test('missing catalogue or addon_catalog_id never falls through to the base-plan path', async () => {
+    const db = createFakeBillingDb();
+    const allocations: Array<[string, string, number, string?]> = [];
+    const deps = {
+      supabaseAdmin: db,
+      allocateRollingCredits: async (tenantId: string, featureId: string, quantity: number, addonId?: string) => {
+        allocations.push([tenantId, featureId, quantity, addonId]);
+      },
+    };
+
+    const missingCatalog = await handleStripeBillingEvent(
+      {
+        type: 'checkout.session.completed',
+        data: {
+          object: {
+            id: 'cs_missing_catalog',
+            metadata: { tenant_id: TENANT_ID, addon_catalog_id: 'not_in_catalog', is_addon: 'true' },
+          },
+        },
+      },
+      deps,
+    );
+    const missingId = await handleStripeBillingEvent(
+      {
+        type: 'checkout.session.completed',
+        data: {
+          object: {
+            id: 'cs_missing_id',
+            metadata: { tenant_id: TENANT_ID, is_addon: 'true' },
+          },
+        },
+      },
+      deps,
+    );
+
+    expect(missingCatalog.body.success).toBe(false);
+    expect(missingId.body.success).toBe(false);
+    expect(db.state.tenants[0].plan_tier).toBe('premium');
+    expect(db.state.tenants[0].is_active).toBe(true);
+    expect(db.state.activeAddons).toHaveLength(0);
+    expect(allocations).toHaveLength(0);
+  });
+});
+
+test.describe('Bolt-on flags and knowledge totals', () => {
+  test('Microsoft Calendar bolt-on row sets the Microsoft flag', () => {
+    const flags = resolveCalendarAddonFlags({
+      addons: [{ category: 'microsoft_calendar', addon_catalog_id: MS_CAL_ID, is_active: true }],
+    });
+    expect(flags.hasMicrosoftCalendarAddon).toBe(true);
+    expect(flags.hasGoogleCalendarAddon).toBe(false);
+  });
+
+  test('knowledge items total includes Extra Knowledge bolt-on allowance', () => {
+    expect(knowledgeItemsTotal({
+      entitlements: [{ feature_id: 'knowledge_data_chunks', limit_value: 50 }],
+      addons: [{ category: 'data_pack', addon_catalog_id: DATA_PACK_ID, included_data_chunks: 500, is_active: true }],
+    })).toBe(550);
+  });
+
+  test('knowledge items total drops when Extra Knowledge is cancelled', () => {
+    const entitlements = [{ feature_id: 'knowledge_data_chunks', limit_value: 500 }];
+    const active = knowledgeItemsTotal({
+      entitlements,
+      addons: [{ category: 'data_pack', addon_catalog_id: DATA_PACK_ID, included_data_chunks: 500, is_active: true }],
+    });
+    const cancelled = knowledgeItemsTotal({
+      entitlements,
+      addons: [{ category: 'data_pack', addon_catalog_id: DATA_PACK_ID, included_data_chunks: 500, is_active: false }],
+    });
+    expect(active).toBe(1000);
+    expect(cancelled).toBe(500);
+  });
+});
+
+test.describe('Bolt-on success banners', () => {
+  test('Extra Knowledge banner says knowledge items and does not claim the bolt-on is already active', () => {
+    const message = resolveCheckoutSuccessBanner({ addonId: DATA_PACK_ID, tab: 'crawler' });
+    expect(message.toLowerCase()).toContain('knowledge items');
+    expect(message.toLowerCase()).not.toContain('chunk');
+    expect(message.toLowerCase()).not.toContain('vector storage');
+    expect(message.toLowerCase()).not.toContain('now active');
+    expect(message).toMatch(/Payment received\. Your bolt-on will switch on in a moment\./);
+  });
+
+  test('calendar banners do not say now active', () => {
+    const google = resolveCheckoutSuccessBanner({ addonId: GOOGLE_CAL_ID });
+    const microsoft = resolveCheckoutSuccessBanner({ addonId: MS_CAL_ID });
+    expect(google.toLowerCase()).not.toContain('now active');
+    expect(microsoft.toLowerCase()).not.toContain('now active');
+    expect(microsoft).toMatch(/Microsoft Calendar/);
+    expect(google).not.toMatch(/Microsoft Calendar/);
+  });
+});

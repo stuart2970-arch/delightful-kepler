@@ -548,13 +548,13 @@ export async function allocateRollingCredits(
   featureId: string,
   quantity: number,
   addonCatalogId?: string
-): Promise<void> {
+): Promise<{ id?: string } | void> {
   const supabase = createAdminClient();
   const now = new Date();
   const expiresAt = new Date(now);
   expiresAt.setMonth(expiresAt.getMonth() + 3);
 
-  await supabase.from('usage_ledger').insert({
+  const { data, error } = await supabase.from('usage_ledger').insert({
     tenant_id: tenantId,
     feature_id: featureId,
     quantity,
@@ -563,5 +563,10 @@ export async function allocateRollingCredits(
     expires_at: expiresAt.toISOString(),
     addon_catalog_id: addonCatalogId || null,
     recorded_at: now.toISOString(),
-  });
+  }).select('id').maybeSingle();
+
+  if (error) {
+    throw new Error(error.message || 'Failed to allocate rolling credits');
+  }
+  return data || undefined;
 }

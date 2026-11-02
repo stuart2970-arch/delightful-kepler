@@ -3,6 +3,7 @@ import Stripe from 'stripe';
 import { createClient } from '@supabase/supabase-js';
 import { buildCheckoutLineDescription } from '@/lib/addon-text';
 import { applyPublicAddonFilter, isAddonSellable } from '@/lib/addons/public-catalogue';
+import { buildBoltOnCheckoutMetadata } from '@/lib/billing/bolt-on';
 import { publicAppPath, safePublicReturnUrl } from '@/lib/env/public-app-url';
 
 export const dynamic = 'force-dynamic';
@@ -403,21 +404,18 @@ export async function POST(req: Request) {
       const targetSuccessUrl = safePublicReturnUrl(returnUrl, defaultAppUrl);
       const targetCancelUrl = safePublicReturnUrl(returnUrl, defaultAppUrl);
 
-      const sessionMetadata: Record<string, string> = {
-        tenant_id: tenantId,
-        addon_catalog_id: addonCatalogId,
+      const sessionMetadata = buildBoltOnCheckoutMetadata({
+        tenantId,
+        addonCatalogId,
         category: addon.category,
-        is_sliding: addon.is_sliding ? 'true' : 'false',
-        price_pence: String(finalPricePence),
-        voice_minutes: String(finalVoiceMinutes),
-        sms: String(finalSms),
-        is_one_off: isOneOff ? 'true' : 'false',
-      };
-
-      if (autoTopup !== undefined) {
-        sessionMetadata.auto_topup = String(Boolean(autoTopup));
-        sessionMetadata.auto_topup_threshold = String(autoTopupThreshold || 10);
-      }
+        isSliding: Boolean(addon.is_sliding),
+        pricePence: finalPricePence,
+        voiceMinutes: finalVoiceMinutes,
+        sms: finalSms,
+        isOneOff,
+        autoTopup,
+        autoTopupThreshold,
+      });
 
       const sessionConfig: Stripe.Checkout.SessionCreateParams = {
         mode: isOneOff ? 'payment' : 'subscription',
@@ -457,13 +455,15 @@ export async function POST(req: Request) {
       }
 
       // The local suite uses a placeholder key. A real Stripe test key still creates a live session.
-      if (process.env.PLAYWRIGHT_TEST === 'true' && apiKey === 'sk_test_mock') {
+      if (isPlaywrightStripeMock(apiKey)) {
         return NextResponse.json({
           url: 'https://checkout.stripe.com/c/pay/cs_test_mock',
           sessionId: 'cs_test_mock',
           cataloguePricePence: finalPricePence,
           success_url: sessionConfig.success_url,
           cancel_url: sessionConfig.cancel_url,
+          metadata: sessionConfig.metadata,
+          subscription_data: sessionConfig.subscription_data,
         }, { headers: corsHeaders });
       }
 
@@ -623,6 +623,8 @@ export async function POST(req: Request) {
           sessionId: 'cs_test_mock',
           success_url: sessionParams.success_url,
           cancel_url: sessionParams.cancel_url,
+          metadata: sessionParams.metadata,
+          subscription_data: sessionParams.subscription_data,
         }, { headers: corsHeaders });
       }
 

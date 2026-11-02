@@ -4044,3 +4044,59 @@ Highlighted adjustments in the modal:
   - Stripe writes `tenant_active_addons.subscription_status` on activate, deactivate, invoice success/failure, and subscription cancel. Backfill copies the tenant's known Stripe status instead of blanket `active`.
   - Reservation 409 only on Postgres 23505; other errors 500. Stale pending rows older than 10 minutes are reclaimed. Deprovision clears the reservation. Vapi/Twilio vendor calls time out at 15s via AbortController / Promise.race.
   - Unexpected throw after a Twilio buy unwinds the number. Failed Vapi delete is reported and recorded as an orphan (`TODO(STYL-227)` for ops alerts). markActive/clear errors are checked. Voice routes log `{ message, code }` only.
+
+### Session (paid bolt-on activation after Stripe checkout - 1 Nov 2026)
+* **User**: Follow the Bolton fix brief. Branch off `staging` (566a854). Open a PR with base `staging`, not `main`. Do not merge. Never `--no-verify`. No live Stripe, live Supabase, WordPress publishing, or Vapi/number provisioning.
+* **Root cause**: Bolt-on Checkout Sessions used inline `price_data` and omitted `is_addon: 'true'`. `/api/webhooks/stripe` only treated a session as a bolt-on when `metadata.is_addon === 'true'`, so paid bolt-ons fell into the base-plan path (`plan_tier='base_tier'`, +10 voice minutes, no `tenant_active_addons` row). `customer.subscription.updated` looked up add-ons by `stripe_price_id` (never matches inline prices). `customer.subscription.deleted` without `is_addon` cancelled the whole tenant. The category map had no `microsoft_calendar` entry.
+* **Changes**:
+  - Bolt-on checkout writes `is_addon='true'` and `addon_catalog_id` on session and `subscription_data` metadata (sliding included).
+  - Webhook detects bolt-ons by `is_addon` **or** `addon_catalog_id`. Base-plan activate/cancel paths never run for a bolt-on. Updated/deleted handlers read subscription metadata. Cancelling a bolt-on deactivates only that row; the tenant stays active.
+  - Activation is idempotent (redelivery does not insert a second row or double-grant credits). `data_pack_500` raises knowledge allowance via the active add-on; Google/Microsoft Calendar bolt-ons are marked active. `microsoft_calendar` maps to the Microsoft Calendar feature.
+  - Extra Knowledge success banner uses British English “knowledge items” and “Payment received. Your bolt-on will switch on in a moment.” — it does not say the bolt-on is already active, and does not mention chunks or vector storage.
+  - Tests: `tests/unit/bolton-activation.spec.ts`, checkout metadata cases in `tests/addons-sliding-scale.spec.ts`, dashboard banner cases in `tests/dashboard-return-tabs.spec.ts`. Mock config / `.env.test` only. Full Playwright suite: **368 passed** locally against local Supabase and `sk_test_mock` (never live).
+
+### Session (PR 19 PO review - Microsoft flag, knowledge total, webhook fall-through - 1 Nov 2026)
+* **User**: Product Owner BLOCK on PR 19. Same branch, base `staging`, do not merge.
+* **Blockers fixed**:
+  - Microsoft Calendar flag: dashboard + `DashboardClient` now set `hasMicrosoftCalendarAddon` from the bolt-on row / `has_microsoft_calendar`. Scheduling reads that flag (plus billing add-ons as fallback).
+  - Extra Knowledge total: Subscriptions shows `knowledgeItemsTotal` (base entitlement + active data-pack allowance), not the base-only 50/500 figure.
+  - Bolt-on checkout with a missing catalogue row or missing `addon_catalog_id` returns early and never rewrites `plan_tier` or grants +10 voice minutes.
+* **Medium**:
+  - `customer.subscription.updated` only activates when Stripe status is `active` or `trialing`.
+  - One-off voice/SMS packs are idempotent on checkout session ID.
+  - Customer-facing ingest/billing copy uses “knowledge items”, not chunks/vectorized.
+  - STYL-200 nav click restored.
+  - Tests for update-status gating, one-off redelivery, missing-catalogue fall-through, Microsoft flag and knowledge total in the UI.
+
+### Session (PR 19 PO wording re-review - knowledge items + capacity banner - 1 Nov 2026)
+* **User**: Functionally PASS, BLOCKED on wording. Same PR 19 branch, do not merge. Customer-visible “chunks” in ingest text/crawl JSON must become “knowledge items”. Superadmin “500 chunks” examples stay. Capacity banner must use `knowledgeItemsTotal`. If small: cancel-total test + unique one-off checkout-session constraint (staging/local migrations only).
+* **Changes**:
+  - `src/app/api/ingest/text/route.ts` and `src/app/api/ingest/crawl/route.ts` customer `error`/`message` strings now say “knowledge items”.
+  - Dashboard 85% knowledge banner uses `knowledgeItemsTotal` so an Extra Knowledge +500 does not fire a false upgrade warning against the base limit.
+  - Unit + Playwright coverage that the knowledge total drops when Extra Knowledge is cancelled (`is_active=false`).
+  - Migration `20261101210000_one_off_checkout_session_unique.sql`: allow `one_off_addon_purchased` on `addon_audit_log.action` and unique-index `(tenant_id, addon_catalog_id, stripe_session_id)` for that action.
+  - Local: `npm run typecheck` passed. Playwright **377 passed** against `.env.test` / local Supabase / `sk_test_mock` (never live).
+
+### Session (PR 19 PO re-check - one-off audit insert before credits - 1 Nov 2026)
+* **User**: BLOCK. Unique index does not protect grants because credits are allocated before the audit insert, and insert errors are ignored. Same PR 19, do not merge.
+* **Changes**:
+  - One-off fulfilment inserts `addon_audit_log` first. Postgres `23505` is treated as already granted (200, no credits). Any other insert error returns 500 so Stripe retries, and credits are not allocated.
+  - Credits are allocated only after a successful one-off audit insert.
+  - Test: redelivered one-off grants once; failed audit insert grants nothing.
+
+### Session (PR after 19 - atomic one-off grant on allocation failure - 1 Nov 2026)
+* **User**: PR 19 squash-merged to staging (`584fc848`). New small PR off latest staging. `allocateRollingCredits` ignored `usage_ledger` insert errors. Must throw. One-off webhook must not leave an audit row if allocation fails (500 so Stripe retries). Prefer one Postgres function for audit + ledger. Multi-credit packs must not be partly granted. Do not apply the migration. Do not merge.
+* **Changes**:
+  - `allocateRollingCredits` throws when the ledger insert fails.
+  - One-off fulfilment calls `grant_one_off_pack` (audit + every credit in one transaction). If the RPC is missing, it inserts the audit row, allocates all credits, and on any allocation error deletes the new audit row and any ledger rows from that attempt, then returns 500.
+  - Migration `20261101223000_grant_one_off_pack_atomic.sql` is added only (not applied here).
+  - Tests: failed allocation → 500 and no audit row, retry grants exactly once; a two-credit pack rolls back a partial grant.
+
+### Session (PR 21 review - auto top-up after RPC + rollback checks - 1 Nov 2026)
+* **User**: BLOCK on PR 21. Same branch. RPC success returned before `voice_auto_topup`. Check rollback delete errors. Trust only `data.already_granted` from the RPC. Make ledger assertions real. RPC success / already_granted / missing-function tests. `search_path = public, pg_temp`. Do not apply the migration. Do not merge.
+* **Changes**:
+  - Successful RPC and JS fallback both run channel sync and the auto top-up tenant update.
+  - Rollback delete errors on `usage_ledger` or `addon_audit_log` are logged as CRITICAL and return 500.
+  - RPC `23505` is no longer treated as already granted.
+  - Tests cover auto top-up after a successful RPC, both delete failures, RPC already_granted, RPC unique-violation, missing-function fallback, and a partial pack whose mock writes the ledger.
+  - Local: `npm run typecheck` passed. Playwright **386 passed** against `.env.test` / local Supabase / `sk_test_mock` (never live). Migration not applied.
