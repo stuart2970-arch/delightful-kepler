@@ -12,6 +12,63 @@ export interface TestUserSession {
   cleanup: () => Promise<void>;
 }
 
+export async function createTestUser(options: {
+  tenantId?: string;
+  role?: 'owner' | 'admin' | 'member';
+  isSuperAdmin?: boolean;
+} = {}): Promise<TestUserSession> {
+  const tenantId = options.tenantId || defaultTestTenantId;
+  const role = options.role || 'owner';
+  const isSuperAdmin = options.isSuperAdmin === true;
+  const adminClient = createClient(supabaseUrl, serviceRoleKey, {
+    auth: { persistSession: false, autoRefreshToken: false }
+  });
+  const anonClient = createClient(supabaseUrl, anonKey);
+
+  const email = `test-${role}-${Date.now()}-${Math.floor(Math.random() * 10000)}@test.styleflo.ai`;
+  const password = 'Password123!';
+
+  const { data: userRes, error: userErr } = await adminClient.auth.admin.createUser({
+    email,
+    password,
+    email_confirm: true,
+  });
+  if (userErr || !userRes?.user) {
+    throw new Error(`Failed to create test user: ${userErr?.message}`);
+  }
+
+  const user = userRes.user;
+  const { error: profErr } = await adminClient.from('profiles').upsert({
+    id: user.id,
+    role,
+    tenant_id: tenantId,
+    is_super_admin: isSuperAdmin,
+  });
+  if (profErr) {
+    await adminClient.auth.admin.deleteUser(user.id);
+    throw new Error(`Failed to provision profile: ${profErr.message}`);
+  }
+
+  const { data: loginData, error: loginErr } = await anonClient.auth.signInWithPassword({
+    email,
+    password,
+  });
+  if (loginErr || !loginData.session) {
+    await adminClient.auth.admin.deleteUser(user.id);
+    throw new Error(`Failed to sign in test user: ${loginErr?.message}`);
+  }
+
+  return {
+    user,
+    token: loginData.session.access_token,
+    cleanup: async () => {
+      try {
+        await adminClient.auth.admin.deleteUser(user.id);
+      } catch {}
+    }
+  };
+}
+
 export async function createTestSuperadminUser(): Promise<TestUserSession> {
   const adminClient = createClient(supabaseUrl, serviceRoleKey, {
     auth: { persistSession: false, autoRefreshToken: false }
@@ -67,55 +124,5 @@ export async function createTestSuperadminUser(): Promise<TestUserSession> {
 }
 
 export async function createTestNormalUser(tenantId: string = defaultTestTenantId): Promise<TestUserSession> {
-  const adminClient = createClient(supabaseUrl, serviceRoleKey, {
-    auth: { persistSession: false, autoRefreshToken: false }
-  });
-  const anonClient = createClient(supabaseUrl, anonKey);
-
-  const email = `test-normal-${Date.now()}-${Math.floor(Math.random() * 10000)}@test.styleflo.ai`;
-  const password = 'Password123!';
-
-  const { data: userRes, error: userErr } = await adminClient.auth.admin.createUser({
-    email,
-    password,
-    email_confirm: true,
-  });
-  if (userErr || !userRes?.user) {
-    throw new Error(`Failed to create test normal user: ${userErr?.message}`);
-  }
-
-  const user = userRes.user;
-
-  // Normal user: is_super_admin = false
-  const { error: profErr } = await adminClient.from('profiles').upsert({
-    id: user.id,
-    role: 'owner',
-    tenant_id: tenantId,
-    is_super_admin: false,
-  });
-  if (profErr) {
-    await adminClient.auth.admin.deleteUser(user.id);
-    throw new Error(`Failed to provision normal profile: ${profErr.message}`);
-  }
-
-  const { data: loginData, error: loginErr } = await anonClient.auth.signInWithPassword({
-    email,
-    password,
-  });
-  if (loginErr || !loginData.session) {
-    await adminClient.auth.admin.deleteUser(user.id);
-    throw new Error(`Failed to sign in test normal user: ${loginErr?.message}`);
-  }
-
-  const token = loginData.session.access_token;
-
-  return {
-    user,
-    token,
-    cleanup: async () => {
-      try {
-        await adminClient.auth.admin.deleteUser(user.id);
-      } catch {}
-    }
-  };
+  return createTestUser({ tenantId, role: 'owner', isSuperAdmin: false });
 }

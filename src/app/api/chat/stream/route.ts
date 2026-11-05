@@ -164,6 +164,8 @@ async function saveScrapedWebsiteDataToTenant(params: {
         }
 
         if (recordsToInsert.length > 0) {
+          // STYL-189: out of scope. This FloBot path writes to knowledge_chunks, which does not
+          // exist (storage is document_chunks). Left unchanged; do not treat it as an ingest path.
           const { error: chunkErr } = await supabaseAdmin.from('knowledge_chunks').insert(recordsToInsert);
           if (chunkErr) console.warn('[FloBot Auto-Save] knowledge_chunks insert error:', chunkErr.message);
           else console.log(`[FloBot Auto-Save] Successfully saved ${recordsToInsert.length} knowledge chunks to KB!`);

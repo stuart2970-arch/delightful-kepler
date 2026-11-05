@@ -80,6 +80,12 @@ env:
       - BUILD
       - RUNTIME
 
+  - variable: APP_URL
+    value: https://staging.styleflo.ai
+    availability:
+      - BUILD
+      - RUNTIME
+
   - variable: NEXT_PUBLIC_TURNSTILE_SITE_KEY
     value: "1x0000000000000000000000000000000AA"
     availability:

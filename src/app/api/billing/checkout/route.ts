@@ -1,18 +1,26 @@
 import { NextResponse } from 'next/server';
 import Stripe from 'stripe';
 import { createClient } from '@supabase/supabase-js';
+import { requireTenantRole } from '@/lib/auth/require-tenant-role';
 import { buildCheckoutLineDescription } from '@/lib/addon-text';
 import { applyPublicAddonFilter, isAddonSellable } from '@/lib/addons/public-catalogue';
 import { buildBoltOnCheckoutMetadata } from '@/lib/billing/bolt-on';
+import { billingCorsHeaders } from '@/lib/billing/app-origin-cors';
+import { portalEnvFromRequest, resolvePortalConfigurationId } from '@/lib/billing/portal-config';
 import { publicAppPath, safePublicReturnUrl } from '@/lib/env/public-app-url';
+import {
+  billingCheckoutRateLimit,
+  billingClientIp,
+  billingPortalRateLimit,
+  billingUnauthRateLimit,
+  consumeMemoryRateLimit,
+} from '@/lib/security/billing-rate-limit';
 
 export const dynamic = 'force-dynamic';
 
-const corsHeaders = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
-  'Access-Control-Allow-Headers': 'Content-Type, Authorization',
-};
+function corsHeaders(req: Request) {
+  return billingCorsHeaders(req);
+}
 
 function getSupabase() {
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.SUPABASE_URL;
@@ -74,15 +82,15 @@ function isPlaywrightStripeMock(apiKey: string): boolean {
   return process.env.PLAYWRIGHT_TEST === 'true' && apiKey === 'sk_test_mock';
 }
 
-export async function OPTIONS() {
-  return new NextResponse(null, { status: 204, headers: corsHeaders });
+export async function OPTIONS(req: Request) {
+  return new NextResponse(null, { status: 204, headers: corsHeaders(req) });
 }
 
 export async function GET(req: Request) {
   try {
     const apiKey = process.env.STRIPE_SECRET_KEY;
     if (!apiKey) {
-      return NextResponse.json({ error: 'Stripe API key not configured on server' }, { status: 500, headers: corsHeaders });
+      return NextResponse.json({ error: 'Stripe API key not configured on server' }, { status: 500, headers: corsHeaders(req) });
     }
 
     const { searchParams } = new URL(req.url);
@@ -106,7 +114,7 @@ export async function GET(req: Request) {
 
     const foundationTier = tiers?.find(t => t.id === 'foundation') || tiers?.find(t => t.id === 'base_tier');
     if (tierError || !foundationTier || foundationTier.monthly_price == null) {
-      return NextResponse.json({ error: 'Pricing unavailable' }, { status: 503, headers: corsHeaders });
+      return NextResponse.json({ error: 'Pricing unavailable' }, { status: 503, headers: corsHeaders(req) });
     }
 
     const foundationUnitAmount = Math.round(Number(foundationTier.monthly_price) * 100);
@@ -144,7 +152,7 @@ export async function GET(req: Request) {
         .in('id', selectedAddonIds);
 
       if (addonError || !dbAddons) {
-        return NextResponse.json({ error: 'Pricing unavailable' }, { status: 503, headers: corsHeaders });
+        return NextResponse.json({ error: 'Pricing unavailable' }, { status: 503, headers: corsHeaders(req) });
       }
 
       const dbAddonMap = new Map(dbAddons.map(a => [a.id, a]));
@@ -152,15 +160,15 @@ export async function GET(req: Request) {
       for (const addonId of selectedAddonIds) {
         const addon = dbAddonMap.get(addonId);
         if (!addon) {
-          return NextResponse.json({ error: `Add-on not found in catalog: ${addonId}` }, { status: 400, headers: corsHeaders });
+          return NextResponse.json({ error: `Add-on not found in catalog: ${addonId}` }, { status: 400, headers: corsHeaders(req) });
         }
 
         if (!isAddonSellable(addon)) {
-          return NextResponse.json({ error: 'This add-on is not available' }, { status: 400, headers: corsHeaders });
+          return NextResponse.json({ error: 'This add-on is not available' }, { status: 400, headers: corsHeaders(req) });
         }
 
         if (addon.category === 'voice_pack' || addon.category === 'sms_pack' || addon.id.startsWith('voice_pack') || addon.id.startsWith('sms_pack')) {
-          return NextResponse.json({ error: 'This pack can be bought from your dashboard after you sign up' }, { status: 400, headers: corsHeaders });
+          return NextResponse.json({ error: 'This pack can be bought from your dashboard after you sign up' }, { status: 400, headers: corsHeaders(req) });
         }
 
         lineItems.push({
@@ -212,30 +220,75 @@ export async function GET(req: Request) {
     return NextResponse.redirect(session.url || '/dashboard', 303);
   } catch (err: any) {
     console.error('Stripe Checkout GET Error:', err);
-    return NextResponse.json({ error: err.message || 'Failed to initiate checkout' }, { status: 500, headers: corsHeaders });
+    return NextResponse.json({ error: err.message || 'Failed to initiate checkout' }, { status: 500, headers: corsHeaders(req) });
   }
+}
+
+function withCors(req: Request, response: NextResponse) {
+  const headers = corsHeaders(req);
+  Object.entries(headers).forEach(([key, value]) => response.headers.set(key, value));
+  return response;
 }
 
 export async function POST(req: Request) {
   try {
-    const apiKey = process.env.STRIPE_SECRET_KEY;
-    if (!apiKey) {
-      return NextResponse.json({ error: 'Stripe API key not configured on server' }, { status: 500, headers: corsHeaders });
+    const auth = await requireTenantRole(req, ['owner', 'admin']);
+    if (!auth.ok) {
+      if (auth.response.status === 401) {
+        const allowed = consumeMemoryRateLimit(
+          `billing:401:ip:${billingClientIp(req)}`,
+          billingUnauthRateLimit(),
+        );
+        if (!allowed) {
+          return NextResponse.json({ error: 'Too many requests' }, { status: 429, headers: corsHeaders(req) });
+        }
+      }
+      return withCors(req, auth.response);
     }
 
-    const stripe = new Stripe(apiKey, {
-      apiVersion: '2023-10-16' as any,
-    });
+    const apiKey = process.env.STRIPE_SECRET_KEY;
+    if (!apiKey) {
+      return NextResponse.json({ error: 'Stripe API key not configured on server' }, { status: 500, headers: corsHeaders(req) });
+    }
+
+    const body = await req.json().catch(() => ({}));
+    const {
+      plan,
+      planTier,
+      tier,
+      priceId,
+      addonPriceIds,
+      addonCatalogId,
+      customerEmail,
+      returnUrl,
+      action,
+      customPricePence,
+      customVoiceMinutes,
+      customSms,
+      autoTopup,
+      autoTopupThreshold,
+    } = body;
+    const tenantId = auth.tenantId;
+
+    const isPortal = action === 'portal';
+    const rateKeyKind = isPortal ? 'portal' : 'checkout';
+    const rateLimit = isPortal ? billingPortalRateLimit(req) : billingCheckoutRateLimit();
+    const userAllowed = consumeMemoryRateLimit(`billing:${rateKeyKind}:user:${auth.userId}`, rateLimit);
+    const tenantAllowed = consumeMemoryRateLimit(`billing:${rateKeyKind}:tenant:${tenantId}`, rateLimit);
+    if (!userAllowed || !tenantAllowed) {
+      return NextResponse.json({ error: 'Too many requests' }, { status: 429, headers: corsHeaders(req) });
+    }
 
     const supabase = getSupabase();
 
-    const body = await req.json().catch(() => ({}));
-    const { plan, planTier, tier, priceId, addonPriceIds, addonCatalogId, tenantId, customerEmail, returnUrl, action, customPricePence, customVoiceMinutes, customSms, autoTopup, autoTopupThreshold } = body;
-
     // Mode 3: Customer Portal
     if (action === 'portal') {
-      if (!tenantId) {
-        return NextResponse.json({ error: 'Missing tenantId for portal' }, { status: 400 });
+      const { configurationId } = resolvePortalConfigurationId(auth, portalEnvFromRequest(req));
+      if (!configurationId) {
+        return NextResponse.json({
+          error: 'Billing portal is not configured.',
+          code: 'portal_not_configured',
+        }, { status: 503, headers: corsHeaders(req) });
       }
 
       const { data: tenant } = await supabase
@@ -244,61 +297,42 @@ export async function POST(req: Request) {
         .eq('id', tenantId)
         .maybeSingle();
 
-      let stripeCustomerId = tenant?.stripe_customer_id;
-
-      // Fallback: If tenant has no stripe_customer_id saved, look up customer by email in Stripe
+      const stripeCustomerId = tenant?.stripe_customer_id;
       if (!stripeCustomerId) {
-        let resolvedEmail = customerEmail;
-        if (!resolvedEmail) {
-          const { data: profile } = await supabase
-            .from('profiles')
-            .select('id')
-            .eq('tenant_id', tenantId)
-            .limit(1)
-            .maybeSingle();
-
-          if (profile?.id) {
-            const { data: userData } = await supabase.auth.admin.getUserById(profile.id);
-            if (userData?.user?.email) {
-              resolvedEmail = userData.user.email;
-            }
-          }
-        }
-
-        if (resolvedEmail) {
-          const existingCustomers = await stripe.customers.list({
-            email: resolvedEmail,
-            limit: 1,
-          });
-          if (existingCustomers.data.length > 0) {
-            stripeCustomerId = existingCustomers.data[0].id;
-            await supabase
-              .from('tenants')
-              .update({ stripe_customer_id: stripeCustomerId })
-              .eq('id', tenantId);
-          }
-        }
-      }
-
-      if (!stripeCustomerId) {
-        return NextResponse.json({ 
-          error: 'No Stripe billing profile found for this workspace yet. Receipts and invoices will appear here automatically after your first subscription or add-on is purchased.',
-          noCustomer: true 
-        }, { status: 200 });
+        return NextResponse.json({
+          error: 'No Stripe billing profile found for this workspace yet.',
+          code: 'no_billing_account',
+          noCustomer: true,
+        }, { status: 409, headers: corsHeaders(req) });
       }
 
       const defaultReturnUrl = publicAppPath('/dashboard?tab=billing');
-
-      const session = await stripe.billingPortal.sessions.create({
+      const portalParams: Stripe.BillingPortal.SessionCreateParams = {
         customer: stripeCustomerId,
         return_url: safePublicReturnUrl(returnUrl, defaultReturnUrl),
-      });
+        configuration: configurationId,
+      };
 
-      return NextResponse.json({ url: session.url }, { headers: corsHeaders });
+      if (isPlaywrightStripeMock(apiKey)) {
+        return NextResponse.json({
+          url: 'https://billing.stripe.com/p/session/test',
+          configuration: configurationId,
+        }, { headers: corsHeaders(req) });
+      }
+
+      const stripe = new Stripe(apiKey, {
+        apiVersion: '2023-10-16' as any,
+      });
+      const session = await stripe.billingPortal.sessions.create(portalParams);
+      return NextResponse.json({ url: session.url, configuration: configurationId }, { headers: corsHeaders(req) });
     }
 
+    const stripe = new Stripe(apiKey, {
+      apiVersion: '2023-10-16' as any,
+    });
+
     // Mode 2: Add-on to existing subscription (Fixed or Sliding Scale)
-    if (addonCatalogId && tenantId) {
+    if (addonCatalogId) {
       const { data: rawAddon, error: rawError } = await supabase
         .from('addon_catalog')
         .select('*')
@@ -310,7 +344,7 @@ export async function POST(req: Request) {
       }
 
       if (!isAddonSellable(rawAddon)) {
-        return NextResponse.json({ error: 'This add-on is not available' }, { status: 400, headers: corsHeaders });
+        return NextResponse.json({ error: 'This add-on is not available' }, { status: 400, headers: corsHeaders(req) });
       }
 
       const addon = rawAddon;
@@ -336,15 +370,15 @@ export async function POST(req: Request) {
           if (isNaN(priceNum) || Math.round(priceNum) !== Number(addon.monthly_price_pence)) {
             return NextResponse.json({
               error: 'Custom price is only allowed for sliding-scale add-ons',
-            }, { status: 400, headers: corsHeaders });
+            }, { status: 400, headers: corsHeaders(req) });
           }
         } else {
           if (maxPrice == null || isNaN(priceNum) || priceNum < minPrice || priceNum > maxPrice) {
-            return NextResponse.json({ error: 'Invalid custom price: out of allowed range' }, { status: 400, headers: corsHeaders });
+            return NextResponse.json({ error: 'Invalid custom price: out of allowed range' }, { status: 400, headers: corsHeaders(req) });
           }
 
           if ((priceNum - minPrice) % stepPence !== 0) {
-            return NextResponse.json({ error: 'Invalid custom price: must be a multiple of step increments' }, { status: 400, headers: corsHeaders });
+            return NextResponse.json({ error: 'Invalid custom price: must be a multiple of step increments' }, { status: 400, headers: corsHeaders(req) });
           }
 
           finalPricePence = Math.round(priceNum);
@@ -464,11 +498,11 @@ export async function POST(req: Request) {
           cancel_url: sessionConfig.cancel_url,
           metadata: sessionConfig.metadata,
           subscription_data: sessionConfig.subscription_data,
-        }, { headers: corsHeaders });
+        }, { headers: corsHeaders(req) });
       }
 
       const session = await stripe.checkout.sessions.create(sessionConfig);
-      return NextResponse.json({ url: session.url, sessionId: session.id }, { headers: corsHeaders });
+      return NextResponse.json({ url: session.url, sessionId: session.id }, { headers: corsHeaders(req) });
     }
 
     // Mode 1: New subscription checkout
@@ -503,7 +537,7 @@ export async function POST(req: Request) {
 
         const foundationTier = tiers?.find(t => t.id === 'foundation') || tiers?.find(t => t.id === 'base_tier');
         if (tierError || !foundationTier || foundationTier.monthly_price == null) {
-          return NextResponse.json({ error: 'Pricing unavailable' }, { status: 503, headers: corsHeaders });
+          return NextResponse.json({ error: 'Pricing unavailable' }, { status: 503, headers: corsHeaders(req) });
         }
 
         const foundationUnitAmount = Math.round(Number(foundationTier.monthly_price) * 100);
@@ -551,7 +585,7 @@ export async function POST(req: Request) {
           .in('id', selectedAddonIds);
 
         if (addonError || !dbAddons) {
-          return NextResponse.json({ error: 'Pricing unavailable' }, { status: 503, headers: corsHeaders });
+          return NextResponse.json({ error: 'Pricing unavailable' }, { status: 503, headers: corsHeaders(req) });
         }
 
         const dbAddonMap = new Map(dbAddons.map(a => [a.id, a]));
@@ -559,15 +593,15 @@ export async function POST(req: Request) {
         for (const addonId of selectedAddonIds) {
           const addon = dbAddonMap.get(addonId);
           if (!addon) {
-            return NextResponse.json({ error: `Add-on not found in catalog: ${addonId}` }, { status: 400, headers: corsHeaders });
+            return NextResponse.json({ error: `Add-on not found in catalog: ${addonId}` }, { status: 400, headers: corsHeaders(req) });
           }
 
           if (!isAddonSellable(addon)) {
-            return NextResponse.json({ error: 'This add-on is not available' }, { status: 400, headers: corsHeaders });
+            return NextResponse.json({ error: 'This add-on is not available' }, { status: 400, headers: corsHeaders(req) });
           }
 
           if (addon.category === 'voice_pack' || addon.category === 'sms_pack' || addon.id.startsWith('voice_pack') || addon.id.startsWith('sms_pack')) {
-            return NextResponse.json({ error: 'This pack can be bought from your dashboard after you sign up' }, { status: 400, headers: corsHeaders });
+            return NextResponse.json({ error: 'This pack can be bought from your dashboard after you sign up' }, { status: 400, headers: corsHeaders(req) });
           }
 
           lineItems.push({
@@ -625,17 +659,17 @@ export async function POST(req: Request) {
           cancel_url: sessionParams.cancel_url,
           metadata: sessionParams.metadata,
           subscription_data: sessionParams.subscription_data,
-        }, { headers: corsHeaders });
+        }, { headers: corsHeaders(req) });
       }
 
       const session = await stripe.checkout.sessions.create(sessionParams);
-      return NextResponse.json({ url: session.url, sessionId: session.id }, { headers: corsHeaders });
+      return NextResponse.json({ url: session.url, sessionId: session.id }, { headers: corsHeaders(req) });
     }
 
-    return NextResponse.json({ error: 'Invalid request parameters' }, { status: 400, headers: corsHeaders });
+    return NextResponse.json({ error: 'Invalid request parameters' }, { status: 400, headers: corsHeaders(req) });
 
   } catch (err: any) {
     console.error('Stripe Checkout Error:', err);
-    return NextResponse.json({ error: err.message || 'Failed to process request' }, { status: 500, headers: corsHeaders });
+    return NextResponse.json({ error: err.message || 'Failed to process request' }, { status: 500, headers: corsHeaders(req) });
   }
 }
