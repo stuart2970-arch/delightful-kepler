@@ -1,10 +1,9 @@
 import { NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import { RecursiveCharacterTextSplitter } from '@langchain/textsplitters';
-import { checkFeatureEntitlement } from '@/lib/entitlements';
-import { batchEmbedTexts } from '@/lib/embeddings';
 import { extractTextFromFile, sanitizeForPostgres } from '@/lib/file-parser';
 import { requireUser } from '@/lib/auth/require-superadmin';
+import { dedupedIngest } from '@/lib/knowledge/ingest-documents';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 120;
@@ -41,6 +40,7 @@ export async function POST(request: Request) {
 
     const file = formData.get('file') as File | null;
     const chatbotId = formData.get('chatbotId') as string | null;
+    const dryRun = formData.get('dryRun') === 'true';
 
     if (!file || !chatbotId) {
       return NextResponse.json({ error: 'Missing file or chatbotId' }, { status: 400 });
@@ -123,69 +123,30 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Text splitting generated zero knowledge items' }, { status: 400 });
     }
 
-    // 6. Check entitlements against real document_chunks count (considering existing chunks for this file)
+    // 6. Hash and skip exact duplicates (STYL-189). Replacing this file (STYL-186)
+    // does not count copies that already exist under another source name.
     const sanitizedFileName = sanitizeForPostgres(file.name);
-    const { count: existingCount } = await dbClient
-      .from('document_chunks')
-      .select('*', { count: 'exact', head: true })
-      .eq('chatbot_id', targetChatbotId)
-      .eq('source_url', sanitizedFileName);
-
-    const existingChunksForFile = existingCount || 0;
-    const netIncoming = Math.max(0, chunks.length - existingChunksForFile);
-
-    const entitlementCheck = await checkFeatureEntitlement(
+    const outcome = await dedupedIngest({
       dbClient,
       tenantId,
-      'knowledge_data_chunks',
-      netIncoming
-    );
-
-    if (!entitlementCheck.allowed) {
-      return NextResponse.json({ error: entitlementCheck.error }, { status: 403 });
-    }
-
-    // 7. Generate vector embeddings
-    console.log(`[Ingest File][${requestId}] Generating vector embeddings for ${chunks.length} chunks via multi-tier engine...`);
-    const embeddings = await batchEmbedTexts(chunks);
-
-    if (!embeddings || embeddings.length === 0) {
-      return NextResponse.json({ error: 'Failed to generate embeddings for file knowledge items.' }, { status: 502 });
-    }
-
-    // 8. Replace existing chunks for this file if re-uploading
-    if (existingChunksForFile > 0) {
-      await dbClient
-        .from('document_chunks')
-        .delete()
-        .eq('chatbot_id', targetChatbotId)
-        .eq('source_url', sanitizedFileName);
-    }
-
-    const metadata = { source_type: 'file', title: sanitizedFileName };
-
-    const recordsToInsert = chunks.slice(0, embeddings.length).map((chunkText, idx) => ({
-      tenant_id: tenantId,
-      chatbot_id: targetChatbotId,
-      content: sanitizeForPostgres(chunkText),
-      embedding: embeddings[idx],
-      source_url: sanitizedFileName,
-      metadata: metadata,
-    }));
-
-    const { error: dbInsertError } = await dbClient.from('document_chunks').insert(recordsToInsert);
-
-    if (dbInsertError) {
-      console.error(`[Ingest File][${requestId}] Supabase INSERT failed:`, dbInsertError);
-      return NextResponse.json({ error: `Failed to save knowledge items: ${dbInsertError.message}` }, { status: 500 });
-    }
-
-    console.log(`[Ingest File][${requestId}] Successfully ingested ${recordsToInsert.length} chunks from ${sanitizedFileName}`);
-    return NextResponse.json({
-      success: true,
-      chunksCount: recordsToInsert.length,
-      message: `Successfully ingested ${recordsToInsert.length} knowledge items from "${sanitizedFileName}".`,
+      chatbotId: targetChatbotId,
+      chunks,
+      sourceUrl: sanitizedFileName,
+      metadata: { source_type: 'file', title: sanitizedFileName },
+      dryRun,
+      replaceExistingSource: true,
+      sourceLabel: `"${sanitizedFileName}"`,
     });
+
+    if (!outcome.ok) {
+      return NextResponse.json(outcome.body, { status: outcome.status });
+    }
+
+    console.log(
+      `[Ingest File][${requestId}] ${dryRun ? 'Preview' : 'Stored'} ` +
+      `${outcome.body.insertedCount} new, ${outcome.body.alreadyCoveredCount} already covered from ${sanitizedFileName}`,
+    );
+    return NextResponse.json(outcome.body);
   } catch (error: any) {
     console.error(`[Ingest File][${requestId}] Unhandled error:`, error);
     return NextResponse.json({ error: error.message || 'Internal server error' }, { status: 500 });

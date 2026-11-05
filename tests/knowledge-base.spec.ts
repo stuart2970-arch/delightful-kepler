@@ -396,8 +396,11 @@ test.describe('Knowledge Base Ingestion Pipeline (URL, Text, File) & STYL-186', 
   // STYL-186: Knowledge Items Quota Limit Enforcement
   // -------------------------------------------------------------------------
   test('STYL-186: Knowledge items quota limit is strictly enforced with informative message', async ({ request }) => {
-    // Generate a payload that requests far more than the 500 limit (e.g. 600,000 characters -> 600 chunks)
-    const largeText = 'StyleFlo AI Receptionist customer knowledge entry for volume limit verification testing. '.repeat(6500);
+    // STYL-189 collapses exact repeated text, so this fixture uses distinct paragraphs.
+    // Each paragraph is longer than the splitter window and stays over the plan allowance.
+    const largeText = Array.from({ length: 520 }, (_, i) =>
+      `Knowledge item ${i} for quota enforcement. ${`word${i} `.repeat(200)}End of paragraph ${i}.`
+    ).join('\n');
 
     const overLimitRes = await request.post('/api/ingest/text', {
       headers: { Authorization: `Bearer ${acmeUser.token}` },

@@ -1,11 +1,9 @@
 import { NextRequest } from 'next/server';
-import { createServerClient } from '@supabase/ssr';
 import { createClient } from '@supabase/supabase-js';
-import { cookies } from 'next/headers';
-import { google } from '@ai-sdk/google';
-import { embed } from 'ai';
 import * as cheerio from 'cheerio';
-import { checkFeatureEntitlement } from '@/lib/entitlements';
+import { requireUser } from '@/lib/auth/require-superadmin';
+import { dedupedIngest } from '@/lib/knowledge/ingest-documents';
+import { formatStoredIngestMessage } from '@/lib/knowledge/dedupe-chunks';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 300; // Allow long execution on Vercel Pro (up to 5 mins)
@@ -36,23 +34,15 @@ export async function GET(request: NextRequest) {
     return new Response('Missing parameters', { status: 400 });
   }
 
-  const cookieStore = await cookies();
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
-  const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
   const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
 
-  const supabase = createServerClient(supabaseUrl, supabaseAnonKey, {
-    cookies: {
-      getAll() { return cookieStore.getAll(); },
-      setAll() {} // readonly context
-    }
+  const adminClient = createClient(supabaseUrl, serviceRoleKey, {
+    auth: { persistSession: false, autoRefreshToken: false },
   });
 
-  const adminClient = createClient(supabaseUrl, serviceRoleKey);
-
-  // Authenticate user
-  const { data: { user }, error: authError } = await supabase.auth.getUser();
-  if (authError || !user) {
+  const auth = await requireUser(request);
+  if (!auth.ok) {
     return new Response('Unauthorized', { status: 401 });
   }
 
@@ -65,12 +55,33 @@ export async function GET(request: NextRequest) {
       };
 
       try {
-        sendEvent({ type: 'status', message: 'Initializing Shopify pipeline...' });
+        sendEvent({ type: 'status', message: 'Initialising Shopify pipeline...' });
 
-        // Verify tenant
-        const { data: profile } = await supabase.from('profiles').select('tenant_id').eq('id', user.id).single();
-        if (!profile?.tenant_id) throw new Error('Profile not found');
-        const tenantId = profile.tenant_id;
+        const { data: profile } = await adminClient
+          .from('profiles')
+          .select('tenant_id, is_super_admin')
+          .eq('id', auth.userId)
+          .single();
+        if (!profile?.tenant_id && !profile?.is_super_admin) throw new Error('Profile not found');
+
+        let tenantId = profile?.tenant_id as string;
+        if (profile?.is_super_admin) {
+          const { data: chatbot, error: chatbotError } = await adminClient
+            .from('chatbots')
+            .select('id, tenant_id')
+            .eq('id', chatbotId)
+            .maybeSingle();
+          if (chatbotError || !chatbot) throw new Error('Chatbot not found');
+          tenantId = chatbot.tenant_id;
+        } else {
+          const { data: chatbot, error: chatbotError } = await adminClient
+            .from('chatbots')
+            .select('id, tenant_id')
+            .eq('id', chatbotId)
+            .eq('tenant_id', tenantId)
+            .maybeSingle();
+          if (chatbotError || !chatbot) throw new Error('Chatbot not found');
+        }
 
         const cleanUrl = storeUrl.replace(/\/$/, '');
         const targetJsonUrl = `${cleanUrl}/collections/all/products.json?limit=250`;
@@ -84,18 +95,37 @@ export async function GET(request: NextRequest) {
         
         sendEvent({ type: 'status', message: `Found ${products.length} products.` });
 
-        let processedChunksCount = 0;
+        let insertedCount = 0;
+        let skippedDuplicateCount = 0;
+        let stoppedForLimit = false;
+
+        const storeOne = async (
+          text: string,
+          sourceUrl: string,
+          metadata: Record<string, unknown>,
+        ): Promise<'inserted' | 'skipped' | 'limit' | 'failed'> => {
+          const outcome = await dedupedIngest({
+            dbClient: adminClient,
+            tenantId,
+            chatbotId,
+            chunks: [text],
+            sourceUrl,
+            metadata,
+            replaceExistingSource: false,
+          });
+
+          if (!outcome.ok) {
+            if (outcome.status === 403) return 'limit';
+            console.warn('[Shopify ingest]', outcome.body.error);
+            return 'failed';
+          }
+          if (outcome.body.insertedCount > 0) return 'inserted';
+          return 'skipped';
+        };
 
         // Process Products
         for (let i = 0; i < products.length; i++) {
           const product = products[i];
-
-          // Check Quota before each chunk
-          const entitlement = await checkFeatureEntitlement(adminClient, tenantId, 'knowledge_data_chunks', 1);
-          if (!entitlement.allowed) {
-            sendEvent({ type: 'warning', message: 'Data quota exceeded. Stopping ingestion gracefully.' });
-            break;
-          }
 
           sendEvent({ type: 'progress', message: `Processing product ${i + 1} of ${products.length}`, current: i + 1, total: products.length + policyRoutes.length });
 
@@ -116,96 +146,71 @@ Description: ${cleanDescription}
 ${variantsText}
           `.trim();
 
-          try {
-            const { embedding } = await embed({
-              model: google.textEmbeddingModel('text-embedding-004'),
-              value: fullSemanticTextChunk,
-              providerOptions: { google: { outputDimensionality: 768 } },
-            });
+          const productUrl = `${cleanUrl}/products/${product.handle}`;
+          const result = await storeOne(fullSemanticTextChunk, productUrl, {
+            source_url: productUrl,
+            shopify_product_id: product.id,
+            platform: 'shopify',
+            is_product: true,
+          });
 
-            const { error: insertError } = await adminClient
-              .from('document_chunks')
-              .insert({
-                tenant_id: tenantId,
-                chatbot_id: chatbotId,
-                content: fullSemanticTextChunk,
-                embedding,
-                metadata: {
-                  source_url: `${cleanUrl}/products/${product.handle}`,
-                  shopify_product_id: product.id,
-                  platform: 'shopify',
-                  is_product: true
-                },
-                chunk_source_type: 'shopify_json'
-              });
-
-            if (!insertError) {
-              processedChunksCount++;
-            }
-          } catch (e) {
-            console.warn('Embedding failed for product', product.handle, e);
+          if (result === 'limit') {
+            sendEvent({ type: 'warning', message: 'Knowledge items limit reached. Stopping ingestion.' });
+            stoppedForLimit = true;
+            break;
           }
+          if (result === 'inserted') insertedCount += 1;
+          if (result === 'skipped') skippedDuplicateCount += 1;
         }
 
         // Process Policies
-        sendEvent({ type: 'status', message: 'Extracting store policies...' });
-        for (let i = 0; i < policyRoutes.length; i++) {
-          const route = policyRoutes[i];
-          const policyUrl = `${cleanUrl}${route}`;
+        if (!stoppedForLimit) {
+          sendEvent({ type: 'status', message: 'Extracting store policies...' });
+          for (let i = 0; i < policyRoutes.length; i++) {
+            const route = policyRoutes[i];
+            const policyUrl = `${cleanUrl}${route}`;
 
-          const entitlement = await checkFeatureEntitlement(adminClient, tenantId, 'knowledge_data_chunks', 1);
-          if (!entitlement.allowed) {
-            break;
-          }
+            sendEvent({ type: 'progress', message: `Crawling ${route}...`, current: products.length + i + 1, total: products.length + policyRoutes.length });
 
-          sendEvent({ type: 'progress', message: `Crawling ${route}...`, current: products.length + i + 1, total: products.length + policyRoutes.length });
-
-          try {
-            const polRes = await fetch(policyUrl, { headers: { 'User-Agent': 'StyleFloIngestEngine/2.0' } });
-            if (polRes.ok) {
-              const html = await polRes.text();
-              const $ = cheerio.load(html);
-              
-              // Target Shopify standard policy container
-              const policyHtml = $('.shopify-policy__container').html();
-              if (policyHtml) {
-                // Strip tags, extract text
-                const cleanPolicy = cheerio.load(policyHtml).text().replace(/\s+/g, ' ').trim();
-                if (cleanPolicy && cleanPolicy.length > 50) {
-                  
-                  const { embedding } = await embed({
-                    model: google.textEmbeddingModel('text-embedding-004'),
-                    value: cleanPolicy,
-                    providerOptions: { google: { outputDimensionality: 768 } },
-                  });
-
-                  const { error: insertError } = await adminClient
-                    .from('document_chunks')
-                    .insert({
-                      tenant_id: tenantId,
-                      chatbot_id: chatbotId,
-                      content: cleanPolicy,
-                      embedding,
-                      metadata: {
-                        source_url: policyUrl,
-                        platform: 'shopify',
-                        is_policy: true
-                      },
-                      chunk_source_type: 'shopify_policy'
+            try {
+              const polRes = await fetch(policyUrl, { headers: { 'User-Agent': 'StyleFloIngestEngine/2.0' } });
+              if (polRes.ok) {
+                const html = await polRes.text();
+                const $ = cheerio.load(html);
+                
+                // Target Shopify standard policy container
+                const policyHtml = $('.shopify-policy__container').html();
+                if (policyHtml) {
+                  const cleanPolicy = cheerio.load(policyHtml).text().replace(/\s+/g, ' ').trim();
+                  if (cleanPolicy && cleanPolicy.length > 50) {
+                    const result = await storeOne(cleanPolicy, policyUrl, {
+                      source_url: policyUrl,
+                      platform: 'shopify',
+                      is_policy: true,
                     });
-
-                  if (!insertError) {
-                    processedChunksCount++;
+                    if (result === 'limit') {
+                      sendEvent({ type: 'warning', message: 'Knowledge items limit reached. Stopping ingestion.' });
+                      break;
+                    }
+                    if (result === 'inserted') insertedCount += 1;
+                    if (result === 'skipped') skippedDuplicateCount += 1;
                   }
                 }
               }
+            } catch (e) {
+               console.warn('Failed to fetch policy', route, e);
             }
-          } catch (e) {
-             console.warn('Failed to fetch policy', route, e);
           }
         }
 
-        sendEvent({ type: 'complete', message: `Successfully ingested ${processedChunksCount} knowledge items.` });
+        sendEvent({
+          type: 'complete',
+          message: formatStoredIngestMessage(insertedCount, skippedDuplicateCount),
+          chunksCount: insertedCount,
+          insertedCount,
+          skippedDuplicateCount,
+          alreadyCoveredCount: skippedDuplicateCount,
+        });
         controller.close();
       } catch (err: any) {
         sendEvent({ type: 'error', message: err.message || 'Fatal error during ingestion' });
