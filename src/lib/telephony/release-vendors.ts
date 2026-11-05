@@ -1,3 +1,4 @@
+import { timingSafeEqual } from 'node:crypto';
 import twilio from 'twilio';
 
 export const telephonyReleaseCallLog = {
@@ -56,10 +57,18 @@ export async function releaseVapiNumber(numberToRelease: string): Promise<void> 
   }
 }
 
+export function secretsEqual(provided: string, expected: string): boolean {
+  if (!expected || !provided) return false;
+  const a = Buffer.from(provided);
+  const b = Buffer.from(expected);
+  if (a.length !== b.length) return false;
+  return timingSafeEqual(a, b);
+}
+
 export function isInternalCronRequest(req: Request): boolean {
   const authHeader = req.headers.get('Authorization') || req.headers.get('authorization') || '';
   const cronSecret = process.env.CRON_SECRET;
   if (!cronSecret || !authHeader.startsWith('Bearer ')) return false;
   const token = authHeader.slice('Bearer '.length).trim();
-  return token.length > 0 && token === cronSecret;
+  return secretsEqual(token, cronSecret);
 }

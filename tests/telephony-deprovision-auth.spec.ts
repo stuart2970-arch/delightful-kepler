@@ -2,6 +2,7 @@ import { test, expect } from '@playwright/test';
 import fs from 'fs';
 import path from 'path';
 import { createTestUser, TestUserSession } from './test-auth-helper';
+import { secretsEqual } from '../src/lib/telephony/release-vendors';
 
 const ACME = '10000000-0000-0000-0000-000000000001';
 const GLOBEX = '10000000-0000-0000-0000-000000000002';
@@ -104,6 +105,35 @@ test.describe('Telephony deprovision owner / cron lockdown', () => {
     expect([200, 404]).toContain(res.status());
   });
 
+  test('wrong CRON_SECRET of the same length is 401', async ({ request }) => {
+    const cron = process.env.CRON_SECRET || 'mock_cron_secret_for_local_testing';
+    const sameLength = 'x'.repeat(cron.length);
+    expect(sameLength.length).toBe(cron.length);
+    expect(sameLength).not.toBe(cron);
+    const res = await request.post('/api/telephony/deprovision', {
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${sameLength}`,
+      },
+      data: { tenant_id: ACME, number_type: 'local' },
+    });
+    expect(res.status()).toBe(401);
+  });
+
+  test('wrong CRON_SECRET of a different length is 401', async ({ request }) => {
+    const cron = process.env.CRON_SECRET || 'mock_cron_secret_for_local_testing';
+    const different = `${cron}x`;
+    expect(different.length).not.toBe(cron.length);
+    const res = await request.post('/api/telephony/deprovision', {
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${different}`,
+      },
+      data: { tenant_id: ACME, number_type: 'local' },
+    });
+    expect(res.status()).toBe(401);
+  });
+
   test('superadmin targeting another tenant is allowed and audited in source', async ({ request }) => {
     const res = await request.post('/api/telephony/deprovision', {
       headers: jsonHeaders(superadmin.token),
@@ -123,6 +153,13 @@ test.describe('Telephony deprovision source audits (no live services)', () => {
     expect(src).toContain('requireTenantRole');
     expect(src).toContain("['owner']");
     expect(src).toContain('isInternalCronRequest');
+    const vendorSrc = fs.readFileSync(
+      path.resolve(__dirname, '../src/lib/telephony/release-vendors.ts'),
+      'utf8',
+    );
+    expect(vendorSrc).toContain('timingSafeEqual');
+    expect(vendorSrc).toContain('secretsEqual');
+    expect(vendorSrc).not.toMatch(/token === cronSecret/);
     expect(src).toContain('recordSuperadminAudit');
     expect(src).not.toMatch(/CRON_SECRET \|\| process\.env\.SUPABASE_SERVICE_ROLE_KEY/);
     const cronIdx = src.indexOf('isInternalCronRequest');
@@ -132,6 +169,14 @@ test.describe('Telephony deprovision source audits (no live services)', () => {
     expect(Math.min(cronIdx, roleIdx)).toBeLessThan(twilioIdx);
     expect(twilioIdx).toBeGreaterThan(-1);
     expect(vapiIdx).toBeGreaterThan(roleIdx);
+  });
+
+  test('secretsEqual rejects empty, same-length wrong, and different-length secrets', () => {
+    expect(secretsEqual('', 'secret')).toBe(false);
+    expect(secretsEqual('secret', '')).toBe(false);
+    expect(secretsEqual('abcd', 'abce')).toBe(false);
+    expect(secretsEqual('abc', 'abcd')).toBe(false);
+    expect(secretsEqual('secret', 'secret')).toBe(true);
   });
 
   test('Release Dedicated Number is hidden unless the dashboard role is owner', () => {

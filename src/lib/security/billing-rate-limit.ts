@@ -18,7 +18,11 @@ function parseLimit(raw: string | undefined, fallback: number): number {
  * Production: 10 portal sessions / hour.
  * Playwright's shared suite raises this unless BILLING_PORTAL_RATE_LIMIT is set.
  */
-export function billingPortalRateLimit(): number {
+export function billingPortalRateLimit(req?: Request): number {
+  if (req && process.env.PLAYWRIGHT_TEST === 'true') {
+    const raw = req.headers.get('x-test-billing-rate-limit');
+    if (raw != null && raw.trim() !== '') return parseLimit(raw, 10);
+  }
   const explicit = process.env.BILLING_PORTAL_RATE_LIMIT;
   if (explicit != null && explicit.trim() !== '') return parseLimit(explicit, 10);
   if (process.env.PLAYWRIGHT_TEST === 'true') return 10_000;

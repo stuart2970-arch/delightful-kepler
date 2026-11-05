@@ -117,6 +117,78 @@ test.describe('Billing checkout auth, portal configs, CORS, and rate limits', ()
     await adminDb.from('tenants').update({ stripe_customer_id: null }).eq('id', GLOBEX);
   });
 
+  test('both portal config env vars missing returns 503 for owner and admin and never opens Stripe', async ({ request }) => {
+    const ownerRes = await request.post('/api/billing/checkout', {
+      headers: jsonHeaders(owner.token, { 'x-test-stripe-portal-env': 'missing-both' }),
+      data: { action: 'portal' },
+    });
+    expect(ownerRes.status()).toBe(503);
+    const ownerBody = await ownerRes.json();
+    expect(ownerBody.code).toBe('portal_not_configured');
+    expect(ownerBody.url).toBeUndefined();
+
+    const adminRes = await request.post('/api/billing/checkout', {
+      headers: jsonHeaders(admin.token, { 'x-test-stripe-portal-env': 'missing-both' }),
+      data: { action: 'portal' },
+    });
+    expect(adminRes.status()).toBe(503);
+    const adminBody = await adminRes.json();
+    expect(adminBody.code).toBe('portal_not_configured');
+    expect(adminBody.url).toBeUndefined();
+  });
+
+  test('admin portal returns 503 when the admin config env is missing', async ({ request }) => {
+    const res = await request.post('/api/billing/checkout', {
+      headers: jsonHeaders(admin.token, { 'x-test-stripe-portal-env': 'missing-admin' }),
+      data: { action: 'portal' },
+    });
+    expect(res.status()).toBe(503);
+    const body = await res.json();
+    expect(body.code).toBe('portal_not_configured');
+    expect(body.url).toBeUndefined();
+  });
+
+  test('owner with only the admin config still falls back to the admin config', async ({ request }) => {
+    const res = await request.post('/api/billing/checkout', {
+      headers: jsonHeaders(owner.token, { 'x-test-stripe-portal-env': 'missing-owner' }),
+      data: { action: 'portal' },
+    });
+    expect(res.status()).toBe(200);
+    const body = await res.json();
+    expect(body.configuration).toBe(ADMIN_CFG);
+  });
+
+  test('a portal burst is 429 when the per-user ceiling is reached', async ({ request }) => {
+    const slug = `rate-limit-${Date.now()}`;
+    const { data: tenant, error: tenantError } = await adminDb
+      .from('tenants')
+      .insert({ company_name: 'Rate Limit Tenant', slug })
+      .select('id')
+      .single();
+    expect(tenantError).toBeFalsy();
+    const tenantId = tenant!.id as string;
+    await adminDb.from('tenants').update({ stripe_customer_id: 'cus_test_rate' }).eq('id', tenantId);
+    const rateUser = await createTestUser({ tenantId, role: 'owner' });
+    try {
+      const limit = 2;
+      for (let i = 0; i < limit; i += 1) {
+        const res = await request.post('/api/billing/checkout', {
+          headers: jsonHeaders(rateUser.token, { 'x-test-billing-rate-limit': String(limit) }),
+          data: { action: 'portal' },
+        });
+        expect(res.status(), `portal hit ${i + 1}`).toBe(200);
+      }
+      const blocked = await request.post('/api/billing/checkout', {
+        headers: jsonHeaders(rateUser.token, { 'x-test-billing-rate-limit': String(limit) }),
+        data: { action: 'portal' },
+      });
+      expect(blocked.status()).toBe(429);
+    } finally {
+      await rateUser.cleanup();
+      await adminDb.from('tenants').delete().eq('id', tenantId);
+    }
+  });
+
   test('owner config env missing falls back to admin and logs an error', () => {
     const errors: unknown[] = [];
     const original = console.error;
@@ -131,6 +203,18 @@ test.describe('Billing checkout auth, portal configs, CORS, and rate limits', ()
       expect(resolved.configurationId).toBe(ADMIN_CFG);
       expect(resolved.fellBackToAdmin).toBe(true);
       expect(String(errors[0] || '')).toMatch(/STRIPE_PORTAL_CONFIG_OWNER/);
+
+      const bothMissing = resolvePortalConfigurationId(
+        { role: 'owner', isSuperAdmin: false },
+        {},
+      );
+      expect(bothMissing.configurationId).toBeNull();
+
+      const adminMissing = resolvePortalConfigurationId(
+        { role: 'admin', isSuperAdmin: false },
+        { STRIPE_PORTAL_CONFIG_OWNER: OWNER_CFG },
+      );
+      expect(adminMissing.configurationId).toBeNull();
     } finally {
       console.error = original;
     }
@@ -230,6 +314,8 @@ test.describe('Billing checkout source audits (no live services)', () => {
     expect(src).toContain('requireTenantRole');
     expect(src).toContain('safePublicReturnUrl');
     expect(src).toContain('no_billing_account');
+    expect(src).toContain('portal_not_configured');
+    expect(src).toContain('status: 503');
     expect(src).toContain('status: 429');
     expect(src).not.toContain("Access-Control-Allow-Origin': '*'");
   });
@@ -285,5 +371,7 @@ test.describe('Billing checkout source audits (no live services)', () => {
     expect(src).toContain('login_page');
     expect(src).toContain("subscription_update: { enabled: false }");
     expect(src).toContain("mode: 'at_period_end'");
+    expect(src).toContain('is_default');
+    expect(src).toContain('Hardened default portal config');
   });
 });

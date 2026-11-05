@@ -6,7 +6,7 @@ import { buildCheckoutLineDescription } from '@/lib/addon-text';
 import { applyPublicAddonFilter, isAddonSellable } from '@/lib/addons/public-catalogue';
 import { buildBoltOnCheckoutMetadata } from '@/lib/billing/bolt-on';
 import { billingCorsHeaders } from '@/lib/billing/app-origin-cors';
-import { resolvePortalConfigurationId } from '@/lib/billing/portal-config';
+import { portalEnvFromRequest, resolvePortalConfigurationId } from '@/lib/billing/portal-config';
 import { publicAppPath, safePublicReturnUrl } from '@/lib/env/public-app-url';
 import {
   billingCheckoutRateLimit,
@@ -272,21 +272,25 @@ export async function POST(req: Request) {
 
     const isPortal = action === 'portal';
     const rateKeyKind = isPortal ? 'portal' : 'checkout';
-    const rateLimit = isPortal ? billingPortalRateLimit() : billingCheckoutRateLimit();
+    const rateLimit = isPortal ? billingPortalRateLimit(req) : billingCheckoutRateLimit();
     const userAllowed = consumeMemoryRateLimit(`billing:${rateKeyKind}:user:${auth.userId}`, rateLimit);
     const tenantAllowed = consumeMemoryRateLimit(`billing:${rateKeyKind}:tenant:${tenantId}`, rateLimit);
     if (!userAllowed || !tenantAllowed) {
       return NextResponse.json({ error: 'Too many requests' }, { status: 429, headers: corsHeaders(req) });
     }
 
-    const stripe = new Stripe(apiKey, {
-      apiVersion: '2023-10-16' as any,
-    });
-
     const supabase = getSupabase();
 
     // Mode 3: Customer Portal
     if (action === 'portal') {
+      const { configurationId } = resolvePortalConfigurationId(auth, portalEnvFromRequest(req));
+      if (!configurationId) {
+        return NextResponse.json({
+          error: 'Billing portal is not configured.',
+          code: 'portal_not_configured',
+        }, { status: 503, headers: corsHeaders(req) });
+      }
+
       const { data: tenant } = await supabase
         .from('tenants')
         .select('stripe_customer_id')
@@ -303,14 +307,11 @@ export async function POST(req: Request) {
       }
 
       const defaultReturnUrl = publicAppPath('/dashboard?tab=billing');
-      const { configurationId } = resolvePortalConfigurationId(auth);
       const portalParams: Stripe.BillingPortal.SessionCreateParams = {
         customer: stripeCustomerId,
         return_url: safePublicReturnUrl(returnUrl, defaultReturnUrl),
+        configuration: configurationId,
       };
-      if (configurationId) {
-        portalParams.configuration = configurationId;
-      }
 
       if (isPlaywrightStripeMock(apiKey)) {
         return NextResponse.json({
@@ -319,9 +320,16 @@ export async function POST(req: Request) {
         }, { headers: corsHeaders(req) });
       }
 
+      const stripe = new Stripe(apiKey, {
+        apiVersion: '2023-10-16' as any,
+      });
       const session = await stripe.billingPortal.sessions.create(portalParams);
       return NextResponse.json({ url: session.url, configuration: configurationId }, { headers: corsHeaders(req) });
     }
+
+    const stripe = new Stripe(apiKey, {
+      apiVersion: '2023-10-16' as any,
+    });
 
     // Mode 2: Add-on to existing subscription (Fixed or Sliding Scale)
     if (addonCatalogId) {

@@ -32,6 +32,7 @@ async function main() {
     console.log('Would create:');
     console.log('  owner: cancel on (at_period_end), subscription_update on, login_page off');
     console.log('  admin: cancel off, subscription_update off, login_page off');
+    console.log('  default: cancel off, subscription_update off, login_page off (never fail open)');
     return;
   }
 
@@ -94,6 +95,23 @@ async function main() {
       metadata: { styleflo_portal_role: spec.role },
     });
     console.log(`Created ${spec.role} portal config: ${created.id}`);
+  }
+
+  const safeDefaultFeatures = {
+    ...shared.features,
+    subscription_cancel: { enabled: false },
+    subscription_update: { enabled: false },
+  };
+  const defaults = existing.data.filter((cfg) => cfg.is_default);
+  if (defaults.length === 0) {
+    console.log('No default portal configuration found to harden.');
+  }
+  for (const def of defaults) {
+    const updated = await stripe.billingPortal.configurations.update(def.id, {
+      features: safeDefaultFeatures,
+      login_page: shared.login_page,
+    });
+    console.log(`Hardened default portal config (cancel off, plan change off): ${updated.id}`);
   }
 
   console.log('Set STRIPE_PORTAL_CONFIG_OWNER / STRIPE_PORTAL_CONFIG_ADMIN to the printed IDs (test mode).');

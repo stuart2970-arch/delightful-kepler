@@ -4090,3 +4090,11 @@ Highlighted adjustments in the modal:
   - Deprovision owner-only (plus cron + superadmin audit); UI hides the release control for non-owners.
   - Env names in `apphosting.yaml` / `apphosting.staging.yaml` / `.env.example`; test-mode Stripe portal config script (not run).
   - Playwright + source-audit tests; existing checkout suites send a session Bearer.
+
+### Session (PR 24 review - portal fail-closed + cron timing-safe compare - 5 Nov 2026)
+* **User**: Two blockers on PR 24. Never create a portal session without an explicit configuration id (503 `portal_not_configured` if the right config is missing). Compare `CRON_SECRET` with `timingSafeEqual`. Add tests. Optional 429 request test and default portal config harden in the test-mode script. Same branch, do not merge, no `--no-verify`.
+* **Changes**:
+  - Portal session always sets `configuration`. Owner with only admin config still falls back; both missing or admin-without-admin-config → 503 before Stripe is constructed.
+  - `secretsEqual` uses equal-length `timingSafeEqual`; empty secret still rejected.
+  - Request tests for missing portal env, admin-config-missing, 429 burst, and wrong cron secrets (same and different length).
+  - Test-mode setup script also turns cancel/plan-change off on the account default configuration.
