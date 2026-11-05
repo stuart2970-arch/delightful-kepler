@@ -1,8 +1,20 @@
-# Staging (STYL-202 / STYL-203)
+# Staging (STYL-202 / STYL-203 / STYL-226)
 
 Staging is a **second** Supabase project built only from this repo’s migrations and `supabase/seed.sql`. It must never hold live customer data.
 
-The staging **app** runs on **Firebase App Hosting** (STYL-203) in Firebase project `styleflo-staging`. Supabase remains the database — Firebase is used for App Hosting only (no Firestore, Storage, RTDB, or Data Connect). Production stays on Cloud Run `styleflo-new` via `.github/workflows/deploy.yml`.
+The staging **app** runs on **Firebase App Hosting** (STYL-203) in Firebase project `styleflo-staging`. Supabase remains the database — Firebase is used for App Hosting only (no Firestore, Storage, RTDB, or Data Connect). Production stays on Cloud Run `styleflo-new` via `.github/workflows/deploy.yml` and deploys automatically on push to `main` (no GitHub `production` environment gate).
+
+## Release path (STYL-226)
+
+One long-lived `staging` branch is the Product Owner gate. Nothing to `main` without Stuart’s yes.
+
+1. Open a feature PR into **`staging`**. Playwright runs on pull requests to both `main` and `staging` (local Supabase + mock keys; STYL-210).
+2. After Playwright passes and the PR is merged, Firebase App Hosting **automatic rollouts** (already on for branch `staging`) deploy to **`https://staging.styleflo.ai`** (backend `delightful-kepler`, project `styleflo-staging`).
+3. The Product Owner smoke-tests staging.
+4. After Stuart’s yes, open a PR **`staging` → `main`**. Production then deploys from `main` via `.github/workflows/deploy.yml` to Cloud Run `styleflo-new`.
+5. **Same-day hotfix back-merge:** if a hotfix is merged to `main` with Stuart’s yes, open a PR **`main` → `staging` the same day** (or merge locally and PR if needed) so staging does not drift behind production.
+
+Do **not** deploy every open PR onto the single staging backend. Do **not** add `deploy-staging.yml`. App Hosting must watch `staging`, never `main`.
 
 ## Project details (no secrets)
 
@@ -17,8 +29,9 @@ The staging **app** runs on **Firebase App Hosting** (STYL-203) in Firebase proj
 | Firebase project | `styleflo-staging` (Blaze) |
 | App Hosting backend id | `delightful-kepler` |
 | App Hosting region | `europe-west4` |
-| Staging app URL | `https://delightful-kepler--styleflo-staging.europe-west4.hosted.app` |
-| Live branch | `main` (automatic rollouts **OFF**) |
+| Staging app URL | `https://staging.styleflo.ai` |
+| App Hosting default URL | `https://delightful-kepler--styleflo-staging.europe-west4.hosted.app` (legacy; do not use for redirects) |
+| Live branch | `staging` (automatic rollouts **ON**) |
 
 Do **not** commit anon, service_role, or database passwords. Staging server secrets live in **Google Cloud Secret Manager** for the Firebase project (see below). GitHub Environment **`staging`** may still hold copies for future CI workflows — never commit them.
 
@@ -74,8 +87,8 @@ Free projects pause after about **seven days** without activity. Options:
 
 In Supabase → Authentication for `styleflo-staging`:
 
-1. **Site URL** — `https://delightful-kepler--styleflo-staging.europe-west4.hosted.app` (not `https://app.styleflo.ai`).
-2. **Redirect URLs** — include that staging origin and local redirects used in QA (`http://localhost:3000/**` if needed). If you add custom domain `staging.app.styleflo.ai`, include it too.
+1. **Site URL** — `https://staging.styleflo.ai` (not `https://app.styleflo.ai`).
+2. **Redirect URLs** — include `https://staging.styleflo.ai/**`, the older hosted.app origin if still needed, and local redirects used in QA (`http://localhost:3000/**` if needed).
 3. **SMTP** — Mailgun **sandbox** or another mock provider. Never point staging auth mail at production Mailgun or real customer inboxes. Local CLI uses Inbucket instead (`http://127.0.0.1:54324`).
 
 Optional: enable the Custom Access Token hook `public.custom_access_token_hook` if JWT tenant claims are required (same as live).
@@ -86,11 +99,12 @@ Optional: enable the Custom Access Token hook `public.custom_access_token_hook` 
 | :--- | :--- | :--- |
 | `NEXT_PUBLIC_SUPABASE_URL` / `SUPABASE_URL` | Plain value | **`apphosting.yaml`** (base — BUILD + RUNTIME; staging-only Firebase project) |
 | `APP_ENV` / `NEXT_PUBLIC_ENV` | Plain value | **`apphosting.yaml`** → `staging` (also re-asserted in `apphosting.staging.yaml`) |
-| `NEXT_PUBLIC_APP_URL` / `NEXT_PUBLIC_SITE_URL` | Plain value | **`apphosting.yaml`** (App Hosting URL above) |
+| `NEXT_PUBLIC_APP_URL` / `NEXT_PUBLIC_SITE_URL` | Plain value | **`apphosting.yaml`** and **`apphosting.staging.yaml`** → `https://staging.styleflo.ai` |
 | `NEXT_PUBLIC_TURNSTILE_SITE_KEY` | Plain value | **`apphosting.yaml`** — Cloudflare always-pass site key (see Turnstile note below) |
 | `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Secret Manager | Base + staging yaml — **BUILD + RUNTIME** (must be grantaccess’d) |
-| **Six core secrets** | Secret Manager | Listed in the runbook below — referenced in `apphosting.staging.yaml` (anon also in base) |
-| Feature secrets (Stripe, Twilio, …) | Optional later | See **Feature secrets to add later** — not required for build/boot |
+| Core + feature secrets | Secret Manager | Listed below — referenced **by name** in `apphosting.staging.yaml` |
+| Twilio bundle / address SIDs | Plain values | Staging SIDs from Jira STYL-226 comment 10163 (not secrets) |
+| WordPress secrets | **Unwired** | `STYLEFLO_WP_API_SECRET`, `STYLEFLO_WP_CREATE_BUSINESS_TOKEN`, `WPMUDEV_WEBHOOK_SECRET` stay unset. Publishing is disabled when `APP_ENV=staging` or when WordPress config is missing — the code must not fall back to the live site. |
 
 Plain `NEXT_PUBLIC_*` values live in **base** `apphosting.yaml` so App Hosting BUILD still sees them even if the backend Environment name is unset (that caused the `/login` prerender failure on build `f287d45b`). This Firebase project hosts staging only; production Cloud Run via `deploy.yml` does **not** read `apphosting.yaml`.
 
@@ -103,7 +117,7 @@ Production Cloud Run continues to use production secrets. `deploy.yml` typecheck
 ### Prerequisites (already done)
 
 * Firebase project `styleflo-staging` on **Blaze**, budget alert from STYL-209.
-* App Hosting backend **`delightful-kepler`**: region **europe-west4**, app root `/`, live branch `main`, **automatic rollouts OFF**.
+* App Hosting backend **`delightful-kepler`**: region **europe-west4**, app root `/`, live branch `staging`, **automatic rollouts ON**.
 * **Required:** Environment name **`staging`** (Settings → Environment) so `apphosting.staging.yaml` is merged for secrets. Public `NEXT_PUBLIC_*` also live in base `apphosting.yaml` as a safety net.
 * Repo `apphosting.yaml` + `apphosting.staging.yaml` on `main`. Node **22** via `package.json` `engines.node`.
 
@@ -175,12 +189,12 @@ Without that name, `apphosting.staging.yaml` is **not** merged (service-role and
 firebase apphosting:secrets:grantaccess NEXT_PUBLIC_SUPABASE_ANON_KEY --backend delightful-kepler --project styleflo-staging
 ```
 
-### 5. Trigger a manual rollout
+### 5. Rollouts
 
-Automatic rollouts are **OFF**. After the six secrets are set and Environment name is `staging`:
+Automatic rollouts are **ON** for branch `staging`. Merges to `staging` that pass Playwright deploy to `https://staging.styleflo.ai`. A manual rollout is still available if needed:
 
-* Console: App Hosting → `delightful-kepler` → **Roll out** / create rollout from `main`, **or**
-* CLI: `firebase apphosting:rollouts:create delightful-kepler --git-branch main --project styleflo-staging`
+* Console: App Hosting → `delightful-kepler` → **Roll out** / create rollout from `staging`, **or**
+* CLI: `firebase apphosting:rollouts:create delightful-kepler --git-branch staging --project styleflo-staging`
 
 #### Build OOM / TypeScript heap (STYL-203)
 
@@ -210,113 +224,57 @@ CI: `npm run check:apphosting-yaml` (also in the Playwright workflow) validates 
 
 ### 6. Smoke-check the staging URL
 
-Open `https://delightful-kepler--styleflo-staging.europe-west4.hosted.app`:
+Open `https://staging.styleflo.ai`:
 
 * Visible **STAGING** banner and `X-Robots-Tag: noindex`.
 * Page source / network must **not** contain live ref `tkoasyjvrgaglofpzduq`.
 * `/widget.js` loads; `/api/chatbots/<id>` returns staging data.
 * Unset feature secrets (Stripe, Twilio, …) must **not** crash boot — those routes return errors / no-ops until secrets are added.
 
-### Feature secrets to add later
+### Wired feature secrets (STYL-226)
 
-These are **not** in `apphosting.staging.yaml` (so missing secrets cannot fail a rollout). Add a secret, grant access, then add a matching `secret:` entry to `apphosting.staging.yaml` (or the Firebase console) and roll out again.
-
-Note: **`STRIPE_WEBHOOK_SECRET` is unused in `src/`** — do not create it for staging unless a future webhook verifier is added.
-
-#### Stripe test
+`apphosting.staging.yaml` now references these Secret Manager **names** (plus the six core secrets above). Grant access if a rollout fails on a missing secret:
 
 ```bash
-firebase apphosting:secrets:set STRIPE_SECRET_KEY --project styleflo-staging
 firebase apphosting:secrets:grantaccess STRIPE_SECRET_KEY --backend delightful-kepler --project styleflo-staging
-# STRIPE_WEBHOOK_SECRET — unused in src; skip unless webhook verification is added later
-```
-
-#### Mailgun sandbox
-
-```bash
-firebase apphosting:secrets:set MAILGUN_API_KEY --project styleflo-staging
-firebase apphosting:secrets:grantaccess MAILGUN_API_KEY --backend delightful-kepler --project styleflo-staging
-firebase apphosting:secrets:set MAILGUN_DOMAIN --project styleflo-staging
-firebase apphosting:secrets:grantaccess MAILGUN_DOMAIN --backend delightful-kepler --project styleflo-staging
-```
-
-#### Twilio (test account)
-
-```bash
-firebase apphosting:secrets:set TWILIO_ACCOUNT_SID --project styleflo-staging
+firebase apphosting:secrets:grantaccess STRIPE_WEBHOOK_SECRET --backend delightful-kepler --project styleflo-staging
 firebase apphosting:secrets:grantaccess TWILIO_ACCOUNT_SID --backend delightful-kepler --project styleflo-staging
-firebase apphosting:secrets:set TWILIO_AUTH_TOKEN --project styleflo-staging
 firebase apphosting:secrets:grantaccess TWILIO_AUTH_TOKEN --backend delightful-kepler --project styleflo-staging
-```
-
-#### Vapi
-
-```bash
-firebase apphosting:secrets:set NEXT_PUBLIC_VAPI_PUBLIC_KEY --project styleflo-staging
-firebase apphosting:secrets:grantaccess NEXT_PUBLIC_VAPI_PUBLIC_KEY --backend delightful-kepler --project styleflo-staging
-firebase apphosting:secrets:set VAPI_API_KEY --project styleflo-staging
 firebase apphosting:secrets:grantaccess VAPI_API_KEY --backend delightful-kepler --project styleflo-staging
-firebase apphosting:secrets:set VAPI_MASTER_ASSISTANT_ID --project styleflo-staging
+firebase apphosting:secrets:grantaccess NEXT_PUBLIC_VAPI_PUBLIC_KEY --backend delightful-kepler --project styleflo-staging
 firebase apphosting:secrets:grantaccess VAPI_MASTER_ASSISTANT_ID --backend delightful-kepler --project styleflo-staging
-# Optional alias: VAPI_PRIVATE_API_KEY → same secret as VAPI_API_KEY
-```
-
-#### Meta / WhatsApp
-
-```bash
-firebase apphosting:secrets:set NEXT_PUBLIC_META_APP_ID --project styleflo-staging
-firebase apphosting:secrets:grantaccess NEXT_PUBLIC_META_APP_ID --backend delightful-kepler --project styleflo-staging
-firebase apphosting:secrets:set NEXT_PUBLIC_META_ES_CONFIG_ID --project styleflo-staging
-firebase apphosting:secrets:grantaccess NEXT_PUBLIC_META_ES_CONFIG_ID --backend delightful-kepler --project styleflo-staging
-firebase apphosting:secrets:set META_ACCESS_TOKEN --project styleflo-staging
-firebase apphosting:secrets:grantaccess META_ACCESS_TOKEN --backend delightful-kepler --project styleflo-staging
-firebase apphosting:secrets:set META_APP_SECRET --project styleflo-staging
-firebase apphosting:secrets:grantaccess META_APP_SECRET --backend delightful-kepler --project styleflo-staging
-firebase apphosting:secrets:set META_VERIFY_TOKEN --project styleflo-staging
-firebase apphosting:secrets:grantaccess META_VERIFY_TOKEN --backend delightful-kepler --project styleflo-staging
-```
-
-#### Google / Microsoft calendar OAuth
-
-```bash
-firebase apphosting:secrets:set GOOGLE_CLIENT_ID --project styleflo-staging
+firebase apphosting:secrets:grantaccess MAILGUN_API_KEY --backend delightful-kepler --project styleflo-staging
+firebase apphosting:secrets:grantaccess MAILGUN_DOMAIN --backend delightful-kepler --project styleflo-staging
+firebase apphosting:secrets:grantaccess CRON_SECRET --backend delightful-kepler --project styleflo-staging
 firebase apphosting:secrets:grantaccess GOOGLE_CLIENT_ID --backend delightful-kepler --project styleflo-staging
-firebase apphosting:secrets:set GOOGLE_CLIENT_SECRET --project styleflo-staging
 firebase apphosting:secrets:grantaccess GOOGLE_CLIENT_SECRET --backend delightful-kepler --project styleflo-staging
-firebase apphosting:secrets:set MICROSOFT_CLIENT_ID --project styleflo-staging
 firebase apphosting:secrets:grantaccess MICROSOFT_CLIENT_ID --backend delightful-kepler --project styleflo-staging
-firebase apphosting:secrets:set MICROSOFT_CLIENT_SECRET --project styleflo-staging
 firebase apphosting:secrets:grantaccess MICROSOFT_CLIENT_SECRET --backend delightful-kepler --project styleflo-staging
-```
-
-#### Places
-
-```bash
-firebase apphosting:secrets:set GOOGLE_PLACES_SERVER_API_KEY --project styleflo-staging
+firebase apphosting:secrets:grantaccess ELEVENLABS_API_KEY --backend delightful-kepler --project styleflo-staging
 firebase apphosting:secrets:grantaccess GOOGLE_PLACES_SERVER_API_KEY --backend delightful-kepler --project styleflo-staging
 ```
 
-#### ElevenLabs
+Aliases (same Secret Manager name, no extra create): `VAPI_PRIVATE_API_KEY` / `VAPI_PRIVATE_KEY` / `VAPI_SECRET_KEY` → `VAPI_API_KEY`; `VAPI_PUBLIC_KEY` → `NEXT_PUBLIC_VAPI_PUBLIC_KEY`.
+
+Mailgun on staging uses the **EU** API (`api.eu.mailgun.net`, already in `src/lib/lead-notifier.ts`) and domain `staging.styleflo.ai`. Product Owner tests should use the agreed test inbox only.
+
+Twilio bundle and address SIDs are **plain values** in yaml (Jira STYL-226 comment 10163), not secrets. Do not buy numbers. Do not copy production bundle SIDs.
+
+`STRIPE_WEBHOOK_SECRET` is wired and verified with `stripe.webhooks.constructEvent`. Stuart creates the Stripe **test-mode** endpoint for `https://staging.styleflo.ai/api/webhooks/stripe`.
+
+**Do not wire on staging:** WordPress secrets, Meta/WhatsApp live keys, any `sk_live_` Stripe name.
+
+#### Meta / WhatsApp (still unwired)
+
+Leave these unset until a later ticket. Do not add them to `apphosting.staging.yaml` here.
+
+#### WordPress (must stay unwired)
+
+Do **not** run `secrets:set` / `grantaccess` for `WPMUDEV_WEBHOOK_SECRET`, `STYLEFLO_WP_API_SECRET`, or `STYLEFLO_WP_CREATE_BUSINESS_TOKEN`. Publishing is refused when `APP_ENV=staging` or when those values are missing.
+
+#### OpenClaw (optional, still unwired)
 
 ```bash
-firebase apphosting:secrets:set ELEVENLABS_API_KEY --project styleflo-staging
-firebase apphosting:secrets:grantaccess ELEVENLABS_API_KEY --backend delightful-kepler --project styleflo-staging
-```
-
-#### WordPress
-
-```bash
-firebase apphosting:secrets:set WPMUDEV_WEBHOOK_SECRET --project styleflo-staging
-firebase apphosting:secrets:grantaccess WPMUDEV_WEBHOOK_SECRET --backend delightful-kepler --project styleflo-staging
-firebase apphosting:secrets:set STYLEFLO_WP_API_SECRET --project styleflo-staging
-firebase apphosting:secrets:grantaccess STYLEFLO_WP_API_SECRET --backend delightful-kepler --project styleflo-staging
-```
-
-#### Cron / OpenClaw
-
-```bash
-firebase apphosting:secrets:set CRON_SECRET --project styleflo-staging
-firebase apphosting:secrets:grantaccess CRON_SECRET --backend delightful-kepler --project styleflo-staging
 firebase apphosting:secrets:set OPENCLAW_BEARER_TOKEN --project styleflo-staging
 firebase apphosting:secrets:grantaccess OPENCLAW_BEARER_TOKEN --backend delightful-kepler --project styleflo-staging
 ```
@@ -368,3 +326,7 @@ Live has tables that no repo migration creates. Capturing them later would need 
 2. **`knowledge_sources`** — referenced on live only; app knowledge path uses `document_chunks`. Confirm live columns before writing a migration (STYL-197 / STYL-207).
 
 Live also appears to track far fewer applied migration versions than the repo (hand-applied drift). Do not “repair” live from this workstream without an explicit STYL-197/207 plan.
+
+## Follow-on: other production URLs (not this ticket)
+
+Hard-coded `app.styleflo.ai` still appears in `src/lib/lead-notifier.ts`, dashboard help text, Meta webhook copy, and telephony provision fallbacks. Those do not steal a login session. Clean them up later; they are not blockers for the staging gate.

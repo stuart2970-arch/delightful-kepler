@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createServerClient } from '@/utils/supabase-server';
+import { publicAppPath } from '@/lib/env/public-app-url';
 
 export async function GET(request: NextRequest) {
   try {
@@ -13,7 +14,7 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const appUrl = process.env.NEXT_PUBLIC_APP_URL || process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000';
+    const appUrl = publicAppPath('');
     const clientId = process.env.MICROSOFT_CLIENT_ID || process.env.AZURE_CLIENT_ID || 'mock_microsoft_client_id';
 
     const statePayload = JSON.stringify({

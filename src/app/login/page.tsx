@@ -13,6 +13,7 @@ import {
   isDummyTurnstileSiteKey,
   mountTurnstileWidget,
 } from '@/lib/turnstile-client';
+import { publicAppPath } from '@/lib/env/public-app-url';
 
 export default function LoginPage() {
   const turnstileSiteKey = getTurnstileSiteKey();
@@ -145,12 +146,14 @@ export default function LoginPage() {
       leftLogin = true;
       const isEmbedded = window.self !== window.top;
       if (isEmbedded && window.top) {
-        const isLocal = process.env.NODE_ENV === 'development' || process.env.NEXT_PUBLIC_ENV === 'development';
-        const wpAppUrl = isLocal ? 'https://styleflo.test/app' : 'https://styleflo.ai/app';
-        window.top.location.href = wpAppUrl;
-      } else {
-        window.location.assign('/dashboard');
+        try {
+          window.top.location.href = publicAppPath('/dashboard');
+          return;
+        } catch {
+          // Sandboxed iframes cannot assign window.top.
+        }
       }
+      window.location.assign('/dashboard');
     };
 
     const hashParams = new URLSearchParams(window.location.hash.startsWith('#') ? window.location.hash.slice(1) : '');
@@ -253,13 +256,7 @@ export default function LoginPage() {
 
         const finalSlug = slugStatus?.slug || companyName.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
 
-        const isLocal = typeof window !== 'undefined' && (
-          window.location.hostname === 'localhost' || 
-          window.location.hostname === '127.0.0.1'
-        );
-        const redirectUrl = isLocal 
-          ? `${window.location.origin}/auth/callback?next=/dashboard`
-          : 'https://app.styleflo.ai/auth/callback?next=/dashboard';
+        const redirectUrl = publicAppPath('/auth/callback?next=/dashboard');
 
         const { data, error } = await supabase.auth.signUp({
           email,
@@ -336,13 +333,7 @@ export default function LoginPage() {
     setLoading(true);
     setError(null);
     try {
-      const isLocal = typeof window !== 'undefined' && (
-        window.location.hostname === 'localhost' || 
-        window.location.hostname === '127.0.0.1'
-      );
-      const redirectUrl = isLocal 
-        ? `${window.location.origin}/dashboard`
-        : 'https://app.styleflo.ai/dashboard';
+      const redirectUrl = publicAppPath('/dashboard');
 
       const supabase = getSupabaseBrowserClient();
       const { error } = await supabase.auth.signInWithOAuth({

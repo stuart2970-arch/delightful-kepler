@@ -205,7 +205,7 @@ ${variantsText}
           }
         }
 
-        sendEvent({ type: 'complete', message: `Successfully vectorized ${processedChunksCount} chunks.` });
+        sendEvent({ type: 'complete', message: `Successfully ingested ${processedChunksCount} knowledge items.` });
         controller.close();
       } catch (err: any) {
         sendEvent({ type: 'error', message: err.message || 'Fatal error during ingestion' });

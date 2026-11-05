@@ -3,6 +3,8 @@ import Stripe from 'stripe';
 import { createClient } from '@supabase/supabase-js';
 import { buildCheckoutLineDescription } from '@/lib/addon-text';
 import { applyPublicAddonFilter, isAddonSellable } from '@/lib/addons/public-catalogue';
+import { buildBoltOnCheckoutMetadata } from '@/lib/billing/bolt-on';
+import { publicAppPath, safePublicReturnUrl } from '@/lib/env/public-app-url';
 
 export const dynamic = 'force-dynamic';
 
@@ -35,6 +37,43 @@ function parseAddonIds(input: any): string[] {
   return [];
 }
 
+function dashboardPathForAddon(addonCatalogId: string): string {
+  if (
+    addonCatalogId === 'google_calendar_addon' ||
+    addonCatalogId === 'microsoft_calendar_addon'
+  ) {
+    return '/dashboard?tab=scheduling';
+  }
+  if (addonCatalogId === 'data_pack_500') {
+    return '/dashboard?tab=crawler';
+  }
+  if (
+    addonCatalogId === 'landline_addon' ||
+    addonCatalogId === 'mobile_addon' ||
+    addonCatalogId.startsWith('voice_pack') ||
+    addonCatalogId.startsWith('sms_pack')
+  ) {
+    return '/dashboard?tab=telephony';
+  }
+  return '/dashboard?tab=billing';
+}
+
+function planCheckoutCancelUrl(returnUrl: string | undefined | null): string {
+  const registerUrl = publicAppPath('/register');
+  const safe = safePublicReturnUrl(returnUrl, registerUrl);
+  try {
+    const path = new URL(safe).pathname;
+    if (path === '/payment-confirmed' || path === '/app') return registerUrl;
+    return safe;
+  } catch {
+    return registerUrl;
+  }
+}
+
+function isPlaywrightStripeMock(apiKey: string): boolean {
+  return process.env.PLAYWRIGHT_TEST === 'true' && apiKey === 'sk_test_mock';
+}
+
 export async function OPTIONS() {
   return new NextResponse(null, { status: 204, headers: corsHeaders });
 }
@@ -55,8 +94,6 @@ export async function GET(req: Request) {
     const stripe = new Stripe(apiKey, {
       apiVersion: '2023-10-16' as any,
     });
-
-    const isLocal = process.env.NODE_ENV === 'development' || process.env.NEXT_PUBLIC_ENV === 'development';
 
     const supabase = getSupabase();
 
@@ -155,8 +192,9 @@ export async function GET(req: Request) {
       sessionMetadata.selected_addons = selectedAddonIds.join(',');
     }
 
-    const defaultConfirmedUrl = isLocal ? 'http://localhost:3000/payment-confirmed' : 'https://app.styleflo.ai/payment-confirmed';
-    const targetSuccessUrl = returnUrl || defaultConfirmedUrl;
+    const defaultConfirmedUrl = publicAppPath('/payment-confirmed');
+    const targetSuccessUrl = safePublicReturnUrl(returnUrl, defaultConfirmedUrl);
+    const targetCancelUrl = planCheckoutCancelUrl(returnUrl);
 
     const session = await stripe.checkout.sessions.create({
       mode: 'subscription',
@@ -168,7 +206,7 @@ export async function GET(req: Request) {
       },
       metadata: sessionMetadata,
       success_url: appendQueryParams(targetSuccessUrl, 'checkout_status=success&session_id={CHECKOUT_SESSION_ID}'),
-      cancel_url: appendQueryParams(returnUrl || (isLocal ? 'https://styleflo.test/#pricing' : 'https://styleflo.ai/#pricing'), 'checkout_status=cancelled'),
+      cancel_url: appendQueryParams(targetCancelUrl, 'checkout_status=cancelled'),
     });
 
     return NextResponse.redirect(session.url || '/dashboard', 303);
@@ -249,13 +287,11 @@ export async function POST(req: Request) {
         }, { status: 200 });
       }
 
-      const isLocal = process.env.NODE_ENV === 'development' || process.env.NEXT_PUBLIC_ENV === 'development';
-      const wpAppUrl = isLocal ? 'https://styleflo.test/app' : 'https://styleflo.ai/app';
-      const defaultReturnUrl = wpAppUrl;
+      const defaultReturnUrl = publicAppPath('/dashboard?tab=billing');
 
       const session = await stripe.billingPortal.sessions.create({
         customer: stripeCustomerId,
-        return_url: returnUrl || defaultReturnUrl,
+        return_url: safePublicReturnUrl(returnUrl, defaultReturnUrl),
       });
 
       return NextResponse.json({ url: session.url }, { headers: corsHeaders });
@@ -296,23 +332,31 @@ export async function POST(req: Request) {
         const maxPrice = addon.max_price_pence;
         const stepPence = addon.price_step_pence || 100;
 
-        if (!addon.is_sliding || maxPrice == null || isNaN(priceNum) || priceNum < minPrice || priceNum > maxPrice) {
-          return NextResponse.json({ error: 'Invalid custom price: out of allowed range' }, { status: 400, headers: corsHeaders });
-        }
+        if (!addon.is_sliding) {
+          if (isNaN(priceNum) || Math.round(priceNum) !== Number(addon.monthly_price_pence)) {
+            return NextResponse.json({
+              error: 'Custom price is only allowed for sliding-scale add-ons',
+            }, { status: 400, headers: corsHeaders });
+          }
+        } else {
+          if (maxPrice == null || isNaN(priceNum) || priceNum < minPrice || priceNum > maxPrice) {
+            return NextResponse.json({ error: 'Invalid custom price: out of allowed range' }, { status: 400, headers: corsHeaders });
+          }
 
-        if ((priceNum - minPrice) % stepPence !== 0) {
-          return NextResponse.json({ error: 'Invalid custom price: must be a multiple of step increments' }, { status: 400, headers: corsHeaders });
-        }
+          if ((priceNum - minPrice) % stepPence !== 0) {
+            return NextResponse.json({ error: 'Invalid custom price: must be a multiple of step increments' }, { status: 400, headers: corsHeaders });
+          }
 
-        finalPricePence = Math.round(priceNum);
-        const maxSteps = Math.max(1, Math.round((maxPrice - minPrice) / stepPence));
-        const step = Math.round((finalPricePence - minPrice) / stepPence);
+          finalPricePence = Math.round(priceNum);
+          const maxSteps = Math.max(1, Math.round((maxPrice - minPrice) / stepPence));
+          const step = Math.round((finalPricePence - minPrice) / stepPence);
 
-        if (addon.max_voice_minutes != null && addon.included_voice_minutes != null) {
-          finalVoiceMinutes = Math.round(addon.included_voice_minutes + step * ((addon.max_voice_minutes - addon.included_voice_minutes) / maxSteps));
-        }
-        if (addon.max_sms != null && addon.included_sms != null) {
-          finalSms = Math.round(addon.included_sms + step * ((addon.max_sms - addon.included_sms) / maxSteps));
+          if (addon.max_voice_minutes != null && addon.included_voice_minutes != null) {
+            finalVoiceMinutes = Math.round(addon.included_voice_minutes + step * ((addon.max_voice_minutes - addon.included_voice_minutes) / maxSteps));
+          }
+          if (addon.max_sms != null && addon.included_sms != null) {
+            finalSms = Math.round(addon.included_sms + step * ((addon.max_sms - addon.included_sms) / maxSteps));
+          }
         }
       }
 
@@ -356,29 +400,22 @@ export async function POST(req: Request) {
         quantity: 1,
       };
 
-      const isLocal = process.env.NODE_ENV === 'development' || process.env.NEXT_PUBLIC_ENV === 'development';
-      const wpAppUrl = isLocal ? 'https://styleflo.test/app' : 'https://styleflo.ai/app';
-      const defaultSuccessUrl = wpAppUrl;
-      const defaultCancelUrl = wpAppUrl;
+      const defaultAppUrl = publicAppPath(dashboardPathForAddon(addonCatalogId));
+      const targetSuccessUrl = safePublicReturnUrl(returnUrl, defaultAppUrl);
+      const targetCancelUrl = safePublicReturnUrl(returnUrl, defaultAppUrl);
 
-      const targetSuccessUrl = returnUrl || defaultSuccessUrl;
-      const targetCancelUrl = returnUrl || defaultCancelUrl;
-
-      const sessionMetadata: Record<string, string> = {
-        tenant_id: tenantId,
-        addon_catalog_id: addonCatalogId,
+      const sessionMetadata = buildBoltOnCheckoutMetadata({
+        tenantId,
+        addonCatalogId,
         category: addon.category,
-        is_sliding: addon.is_sliding ? 'true' : 'false',
-        price_pence: String(finalPricePence),
-        voice_minutes: String(finalVoiceMinutes),
-        sms: String(finalSms),
-        is_one_off: isOneOff ? 'true' : 'false',
-      };
-
-      if (autoTopup !== undefined) {
-        sessionMetadata.auto_topup = String(Boolean(autoTopup));
-        sessionMetadata.auto_topup_threshold = String(autoTopupThreshold || 10);
-      }
+        isSliding: Boolean(addon.is_sliding),
+        pricePence: finalPricePence,
+        voiceMinutes: finalVoiceMinutes,
+        sms: finalSms,
+        isOneOff,
+        autoTopup,
+        autoTopupThreshold,
+      });
 
       const sessionConfig: Stripe.Checkout.SessionCreateParams = {
         mode: isOneOff ? 'payment' : 'subscription',
@@ -418,11 +455,15 @@ export async function POST(req: Request) {
       }
 
       // The local suite uses a placeholder key. A real Stripe test key still creates a live session.
-      if (process.env.PLAYWRIGHT_TEST === 'true' && apiKey === 'sk_test_mock') {
+      if (isPlaywrightStripeMock(apiKey)) {
         return NextResponse.json({
           url: 'https://checkout.stripe.com/c/pay/cs_test_mock',
           sessionId: 'cs_test_mock',
           cataloguePricePence: finalPricePence,
+          success_url: sessionConfig.success_url,
+          cancel_url: sessionConfig.cancel_url,
+          metadata: sessionConfig.metadata,
+          subscription_data: sessionConfig.subscription_data,
         }, { headers: corsHeaders });
       }
 
@@ -551,8 +592,6 @@ export async function POST(req: Request) {
         }
       }
 
-      const isLocal = process.env.NODE_ENV === 'development' || process.env.NEXT_PUBLIC_ENV === 'development';
-
       const sessionMetadata: Record<string, string> = {
         tenant_id: tenantId || '',
         plan_tier: 'base_tier',
@@ -561,10 +600,11 @@ export async function POST(req: Request) {
         sessionMetadata.selected_addons = selectedAddonIds.join(',');
       }
 
-      const defaultConfirmedUrl = isLocal ? 'http://localhost:3000/payment-confirmed' : 'https://app.styleflo.ai/payment-confirmed';
-      const targetSuccessUrl = returnUrl || defaultConfirmedUrl;
+      const defaultConfirmedUrl = publicAppPath('/payment-confirmed');
+      const targetSuccessUrl = safePublicReturnUrl(returnUrl, defaultConfirmedUrl);
+      const targetCancelUrl = planCheckoutCancelUrl(returnUrl);
 
-      const session = await stripe.checkout.sessions.create({
+      const sessionParams: Stripe.Checkout.SessionCreateParams = {
         mode: 'subscription',
         payment_method_types: ['card'],
         customer_email: customerEmail || undefined,
@@ -574,9 +614,21 @@ export async function POST(req: Request) {
         },
         metadata: sessionMetadata,
         success_url: appendQueryParams(targetSuccessUrl, 'checkout_status=success&session_id={CHECKOUT_SESSION_ID}'),
-        cancel_url: appendQueryParams(returnUrl || (isLocal ? 'https://styleflo.test/#pricing' : 'https://styleflo.ai/#pricing'), 'checkout_status=cancelled'),
-      });
+        cancel_url: appendQueryParams(targetCancelUrl, 'checkout_status=cancelled'),
+      };
 
+      if (isPlaywrightStripeMock(apiKey)) {
+        return NextResponse.json({
+          url: 'https://checkout.stripe.com/c/pay/cs_test_mock',
+          sessionId: 'cs_test_mock',
+          success_url: sessionParams.success_url,
+          cancel_url: sessionParams.cancel_url,
+          metadata: sessionParams.metadata,
+          subscription_data: sessionParams.subscription_data,
+        }, { headers: corsHeaders });
+      }
+
+      const session = await stripe.checkout.sessions.create(sessionParams);
       return NextResponse.json({ url: session.url, sessionId: session.id }, { headers: corsHeaders });
     }
 

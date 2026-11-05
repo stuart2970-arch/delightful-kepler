@@ -8,6 +8,7 @@ import {
   hashEmail,
 } from '@/lib/security/auth-rate-limit';
 import { verifyTurnstileToken } from '@/lib/security/turnstile';
+import { publicAppPath } from '@/lib/env/public-app-url';
 
 export const dynamic = 'force-dynamic';
 
@@ -21,24 +22,8 @@ function json(body: Record<string, unknown>, status: number) {
  * The emailed link lands on /login so the browser can read the session
  * fragment. The redirect is chosen on the server, never from the request body.
  */
-function emailRedirectTo(request: Request): string {
-  const host = request.headers.get('x-forwarded-host') || request.headers.get('host') || '';
-  const hostname = host.split(':')[0];
-  const isLocal = hostname === 'localhost' || hostname === '127.0.0.1';
-  if (isLocal) {
-    const proto = request.headers.get('x-forwarded-proto') || 'http';
-    return `${proto}://${host}/login`;
-  }
-
-  const appUrl = process.env.NEXT_PUBLIC_APP_URL;
-  if (appUrl) {
-    try {
-      return `${new URL(appUrl).origin}/login`;
-    } catch {
-      // Fall through to the production app origin.
-    }
-  }
-  return 'https://app.styleflo.ai/login';
+function emailRedirectTo(): string {
+  return publicAppPath('/login');
 }
 
 export async function OPTIONS() {
@@ -93,7 +78,7 @@ export async function POST(request: Request) {
     email,
     options: {
       shouldCreateUser: false,
-      emailRedirectTo: emailRedirectTo(request),
+      emailRedirectTo: emailRedirectTo(),
     },
   });
 

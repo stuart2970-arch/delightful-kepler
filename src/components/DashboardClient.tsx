@@ -18,8 +18,10 @@ import WhatsAppMetaView from './dashboard-views/WhatsAppMetaView';
 import SetPasswordBanner from './SetPasswordBanner';
 import CapacityThresholdBanner from './CapacityThresholdBanner';
 import AddOnUpsellModal, { AddOnCategory } from './AddOnUpsellModal';
-import { useDashboardStore } from '../lib/store';
+import { useDashboardStore, type ActiveTab } from '../lib/store';
 import { formatAllowanceRange } from '@/lib/addon-text';
+import { knowledgeItemsTotal, resolveCalendarAddonFlags, resolveCheckoutSuccessBanner } from '@/lib/billing/bolt-on';
+import { publicAppPath } from '@/lib/env/public-app-url';
 
 const BILLING_CATEGORIES: AddOnCategory[] = [
   'landline', 'mobile', 'whatsapp', 'voice_pack', 'sms_pack', 'data_pack', 'google_calendar', 'microsoft_calendar', 'remove_branding',
@@ -27,6 +29,12 @@ const BILLING_CATEGORIES: AddOnCategory[] = [
 
 function asBillingCategory(category: string): AddOnCategory | null {
   return BILLING_CATEGORIES.includes(category as AddOnCategory) ? (category as AddOnCategory) : null;
+}
+
+function resolveDashboardTab(tab?: string | null): ActiveTab | null {
+  if (!tab) return null;
+  if (tab === 'knowledge') return 'crawler';
+  return tab as ActiveTab;
 }
 
 function billingProductEmoji(category: string): string {
@@ -132,6 +140,7 @@ interface DashboardClientProps {
   isImpersonating?: boolean;
   initialGoogleConnected?: boolean;
   initialHasGoogleCalendarAddon?: boolean;
+  initialHasMicrosoftCalendarAddon?: boolean;
   initialBusinessAddress?: string;
   initialPostcode?: string;
   initialGoogleConnectedEmail?: string | null;
@@ -178,6 +187,7 @@ export default function DashboardClient({
   initialGoogleConnected = false,
   initialGoogleConnectedEmail = null,
   initialHasGoogleCalendarAddon = false,
+  initialHasMicrosoftCalendarAddon = false,
   initialGlobalVoiceDisclaimer,
   initialServices = [],
   initialStaff = [],
@@ -212,7 +222,7 @@ export default function DashboardClient({
       userName,
       isSuperAdmin,
       role,
-      ...(initialTab ? { activeTab: initialTab as any } : {}),
+      ...(resolveDashboardTab(initialTab) ? { activeTab: resolveDashboardTab(initialTab)! } : {}),
       chatbots: initialChatbots || [],
       conversations: initialConversations || [],
       services: initialServices || [],
@@ -234,7 +244,12 @@ export default function DashboardClient({
       holidaySettings: initialHolidaySettings || {},
       isGoogleConnected: initialGoogleConnected || false,
       googleConnectedEmail: initialGoogleConnectedEmail || null,
-      hasGoogleCalendarAddon: initialHasGoogleCalendarAddon || Boolean((billingData as any)?.channelFlags?.has_google_calendar) || Boolean(((billingData as any)?.addons || []).some((a: any) => a.category === 'google_calendar')),
+      ...resolveCalendarAddonFlags({
+        initialHasGoogleCalendarAddon,
+        initialHasMicrosoftCalendarAddon,
+        channelFlags: (billingData as any)?.channelFlags,
+        addons: (billingData as any)?.addons,
+      }),
       businessAddress: initialBusinessAddress || '',
       postcode: initialPostcode || '',
       twilioShadowNumber: initialTwilioShadowNumber || null,
@@ -276,6 +291,7 @@ export default function DashboardClient({
     initialGoogleConnected,
     initialGoogleConnectedEmail,
     initialHasGoogleCalendarAddon,
+    initialHasMicrosoftCalendarAddon,
     initialBusinessAddress,
     initialPostcode,
     initialTwilioShadowNumber,
@@ -332,12 +348,13 @@ export default function DashboardClient({
   useEffect(() => {
     if (typeof window !== 'undefined') {
       const params = new URLSearchParams(window.location.search);
-      const tabParam = params.get('tab') || initialTab;
+      const tabParam = resolveDashboardTab(params.get('tab') || initialTab);
       if (tabParam) {
-        setActiveTab(tabParam as any);
+        setActiveTab(tabParam);
       }
-    } else if (initialTab) {
-      setActiveTab(initialTab as any);
+    } else {
+      const fromProp = resolveDashboardTab(initialTab);
+      if (fromProp) setActiveTab(fromProp);
     }
   }, [initialTab, setActiveTab]);
 
@@ -346,7 +363,7 @@ export default function DashboardClient({
     if (typeof window !== 'undefined') {
       const params = new URLSearchParams(window.location.search);
       const checkoutStatus = params.get('checkout_status');
-      const addon = params.get('addon') || params.get('addonCatalogId');
+      const addon = params.get('addon') || params.get('addonCatalogId') || params.get('addon_id');
       const tabParam = params.get('tab');
 
       if (checkoutStatus === 'success') {
@@ -357,17 +374,16 @@ export default function DashboardClient({
         }
 
         let targetTab: any = 'telephony';
-        let notificationMessage = '🎉 Subscription & Add-on payment successful! Your workspace features have been updated.';
+        const notificationMessage = resolveCheckoutSuccessBanner({ addonId: addon, tab: tabParam });
 
-        if (addon === 'google_calendar_addon' || tabParam === 'scheduling') {
+        if (addon === 'microsoft_calendar_addon') {
           targetTab = 'scheduling';
-          notificationMessage = '🎉 Google Calendar Integration payment successful! Two-way real-time calendar synchronization is now active.';
-        } else if (addon === 'data_pack_500' || tabParam === 'knowledge') {
-          targetTab = 'knowledge';
-          notificationMessage = '🎉 Knowledge Base Capacity payment successful! Additional vector storage chunks have been added to your workspace.';
+        } else if (addon === 'google_calendar_addon' || tabParam === 'scheduling') {
+          targetTab = 'scheduling';
+        } else if (addon === 'data_pack_500' || tabParam === 'knowledge' || tabParam === 'crawler') {
+          targetTab = 'crawler';
         } else if (addon === 'landline_addon' || addon === 'mobile_addon' || addon === 'sms_pack_100' || addon === 'voice_pack_20' || tabParam === 'telephony') {
           targetTab = 'telephony';
-          notificationMessage = '🎉 Subscription & Add-on payment successful! Your telephone channel is active. Search and select your preferred number below.';
         } else if (tabParam) {
           targetTab = tabParam;
         }
@@ -969,8 +985,7 @@ const globalBotId = '00000000-0000-0000-0000-000000000000';
                       }, 10000);
 
                       try {
-                        const isLocal = typeof window !== 'undefined' && (window.location.hostname.includes('localhost') || window.location.hostname.includes('.test'));
-                        const wpAppUrl = isLocal ? 'https://styleflo.test/app' : 'https://styleflo.ai/app';
+                        const wpAppUrl = publicAppPath('/dashboard?tab=billing');
                         const res = await fetch('/api/billing/checkout', {
                           method: 'POST',
                           headers: { 'Content-Type': 'application/json' },
@@ -1023,26 +1038,32 @@ const globalBotId = '00000000-0000-0000-0000-000000000000';
                   </div>
                 )}
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                  {/* Chunks Progress */}
+                  {/* Knowledge items progress */}
                   <div className="bg-[var(--awb-color2)] p-5 rounded-xl border border-[var(--awb-color3)]">
                     <div className="flex justify-between items-start mb-2">
-                      <h4 className="text-sm font-bold text-[var(--awb-color7)]">Knowledge Base Data Chunks</h4>
+                      <h4 className="text-sm font-bold text-[var(--awb-color7)]">Knowledge items</h4>
                       <button
                         onClick={() => setBillingUpsellCategory('data_pack')}
                         className="bg-[#198fd9] hover:bg-[#157ab9] text-white text-[11px] font-bold py-1 px-3 rounded-[4px] shadow-sm transition-colors cursor-pointer flex items-center gap-1 shrink-0"
-                        title="Purchase additional Knowledge Base data capacity"
+                        title="Purchase additional knowledge items capacity"
                       >
-                        + Add Chunks
+                        + Add knowledge items
                       </button>
                     </div>
                     <div className="flex justify-between text-xs text-[var(--awb-color6)] mb-2">
                       <span>{billingData?.usage?.chunks || 0} used</span>
                       <span>
-                        {billingData?.entitlements?.find((e: { feature_id: string; limit_value: number }) => e.feature_id === 'knowledge_data_chunks')?.limit_value || 500} total
+                        {knowledgeItemsTotal({
+                          entitlements: billingData?.entitlements,
+                          addons: billingData?.addons,
+                        })} total
                       </span>
                     </div>
                     <div className="w-full bg-[var(--awb-color3)] rounded-full h-2.5">
-                      <div className="bg-[var(--awb-color4)] h-2.5 rounded-full" style={{ width: `${Math.min(100, ((billingData?.usage?.chunks || 0) / (billingData?.entitlements?.find((e: { feature_id: string; limit_value: number }) => e.feature_id === 'knowledge_data_chunks')?.limit_value || 500)) * 100)}%`}}></div>
+                      <div className="bg-[var(--awb-color4)] h-2.5 rounded-full" style={{ width: `${Math.min(100, ((billingData?.usage?.chunks || 0) / Math.max(1, knowledgeItemsTotal({
+                          entitlements: billingData?.entitlements,
+                          addons: billingData?.addons,
+                        }))) * 100)}%`}}></div>
                     </div>
                   </div>
 

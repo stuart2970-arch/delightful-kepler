@@ -97,7 +97,9 @@ export default function RootLayout({
                     if (!host.endsWith('styleflo.ai')) return;
                     var match = document.cookie.match(/(?:^|;\\s*)cookieyes-consent=([^;]+)/);
                     if (match && match[1]) {
-                      document.cookie = 'cookieyes-consent=' + match[1] + '; domain=.styleflo.ai; path=/; max-age=31536000; SameSite=Lax; Secure';
+                      var hostOnly = host === 'staging.styleflo.ai' || host.indexOf('staging.') === 0;
+                      var domainPart = hostOnly ? '' : '; domain=.styleflo.ai';
+                      document.cookie = 'cookieyes-consent=' + match[1] + domainPart + '; path=/; max-age=31536000; SameSite=Lax; Secure';
                     }
                   }
                   document.addEventListener('cookieyes_consent_update', syncConsentCookie);

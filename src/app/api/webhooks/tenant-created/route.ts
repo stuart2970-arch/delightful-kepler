@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { getWordpressPublishConfig } from '@/lib/env/wordpress-publish';
 
 export async function POST(req: NextRequest) {
   try {
@@ -16,9 +17,12 @@ export async function POST(req: NextRequest) {
 
     const name = company_name || record.name || 'Unnamed Business';
 
-    const wordpressSiteUrl = process.env.WORDPRESS_SITE_URL || 'https://styleflo.ai';
-    const wpApiUrl = `${wordpressSiteUrl}/wp-json/styleflo/v1/create-business`;
-    const token = process.env.STYLEFLO_WP_CREATE_BUSINESS_TOKEN || 'd1f5e82b79a83604f05c48b2';
+    const wpConfig = getWordpressPublishConfig();
+    if (!wpConfig.enabled) {
+      return NextResponse.json({ success: false, error: wpConfig.reason }, { status: 200 });
+    }
+
+    const wpApiUrl = `${wpConfig.wordpressSiteUrl}/wp-json/styleflo/v1/create-business`;
 
     console.log(`[Tenant Created Webhook] Syncing tenant "${name}" with slug "${slug}" to WordPress: ${wpApiUrl}`);
 
@@ -30,7 +34,7 @@ export async function POST(req: NextRequest) {
       body: JSON.stringify({
         slug: slug,
         title: name,
-        token: token
+        token: wpConfig.token
       })
     });
 

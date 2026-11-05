@@ -3979,3 +3979,106 @@ Highlighted adjustments in the modal:
   - `getBrowserTurnstileToken` consumes the current slot, then clears it and calls `turnstile.reset(widgetId)` on the still-mounted widget. Error and timeout paths do the same. The 15s timer is cleared when the wait settles.
   - Playwright: two sequential magic-link sends with a mocked `window.turnstile` must send `token-1` then `token-2`.
   - `tests/auth.spec.ts` uses a unique email so the per-email cap of 3 does not fail a later suite run in the same 15-minute window.
+
+### Session (STYL-226 items 2–4 - staging gate into staging - 30 Oct 2026)
+* **User / Jira**: STYL-226 signed-off staging plan items 2, 3 and 4. One PR whose base is `staging` (7071e18). Stuart D1–D8 override the plan: no `deploy-staging.yml`; no GitHub `production` environment on `deploy.yml`; WordPress off on staging with no live fallback; no Twilio buys or real calls; wire `STRIPE_WEBHOOK_SECRET` and verify signatures; one long-lived `staging` branch plus same-day hotfix back-merge; production auto-rollback out of scope.
+* **Changes**:
+  - Item 2: `playwright.yml` runs on PRs to `main` and `staging`. `docs/staging.md` documents live branch `staging`, `https://staging.styleflo.ai`, the merge flow, and same-day hotfix back-merge. `tests/styl-226-release-source.spec.ts` (no production-environment assertion).
+  - Item 3: `apphosting.yaml` / `apphosting.staging.yaml` set public URLs to `https://staging.styleflo.ai` and reference Stripe, Twilio (staging SIDs from Jira comment 10163), Vapi (+ aliases), Mailgun, `CRON_SECRET`, Google/Microsoft OAuth, ElevenLabs, and Places by Secret Manager **name**. WordPress secrets stay unwired. STYL-203 tests updated.
+  - Item 4a–4g: `getPublicAppOrigin` / `publicAppPath` for login, register, onboard, checkout, magic-link, and OAuth callbacks; widget Turnstile from env only; host-only SSO cookies on staging; WordPress guard; Vapi from env only; inbound no longer selects dropped `chatbots.vapi_assistant_id`; Stripe `constructEvent` verification.
+  - Playwright: `tests/styl-226-*.spec.ts`. Full local suite against `.env.test` / local Supabase (never live).
+
+### Session (fixed-price bolt-on checkout + staging return URLs - 1 Nov 2026)
+* **User**: Branch off `staging` (1d5a875), PR targeting `staging` only. Do not merge. Never `--no-verify`. Do not touch live Supabase or production.
+* **Bug 1**: `AddOnUpsellModal` sent `customPricePence = monthly_price_pence` for every non-slider add-on except `remove_branding`. Checkout rejected that when `!addon.is_sliding` (`google_calendar_addon`, `microsoft_calendar_addon`, `data_pack_500` at 499p).
+* **Bug 2**: Checkout/portal return URLs were hard-coded to `https://styleflo.ai/app`, so staging sent users back to production.
+* **Changes**:
+  - Client: only send `customPricePence` for sliding add-ons.
+  - Server: accept a custom price equal to the catalogue price on fixed add-ons; clearer 400 when a non-sliding add-on gets any other custom price.
+  - Return URLs first used `publicAppPath('/app')` / `/#pricing` (no `/app` route; cancel lost pricing). PO review on PR 17: switch to `/dashboard?tab=…` and `/register`.
+  - Playwright: targeted checkout/origin specs 35 passed; full suite 337 passed locally against `.env.test` / local Supabase / `sk_test_mock` (never live).
+
+### Session (PR 17 PO review - dashboard return URLs - 1 Nov 2026)
+* **User**: Same branch. Do not merge. Never `--no-verify`. Product Owner blockers on PR 17.
+* **Changes**:
+  - Checkout, portal, login, proxy, and `/dashboard/billing` now return to `publicAppPath('/dashboard')` with the matching `?tab=` (`scheduling`, `crawler`, `telephony`, `billing`). There is no `/app` route.
+  - New-plan checkout cancel goes to `/register` (in-app Foundation pricing), not `/#pricing`.
+  - `safePublicReturnUrl` returns `new URL(value).href`. Extra returnUrl edge-case tests.
+  - Tests cover `microsoft_calendar_addon` and `remove_styleflo_branding`, existing routes (not 404), staging vs production `success_url` hosts, and signed-in `/login` → `/dashboard`.
+  - WordPress `styleflo.ai/app` wrapper: embedded login now sends `window.top` to `{login origin}/dashboard`, which leaves the WP iframe. Top-level login was already `/dashboard`.
+  - Local: typecheck passed; targeted specs 42 passed; full Playwright 344 passed (`.env.test` / local Supabase / `sk_test_mock`).
+
+### Session (PR 17 follow-up - dashboard tabs and login fallback - 1 Nov 2026)
+* **User**: PR 17 merged as `fc65c917`. New branch off latest staging. Do not merge. Never `--no-verify`.
+* **Changes**:
+  - Extra Knowledge checkout success maps `knowledge` → `crawler` so the Knowledge Base panel renders.
+  - Microsoft Calendar success banner no longer says Google Calendar.
+  - Embedded login wraps `window.top` navigation in try/catch and falls back to `window.location.assign('/dashboard')`.
+  - `safePublicReturnUrl` rejects backslash and userinfo-@ URLs.
+  - Playwright: signed-in tab loads for billing/scheduling/crawler/telephony; Extra Knowledge success redirect; returnUrl edge cases. Full suite 351 passed locally.
+
+### Session (paid bolt-on activation after Stripe checkout - 1 Nov 2026)
+* **User**: Follow the Bolton fix brief. Branch off `staging` (566a854). Open a PR with base `staging`, not `main`. Do not merge. Never `--no-verify`. No live Stripe, live Supabase, WordPress publishing, or Vapi/number provisioning.
+* **Root cause**: Bolt-on Checkout Sessions used inline `price_data` and omitted `is_addon: 'true'`. `/api/webhooks/stripe` only treated a session as a bolt-on when `metadata.is_addon === 'true'`, so paid bolt-ons fell into the base-plan path (`plan_tier='base_tier'`, +10 voice minutes, no `tenant_active_addons` row). `customer.subscription.updated` looked up add-ons by `stripe_price_id` (never matches inline prices). `customer.subscription.deleted` without `is_addon` cancelled the whole tenant. The category map had no `microsoft_calendar` entry.
+* **Changes**:
+  - Bolt-on checkout writes `is_addon='true'` and `addon_catalog_id` on session and `subscription_data` metadata (sliding included).
+  - Webhook detects bolt-ons by `is_addon` **or** `addon_catalog_id`. Base-plan activate/cancel paths never run for a bolt-on. Updated/deleted handlers read subscription metadata. Cancelling a bolt-on deactivates only that row; the tenant stays active.
+  - Activation is idempotent (redelivery does not insert a second row or double-grant credits). `data_pack_500` raises knowledge allowance via the active add-on; Google/Microsoft Calendar bolt-ons are marked active. `microsoft_calendar` maps to the Microsoft Calendar feature.
+  - Extra Knowledge success banner uses British English “knowledge items” and “Payment received. Your bolt-on will switch on in a moment.” — it does not say the bolt-on is already active, and does not mention chunks or vector storage.
+  - Tests: `tests/unit/bolton-activation.spec.ts`, checkout metadata cases in `tests/addons-sliding-scale.spec.ts`, dashboard banner cases in `tests/dashboard-return-tabs.spec.ts`. Mock config / `.env.test` only. Full Playwright suite: **368 passed** locally against local Supabase and `sk_test_mock` (never live).
+
+### Session (PR 19 PO review - Microsoft flag, knowledge total, webhook fall-through - 1 Nov 2026)
+* **User**: Product Owner BLOCK on PR 19. Same branch, base `staging`, do not merge.
+* **Blockers fixed**:
+  - Microsoft Calendar flag: dashboard + `DashboardClient` now set `hasMicrosoftCalendarAddon` from the bolt-on row / `has_microsoft_calendar`. Scheduling reads that flag (plus billing add-ons as fallback).
+  - Extra Knowledge total: Subscriptions shows `knowledgeItemsTotal` (base entitlement + active data-pack allowance), not the base-only 50/500 figure.
+  - Bolt-on checkout with a missing catalogue row or missing `addon_catalog_id` returns early and never rewrites `plan_tier` or grants +10 voice minutes.
+* **Medium**:
+  - `customer.subscription.updated` only activates when Stripe status is `active` or `trialing`.
+  - One-off voice/SMS packs are idempotent on checkout session ID.
+  - Customer-facing ingest/billing copy uses “knowledge items”, not chunks/vectorized.
+  - STYL-200 nav click restored.
+  - Tests for update-status gating, one-off redelivery, missing-catalogue fall-through, Microsoft flag and knowledge total in the UI.
+
+### Session (PR 19 PO wording re-review - knowledge items + capacity banner - 1 Nov 2026)
+* **User**: Functionally PASS, BLOCKED on wording. Same PR 19 branch, do not merge. Customer-visible “chunks” in ingest text/crawl JSON must become “knowledge items”. Superadmin “500 chunks” examples stay. Capacity banner must use `knowledgeItemsTotal`. If small: cancel-total test + unique one-off checkout-session constraint (staging/local migrations only).
+* **Changes**:
+  - `src/app/api/ingest/text/route.ts` and `src/app/api/ingest/crawl/route.ts` customer `error`/`message` strings now say “knowledge items”.
+  - Dashboard 85% knowledge banner uses `knowledgeItemsTotal` so an Extra Knowledge +500 does not fire a false upgrade warning against the base limit.
+  - Unit + Playwright coverage that the knowledge total drops when Extra Knowledge is cancelled (`is_active=false`).
+  - Migration `20261101210000_one_off_checkout_session_unique.sql`: allow `one_off_addon_purchased` on `addon_audit_log.action` and unique-index `(tenant_id, addon_catalog_id, stripe_session_id)` for that action.
+  - Local: `npm run typecheck` passed. Playwright **377 passed** against `.env.test` / local Supabase / `sk_test_mock` (never live).
+
+### Session (PR 19 PO re-check - one-off audit insert before credits - 1 Nov 2026)
+* **User**: BLOCK. Unique index does not protect grants because credits are allocated before the audit insert, and insert errors are ignored. Same PR 19, do not merge.
+* **Changes**:
+  - One-off fulfilment inserts `addon_audit_log` first. Postgres `23505` is treated as already granted (200, no credits). Any other insert error returns 500 so Stripe retries, and credits are not allocated.
+  - Credits are allocated only after a successful one-off audit insert.
+  - Test: redelivered one-off grants once; failed audit insert grants nothing.
+
+### Session (PR after 19 - atomic one-off grant on allocation failure - 1 Nov 2026)
+* **User**: PR 19 squash-merged to staging (`584fc848`). New small PR off latest staging. `allocateRollingCredits` ignored `usage_ledger` insert errors. Must throw. One-off webhook must not leave an audit row if allocation fails (500 so Stripe retries). Prefer one Postgres function for audit + ledger. Multi-credit packs must not be partly granted. Do not apply the migration. Do not merge.
+* **Changes**:
+  - `allocateRollingCredits` throws when the ledger insert fails.
+  - One-off fulfilment calls `grant_one_off_pack` (audit + every credit in one transaction). If the RPC is missing, it inserts the audit row, allocates all credits, and on any allocation error deletes the new audit row and any ledger rows from that attempt, then returns 500.
+  - Migration `20261101223000_grant_one_off_pack_atomic.sql` is added only (not applied here).
+  - Tests: failed allocation → 500 and no audit row, retry grants exactly once; a two-credit pack rolls back a partial grant.
+
+### Session (PR 21 review - auto top-up after RPC + rollback checks - 1 Nov 2026)
+* **User**: BLOCK on PR 21. Same branch. RPC success returned before `voice_auto_topup`. Check rollback delete errors. Trust only `data.already_granted` from the RPC. Make ledger assertions real. RPC success / already_granted / missing-function tests. `search_path = public, pg_temp`. Do not apply the migration. Do not merge.
+* **Changes**:
+  - Successful RPC and JS fallback both run channel sync and the auto top-up tenant update.
+  - Rollback delete errors on `usage_ledger` or `addon_audit_log` are logged as CRITICAL and return 500.
+  - RPC `23505` is no longer treated as already granted.
+  - Tests cover auto top-up after a successful RPC, both delete failures, RPC already_granted, RPC unique-violation, missing-function fallback, and a partial pack whose mock writes the ledger.
+  - Local: `npm run typecheck` passed. Playwright **386 passed** against `.env.test` / local Supabase / `sk_test_mock` (never live). Migration not applied.
+
+### Session (expired calendar test dates - release PR 22 CI - 5 Nov 2026)
+* **User**: Make CI green for release PR 22 (`staging` → `main`) by fixing tests pinned to dates now in the past. Test-only. Symptom: CI run 42037737385, `tests/styl-182-calendar-booking.spec.ts` (~line 92) `slots.length = 0`. Hypothesis: hard-coded Mon 2 Nov 2026 09:00–17:00 London is clamped/dropped once that day is past.
+* **Changes**:
+  - Added `tests/helpers/uk-future-weekday.ts` to pick the next Mon–Fri in `Europe/London` (skip today, skip weekends, noon-based day math for DST).
+  - `styl-182` Google availability, Microsoft booking, race re-offer, idempotency, and widget mock tags now use that helper. Voice `CHECK_AVAILABILITY` windows updated the same way.
+  - Left frozen-clock fixtures (`styl-195`, `tests/unit/availability.spec.ts`) and payload-only `weekCommencingDate` in `scheduling-verification.spec.ts` unchanged.
+  - Playwright helper spec covers weekend skip, UK autumn clock change, and a full 09:00–17:00 window after `now`.
+  - Hypothesis confirmed with a fixture call: pinned `2026-11-02` window after 5 Nov → `invalid_window` / 0 slots; computed next UK weekday → 14 slots.
+  - Local Playwright (local Supabase + mock keys): helper + `styl-182` + voice **13 passed**; full suite **389 passed**. `tsc`, apphosting yaml, and live-ref checks passed.

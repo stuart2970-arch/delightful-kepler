@@ -37,7 +37,7 @@ test.describe('STYL-203: Firebase App Hosting staging guards', () => {
     expect(baseText).toContain('1x0000000000000000000000000000000AA');
   });
 
-  test('apphosting.staging.yaml keeps only the six core secrets (plus aliases)', () => {
+  test('apphosting.staging.yaml requires the wired Secret Manager names (STYL-226)', () => {
     const stagingText = readFileSync(join(root, 'apphosting.staging.yaml'), 'utf8');
     const secretLines = stagingText
       .split('\n')
@@ -45,35 +45,33 @@ test.describe('STYL-203: Firebase App Hosting staging guards', () => {
       .filter((l) => l.startsWith('secret:'));
     const secretNames = secretLines.map((l) => l.replace(/^secret:\s*/, '').trim());
 
-    // Six Secret Manager resource names (aliases reuse the same names).
-    expect(new Set(secretNames)).toEqual(
-      new Set([
-        'NEXT_PUBLIC_SUPABASE_ANON_KEY',
-        'SUPABASE_SERVICE_ROLE_KEY',
-        'GEMINI_API_KEY',
-        'CLOUDFLARE_TURNSTILE_SECRET_KEY',
-        'CHAT_SESSION_SIGNING_SECRET',
-        'TOKEN_ENC_KEY',
-      ]),
-    );
-
-    // Feature secrets must not be required at rollout time.
-    for (const forbidden of [
+    for (const required of [
+      'NEXT_PUBLIC_SUPABASE_ANON_KEY',
+      'SUPABASE_SERVICE_ROLE_KEY',
+      'GEMINI_API_KEY',
+      'CLOUDFLARE_TURNSTILE_SECRET_KEY',
+      'CHAT_SESSION_SIGNING_SECRET',
+      'TOKEN_ENC_KEY',
       'STRIPE_SECRET_KEY',
       'STRIPE_WEBHOOK_SECRET',
       'MAILGUN_API_KEY',
       'TWILIO_ACCOUNT_SID',
       'VAPI_API_KEY',
-      'META_ACCESS_TOKEN',
+      'NEXT_PUBLIC_VAPI_PUBLIC_KEY',
       'GOOGLE_CLIENT_SECRET',
       'MICROSOFT_CLIENT_SECRET',
       'ELEVENLABS_API_KEY',
       'CRON_SECRET',
+      'GOOGLE_PLACES_SERVER_API_KEY',
+    ]) {
+      expect(secretNames, required).toContain(required);
+    }
+
+    for (const forbidden of [
+      'META_ACCESS_TOKEN',
       'OPENCLAW_BEARER_TOKEN',
       'WPMUDEV_WEBHOOK_SECRET',
       'STYLEFLO_WP_API_SECRET',
-      'GOOGLE_PLACES_SERVER_API_KEY',
-      'NEXT_PUBLIC_VAPI_PUBLIC_KEY',
     ]) {
       expect(secretNames, forbidden).not.toContain(forbidden);
     }

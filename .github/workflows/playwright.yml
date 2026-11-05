@@ -4,6 +4,7 @@ on:
   pull_request:
     branches:
       - main
+      - staging
 
 concurrency:
   group: playwright-${{ github.workflow }}-${{ github.ref }}

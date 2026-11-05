@@ -2,10 +2,8 @@ const esbuild = require('esbuild');
 
 console.log('Building StyleFlo widget...');
 
-// STYL-203: bake NEXT_PUBLIC_TURNSTILE_SITE_KEY when present (App Hosting BUILD
-// injects the staging always-pass site key). Fall back to the live site key.
-const turnstileSiteKey =
-  process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY || '0x4AAAAAAEcGPat6Ll-AhKbf';
+// STYL-226: bake NEXT_PUBLIC_TURNSTILE_SITE_KEY when present. No production fallback.
+const turnstileSiteKey = process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY || '';
 
 esbuild.build({
   entryPoints: {

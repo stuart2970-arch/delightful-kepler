@@ -36,12 +36,12 @@ import { resolveChatFooter } from '../lib/billing/branding';
     sessionId = 'session_' + crypto.randomUUID();
     localStorage.setItem(sessionKey, sessionId);
   }
-  // Prefer embed attribute, then build-time NEXT_PUBLIC_TURNSTILE_SITE_KEY (staging
-  // App Hosting bakes the Cloudflare always-pass site key), then live site key.
+  // Prefer embed attribute, then build-time NEXT_PUBLIC_TURNSTILE_SITE_KEY.
+  // No production site-key fallback — missing keys fail the challenge in the UI.
   const turnstileSiteKey =
     scriptEl.getAttribute('data-turnstile-sitekey') ||
     (typeof process !== 'undefined' && process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY) ||
-    '0x4AAAAAAEcGPat6Ll-AhKbf';
+    '';
 
   async function getTurnstileViaIframe(): Promise<string> {
     return new Promise((resolve, reject) => {
@@ -547,8 +547,8 @@ import { resolveChatFooter } from '../lib/billing/branding';
         brandingHtml = footer.html;
         voiceEnabled = config.voiceEnabled || false;
         requireClientName = config.requireClientName || false;
-        vapiPublicKey = config.vapiPublicKey || '3648bdcb-ccac-4acc-aee6-a4f9384743de';
-        vapiAssistantId = config.vapiAssistantId || '1bb95940-1cb9-4c54-9b16-ba5bc11daae2';
+        vapiPublicKey = config.vapiPublicKey || '';
+        vapiAssistantId = config.vapiAssistantId || '';
         globalVoiceDisclaimer = (config.globalVoiceDisclaimer || '')
           .replace(/\bour AI agent\b/gi, 'our AI assistant')
           .replace(/\bAI agent\b/gi, 'AI assistant');

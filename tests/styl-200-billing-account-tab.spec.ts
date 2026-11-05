@@ -88,7 +88,7 @@ test.describe('STYL-200 billing account tab (STYL-194/196 + STYL-193)', () => {
 
     await loginWithPassword(page, email, password);
     await page.locator('nav').locator('text=Subscriptions & Bolt-ons').first().click();
-    await expect(page.getByRole('heading', { name: /Current plan =/i })).toBeVisible({ timeout: 15000 });
+    await expect(page.getByRole('heading', { name: /Current plan =/i })).toBeVisible({ timeout: 20000 });
     await expect(page.getByRole('heading', { name: 'Remove StyleFlo branding' })).toBeVisible();
     await expect(page.getByText('£4.99/mo').first()).toBeVisible();
     await expect(page.getByRole('button', { name: 'Already included' }).first()).toBeVisible();

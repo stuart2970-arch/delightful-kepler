@@ -6,6 +6,7 @@ import LegalModal from '@/components/LegalModal';
 import { trackSignUp, trackVisitorNotSignedUp, trackLeadIntent } from '@/lib/analytics';
 import { getSupabaseBrowserClient } from '@/lib/supabase-browser';
 import { getBrowserTurnstileToken } from '@/lib/turnstile-client';
+import { publicAppPath } from '@/lib/env/public-app-url';
 
 function RegisterContent() {
   const router = useRouter();
@@ -172,14 +173,8 @@ function RegisterContent() {
     setLoading(true);
     setError(null);
     try {
-      const isLocal = typeof window !== 'undefined' && (
-        window.location.hostname === 'localhost' || 
-        window.location.hostname === '127.0.0.1'
-      );
       const checkoutNext = `/api/billing/checkout?plan=${planParam || 'foundation'}${addonsParam ? `&addons=${encodeURIComponent(addonsParam)}` : ''}`;
-      const redirectUrl = isLocal 
-        ? `${window.location.origin}/auth/callback?next=${encodeURIComponent(checkoutNext)}`
-        : `https://app.styleflo.ai/auth/callback?next=${encodeURIComponent(checkoutNext)}`;
+      const redirectUrl = publicAppPath(`/auth/callback?next=${encodeURIComponent(checkoutNext)}`);
 
       trackSignUp('google', planParam);
       const supabase = getSupabaseBrowserClient();
@@ -263,13 +258,7 @@ function RegisterContent() {
 
       const finalSlug = slugStatus?.slug || companyName.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
 
-      const isLocal = typeof window !== 'undefined' && (
-        window.location.hostname === 'localhost' || 
-        window.location.hostname === '127.0.0.1'
-      );
-      const redirectUrl = isLocal 
-        ? `${window.location.origin}/auth/callback?next=/dashboard`
-        : 'https://app.styleflo.ai/auth/callback?next=/dashboard';
+      const redirectUrl = publicAppPath('/auth/callback?next=/dashboard');
 
       const supabase = getSupabaseBrowserClient();
       const { data, error } = await supabase.auth.signUp({
@@ -315,7 +304,7 @@ function RegisterContent() {
         }
       } else {
         // Trigger Stripe Checkout with plan and bolt-ons in basket
-        const returnTargetUrl = `${isLocal ? (typeof window !== 'undefined' ? window.location.origin : '') : 'https://app.styleflo.ai'}/payment-confirmed`;
+        const returnTargetUrl = publicAppPath('/payment-confirmed');
         const checkoutRes = await fetch('/api/billing/checkout', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },

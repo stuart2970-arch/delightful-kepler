@@ -7,6 +7,7 @@ import {
   REMOVE_STYLEFLO_BRANDING_ADDON_ID,
   tenantHidesStyleFloBranding,
 } from '@/lib/billing/branding';
+import { getVapiRuntimeConfig } from '@/lib/env/vapi-config';
 
 export const dynamic = 'force-dynamic';
 
@@ -80,8 +81,8 @@ export async function GET(
         voiceEnabled: floConfig.voiceEnabled ?? false,
         voiceId: floConfig.voiceId || null,
         voiceProvider: '11labs',
-        vapiPublicKey: process.env.NEXT_PUBLIC_VAPI_PUBLIC_KEY || process.env.VAPI_PUBLIC_KEY || '3648bdcb-ccac-4acc-aee6-a4f9384743de',
-        vapiAssistantId: process.env.VAPI_MASTER_ASSISTANT_ID || '1bb95940-1cb9-4c54-9b16-ba5bc11daae2',
+        vapiPublicKey: getVapiRuntimeConfig().vapiPublicKey,
+        vapiAssistantId: getVapiRuntimeConfig().vapiAssistantId,
         requireClientName: false
       }, { headers: corsHeaders });
     }
@@ -101,8 +102,8 @@ export async function GET(
         hideStyleFloBranding: false,
         brandingUrl: 'https://styleflo.ai',
         voiceEnabled: true,
-        vapiPublicKey: process.env.NEXT_PUBLIC_VAPI_PUBLIC_KEY || '3648bdcb-ccac-4acc-aee6-a4f9384743de',
-        vapiAssistantId: process.env.VAPI_MASTER_ASSISTANT_ID || '1bb95940-1cb9-4c54-9b16-ba5bc11daae2',
+        vapiPublicKey: getVapiRuntimeConfig().vapiPublicKey,
+        vapiAssistantId: getVapiRuntimeConfig().vapiAssistantId,
         globalVoiceDisclaimer: '',
         voiceProvider: '11labs',
         voiceId: 'bIHbv24MWmeRgasZH58o',
@@ -128,8 +129,8 @@ export async function GET(
         hideStyleFloBranding: false,
         brandingUrl: 'https://styleflo.ai',
         voiceEnabled: true,
-        vapiPublicKey: process.env.NEXT_PUBLIC_VAPI_PUBLIC_KEY || '3648bdcb-ccac-4acc-aee6-a4f9384743de',
-        vapiAssistantId: process.env.VAPI_MASTER_ASSISTANT_ID || '1bb95940-1cb9-4c54-9b16-ba5bc11daae2',
+        vapiPublicKey: getVapiRuntimeConfig().vapiPublicKey,
+        vapiAssistantId: getVapiRuntimeConfig().vapiAssistantId,
         globalVoiceDisclaimer: '',
         voiceProvider: '11labs',
         voiceId: 'bIHbv24MWmeRgasZH58o',
@@ -163,8 +164,8 @@ export async function GET(
           hideStyleFloBranding: false,
           brandingUrl: 'https://styleflo.ai',
           voiceEnabled: true,
-          vapiPublicKey: process.env.NEXT_PUBLIC_VAPI_PUBLIC_KEY || '3648bdcb-ccac-4acc-aee6-a4f9384743de',
-          vapiAssistantId: process.env.VAPI_MASTER_ASSISTANT_ID || '1bb95940-1cb9-4c54-9b16-ba5bc11daae2',
+          vapiPublicKey: getVapiRuntimeConfig().vapiPublicKey,
+          vapiAssistantId: getVapiRuntimeConfig().vapiAssistantId,
           globalVoiceDisclaimer: '',
           voiceProvider: '11labs',
           voiceId: 'dqTe8OSrj3PERbkXF8Kx',
@@ -335,8 +336,10 @@ export async function GET(
       hideStyleFloBranding,
       brandingUrl: globalConfig.branding_url || 'https://styleflo.ai',
       voiceEnabled: isVoiceActive,
-      vapiPublicKey: process.env.NEXT_PUBLIC_VAPI_PUBLIC_KEY || process.env.VAPI_PUBLIC_KEY || '',
-      vapiAssistantId: config.vapi_assistant_id || (chatbot as any).vapi_assistant_id || process.env.VAPI_MASTER_ASSISTANT_ID || '',
+      vapiPublicKey: getVapiRuntimeConfig().vapiPublicKey,
+      vapiAssistantId: (typeof config.vapi_assistant_id === 'string' && config.vapi_assistant_id.trim())
+        ? config.vapi_assistant_id.trim()
+        : getVapiRuntimeConfig().vapiAssistantId,
       globalVoiceDisclaimer: globalConfig.global_voice_disclaimer || '',
       voiceProvider: voiceProvider,
       voiceId: resolvedVoiceId,

@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import twilio from 'twilio';
+import { getVapiMasterAssistantId } from '@/lib/env/vapi-config';
 
 export const dynamic = 'force-dynamic';
 
@@ -86,16 +87,26 @@ export async function POST(request: Request) {
     // 3. Resolve the Vapi assistant ID for this tenant's chatbot
     const { data: chatbots } = await supabase
       .from('chatbots')
-      .select('id, name, vapi_assistant_id, configuration_json')
+      .select('id, name, configuration_json')
       .eq('tenant_id', tenant.id)
       .limit(5);
 
-    const activeBot = (chatbots || []).find(b => b.vapi_assistant_id && !b.vapi_assistant_id.startsWith('vapi-')) || (chatbots || [])[0];
-    const rawBotAssistantId = activeBot?.vapi_assistant_id || (activeBot?.configuration_json as any)?.vapi_assistant_id;
-
+    const activeBot = (chatbots || []).find((b) => {
+      const fromConfig = (b?.configuration_json as { vapi_assistant_id?: string } | null)?.vapi_assistant_id;
+      return Boolean(fromConfig && !fromConfig.startsWith('vapi-'));
+    }) || (chatbots || [])[0];
+    const rawBotAssistantId = (activeBot?.configuration_json as { vapi_assistant_id?: string } | null)?.vapi_assistant_id;
     const resolvedAssistantId = (rawBotAssistantId && !rawBotAssistantId.startsWith('vapi-'))
       ? rawBotAssistantId
-      : (process.env.VAPI_MASTER_ASSISTANT_ID || '1bb95940-1cb9-4c54-9b16-ba5bc11daae2');
+      : getVapiMasterAssistantId();
+
+    if (!resolvedAssistantId) {
+      twiml.say('Sorry, this number is not configured correctly. Goodbye.');
+      return new NextResponse(twiml.toString(), {
+        status: 200,
+        headers: { 'Content-Type': 'text/xml' },
+      });
+    }
 
     console.log(`[Telephony Inbound] Forwarding call for tenant ${tenant.id} to Vapi handler (remaining mins: ${remainingMinutes}, plan: ${planTier})`);
     twiml.redirect('https://api.vapi.ai/twilio/inbound_call');

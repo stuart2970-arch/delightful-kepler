@@ -69,13 +69,13 @@ env:
       - RUNTIME
 
   - variable: NEXT_PUBLIC_APP_URL
-    value: https://delightful-kepler--styleflo-staging.europe-west4.hosted.app
+    value: https://staging.styleflo.ai
     availability:
       - BUILD
       - RUNTIME
 
   - variable: NEXT_PUBLIC_SITE_URL
-    value: https://delightful-kepler--styleflo-staging.europe-west4.hosted.app
+    value: https://staging.styleflo.ai
     availability:
       - BUILD
       - RUNTIME

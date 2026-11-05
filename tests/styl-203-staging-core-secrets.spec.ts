@@ -28,8 +28,7 @@ test.describe('STYL-203: staging core secrets / graceful degrade', () => {
       // Force the production-URL path (would throw without the staging soft-degrade).
       process.env.APP_ENV = 'staging';
       process.env.NEXT_PUBLIC_ENV = 'staging';
-      process.env.NEXT_PUBLIC_APP_URL =
-        'https://delightful-kepler--styleflo-staging.europe-west4.hosted.app';
+      process.env.NEXT_PUBLIC_APP_URL = 'https://staging.styleflo.ai';
       delete process.env.PLAYWRIGHT_TEST;
       delete process.env.CI;
       process.env.NODE_ENV = 'production';
@@ -65,9 +64,10 @@ test.describe('STYL-203: staging core secrets / graceful degrade', () => {
       );
     }
 
-    expect(docs).toContain('Feature secrets to add later');
+    expect(docs).toContain('Wired feature secrets (STYL-226)');
     expect(docs).toContain('openssl rand -hex 32');
-    expect(docs).toMatch(/STRIPE_WEBHOOK_SECRET.*unused/i);
+    expect(docs).toContain('STRIPE_WEBHOOK_SECRET');
+    expect(docs).toContain('https://staging.styleflo.ai');
     expect(docs).toContain('1x0000000000000000000000000000000AA');
   });
 });

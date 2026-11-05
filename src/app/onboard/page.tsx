@@ -5,6 +5,7 @@ import { useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import LegalModal from '@/components/LegalModal';
 import { getSupabaseBrowserClient } from '@/lib/supabase-browser';
+import { publicAppPath } from '@/lib/env/public-app-url';
 
 function OnboardContent() {
   const searchParams = useSearchParams();
@@ -28,13 +29,7 @@ function OnboardContent() {
     setLoading(true);
     setError(null);
     try {
-      const isLocal = typeof window !== 'undefined' && (
-        window.location.hostname === 'localhost' || 
-        window.location.hostname === '127.0.0.1'
-      );
-      const redirectUrl = isLocal 
-        ? `${window.location.origin}/dashboard`
-        : 'https://app.styleflo.ai/dashboard';
+      const redirectUrl = publicAppPath('/dashboard');
 
       const supabase = getSupabaseBrowserClient();
       const { data, error } = await (supabase.auth.signInWithOAuth as any)({
