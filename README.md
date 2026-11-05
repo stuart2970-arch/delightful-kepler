@@ -4080,4 +4080,5 @@ Highlighted adjustments in the modal:
   - `styl-182` Google availability, Microsoft booking, race re-offer, idempotency, and widget mock tags now use that helper. Voice `CHECK_AVAILABILITY` windows updated the same way.
   - Left frozen-clock fixtures (`styl-195`, `tests/unit/availability.spec.ts`) and payload-only `weekCommencingDate` in `scheduling-verification.spec.ts` unchanged.
   - Playwright helper spec covers weekend skip, UK autumn clock change, and a full 09:00–17:00 window after `now`.
-  - Hypothesis confirmed with a fixture call: pinned `2026-11-02` window after 5 Nov → `invalid_window` / 0 slots; computed next UK weekday → 14 slots. Helper + `styl-195` + `unit/availability` Playwright: **16 passed**. `tsc`, apphosting yaml, and live-ref checks passed. Full `npm run test:e2e` needs local Supabase; container-to-container Docker networking was broken in this VM (schema init timeout), so GitHub Actions will run the full suite.
+  - Hypothesis confirmed with a fixture call: pinned `2026-11-02` window after 5 Nov → `invalid_window` / 0 slots; computed next UK weekday → 14 slots.
+  - Local Playwright (local Supabase + mock keys): helper + `styl-182` + voice **13 passed**; full suite **389 passed**. `tsc`, apphosting yaml, and live-ref checks passed.
