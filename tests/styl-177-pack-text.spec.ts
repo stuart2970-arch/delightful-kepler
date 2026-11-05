@@ -70,9 +70,9 @@ test.describe('STYL-177: Bolt-on and pack wording, legacy pack retirement, and s
 
   test('Checkout Mode 2 with retired pack ID returns HTTP 404', async ({ request }) => {
     const res = await request.post('/api/billing/checkout', {
+      headers: { Authorization: `Bearer ${normalUserSession.token}` },
       data: {
         addonCatalogId: 'voice_pack_50',
-        tenantId: '10000000-0000-0000-0000-000000000002',
       },
     });
     expect(res.status()).toBe(404);
@@ -91,6 +91,7 @@ test.describe('STYL-177: Bolt-on and pack wording, legacy pack retirement, and s
 
     // 3. Active one-off SMS pack on signup path
     const resSmsOneOff = await request.post('/api/billing/checkout', {
+      headers: { Authorization: `Bearer ${normalUserSession.token}` },
       data: {
         plan: 'foundation',
         addons: ['sms_pack_100'],
@@ -103,9 +104,9 @@ test.describe('STYL-177: Bolt-on and pack wording, legacy pack retirement, and s
 
   test('Valid sliding SMS pack purchase in Mode 2 creates Stripe checkout session with one-off description', async ({ request }) => {
     const res = await request.post('/api/billing/checkout', {
+      headers: { Authorization: `Bearer ${normalUserSession.token}` },
       data: {
         addonCatalogId: 'sms_pack_100',
-        tenantId: '10000000-0000-0000-0000-000000000002',
         customPricePence: 599,
       },
     });

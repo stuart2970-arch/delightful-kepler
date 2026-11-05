@@ -989,7 +989,7 @@ const globalBotId = '00000000-0000-0000-0000-000000000000';
                         const res = await fetch('/api/billing/checkout', {
                           method: 'POST',
                           headers: { 'Content-Type': 'application/json' },
-                          body: JSON.stringify({ action: 'portal', tenantId, returnUrl: wpAppUrl }),
+                          body: JSON.stringify({ action: 'portal', returnUrl: wpAppUrl }),
                         });
                         const data = await res.json();
                         clearTimeout(timeoutId);

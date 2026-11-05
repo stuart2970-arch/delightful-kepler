@@ -21,8 +21,11 @@ export default function TelephonyView() {
     twilioMobileNumber, 
     setTwilioMobileNumber, 
     conversations, 
-    billingData 
+    billingData,
+    role,
+    isSuperAdmin,
   } = useDashboardStore();
+  const canReleaseDedicatedNumber = role === 'owner' || isSuperAdmin;
 
   const landlineAddon = billingData?.catalog?.find((c: any) => c.id === 'landline_addon' || c.category === 'landline');
   const mobileAddon = billingData?.catalog?.find((c: any) => c.id === 'mobile_addon' || c.category === 'mobile');
@@ -523,12 +526,14 @@ export default function TelephonyView() {
                 </div>
               </div>
 
-              <button
-                onClick={() => setShowConfirmModal(true)}
-                className="bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 px-4 py-2 rounded-xl text-xs font-semibold transition-all"
-              >
-                Release / Change Number
-              </button>
+              {canReleaseDedicatedNumber ? (
+                <button
+                  onClick={() => setShowConfirmModal(true)}
+                  className="bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 px-4 py-2 rounded-xl text-xs font-semibold transition-all"
+                >
+                  Release Dedicated Number
+                </button>
+              ) : null}
             </div>
 
               {/* Call Divert & Forwarding Guide */}
@@ -683,7 +688,7 @@ export default function TelephonyView() {
       )}
 
       {/* Release Confirmation Modal */}
-      {showConfirmModal && (
+      {showConfirmModal && canReleaseDedicatedNumber && (
         <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4 z-50">
           <div className="bg-[var(--awb-color1)] border border-[var(--awb-color3)] rounded-2xl p-6 max-w-md w-full shadow-2xl space-y-4">
             <div className="w-10 h-10 bg-rose-100 text-rose-700 rounded-full flex items-center justify-center">

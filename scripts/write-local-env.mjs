@@ -56,6 +56,9 @@ function buildEnvFile({ apiUrl, anon, service, appUrl, appEnv, playwright }) {
     `SUPABASE_SERVICE_ROLE_KEY=${service}`,
     `NEXT_PUBLIC_APP_URL=${appUrl}`,
     `NEXT_PUBLIC_SITE_URL=${appUrl}`,
+    `APP_URL=${appUrl}`,
+    'STRIPE_PORTAL_CONFIG_OWNER=bpc_test_owner',
+    'STRIPE_PORTAL_CONFIG_ADMIN=bpc_test_admin',
     // Third-party keys: mock / test only — never live credentials on a dev machine.
     'STRIPE_SECRET_KEY=sk_test_mock',
     'MAILGUN_API_KEY=mock_mailgun_api_key_for_local_testing',
