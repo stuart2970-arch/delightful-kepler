@@ -4082,3 +4082,11 @@ Highlighted adjustments in the modal:
   - Playwright helper spec covers weekend skip, UK autumn clock change, and a full 09:00–17:00 window after `now`.
   - Hypothesis confirmed with a fixture call: pinned `2026-11-02` window after 5 Nov → `invalid_window` / 0 slots; computed next UK weekday → 14 slots.
   - Local Playwright (local Supabase + mock keys): helper + `styl-182` + voice **13 passed**; full suite **389 passed**. `tsc`, apphosting yaml, and live-ref checks passed.
+
+### Session (billing portal + telephony deprovision auth - 5 Nov 2026)
+* **User**: One PR into `staging` locking down `/api/billing/checkout` POST (session + `requireTenantRole(['owner','admin'])`, tenant from session, portal configs by role, no email customer fallback, CORS to app origin, rate limits, `safePublicReturnUrl`) and `/api/telephony/deprovision` (owner / audited superadmin / `CRON_SECRET` only; remove service-role bearer). Dashboard stops sending `tenantId`; hide Release Dedicated Number for non-owners. Tests for every acceptance criterion. Do not merge. No live keys.
+* **Changes**:
+  - Shared `requireTenantRole` helper; checkout POST gated before any Stripe/DB write; portal configuration from `STRIPE_PORTAL_CONFIG_OWNER` / `_ADMIN` with fail-safe fallback; 409 `no_billing_account`.
+  - Deprovision owner-only (plus cron + superadmin audit); UI hides the release control for non-owners.
+  - Env names in `apphosting.yaml` / `apphosting.staging.yaml` / `.env.example`; test-mode Stripe portal config script (not run).
+  - Playwright + source-audit tests; existing checkout suites send a session Bearer.

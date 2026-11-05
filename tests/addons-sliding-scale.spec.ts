@@ -1,4 +1,4 @@
-import { createTestSuperadminUser, TestUserSession } from './test-auth-helper';
+import { createTestSuperadminUser, createTestUser, TestUserSession } from './test-auth-helper';
 import { test, expect } from '@playwright/test';
 import { publicAppPath } from '../src/lib/env/public-app-url';
 
@@ -19,13 +19,21 @@ function appPathFromReturnUrl(url: string): string {
 
 test.describe('Modular Add-Ons & Sliding Scale Checkout API', () => {
   let superadminSession: TestUserSession;
+  let ownerSession: TestUserSession;
+
+  const ownerHeaders = () => ({
+    'Content-Type': 'application/json',
+    Authorization: `Bearer ${ownerSession.token}`,
+  });
 
   test.beforeAll(async () => {
     superadminSession = await createTestSuperadminUser();
+    ownerSession = await createTestUser({ tenantId: SEEDED_TENANT_ID, role: 'owner' });
   });
 
   test.afterAll(async () => {
     if (superadminSession) await superadminSession.cleanup();
+    if (ownerSession) await ownerSession.cleanup();
   });
   test('GET /api/billing/addons?category=landline returns landline bolt-on', async ({ request }) => {
     const res = await request.get('/api/billing/addons?category=landline');
@@ -51,7 +59,7 @@ test.describe('Modular Add-Ons & Sliding Scale Checkout API', () => {
 
   test('POST /api/billing/checkout returns 400 for empty request payload', async ({ request }) => {
     const res = await request.post('/api/billing/checkout', {
-      headers: { 'Content-Type': 'application/json' },
+      headers: ownerHeaders(),
       data: {},
     });
     // Either 400 (invalid parameters) or 500 (if Stripe key missing in test environment)
@@ -60,10 +68,9 @@ test.describe('Modular Add-Ons & Sliding Scale Checkout API', () => {
 
   test('POST /api/billing/checkout returns 404 for non-existent addonCatalogId', async ({ request }) => {
     const res = await request.post('/api/billing/checkout', {
-      headers: { 'Content-Type': 'application/json' },
+      headers: ownerHeaders(),
       data: {
         addonCatalogId: 'non_existent_addon_xyz',
-        tenantId: '00000000-0000-0000-0000-000000000000',
         customPricePence: 1299,
         customVoiceMinutes: 17,
       },
@@ -71,12 +78,12 @@ test.describe('Modular Add-Ons & Sliding Scale Checkout API', () => {
     expect([404, 500]).toContain(res.status());
   });
 
-  test('POST /api/billing/checkout with action: portal returns structured response or 400 when tenantId is missing', async ({ request }) => {
+  test('POST /api/billing/checkout with action: portal uses the session tenant', async ({ request }) => {
     const res = await request.post('/api/billing/checkout', {
-      headers: { 'Content-Type': 'application/json' },
+      headers: ownerHeaders(),
       data: { action: 'portal' },
     });
-    expect([400, 500]).toContain(res.status());
+    expect([200, 409]).toContain(res.status());
   });
 
   test('GET /api/billing/addons?category=voice_pack returns voice pack bolt-ons', async ({ request }) => {
@@ -92,7 +99,7 @@ test.describe('Modular Add-Ons & Sliding Scale Checkout API', () => {
 
   test('PATCH /api/tenants/settings updates voice auto top-up configuration', async ({ request }) => {
     const res = await request.patch('/api/tenants/settings', {
-      headers: { 'Content-Type': 'application/json' },
+      headers: ownerHeaders(),
       data: {
         tenantId: '10000000-0000-0000-0000-000000000001',
         voice_auto_topup: true,
@@ -150,7 +157,7 @@ test.describe('Modular Add-Ons & Sliding Scale Checkout API', () => {
 
   test('POST /api/billing/checkout with plan: basic initiates direct base tier checkout', async ({ request }) => {
     const res = await request.post('/api/billing/checkout', {
-      headers: { 'Content-Type': 'application/json' },
+      headers: ownerHeaders(),
       data: {
         plan: 'basic',
         planTier: 'base_tier',
@@ -179,7 +186,7 @@ test.describe('Modular Add-Ons & Sliding Scale Checkout API', () => {
 
   test('POST /api/billing/checkout with base plan and modular addons bundles items into single checkout', async ({ request }) => {
     const res = await request.post('/api/billing/checkout', {
-      headers: { 'Content-Type': 'application/json' },
+      headers: ownerHeaders(),
       data: {
         plan: 'basic',
         planTier: 'base_tier',
@@ -222,7 +229,7 @@ test.describe('Modular Add-Ons & Sliding Scale Checkout API', () => {
 
   test('POST /api/billing/checkout with plan: foundation initiates direct base tier checkout', async ({ request }) => {
     const res = await request.post('/api/billing/checkout', {
-      headers: { 'Content-Type': 'application/json' },
+      headers: ownerHeaders(),
       data: {
         plan: 'foundation',
         planTier: 'base_tier',
@@ -270,7 +277,7 @@ test.describe('Modular Add-Ons & Sliding Scale Checkout API', () => {
 
   test('POST /api/billing/checkout rejects customPricePence below minimum with HTTP 400', async ({ request }) => {
     const res = await request.post('/api/billing/checkout', {
-      headers: { 'Content-Type': 'application/json' },
+      headers: ownerHeaders(),
       data: {
         addonCatalogId: 'landline_addon',
         tenantId: '10000000-0000-0000-0000-000000000001',
@@ -284,7 +291,7 @@ test.describe('Modular Add-Ons & Sliding Scale Checkout API', () => {
 
   test('POST /api/billing/checkout rejects customPricePence exceeding maximum with HTTP 400', async ({ request }) => {
     const res = await request.post('/api/billing/checkout', {
-      headers: { 'Content-Type': 'application/json' },
+      headers: ownerHeaders(),
       data: {
         addonCatalogId: 'landline_addon',
         tenantId: '10000000-0000-0000-0000-000000000001',
@@ -298,7 +305,7 @@ test.describe('Modular Add-Ons & Sliding Scale Checkout API', () => {
 
   test('POST /api/billing/checkout rejects customPricePence not on valid step increment with HTTP 400', async ({ request }) => {
     const res = await request.post('/api/billing/checkout', {
-      headers: { 'Content-Type': 'application/json' },
+      headers: ownerHeaders(),
       data: {
         addonCatalogId: 'landline_addon',
         tenantId: '10000000-0000-0000-0000-000000000001',
@@ -313,7 +320,7 @@ test.describe('Modular Add-Ons & Sliding Scale Checkout API', () => {
   for (const addon of FIXED_PRICE_ADDONS) {
     test(`POST /api/billing/checkout accepts fixed-price ${addon.id} without customPricePence`, async ({ request }) => {
       const res = await request.post('/api/billing/checkout', {
-        headers: { 'Content-Type': 'application/json' },
+        headers: ownerHeaders(),
         data: {
           addonCatalogId: addon.id,
           tenantId: SEEDED_TENANT_ID,
@@ -331,7 +338,7 @@ test.describe('Modular Add-Ons & Sliding Scale Checkout API', () => {
 
     test(`POST /api/billing/checkout accepts fixed-price ${addon.id} with customPricePence equal to catalogue`, async ({ request }) => {
       const res = await request.post('/api/billing/checkout', {
-        headers: { 'Content-Type': 'application/json' },
+        headers: ownerHeaders(),
         data: {
           addonCatalogId: addon.id,
           tenantId: SEEDED_TENANT_ID,
@@ -348,7 +355,7 @@ test.describe('Modular Add-Ons & Sliding Scale Checkout API', () => {
 
   test('POST /api/billing/checkout mocked Stripe session uses configured public app success/cancel URLs', async ({ request }) => {
     const res = await request.post('/api/billing/checkout', {
-      headers: { 'Content-Type': 'application/json' },
+      headers: ownerHeaders(),
       data: {
         addonCatalogId: 'google_calendar_addon',
         tenantId: SEEDED_TENANT_ID,
@@ -364,7 +371,7 @@ test.describe('Modular Add-Ons & Sliding Scale Checkout API', () => {
 
   test('POST /api/billing/checkout bolt-on session carries is_addon metadata on session and subscription', async ({ request }) => {
     const res = await request.post('/api/billing/checkout', {
-      headers: { 'Content-Type': 'application/json' },
+      headers: ownerHeaders(),
       data: {
         addonCatalogId: 'data_pack_500',
         tenantId: SEEDED_TENANT_ID,
@@ -381,7 +388,7 @@ test.describe('Modular Add-Ons & Sliding Scale Checkout API', () => {
 
   test('POST /api/billing/checkout sliding bolt-on session still sets is_addon metadata', async ({ request }) => {
     const res = await request.post('/api/billing/checkout', {
-      headers: { 'Content-Type': 'application/json' },
+      headers: ownerHeaders(),
       data: {
         addonCatalogId: 'landline_addon',
         tenantId: SEEDED_TENANT_ID,
@@ -397,7 +404,7 @@ test.describe('Modular Add-Ons & Sliding Scale Checkout API', () => {
 
   test('POST /api/billing/checkout base-plan session does not set is_addon', async ({ request }) => {
     const res = await request.post('/api/billing/checkout', {
-      headers: { 'Content-Type': 'application/json' },
+      headers: ownerHeaders(),
       data: { plan: 'foundation', planTier: 'base_tier' },
     });
     expect(res.status(), await res.text()).toBe(200);
@@ -408,7 +415,7 @@ test.describe('Modular Add-Ons & Sliding Scale Checkout API', () => {
 
   test('POST /api/billing/checkout ignores off-origin returnUrl (open redirect)', async ({ request }) => {
     const res = await request.post('/api/billing/checkout', {
-      headers: { 'Content-Type': 'application/json' },
+      headers: ownerHeaders(),
       data: {
         addonCatalogId: 'google_calendar_addon',
         tenantId: SEEDED_TENANT_ID,
@@ -425,7 +432,7 @@ test.describe('Modular Add-Ons & Sliding Scale Checkout API', () => {
 
   test('POST /api/billing/checkout rejects a non-catalogue custom price on a non-sliding add-on with a clear error', async ({ request }) => {
     const res = await request.post('/api/billing/checkout', {
-      headers: { 'Content-Type': 'application/json' },
+      headers: ownerHeaders(),
       data: {
         addonCatalogId: 'google_calendar_addon',
         tenantId: SEEDED_TENANT_ID,
@@ -440,14 +447,14 @@ test.describe('Modular Add-Ons & Sliding Scale Checkout API', () => {
 
   test('mocked Stripe return and cancel URLs resolve to existing app routes', async ({ request }) => {
     const addonRes = await request.post('/api/billing/checkout', {
-      headers: { 'Content-Type': 'application/json' },
+      headers: ownerHeaders(),
       data: { addonCatalogId: 'google_calendar_addon', tenantId: SEEDED_TENANT_ID },
     });
     expect(addonRes.status()).toBe(200);
     const addonJson = await addonRes.json();
 
     const planRes = await request.post('/api/billing/checkout', {
-      headers: { 'Content-Type': 'application/json' },
+      headers: ownerHeaders(),
       data: { plan: 'foundation', planTier: 'base_tier' },
     });
     expect(planRes.status()).toBe(200);
@@ -470,7 +477,7 @@ test.describe('Modular Add-Ons & Sliding Scale Checkout API', () => {
 
   test('POST /api/billing/checkout rejects unknown addon ID with HTTP 400', async ({ request }) => {
     const res = await request.post('/api/billing/checkout', {
-      headers: { 'Content-Type': 'application/json' },
+      headers: ownerHeaders(),
       data: {
         plan: 'foundation',
         addons: ['unknown_addon_xyz_999'],

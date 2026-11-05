@@ -236,9 +236,9 @@ test.describe('STYL-193 branding bolt-on ownership and catalogue price', () => {
       expect(card.price_label).toBe('£6.50/mo');
 
       const checkout = await request.post('/api/billing/checkout', {
+        headers: { Authorization: `Bearer ${user.token}` },
         data: {
           addonCatalogId: REMOVE_STYLEFLO_BRANDING_ADDON_ID,
-          tenantId: GLOBEX,
         },
       });
       expect(checkout.status()).toBe(200);

@@ -110,7 +110,6 @@ export default function AddOnUpsellModal({ isOpen, onClose, category, tenantId }
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           addonCatalogId,
-          tenantId,
           customPricePence,
           customVoiceMinutes,
           customSms,
