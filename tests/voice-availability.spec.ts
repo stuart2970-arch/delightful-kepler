@@ -1,5 +1,6 @@
 import { test, expect } from '@playwright/test';
 import { createClient } from '@supabase/supabase-js';
+import { nextUkWeekdayDate, ukSlotIso } from './helpers/uk-future-weekday';
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || 'http://127.0.0.1:54321';
 const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
@@ -30,6 +31,9 @@ function parseSse(raw: string) {
 test.describe('STYL-188: Voice Availability Tool & Stream Robustness', () => {
   const seedBotId = 'e0000000-0000-0000-0000-000000000001';
   const validServiceId = '40000000-0000-0000-0000-000000000001';
+  const futureDay = nextUkWeekdayDate();
+  const voiceWindow = `${ukSlotIso(futureDay, '14:00')}, ${ukSlotIso(futureDay, '15:00')}`;
+  const voiceWindowLate = `${ukSlotIso(futureDay, '15:00')}, ${ukSlotIso(futureDay, '16:00')}`;
 
   test('voice availability check with valid service completes cleanly with one holding phrase and second-pass reply', async ({ request }) => {
     const sessionId = `test_voice_avail_${Date.now()}`;
@@ -45,7 +49,7 @@ test.describe('STYL-188: Voice Availability Tool & Stream Robustness', () => {
         messages: [
           { role: 'user', content: 'Can I book an appointment for tomorrow at 2pm?' }
         ],
-        mockModelReply: `${holdingLine} [CHECK_AVAILABILITY: ANY, ${validServiceId}, 2026-10-23T14:00:00+01:00, 2026-10-23T15:00:00+01:00]`,
+        mockModelReply: `${holdingLine} [CHECK_AVAILABILITY: ANY, ${validServiceId}, ${voiceWindow}]`,
         mockPass2Reply: pass2Reply,
       }
     });
@@ -98,7 +102,7 @@ test.describe('STYL-188: Voice Availability Tool & Stream Robustness', () => {
         messages: [
           { role: 'user', content: 'Can I book an unknown service?' }
         ],
-        mockModelReply: `Checking that for you now... [CHECK_AVAILABILITY: ANY, ${unknownServiceId}, 2026-10-23T14:00:00+01:00, 2026-10-23T15:00:00+01:00]`,
+        mockModelReply: `Checking that for you now... [CHECK_AVAILABILITY: ANY, ${unknownServiceId}, ${voiceWindow}]`,
       }
     });
 
@@ -148,7 +152,7 @@ test.describe('STYL-188: Voice Availability Tool & Stream Robustness', () => {
         messages: [
           { role: 'user', content: 'Book for 3pm please' }
         ],
-        mockModelReply: `[CHECK_AVAILABILITY: ANY, ${validServiceId}, 2026-10-23T15:00:00+01:00, 2026-10-23T16:00:00+01:00]`,
+        mockModelReply: `[CHECK_AVAILABILITY: ANY, ${validServiceId}, ${voiceWindowLate}]`,
         mockPass2Reply: pass2Reply,
       }
     });

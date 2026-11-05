@@ -18,6 +18,13 @@ import {
   getAvailabilityData,
   bookMeeting,
 } from '../src/app/api/chat/stream/calendar';
+import {
+  nextUkWeekdayDate,
+  nextUkWeekdayDates,
+  ukDisplayDate,
+  ukSlotIso,
+  ukSlotUtcIso,
+} from './helpers/uk-future-weekday';
 
 dotenv.config({ path: path.resolve(__dirname, '../.env.test'), override: true });
 
@@ -75,8 +82,10 @@ test.describe('STYL-182: Calendar Availability & Quick-Links Booking Flow', () =
   // a. Google Calendar Tenant: Quick-links flow
   // --------------------------------------------------------------------------
   test('Google Calendar tenant generates quick days and times, books into calendar and writes appointment row', async () => {
-    const startStr = '2026-11-02T09:00:00';
-    const endStr = '2026-11-02T17:00:00';
+    // Next full UK weekday so 09:00–17:00 (default Mon–Fri hours) cannot be clamped to empty.
+    const bookDate = nextUkWeekdayDate();
+    const startStr = ukSlotIso(bookDate, '09:00');
+    const endStr = ukSlotIso(bookDate, '17:00');
     const timezone = 'Europe/London';
 
     // 1. Check availability
@@ -158,11 +167,12 @@ test.describe('STYL-182: Calendar Availability & Quick-Links Booking Flow', () =
     expect(provider).toBe('microsoft');
 
     // 2. Provider event creation returns microsoft provider
+    const msDate = nextUkWeekdayDate();
     const eventRes = await createEvent(seedTenantId, msStaff, {
       tenantId: seedTenantId,
       summary: '[StyleFlo] Microsoft Outlook Test Event',
-      startTime: '2026-11-03T10:00:00.000Z',
-      endTime: '2026-11-03T10:30:00.000Z',
+      startTime: ukSlotUtcIso(msDate, '10:00'),
+      endTime: ukSlotUtcIso(msDate, '10:30'),
       attendeeEmail: 'customer@outlook.com',
       calendarId: 'primary',
     });
@@ -179,8 +189,8 @@ test.describe('STYL-182: Calendar Availability & Quick-Links Booking Flow', () =
       'MS Customer',
       customerEmail,
       '07700900002',
-      '2026-11-03T11:00:00.000Z',
-      '2026-11-03T11:30:00.000Z',
+      ukSlotUtcIso(msDate, '11:00'),
+      ukSlotUtcIso(msDate, '11:30'),
       'Europe/London'
     );
 
@@ -267,8 +277,9 @@ test.describe('STYL-182: Calendar Availability & Quick-Links Booking Flow', () =
     expect(sessionTokenRes.ok()).toBeTruthy();
     const { sessionToken, sessionId } = await sessionTokenRes.json();
 
-    // First, book a slot to occupy it
-    const clashSlotTime = '2026-11-04T14:00:00.000Z';
+    // First, book a slot to occupy it (future UK weekday so remaining-day re-offer is not empty)
+    const clashDate = nextUkWeekdayDate();
+    const clashSlotTime = ukSlotUtcIso(clashDate, '14:00');
     const clashCustomerEmail = `styl182_clash_${Date.now()}@example.com`;
 
     await supabaseAdmin.from('appointments').insert({
@@ -279,7 +290,7 @@ test.describe('STYL-182: Calendar Availability & Quick-Links Booking Flow', () =
       customer_email: clashCustomerEmail,
       customer_phone: '07700900003',
       start_time: clashSlotTime,
-      end_time: '2026-11-04T14:30:00.000Z',
+      end_time: ukSlotUtcIso(clashDate, '14:30'),
       google_event_id: 'clash_evt_1',
     });
 
@@ -326,7 +337,9 @@ test.describe('STYL-182: Calendar Availability & Quick-Links Booking Flow', () =
   // e. Double-tap / Idempotency test: clicking time twice produces only 1 record
   // --------------------------------------------------------------------------
   test('idempotency: booking same slot twice returns success and creates exactly 1 appointment', async () => {
-    const slotTime = '2026-11-05T15:00:00.000Z';
+    const slotDate = nextUkWeekdayDate();
+    const slotTime = ukSlotUtcIso(slotDate, '15:00');
+    const slotEnd = ukSlotUtcIso(slotDate, '15:30');
     const customerEmail = `styl182_idempotent_${Date.now()}@example.com`;
 
     // First booking attempt
@@ -338,7 +351,7 @@ test.describe('STYL-182: Calendar Availability & Quick-Links Booking Flow', () =
       customerEmail,
       '07700900005',
       slotTime,
-      '2026-11-05T15:30:00.000Z',
+      slotEnd,
       'Europe/London'
     );
     expect(res1).toContain('Successfully booked appointment');
@@ -352,7 +365,7 @@ test.describe('STYL-182: Calendar Availability & Quick-Links Booking Flow', () =
       customerEmail,
       '07700900005',
       slotTime,
-      '2026-11-05T15:30:00.000Z',
+      slotEnd,
       'Europe/London'
     );
     expect(res2).toContain('Successfully booked appointment');
@@ -461,31 +474,34 @@ test.describe('STYL-182: Calendar Availability & Quick-Links Booking Flow', () =
       duration_minutes: 30,
       price: 45,
     }]);
+    const [dayOne, dayTwo] = nextUkWeekdayDates(2);
+    const dayOneDisplay = ukDisplayDate(dayOne);
+    const dayTwoDisplay = ukDisplayDate(dayTwo);
     const quickDaysTag = formatQuickDaysTag(seedServiceId, testStaffId, [
-      { date: '2026-11-09', displayDate: 'Mon 9 Nov', slotsCount: 2 },
-      { date: '2026-11-10', displayDate: 'Tue 10 Nov', slotsCount: 2 },
+      { date: dayOne, displayDate: dayOneDisplay, slotsCount: 2 },
+      { date: dayTwo, displayDate: dayTwoDisplay, slotsCount: 2 },
     ]);
-    const quickTimesTag = formatQuickTimesTag('2026-11-09', seedServiceId, [
+    const quickTimesTag = formatQuickTimesTag(dayOne, seedServiceId, [
       {
-        start: '2026-11-09T10:00:00+00:00',
-        end: '2026-11-09T10:30:00+00:00',
-        startUtc: new Date('2026-11-09T10:00:00.000Z'),
-        endUtc: new Date('2026-11-09T10:30:00.000Z'),
-        date: '2026-11-09',
+        start: ukSlotIso(dayOne, '10:00'),
+        end: ukSlotIso(dayOne, '10:30'),
+        startUtc: new Date(ukSlotUtcIso(dayOne, '10:00')),
+        endUtc: new Date(ukSlotUtcIso(dayOne, '10:30')),
+        date: dayOne,
         time: '10:00',
-        displayDate: 'Mon 9 Nov',
+        displayDate: dayOneDisplay,
         staffId: testStaffId,
         staffName: 'Sarah Miller',
         serviceId: seedServiceId,
       },
       {
-        start: '2026-11-09T11:00:00+00:00',
-        end: '2026-11-09T11:30:00+00:00',
-        startUtc: new Date('2026-11-09T11:00:00.000Z'),
-        endUtc: new Date('2026-11-09T11:30:00.000Z'),
-        date: '2026-11-09',
+        start: ukSlotIso(dayOne, '11:00'),
+        end: ukSlotIso(dayOne, '11:30'),
+        startUtc: new Date(ukSlotUtcIso(dayOne, '11:00')),
+        endUtc: new Date(ukSlotUtcIso(dayOne, '11:30')),
+        date: dayOne,
         time: '11:00',
-        displayDate: 'Mon 9 Nov',
+        displayDate: dayOneDisplay,
         staffId: testStaffId,
         staffName: 'Sarah Miller',
         serviceId: seedServiceId,

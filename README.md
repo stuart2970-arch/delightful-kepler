@@ -4072,3 +4072,13 @@ Highlighted adjustments in the modal:
   - RPC `23505` is no longer treated as already granted.
   - Tests cover auto top-up after a successful RPC, both delete failures, RPC already_granted, RPC unique-violation, missing-function fallback, and a partial pack whose mock writes the ledger.
   - Local: `npm run typecheck` passed. Playwright **386 passed** against `.env.test` / local Supabase / `sk_test_mock` (never live). Migration not applied.
+
+### Session (expired calendar test dates - release PR 22 CI - 5 Nov 2026)
+* **User**: Make CI green for release PR 22 (`staging` → `main`) by fixing tests pinned to dates now in the past. Test-only. Symptom: CI run 42037737385, `tests/styl-182-calendar-booking.spec.ts` (~line 92) `slots.length = 0`. Hypothesis: hard-coded Mon 2 Nov 2026 09:00–17:00 London is clamped/dropped once that day is past.
+* **Changes**:
+  - Added `tests/helpers/uk-future-weekday.ts` to pick the next Mon–Fri in `Europe/London` (skip today, skip weekends, noon-based day math for DST).
+  - `styl-182` Google availability, Microsoft booking, race re-offer, idempotency, and widget mock tags now use that helper. Voice `CHECK_AVAILABILITY` windows updated the same way.
+  - Left frozen-clock fixtures (`styl-195`, `tests/unit/availability.spec.ts`) and payload-only `weekCommencingDate` in `scheduling-verification.spec.ts` unchanged.
+  - Playwright helper spec covers weekend skip, UK autumn clock change, and a full 09:00–17:00 window after `now`.
+  - Hypothesis confirmed with a fixture call: pinned `2026-11-02` window after 5 Nov → `invalid_window` / 0 slots; computed next UK weekday → 14 slots.
+  - Local Playwright (local Supabase + mock keys): helper + `styl-182` + voice **13 passed**; full suite **389 passed**. `tsc`, apphosting yaml, and live-ref checks passed.
