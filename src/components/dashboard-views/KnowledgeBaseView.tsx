@@ -350,6 +350,7 @@ export default function KnowledgeBaseView() {
     e.preventDefault();
     if (!crawlUrl.trim() || !crawlBotId) return;
 
+    const urls = crawlUrl.split(/[\s,]+/).map(u => u.trim()).filter(u => u);
     setIsCrawling(true);
     setCrawlResult(null);
     setCrawlLogs([`[System] Initialising scraper for ${urls.length} ${urls.length === 1 ? 'URL' : 'URLs'}...`]);
@@ -357,8 +358,8 @@ export default function KnowledgeBaseView() {
       setCrawlLogs(prev => [...prev, `[System] Knowledge quota: ${quotaInfo.remaining} items remaining (${quotaInfo.currentUsage}/${quotaInfo.limit} used).`]);
     }
 
-    const urls = crawlUrl.split(/[\s,]+/).map(u => u.trim()).filter(u => u);
     let totalChunks = 0;
+    let totalAlreadyCovered = 0;
     let hasError = false;
 
     // Shopify Preflight Check
@@ -382,6 +383,30 @@ export default function KnowledgeBaseView() {
       }
     }
 
+    let previewNew = 0;
+    let previewCovered = 0;
+    for (let i = 0; i < urls.length; i++) {
+      try {
+        const previewRes = await fetch('/api/ingest/crawl', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            url: urls[i],
+            chatbotId: crawlBotId,
+            dryRun: true,
+          }),
+        });
+        const preview = await previewRes.json();
+        if (previewRes.ok) {
+          previewNew += preview.wouldInsertCount || 0;
+          previewCovered += preview.alreadyCoveredCount || 0;
+        }
+      } catch (previewErr) {
+        console.warn('[Dashboard] Crawl preview failed:', previewErr);
+      }
+    }
+    setCrawlLogs((prev) => [...prev, `[Preview] ${previewNew} new knowledge items, ${previewCovered} already covered (not charged).`]);
+
     for (let i = 0; i < urls.length; i++) {
       const currentUrl = urls[i];
       setCrawlLogs((prev) => [...prev, `[System] [${i+1}/${urls.length}] Crawling ${currentUrl}...`]);
@@ -401,7 +426,9 @@ export default function KnowledgeBaseView() {
         const data = await response.json();
 
         if (response.ok) {
-          setCrawlLogs((prev) => [...prev, `[Supabase] Ingested ${data.chunksCount} knowledge items from ${currentUrl}.`]);
+          const covered = data.alreadyCoveredCount || data.skippedDuplicateCount || 0;
+          totalAlreadyCovered += covered;
+          setCrawlLogs((prev) => [...prev, `[Supabase] Ingested ${data.chunksCount} new knowledge items from ${currentUrl} (${covered} already covered, not charged).`]);
           totalChunks += data.chunksCount;
         } else {
           hasError = true;
@@ -419,10 +446,10 @@ export default function KnowledgeBaseView() {
     }
 
     if (!hasError) {
-      setCrawlLogs((prev) => [...prev, `[Success] Batch crawl finished! Total knowledge items ingested: ${totalChunks}.`]);
+      setCrawlLogs((prev) => [...prev, `[Success] Batch crawl finished! ${totalChunks} new knowledge items, ${totalAlreadyCovered} already covered (not charged).`]);
       setCrawlResult({
         success: true,
-        message: `Successfully crawled and ingested ${totalChunks} knowledge items.`,
+        message: `${totalChunks} new knowledge items, ${totalAlreadyCovered} already covered (not charged).`,
       });
       setMetrics(prev => ({
         ...prev,
@@ -463,7 +490,7 @@ export default function KnowledgeBaseView() {
 
       const data = await response.json();
       if (response.ok) {
-        setCrawlLogs((prev) => [...prev, `[Success] Ingested ${data.chunksCount} knowledge items from text.`]);
+        setCrawlLogs((prev) => [...prev, `[Success] ${data.message || `Ingested ${data.chunksCount} knowledge items from text.`}`]);
         setCrawlResult({ success: true, message: data.message });
         setMetrics(prev => ({ ...prev, chunksCount: prev.chunksCount + data.chunksCount }));
         setRawTextContent('');
@@ -512,7 +539,7 @@ export default function KnowledgeBaseView() {
       }
 
       if (response.ok && data.success) {
-        setCrawlLogs((prev) => [...prev, `[Success] Ingested ${data.chunksCount} knowledge items from file.`]);
+        setCrawlLogs((prev) => [...prev, `[Success] ${data.message || `Ingested ${data.chunksCount} knowledge items from file.`}`]);
         setCrawlResult({ success: true, message: data.message });
         setMetrics(prev => ({ ...prev, chunksCount: prev.chunksCount + data.chunksCount }));
         setSelectedFile(null);

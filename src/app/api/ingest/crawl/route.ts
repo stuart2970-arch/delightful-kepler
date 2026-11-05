@@ -3,10 +3,9 @@ import { createClient } from '@supabase/supabase-js';
 import * as cheerio from 'cheerio';
 import { RecursiveCharacterTextSplitter } from '@langchain/textsplitters';
 import { z } from 'zod';
-import { checkFeatureEntitlement } from '@/lib/entitlements';
-import { batchEmbedTexts } from '@/lib/embeddings';
 import { sanitizeForPostgres } from '@/lib/file-parser';
 import { requireUser } from '@/lib/auth/require-superadmin';
+import { dedupedIngest } from '@/lib/knowledge/ingest-documents';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 120;
@@ -15,6 +14,7 @@ export const maxDuration = 120;
 const IngestRequestSchema = z.object({
   url: z.string().url({ message: 'Invalid URL format' }),
   chatbotId: z.string().regex(/^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/, { message: 'Invalid chatbot ID format' }),
+  dryRun: z.boolean().optional(),
 });
 
 export async function POST(request: Request) {
@@ -49,7 +49,7 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: errorMsg }, { status: 400 });
     }
 
-    const { url, chatbotId } = validation.data;
+    const { url, chatbotId, dryRun } = validation.data;
 
     const adminClient = createClient(supabaseUrl, serviceRoleKey, {
       auth: { persistSession: false, autoRefreshToken: false }
@@ -199,81 +199,30 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Text splitting generated zero knowledge items' }, { status: 400 });
     }
 
-    // 7. Enforce quota considering existing chunks for this URL on this chatbot (STYL-186 re-crawl)
+    // 7. Hash, skip exact duplicates, then embed and insert only new knowledge items (STYL-189).
+    // Same-URL rows are replaced (STYL-186) without counting copies that already exist on other sources.
     const sanitizedUrl = sanitizeForPostgres(url);
-    const { count: existingCount } = await dbClient
-      .from('document_chunks')
-      .select('*', { count: 'exact', head: true })
-      .eq('chatbot_id', chatbotId)
-      .eq('source_url', sanitizedUrl);
-
-    const existingChunksForUrl = existingCount || 0;
-    const netIncoming = Math.max(0, chunks.length - existingChunksForUrl);
-
-    const entitlementCheck = await checkFeatureEntitlement(
+    const outcome = await dedupedIngest({
       dbClient,
       tenantId,
-      'knowledge_data_chunks',
-      netIncoming
-    );
-
-    if (!entitlementCheck.allowed) {
-      return NextResponse.json({ error: entitlementCheck.error }, { status: 403 });
-    }
-
-    // 8. Generate vector embeddings
-    console.log(`[Ingest Route][${requestId}] Generating vector embeddings for ${chunks.length} chunks via multi-tier engine...`);
-    const embeddings = await batchEmbedTexts(chunks);
-
-    if (!embeddings || embeddings.length === 0) {
-      return NextResponse.json(
-        { error: 'Failed to generate embeddings for the knowledge items' },
-        { status: 502 }
-      );
-    }
-
-    // 9. Re-crawl: delete previous chunks for this URL and chatbot before inserting new ones (STYL-186)
-    if (existingChunksForUrl > 0) {
-      const { error: dbDeleteError } = await dbClient
-        .from('document_chunks')
-        .delete()
-        .eq('chatbot_id', chatbotId)
-        .eq('source_url', sanitizedUrl);
-
-      if (dbDeleteError) {
-        console.warn(`[Ingest Route][${requestId}] Failed to clean existing chunks for URL before re-crawl:`, dbDeleteError);
-      }
-    }
-
-    // 10. Batch insert document chunks into PostgreSQL
-    const recordsToInsert = chunks.slice(0, embeddings.length).map((chunkContent, idx) => ({
-      tenant_id: tenantId,
-      chatbot_id: chatbotId,
-      content: sanitizeForPostgres(chunkContent),
-      embedding: embeddings[idx],
-      source_url: sanitizedUrl,
-      metadata: metadata,
-    }));
-
-    const { error: dbInsertError } = await dbClient
-      .from('document_chunks')
-      .insert(recordsToInsert);
-
-    if (dbInsertError) {
-      console.error(`[Ingest Route][${requestId}] Supabase INSERT failed:`, dbInsertError);
-      return NextResponse.json(
-        { error: `Failed to save knowledge items to database: ${dbInsertError.message}` },
-        { status: 500 }
-      );
-    }
-
-    console.log(`[Ingest Route][${requestId}] Successfully ingested ${recordsToInsert.length} chunks for chatbot ${chatbotId}`);
-    return NextResponse.json({
-      success: true,
-      requestId,
-      chunksCount: recordsToInsert.length,
-      message: `Successfully crawled and ingested ${recordsToInsert.length} knowledge items from ${url}.`,
+      chatbotId,
+      chunks,
+      sourceUrl: sanitizedUrl,
+      metadata,
+      dryRun: dryRun === true,
+      replaceExistingSource: true,
+      sourceLabel: url,
     });
+
+    if (!outcome.ok) {
+      return NextResponse.json(outcome.body, { status: outcome.status });
+    }
+
+    console.log(
+      `[Ingest Route][${requestId}] Crawl ${dryRun ? 'preview' : 'stored'} ` +
+      `${outcome.body.insertedCount} new, ${outcome.body.alreadyCoveredCount} already covered for chatbot ${chatbotId}`,
+    );
+    return NextResponse.json({ ...outcome.body, requestId });
 
   } catch (err: any) {
     console.error(`[Ingest Route][${requestId}] Unexpected error:`, err);

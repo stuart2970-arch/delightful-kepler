@@ -229,6 +229,13 @@ VALUES (
   'https://globex.com/status'
 ) ON CONFLICT (id) DO NOTHING;
 
+-- STYL-189: hash seeded rows. Migrations run before seed, so the migration
+-- backfill does not see these fixtures. Staging rows are hashed by the migration.
+UPDATE public.document_chunks
+SET content_hash = public.knowledge_content_hash(content)
+WHERE content_hash IS NULL
+  AND content IS NOT NULL;
+
 -- 7. Seed conversations & messages logs
 INSERT INTO public.conversations (id, tenant_id, chatbot_id, user_session_id)
 VALUES (
