@@ -25,6 +25,7 @@ $$ LANGUAGE plpgsql;
 -- 2. Seed Tenants (plan_tier = foundation per STYL rename)
 INSERT INTO public.tenants (
   id, tenant_id, company_name, slug, plan_tier, has_google_calendar,
+  stripe_customer_id,
   general_operating_hours
 )
 VALUES (
@@ -34,6 +35,7 @@ VALUES (
   'acme-corp',
   'foundation',
   true,
+  'cus_test_acme',
   '{
     "monday":    {"unavailable": false, "hours": {"start": "09:00", "end": "17:00"}},
     "tuesday":   {"unavailable": false, "hours": {"start": "09:00", "end": "17:00"}},
@@ -46,6 +48,7 @@ VALUES (
 ) ON CONFLICT (id) DO UPDATE SET
   has_google_calendar = true,
   plan_tier = 'foundation',
+  stripe_customer_id = EXCLUDED.stripe_customer_id,
   general_operating_hours = EXCLUDED.general_operating_hours;
 
 INSERT INTO public.tenants (id, tenant_id, company_name, slug, plan_tier)

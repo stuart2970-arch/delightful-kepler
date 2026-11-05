@@ -42,7 +42,11 @@ test.describe('Billing checkout auth, portal configs, CORS, and rate limits', ()
     member = await createTestUser({ tenantId: ACME, role: 'member' });
     otherOwner = await createTestUser({ tenantId: GLOBEX, role: 'owner' });
     superadmin = await createTestUser({ tenantId: GLOBEX, role: 'owner', isSuperAdmin: true });
-    await adminDb.from('tenants').update({ stripe_customer_id: 'cus_test_acme' }).eq('id', ACME);
+    const { error: customerErr } = await adminDb
+      .from('tenants')
+      .update({ stripe_customer_id: 'cus_test_acme' })
+      .eq('id', ACME);
+    expect(customerErr).toBeFalsy();
   });
 
   test.afterAll(async () => {
@@ -167,7 +171,11 @@ test.describe('Billing checkout auth, portal configs, CORS, and rate limits', ()
       .single();
     expect(tenantError).toBeFalsy();
     const tenantId = tenant!.id as string;
-    await adminDb.from('tenants').update({ stripe_customer_id: 'cus_test_rate' }).eq('id', tenantId);
+    const { error: customerErr } = await adminDb
+      .from('tenants')
+      .update({ stripe_customer_id: 'cus_test_rate' })
+      .eq('id', tenantId);
+    expect(customerErr).toBeFalsy();
     const rateUser = await createTestUser({ tenantId, role: 'owner' });
     try {
       const limit = 2;
@@ -318,6 +326,9 @@ test.describe('Billing checkout source audits (no live services)', () => {
     expect(src).toContain('status: 503');
     expect(src).toContain('status: 429');
     expect(src).not.toContain("Access-Control-Allow-Origin': '*'");
+    const proxy = fs.readFileSync(path.resolve(__dirname, '../src/proxy.ts'), 'utf8');
+    expect(proxy).toContain("preflightPath.startsWith('/api/billing/')");
+    expect(proxy).toContain('return NextResponse.next()');
   });
 
   test('dashboard and upsell no longer send tenantId in the checkout body', () => {

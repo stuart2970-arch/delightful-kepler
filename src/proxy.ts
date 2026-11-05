@@ -20,6 +20,10 @@ export async function proxy(request: NextRequest) {
   // 0. CORS preflight. Auth routes stay same-origin: no wildcard header.
   if (request.method === 'OPTIONS') {
     const preflightPath = request.nextUrl.pathname;
+    if (preflightPath.startsWith('/api/billing/')) {
+      // Route-level CORS: never attach the public wildcard on billing.
+      return NextResponse.next();
+    }
     if (
       preflightPath.startsWith('/api/auth/magic-link') ||
       preflightPath.startsWith('/api/auth/check-email')

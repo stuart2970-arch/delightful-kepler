@@ -4098,3 +4098,4 @@ Highlighted adjustments in the modal:
   - `secretsEqual` uses equal-length `timingSafeEqual`; empty secret still rejected.
   - Request tests for missing portal env, admin-config-missing, 429 burst, and wrong cron secrets (same and different length).
   - Test-mode setup script also turns cancel/plan-change off on the account default configuration.
+  - CI on `506a847`: 6 Playwright failures. Portal tests 409 because `tenants.stripe_customer_id` had no migration; OPTIONS CORS was `*` from `src/proxy.ts`. Added the column (plus Acme seed) and let billing preflight fall through to the route.
