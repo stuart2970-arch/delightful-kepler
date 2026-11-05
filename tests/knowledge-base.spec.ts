@@ -107,7 +107,7 @@ test.describe('Knowledge Base Ingestion Pipeline (URL, Text, File) & STYL-186', 
   // -------------------------------------------------------------------------
   test('POST /api/ingest/text should ingest text and generate vector embeddings', async ({ request }) => {
     const uniqueSourceName = `Playwright Test Text ${Date.now()}`;
-    const testContent = 'Betfred is a leading UK bookmaker founded by Fred Done in Salford in 1967. Betfred provides sports betting, casino games, and customer care.';
+    const testContent = `Betfred is a leading UK bookmaker founded by Fred Done in Salford in 1967. Betfred provides sports betting, casino games, and customer care. ${uniqueSourceName}`;
 
     const response = await request.post('/api/ingest/text', {
       headers: { Authorization: `Bearer ${acmeUser.token}` },
@@ -126,7 +126,7 @@ test.describe('Knowledge Base Ingestion Pipeline (URL, Text, File) & STYL-186', 
 
   test('POST /api/ingest/text with null bytes and special unicode should sanitize and ingest cleanly', async ({ request }) => {
     const uniqueSourceName = `Unicode Clean Test ${Date.now()}`;
-    const dirtyContent = 'Document containing null byte \u0000 and escape sequence \\u0000 for StyleFlo customer onboarding testing.';
+    const dirtyContent = `Document containing null byte \u0000 and escape sequence \\u0000 for StyleFlo customer onboarding testing. ${uniqueSourceName}`;
 
     const response = await request.post('/api/ingest/text', {
       headers: { Authorization: `Bearer ${acmeUser.token}` },
@@ -147,14 +147,15 @@ test.describe('Knowledge Base Ingestion Pipeline (URL, Text, File) & STYL-186', 
   // File Ingestion
   // -------------------------------------------------------------------------
   test('POST /api/ingest/file should accept and process markdown uploads with binary characters', async ({ request }) => {
-    const fileContent = 'StyleFlo Brand Guidelines: \u0000Primary color is #260475.\x00 StyleFlo provides AI Receptionist builders for businesses.';
+    const fileName = `brand-guidelines-${Date.now()}-test.md`;
+    const fileContent = `StyleFlo Brand Guidelines: \u0000Primary color is #260475.\x00 StyleFlo provides AI Receptionist builders for businesses. ${fileName}`;
     const buffer = Buffer.from(fileContent, 'utf-8');
 
     const response = await request.post('/api/ingest/file', {
       headers: { Authorization: `Bearer ${acmeUser.token}` },
       multipart: {
         file: {
-          name: `brand-guidelines-${Date.now()}-\u0000test.md`,
+          name: fileName,
           mimeType: 'text/markdown',
           buffer: buffer,
         },
@@ -169,7 +170,8 @@ test.describe('Knowledge Base Ingestion Pipeline (URL, Text, File) & STYL-186', 
   });
 
   test('POST /api/ingest/file should accept and process PDF uploads with valid text extraction', async ({ request }) => {
-    const minimalPdf = '%PDF-1.4\n1 0 obj<</Type/Catalog/Pages 2 0 R>>endobj\n2 0 obj<</Type/Pages/Kids[3 0 R]/Count 1>>endobj\n3 0 obj<</Type/Page/MediaBox[0 0 612 792]/Parent 2 0 R/Contents 4 0 R/Resources<</Font<</F1 5 0 R>>>>>>endobj\n4 0 obj<</Length 54>>stream\nBT /F1 12 Tf 100 700 Td (Racing and Football Outlook 2026) Tj ET\nendstream\nendobj\n5 0 obj<</Type/Font/Subtype/Type1/BaseFont/Helvetica>>endobj\nxref\n0 6\n0000000000 65535 f \n0000000009 00000 n \n0000000058 00000 n \n0000000115 00000 n \n0000000244 00000 n \n0000000347 00000 n \ntrailer<</Size 6/Root 1 0 R>>\nstartxref\n422\n%%EOF';
+    const pdfStamp = String(Date.now());
+    const minimalPdf = `%PDF-1.4\n1 0 obj<</Type/Catalog/Pages 2 0 R>>endobj\n2 0 obj<</Type/Pages/Kids[3 0 R]/Count 1>>endobj\n3 0 obj<</Type/Page/MediaBox[0 0 612 792]/Parent 2 0 R/Contents 4 0 R/Resources<</Font<</F1 5 0 R>>>>>>endobj\n4 0 obj<</Length 80>>stream\nBT /F1 12 Tf 100 700 Td (Racing and Football Outlook ${pdfStamp}) Tj ET\nendstream\nendobj\n5 0 obj<</Type/Font/Subtype/Type1/BaseFont/Helvetica>>endobj\nxref\n0 6\n0000000000 65535 f \n0000000009 00000 n \n0000000058 00000 n \n0000000115 00000 n \n0000000244 00000 n \n0000000347 00000 n \ntrailer<</Size 6/Root 1 0 R>>\nstartxref\n422\n%%EOF`;
     const buffer = Buffer.from(minimalPdf);
 
     const response = await request.post('/api/ingest/file', {
@@ -191,14 +193,15 @@ test.describe('Knowledge Base Ingestion Pipeline (URL, Text, File) & STYL-186', 
   });
 
   test('POST /api/ingest/file should accept and format CSV spreadsheets', async ({ request }) => {
-    const csvContent = 'Service,Price,Duration\nHaircut,£25,30 mins\nBeard Trim,£15,20 mins\nFull Package,£35,45 mins';
+    const csvName = `services-${Date.now()}.csv`;
+    const csvContent = `Service,Price,Duration\nHaircut,£25,30 mins\nBeard Trim,£15,20 mins\nFull Package,£35,45 mins\nNote,${csvName},unique`;
     const buffer = Buffer.from(csvContent, 'utf-8');
 
     const response = await request.post('/api/ingest/file', {
       headers: { Authorization: `Bearer ${acmeUser.token}` },
       multipart: {
         file: {
-          name: `services-${Date.now()}.csv`,
+          name: csvName,
           mimeType: 'text/csv',
           buffer: buffer,
         },
@@ -280,7 +283,7 @@ test.describe('Knowledge Base Ingestion Pipeline (URL, Text, File) & STYL-186', 
   // -------------------------------------------------------------------------
   test('STYL-186: Re-ingesting the same source replaces chunks rather than duplicating them', async ({ request }) => {
     const sourceTitle = `Re-Ingest-Check-${Date.now()}`;
-    const initialText = 'Initial version of the document knowledge content for duplication verification.';
+    const initialText = `Initial version of the document knowledge content for duplication verification. ${sourceTitle}`;
 
     // Ingest turn 1
     const res1 = await request.post('/api/ingest/text', {
@@ -298,7 +301,7 @@ test.describe('Knowledge Base Ingestion Pipeline (URL, Text, File) & STYL-186', 
     expect(matches1.length).toBe(1);
 
     // Ingest turn 2 with updated text for the same sourceName
-    const updatedText = 'Updated version with new pricing and business policies replacing previous content.';
+    const updatedText = `Updated version with new pricing and business policies replacing previous content. ${sourceTitle}`;
     const res2 = await request.post('/api/ingest/text', {
       headers: { Authorization: `Bearer ${acmeUser.token}` },
       data: { text: updatedText, sourceName: sourceTitle, chatbotId: acmeChatbotId }
@@ -324,11 +327,11 @@ test.describe('Knowledge Base Ingestion Pipeline (URL, Text, File) & STYL-186', 
     // Insert both
     await request.post('/api/ingest/text', {
       headers: { Authorization: `Bearer ${acmeUser.token}` },
-      data: { text: 'Content to delete shortly', sourceName: sourceToDelete, chatbotId: acmeChatbotId }
+      data: { text: `Content to delete shortly ${sourceToDelete}`, sourceName: sourceToDelete, chatbotId: acmeChatbotId }
     });
     await request.post('/api/ingest/text', {
       headers: { Authorization: `Bearer ${acmeUser.token}` },
-      data: { text: 'Content to remain untouched', sourceName: textToKeep, chatbotId: acmeChatbotId }
+      data: { text: `Content to remain untouched ${textToKeep}`, sourceName: textToKeep, chatbotId: acmeChatbotId }
     });
 
     // Delete single source
@@ -359,13 +362,13 @@ test.describe('Knowledge Base Ingestion Pipeline (URL, Text, File) & STYL-186', 
     // Add chunk to Acme bot
     await request.post('/api/ingest/text', {
       headers: { Authorization: `Bearer ${acmeUser.token}` },
-      data: { text: 'Acme test chunk to be cleared by delete-all', sourceName: uniqueAcmeItem, chatbotId: acmeChatbotId }
+      data: { text: `Acme test chunk to be cleared by delete-all ${uniqueAcmeItem}`, sourceName: uniqueAcmeItem, chatbotId: acmeChatbotId }
     });
 
     // Add chunk to Tenant 2 bot
     await request.post('/api/ingest/text', {
       headers: { Authorization: `Bearer ${tenant2User.token}` },
-      data: { text: 'Tenant 2 chunk that must remain completely untouched', sourceName: uniqueTenant2Item, chatbotId: tenant2ChatbotId }
+      data: { text: `Tenant 2 chunk that must remain completely untouched ${uniqueTenant2Item}`, sourceName: uniqueTenant2Item, chatbotId: tenant2ChatbotId }
     });
 
     // Execute DELETE ALL on Acme bot

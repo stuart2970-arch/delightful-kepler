@@ -4108,3 +4108,4 @@ Highlighted adjustments in the modal:
   - Migration backfills hashes, drops newer exact copies, and adds the partial unique index. Seeded local rows are hashed after seed because seed runs after migrations.
   - FloBot still writes to the missing `knowledge_chunks` table; noted in code, not redirected.
   - Playwright covers normalisation, SQL/TS hash parity, crawl/text/file/Shopify, cross-tenant and cross-chatbot, allowance, same-source replace, dry-run, and a unique-constraint race.
+  - STYL-186 fixtures now use distinct text per run so an exact-hash skip cannot hide a source the test expects to create.
