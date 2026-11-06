@@ -107,3 +107,11 @@ env:
     availability:
       - BUILD
       - RUNTIME
+
+  # Production App Hosting (styleflo-ai / delightful-kepler-1) reads this base
+  # file and does not merge apphosting.staging.yaml. Same RUNTIME secret ref
+  # as staging. Name only — the value stays in Secret Manager.
+  - variable: VAPI_WEBHOOK_SECRET
+    secret: VAPI_WEBHOOK_SECRET
+    availability:
+      - RUNTIME
