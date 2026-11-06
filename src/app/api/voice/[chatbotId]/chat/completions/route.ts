@@ -5,6 +5,7 @@ import { createGoogleGenerativeAI } from '@ai-sdk/google';
 import { getAvailabilityData, bookMeeting } from '@/app/api/chat/stream/calendar';
 import { calendarFallbackMessage, directAvailabilitySpeech } from '@/lib/calendar/fallback-message';
 import { splitAtToolTag } from '@/lib/calendar/tool-tags';
+import { containsInternalText, CUSTOMER_UNFINISHED_REPLY, sanitiseForTranscript } from '@/lib/chat/customer-output-guard';
 
 import { getActiveGeminiModel } from '@/lib/gemini-config';
 import { generateEmbedding } from '@/lib/embeddings';
@@ -518,23 +519,37 @@ ${globalDisclaimer}`;
           let normalSpokenText = '';
           let holdingPhraseSpoken = '';
           let pass2SpokenText = '';
+          let voiceLeakTripped = false;
+          const speakDelta = (content: string) => {
+            if (!content) return;
+            const deltaChunk = {
+              id: 'chatcmpl-vapi',
+              object: 'chat.completion.chunk',
+              created: Math.floor(Date.now() / 1000),
+              model: activeModelName,
+              choices: [{ delta: { content }, index: 0, finish_reason: null }]
+            };
+            controller.enqueue(encoder.encode(`data: ${JSON.stringify(deltaChunk)}\n\n`));
+          };
           for await (const textDelta of result.textStream) {
             fullText += textDelta;
 
             if (fullText.includes('[') || containsBracketTag) {
               containsBracketTag = true;
               pendingChunks.push(textDelta);
+            } else if (voiceLeakTripped || containsInternalText(normalSpokenText + textDelta)) {
+              // No extra holdback: decide on text already received, then drop the rest.
+              voiceLeakTripped = true;
+              const safe = sanitiseForTranscript(normalSpokenText + textDelta);
+              const extra = safe.startsWith(normalSpokenText) ? safe.slice(normalSpokenText.length) : '';
+              if (extra) {
+                normalSpokenText += extra;
+                speakDelta(extra);
+              }
             } else {
               // Safe normal speech — stream chunk immediately to Vapi
               normalSpokenText += textDelta;
-              const deltaChunk = {
-                id: 'chatcmpl-vapi',
-                object: 'chat.completion.chunk',
-                created: Math.floor(Date.now() / 1000),
-                model: activeModelName,
-                choices: [{ delta: { content: textDelta }, index: 0, finish_reason: null }]
-              };
-              controller.enqueue(encoder.encode(`data: ${JSON.stringify(deltaChunk)}\n\n`));
+              speakDelta(textDelta);
             }
           }
 
@@ -543,7 +558,7 @@ ${globalDisclaimer}`;
           const bookMatch = fullText.match(/\[BOOK_MEETING:\s*(.+?),\s*(.+?),\s*(.+?),\s*(.+?),\s*(.+?),\s*(.+?),\s*(.+?)\]/);
 
           if (availMatch || bookMatch) {
-            const preBracketText = fullText.split('[')[0].trim();
+            const preBracketText = sanitiseForTranscript(fullText.split('[')[0]).trim();
             if (normalSpokenText.trim().length > 0) {
               // Exactly one holding line: pre-bracket text was already streamed to the caller chunk-by-chunk
               holdingPhraseSpoken = normalSpokenText.trim();
@@ -646,19 +661,23 @@ ${globalDisclaimer}`;
                       temperature: 0.7,
                     });
 
+                let pass2Leak = false;
                 for await (const textDelta of pass2Result.textStream) {
+                  if (pass2Leak) continue;
                   const cleanDelta = textDelta.replace(/\[(CHECK_AVAILABILITY|BOOK_MEETING|TIME_SLOTS|LEAD_CAPTURED|LOOKUP_APPOINTMENTS):?[^\]]*\]/gi, '');
-                  if (cleanDelta) {
-                    pass2SpokenText += cleanDelta;
-                    const deltaChunk = {
-                      id: 'chatcmpl-vapi',
-                      object: 'chat.completion.chunk',
-                      created: Math.floor(Date.now() / 1000),
-                      model: activeModelName,
-                      choices: [{ delta: { content: cleanDelta }, index: 0, finish_reason: null }]
-                    };
-                    controller.enqueue(encoder.encode(`data: ${JSON.stringify(deltaChunk)}\n\n`));
+                  if (!cleanDelta) continue;
+                  if (containsInternalText(pass2SpokenText + cleanDelta)) {
+                    pass2Leak = true;
+                    const safe = sanitiseForTranscript(pass2SpokenText + cleanDelta);
+                    const extra = safe.startsWith(pass2SpokenText) ? safe.slice(pass2SpokenText.length) : '';
+                    if (extra) {
+                      pass2SpokenText += extra;
+                      speakDelta(extra);
+                    }
+                    continue;
                   }
+                  pass2SpokenText += cleanDelta;
+                  speakDelta(cleanDelta);
                 }
               } catch (pass2Err: any) {
                 voiceLogError('[Vapi Custom LLM] Pass 2 streaming error', pass2Err);
@@ -679,9 +698,10 @@ ${globalDisclaimer}`;
           } else if (containsBracketTag && pendingChunks.length > 0) {
             // No complete tool tag: speak the text before any unfinished tag, never the tag itself.
             const { before, hadTag } = splitAtToolTag(pendingChunks.join(''));
+            const safeBefore = sanitiseForTranscript(before);
             const remainingCleanText = hadTag
-              ? `${before.trim()} ${calendarFallbackMessage('unreachable', bookingUrl)}`.trim()
-              : before;
+              ? `${safeBefore.trim()} ${calendarFallbackMessage('unreachable', bookingUrl)}`.trim()
+              : safeBefore;
             normalSpokenText += remainingCleanText;
             const deltaChunk = {
               id: 'chatcmpl-vapi',
@@ -758,12 +778,13 @@ actualSpokenBotText = (availMatch || bookMatch)
                     created_at: new Date(now - 1000).toISOString()
                   });
                 }
-                if (actualSpokenBotText) {
+                const storedSpoken = sanitiseForTranscript(actualSpokenBotText).trim();
+                if (storedSpoken) {
                   await supabaseAdmin.from('messages').insert({
                     tenant_id: tenantId,
                     conversation_id: conv.id,
                     sender_type: 'bot',
-                    text_content: actualSpokenBotText,
+                    text_content: storedSpoken,
                     created_at: new Date(now).toISOString()
                   });
                 }
@@ -813,7 +834,7 @@ actualSpokenBotText = (availMatch || bookMatch)
                     created_at: new Date(now - 1000).toISOString()
                   });
                 }
-                const failNote = actualSpokenBotText || `[Turn failed: ${err?.message || 'Stream error'}`;
+                const failNote = sanitiseForTranscript(actualSpokenBotText || '').trim() || CUSTOMER_UNFINISHED_REPLY;
                 await supabaseAdmin.from('messages').insert({
                   tenant_id: tenantId,
                   conversation_id: conv.id,
