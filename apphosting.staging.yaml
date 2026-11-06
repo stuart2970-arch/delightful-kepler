@@ -44,6 +44,12 @@ env:
       - BUILD
       - RUNTIME
 
+  - variable: APP_URL
+    value: https://staging.styleflo.ai
+    availability:
+      - BUILD
+      - RUNTIME
+
   # ---------------------------------------------------------------------------
   # Core secrets (Secret Manager) — BUILD where NEXT_PUBLIC_* need inlining
   # ---------------------------------------------------------------------------
@@ -100,6 +106,16 @@ env:
 
   - variable: STRIPE_WEBHOOK_SECRET
     secret: STRIPE_WEBHOOK_SECRET
+    availability:
+      - RUNTIME
+
+  - variable: STRIPE_PORTAL_CONFIG_OWNER
+    secret: STRIPE_PORTAL_CONFIG_OWNER
+    availability:
+      - RUNTIME
+
+  - variable: STRIPE_PORTAL_CONFIG_ADMIN
+    secret: STRIPE_PORTAL_CONFIG_ADMIN
     availability:
       - RUNTIME
 

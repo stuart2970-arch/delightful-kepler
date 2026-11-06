@@ -25,6 +25,7 @@ $$ LANGUAGE plpgsql;
 -- 2. Seed Tenants (plan_tier = foundation per STYL rename)
 INSERT INTO public.tenants (
   id, tenant_id, company_name, slug, plan_tier, has_google_calendar,
+  stripe_customer_id,
   general_operating_hours
 )
 VALUES (
@@ -34,6 +35,7 @@ VALUES (
   'acme-corp',
   'foundation',
   true,
+  'cus_test_acme',
   '{
     "monday":    {"unavailable": false, "hours": {"start": "09:00", "end": "17:00"}},
     "tuesday":   {"unavailable": false, "hours": {"start": "09:00", "end": "17:00"}},
@@ -46,6 +48,7 @@ VALUES (
 ) ON CONFLICT (id) DO UPDATE SET
   has_google_calendar = true,
   plan_tier = 'foundation',
+  stripe_customer_id = EXCLUDED.stripe_customer_id,
   general_operating_hours = EXCLUDED.general_operating_hours;
 
 INSERT INTO public.tenants (id, tenant_id, company_name, slug, plan_tier)
@@ -225,6 +228,13 @@ VALUES (
   public.make_dummy_vector(0.06),
   'https://globex.com/status'
 ) ON CONFLICT (id) DO NOTHING;
+
+-- STYL-189: hash seeded rows. Migrations run before seed, so the migration
+-- backfill does not see these fixtures. Staging rows are hashed by the migration.
+UPDATE public.document_chunks
+SET content_hash = public.knowledge_content_hash(content)
+WHERE content_hash IS NULL
+  AND content IS NOT NULL;
 
 -- 7. Seed conversations & messages logs
 INSERT INTO public.conversations (id, tenant_id, chatbot_id, user_session_id)

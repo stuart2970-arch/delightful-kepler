@@ -1,37 +1,16 @@
 import { NextResponse } from 'next/server';
-import { createServerClient } from '@supabase/ssr';
 import { createClient } from '@supabase/supabase-js';
-import { cookies } from 'next/headers';
-import twilio from 'twilio';
+import { requireTenantRole } from '@/lib/auth/require-tenant-role';
+import { recordSuperadminAudit } from '@/lib/auth/superadmin-audit';
+import {
+  isInternalCronRequest,
+  releaseTwilioNumber,
+  releaseVapiNumber,
+  telephonyReleaseCallLog,
+} from '@/lib/telephony/release-vendors';
 import { clearTenantPhonePurchase } from '@/lib/telephony/provision-safety';
 
 export const dynamic = 'force-dynamic';
-
-async function getSupabaseAuthClient() {
-  const cookieStore = await cookies();
-  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
-  if (!supabaseUrl || !anonKey) {
-    throw new Error('Supabase environment variables are missing');
-  }
-
-  return createServerClient(supabaseUrl, anonKey, {
-    cookies: {
-      getAll() {
-        return cookieStore.getAll();
-      },
-      setAll(cookiesToSet) {
-        try {
-          cookiesToSet.forEach(({ name, value, options }) =>
-            cookieStore.set(name, value, options)
-          );
-        } catch {
-          // Safe to ignore in Server Components
-        }
-      },
-    },
-  });
-}
 
 function getSupabaseAdmin() {
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
@@ -44,55 +23,42 @@ function getSupabaseAdmin() {
 
 export async function POST(request: Request) {
   try {
-    const body = await request.json();
-    const { tenant_id, confirmed_downgrade, number_type } = body;
-    const isMobile = number_type === 'mobile';
+    const cronAuthorized = isInternalCronRequest(request);
+    let tenantId: string | undefined;
+    let actor = 'cron';
 
-    if (!tenant_id) {
-      return NextResponse.json({ error: 'tenant_id is required' }, { status: 400 });
-    }
-
-    // Check authorization: user cookie session OR admin secret header
-    let isAuthorized = false;
-    const authHeader = request.headers.get('Authorization');
-    const cronSecret = process.env.CRON_SECRET || process.env.SUPABASE_SERVICE_ROLE_KEY;
-
-    if (authHeader && cronSecret && authHeader === `Bearer ${cronSecret}`) {
-      isAuthorized = true;
+    if (cronAuthorized) {
+      const body = await request.clone().json().catch(() => ({}));
+      tenantId = typeof body?.tenant_id === 'string' ? body.tenant_id : undefined;
+      if (!tenantId) {
+        return NextResponse.json({ error: 'tenant_id is required' }, { status: 400 });
+      }
     } else {
-      const supabase = await getSupabaseAuthClient();
-      let user = (await supabase.auth.getUser()).data?.user;
-
-      if (!user && authHeader && authHeader.startsWith('Bearer ')) {
-        const token = authHeader.replace('Bearer ', '').trim();
-        const { data: userData } = await supabase.auth.getUser(token);
-        if (userData?.user) user = userData.user;
-      }
-
-      if (user) {
-        const { data: profile } = await supabase
-          .from('profiles')
-          .select('tenant_id, is_super_admin')
-          .eq('id', user.id)
-          .single();
-
-        if (profile && (profile.is_super_admin || profile.tenant_id === tenant_id)) {
-          isAuthorized = true;
-        }
+      const auth = await requireTenantRole(request, ['owner']);
+      if (!auth.ok) return auth.response;
+      tenantId = auth.tenantId;
+      actor = auth.isSuperAdmin ? 'superadmin' : 'owner';
+      if (auth.isSuperAdmin) {
+        recordSuperadminAudit({
+          action: 'telephony_deprovision',
+          userId: auth.userId,
+          tenantId,
+          detail: { role: auth.role },
+        });
       }
     }
 
-    if (!isAuthorized) {
-      return NextResponse.json({ error: 'Unauthorized to deprovision numbers for this tenant' }, { status: 403 });
-    }
+    const body = await request.json().catch(() => ({}));
+    const { confirmed_downgrade, number_type } = body;
+    const isMobile = number_type === 'mobile';
+    void confirmed_downgrade;
 
     const adminSupabase = getSupabaseAdmin();
 
-    // 1. Get current number from tenant
     const { data: tenant, error: tenantError } = await adminSupabase
       .from('tenants')
       .select('id, twilio_shadow_number, twilio_mobile_number')
-      .eq('id', tenant_id)
+      .eq('id', tenantId)
       .single();
 
     if (tenantError || !tenant) {
@@ -101,63 +67,31 @@ export async function POST(request: Request) {
 
     const numberToRelease = isMobile ? tenant.twilio_mobile_number : tenant.twilio_shadow_number;
     if (!numberToRelease) {
-      const cleared = await clearTenantPhonePurchase(adminSupabase, tenant_id);
+      const cleared = await clearTenantPhonePurchase(adminSupabase, tenantId);
       if (cleared.error) {
         return NextResponse.json({ error: cleared.error.message || 'Failed to clear phone reservation' }, { status: 500 });
       }
-      return NextResponse.json({ success: true, message: `No ${isMobile ? 'mobile' : 'landline'} phone number currently provisioned for this tenant` });
+      return NextResponse.json({
+        success: true,
+        message: `No ${isMobile ? 'mobile' : 'landline'} phone number currently provisioned for this tenant`,
+      });
     }
 
-    console.log(`[Telephony Deprovisioning] Releasing number ${numberToRelease} for tenant ${tenant_id}...`);
+    console.log(`[Telephony Deprovisioning] Releasing number ${numberToRelease} for tenant ${tenantId} (${actor})...`);
 
-    // 2. Delete / Release number from Twilio
-    const accountSid = process.env.TWILIO_ACCOUNT_SID;
-    const authToken = process.env.TWILIO_AUTH_TOKEN;
-
-    if (accountSid && authToken) {
-      try {
-        const client = twilio(accountSid, authToken);
-        const incomingNumbers = await client.incomingPhoneNumbers.list({ phoneNumber: numberToRelease, limit: 1 });
-        if (incomingNumbers && incomingNumbers.length > 0) {
-          const sid = incomingNumbers[0].sid;
-          await client.incomingPhoneNumbers(sid).remove();
-          console.log(`[Telephony Deprovisioning] Successfully released Twilio number SID: ${sid}`);
-        } else {
-          console.warn(`[Telephony Deprovisioning] Number ${numberToRelease} not found in Twilio account.`);
-        }
-      } catch (err: any) {
-        console.error('[Telephony Deprovisioning] Error releasing number from Twilio:', err.message);
-      }
+    try {
+      await releaseTwilioNumber(numberToRelease);
+    } catch (err: any) {
+      console.error('[Telephony Deprovisioning] Error releasing number from Twilio:', err.message);
     }
 
-    // 3. Delete number from Vapi
-    const vapiPrivateKey = process.env.VAPI_PRIVATE_API_KEY;
-    if (vapiPrivateKey) {
-      try {
-        const listRes = await fetch('https://api.vapi.ai/phone-number', {
-          headers: { 'Authorization': `Bearer ${vapiPrivateKey}` }
-        });
-        if (listRes.ok) {
-          const vapiNumbers: any[] = await listRes.json();
-          const target = vapiNumbers.find((n: any) => n.number === numberToRelease || n.number === numberToRelease.replace('+', ''));
-          if (target && target.id) {
-            const delRes = await fetch(`https://api.vapi.ai/phone-number/${target.id}`, {
-              method: 'DELETE',
-              headers: { 'Authorization': `Bearer ${vapiPrivateKey}` }
-            });
-            if (delRes.ok) {
-              console.log(`[Telephony Deprovisioning] Successfully deleted number ${target.id} from Vapi.`);
-            } else {
-              console.error('[Telephony Deprovisioning] Failed to delete number from Vapi:', await delRes.text());
-            }
-          }
-        }
-      } catch (err: any) {
-        console.error('[Telephony Deprovisioning] Error cleaning up Vapi number:', err.message);
-      }
+    try {
+      await releaseVapiNumber(numberToRelease);
+    } catch (err: any) {
+      console.error('[Telephony Deprovisioning] Error cleaning up Vapi number:', err.message);
     }
 
-    // 4. Reset number column in Supabase
+    telephonyReleaseCallLog.dbClear += 1;
     const isSame = tenant.twilio_shadow_number && tenant.twilio_mobile_number && tenant.twilio_shadow_number === tenant.twilio_mobile_number;
     const clearPayload = isSame
       ? { twilio_shadow_number: null, twilio_mobile_number: null }
@@ -165,7 +99,7 @@ export async function POST(request: Request) {
     const { error: clearError } = await adminSupabase
       .from('tenants')
       .update(clearPayload)
-      .eq('id', tenant_id);
+      .eq('id', tenantId);
 
     if (clearError) {
       console.error('[Telephony Deprovisioning] Error clearing tenant number in Supabase:', {
@@ -174,7 +108,7 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Failed to update database' }, { status: 500 });
     }
 
-    const reservationCleared = await clearTenantPhonePurchase(adminSupabase, tenant_id);
+    const reservationCleared = await clearTenantPhonePurchase(adminSupabase, tenantId);
     if (reservationCleared.error) {
       return NextResponse.json({
         error: reservationCleared.error.message || 'Number was released but the reservation could not be cleared.',
@@ -184,7 +118,7 @@ export async function POST(request: Request) {
     return NextResponse.json({
       success: true,
       releasedNumber: numberToRelease,
-      message: `Phone number ${numberToRelease} has been permanently released and deprovisioned.`
+      message: `Phone number ${numberToRelease} has been permanently released and deprovisioned.`,
     });
   } catch (error: any) {
     console.error('[Telephony Deprovisioning API] Unexpected error:', error);

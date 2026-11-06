@@ -56,6 +56,9 @@ function buildEnvFile({ apiUrl, anon, service, appUrl, appEnv, playwright }) {
     `SUPABASE_SERVICE_ROLE_KEY=${service}`,
     `NEXT_PUBLIC_APP_URL=${appUrl}`,
     `NEXT_PUBLIC_SITE_URL=${appUrl}`,
+    `APP_URL=${appUrl}`,
+    'STRIPE_PORTAL_CONFIG_OWNER=bpc_test_owner',
+    'STRIPE_PORTAL_CONFIG_ADMIN=bpc_test_admin',
     // Third-party keys: mock / test only — never live credentials on a dev machine.
     'STRIPE_SECRET_KEY=sk_test_mock',
     'MAILGUN_API_KEY=mock_mailgun_api_key_for_local_testing',
@@ -84,6 +87,9 @@ function buildEnvFile({ apiUrl, anon, service, appUrl, appEnv, playwright }) {
   if (playwright) {
     lines.push('PLAYWRIGHT_TEST=true');
     lines.push('NODE_ENV=test');
+    // STYL-199: Playwright injects mockModelReply. Never copy this to production
+    // or to apphosting.yaml / apphosting.staging.yaml.
+    lines.push('ALLOW_MOCK_REPLY=true');
     // Production default is 20/15min. The suite shares one IP against a
     // 15-minute window, so tests need a high ceiling. Do not copy this to Cloud Run.
     lines.push('AUTH_RATE_LIMIT_PER_IP=10000');

@@ -2,10 +2,9 @@ import { NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import { RecursiveCharacterTextSplitter } from '@langchain/textsplitters';
 import { z } from 'zod';
-import { checkFeatureEntitlement } from '@/lib/entitlements';
-import { batchEmbedTexts } from '@/lib/embeddings';
 import { sanitizeForPostgres } from '@/lib/file-parser';
 import { requireUser } from '@/lib/auth/require-superadmin';
+import { dedupedIngest } from '@/lib/knowledge/ingest-documents';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 120;
@@ -14,6 +13,7 @@ const IngestTextSchema = z.object({
   text: z.string().min(10, { message: 'Text content must be at least 10 characters long' }),
   sourceName: z.string().min(1, { message: 'Source title/name is required' }),
   chatbotId: z.string().regex(/^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/, { message: 'Invalid chatbot ID format' }),
+  dryRun: z.boolean().optional(),
 });
 
 export async function POST(request: Request) {
@@ -47,7 +47,7 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: errorMsg }, { status: 400 });
     }
 
-    const { text, sourceName, chatbotId } = validation.data;
+    const { text, sourceName, chatbotId, dryRun } = validation.data;
 
     const adminClient = createClient(supabaseUrl, serviceRoleKey, {
       auth: { persistSession: false, autoRefreshToken: false }
@@ -114,68 +114,29 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Text splitting generated zero knowledge items' }, { status: 400 });
     }
 
-    // 6. Check entitlements against real document_chunks count (considering existing chunks for this source)
-    const { count: existingCount } = await dbClient
-      .from('document_chunks')
-      .select('*', { count: 'exact', head: true })
-      .eq('chatbot_id', targetChatbotId)
-      .eq('source_url', sanitizedSourceName);
-
-    const existingChunksForSource = existingCount || 0;
-    const netIncoming = Math.max(0, chunks.length - existingChunksForSource);
-
-    const entitlementCheck = await checkFeatureEntitlement(
+    // 6. Hash and skip exact duplicates (STYL-189). Replacing this source (STYL-186)
+    // does not count copies that already exist on another source.
+    const outcome = await dedupedIngest({
       dbClient,
       tenantId,
-      'knowledge_data_chunks',
-      netIncoming
-    );
-
-    if (!entitlementCheck.allowed) {
-      return NextResponse.json({ error: entitlementCheck.error }, { status: 403 });
-    }
-
-    // 7. Generate vector embeddings
-    console.log(`[Ingest Text][${requestId}] Generating vector embeddings for ${chunks.length} chunks via multi-tier engine...`);
-    const embeddings = await batchEmbedTexts(chunks);
-
-    if (!embeddings || embeddings.length === 0) {
-      return NextResponse.json({ error: 'Failed to generate embeddings for text knowledge items.' }, { status: 502 });
-    }
-
-    // 8. Replace existing chunks for this source if re-submitting
-    if (existingChunksForSource > 0) {
-      await dbClient
-        .from('document_chunks')
-        .delete()
-        .eq('chatbot_id', targetChatbotId)
-        .eq('source_url', sanitizedSourceName);
-    }
-
-    const metadata = { source_type: 'raw_text', title: sanitizedSourceName };
-
-    const recordsToInsert = chunks.slice(0, embeddings.length).map((chunkContent, idx) => ({
-      tenant_id: tenantId,
-      chatbot_id: targetChatbotId,
-      content: sanitizeForPostgres(chunkContent),
-      embedding: embeddings[idx],
-      source_url: sanitizedSourceName,
-      metadata: metadata,
-    }));
-
-    const { error: dbInsertError } = await dbClient.from('document_chunks').insert(recordsToInsert);
-
-    if (dbInsertError) {
-      console.error(`[Ingest Text][${requestId}] Supabase INSERT failed:`, dbInsertError);
-      return NextResponse.json({ error: `Failed to save knowledge items: ${dbInsertError.message}` }, { status: 500 });
-    }
-
-    console.log(`[Ingest Text][${requestId}] Successfully ingested ${recordsToInsert.length} chunks for chatbot ${targetChatbotId}`);
-    return NextResponse.json({
-      success: true,
-      chunksCount: recordsToInsert.length,
-      message: `Successfully ingested ${recordsToInsert.length} knowledge items from "${sanitizedSourceName}".`,
+      chatbotId: targetChatbotId,
+      chunks,
+      sourceUrl: sanitizedSourceName,
+      metadata: { source_type: 'raw_text', title: sanitizedSourceName },
+      dryRun: dryRun === true,
+      replaceExistingSource: true,
+      sourceLabel: `"${sanitizedSourceName}"`,
     });
+
+    if (!outcome.ok) {
+      return NextResponse.json(outcome.body, { status: outcome.status });
+    }
+
+    console.log(
+      `[Ingest Text][${requestId}] ${dryRun ? 'Preview' : 'Stored'} ` +
+      `${outcome.body.insertedCount} new, ${outcome.body.alreadyCoveredCount} already covered`,
+    );
+    return NextResponse.json(outcome.body);
   } catch (error: any) {
     console.error(`[Ingest Text][${requestId}] Unhandled error:`, error);
     return NextResponse.json({ error: error.message || 'Internal server error' }, { status: 500 });

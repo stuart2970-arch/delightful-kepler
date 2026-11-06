@@ -83,9 +83,9 @@ test.describe('STYL-179: Hide disabled add-ons from public catalogue, checkout a
   test('2. Checkout returns 400 { error: "This add-on is not available" } when requesting disabled add-ons', async ({ request }) => {
     // Mode 2: Existing subscription add-on
     const resMode2 = await request.post('/api/billing/checkout', {
+      headers: { Authorization: `Bearer ${normalUserSession.token}` },
       data: {
         addonCatalogId: 'whatsapp_addon',
-        tenantId: testTenantId,
       },
     });
     expect(resMode2.status()).toBe(400);
@@ -94,6 +94,7 @@ test.describe('STYL-179: Hide disabled add-ons from public catalogue, checkout a
 
     // Mode 3: Direct checkout with plan + disabled add-on
     const resMode3 = await request.post('/api/billing/checkout', {
+      headers: { Authorization: `Bearer ${normalUserSession.token}` },
       data: {
         plan: 'foundation',
         addons: ['whatsapp_addon'],
@@ -106,9 +107,9 @@ test.describe('STYL-179: Hide disabled add-ons from public catalogue, checkout a
 
     // Non-existent addon still returns 404 in Mode 2
     const resNonExistent = await request.post('/api/billing/checkout', {
+      headers: { Authorization: `Bearer ${normalUserSession.token}` },
       data: {
         addonCatalogId: 'non_existent_fake_addon_123',
-        tenantId: testTenantId,
       },
     });
     expect(resNonExistent.status()).toBe(404);

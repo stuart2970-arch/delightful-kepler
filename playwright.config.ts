@@ -30,8 +30,15 @@ export default defineConfig({
     env: {
       ...process.env,
       PLAYWRIGHT_TEST: 'true',
+      // STYL-199: existing suites inject mockModelReply. Never set this on production.
+      ALLOW_MOCK_REPLY: 'true',
       // High ceiling so the shared test IP is not blocked. Production omits this (default 20).
       AUTH_RATE_LIMIT_PER_IP: process.env.AUTH_RATE_LIMIT_PER_IP || '10000',
+      APP_URL: process.env.APP_URL || process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3001',
+      STRIPE_PORTAL_CONFIG_OWNER: process.env.STRIPE_PORTAL_CONFIG_OWNER || 'bpc_test_owner',
+      STRIPE_PORTAL_CONFIG_ADMIN: process.env.STRIPE_PORTAL_CONFIG_ADMIN || 'bpc_test_admin',
+      STRIPE_SECRET_KEY: process.env.STRIPE_SECRET_KEY || 'sk_test_mock',
+      CRON_SECRET: process.env.CRON_SECRET || 'mock_cron_secret_for_local_testing',
     },
   },
 });

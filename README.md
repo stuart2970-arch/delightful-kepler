@@ -4110,3 +4110,48 @@ Highlighted adjustments in the modal:
   - Stale reclaim is an atomic conditional delete. Twilio purchase timeout keeps the row as `unknown` and retry lists incoming numbers instead of buying again.
   - `recordOrphanedPhonePurchase` errors are logged. Chatbot voice route returns a generic 500.
   - Stripe and telephony test stores now support `neq`/`lt` filters and reservation reclaim/unknown paths.
+
+### Session (expired calendar test dates - release PR 22 CI - 5 Nov 2026)
+* **User**: Make CI green for release PR 22 (`staging` → `main`) by fixing tests pinned to dates now in the past. Test-only. Symptom: CI run 42037737385, `tests/styl-182-calendar-booking.spec.ts` (~line 92) `slots.length = 0`. Hypothesis: hard-coded Mon 2 Nov 2026 09:00–17:00 London is clamped/dropped once that day is past.
+* **Changes**:
+  - Added `tests/helpers/uk-future-weekday.ts` to pick the next Mon–Fri in `Europe/London` (skip today, skip weekends, noon-based day math for DST).
+  - `styl-182` Google availability, Microsoft booking, race re-offer, idempotency, and widget mock tags now use that helper. Voice `CHECK_AVAILABILITY` windows updated the same way.
+  - Left frozen-clock fixtures (`styl-195`, `tests/unit/availability.spec.ts`) and payload-only `weekCommencingDate` in `scheduling-verification.spec.ts` unchanged.
+  - Playwright helper spec covers weekend skip, UK autumn clock change, and a full 09:00–17:00 window after `now`.
+  - Hypothesis confirmed with a fixture call: pinned `2026-11-02` window after 5 Nov → `invalid_window` / 0 slots; computed next UK weekday → 14 slots.
+  - Local Playwright (local Supabase + mock keys): helper + `styl-182` + voice **13 passed**; full suite **389 passed**. `tsc`, apphosting yaml, and live-ref checks passed.
+
+### Session (billing portal + telephony deprovision auth - 5 Nov 2026)
+* **User**: One PR into `staging` locking down `/api/billing/checkout` POST (session + `requireTenantRole(['owner','admin'])`, tenant from session, portal configs by role, no email customer fallback, CORS to app origin, rate limits, `safePublicReturnUrl`) and `/api/telephony/deprovision` (owner / audited superadmin / `CRON_SECRET` only; remove service-role bearer). Dashboard stops sending `tenantId`; hide Release Dedicated Number for non-owners. Tests for every acceptance criterion. Do not merge. No live keys.
+* **Changes**:
+  - Shared `requireTenantRole` helper; checkout POST gated before any Stripe/DB write; portal configuration from `STRIPE_PORTAL_CONFIG_OWNER` / `_ADMIN` with fail-safe fallback; 409 `no_billing_account`.
+  - Deprovision owner-only (plus cron + superadmin audit); UI hides the release control for non-owners.
+  - Env names in `apphosting.yaml` / `apphosting.staging.yaml` / `.env.example`; test-mode Stripe portal config script (not run).
+  - Playwright + source-audit tests; existing checkout suites send a session Bearer.
+
+### Session (PR 24 review - portal fail-closed + cron timing-safe compare - 5 Nov 2026)
+* **User**: Two blockers on PR 24. Never create a portal session without an explicit configuration id (503 `portal_not_configured` if the right config is missing). Compare `CRON_SECRET` with `timingSafeEqual`. Add tests. Optional 429 request test and default portal config harden in the test-mode script. Same branch, do not merge, no `--no-verify`.
+* **Changes**:
+  - Portal session always sets `configuration`. Owner with only admin config still falls back; both missing or admin-without-admin-config → 503 before Stripe is constructed.
+  - `secretsEqual` uses equal-length `timingSafeEqual`; empty secret still rejected.
+  - Request tests for missing portal env, admin-config-missing, 429 burst, and wrong cron secrets (same and different length).
+  - Test-mode setup script also turns cancel/plan-change off on the account default configuration.
+  - CI on `506a847`: 6 Playwright failures. Portal tests 409 because `tenants.stripe_customer_id` had no migration; OPTIONS CORS was `*` from `src/proxy.ts`. Added the column (plus Acme seed) and let billing preflight fall through to the route.
+
+### Session (STYL-189 ingest-time knowledge dedupe - 5 Nov 2026)
+* **User**: Implement STYL-189 as a pull request into `staging`. Hash each knowledge item’s normalised text per tenant and chatbot on crawl, pasted text, file upload, and Shopify execute. Skip exact duplicates so they are not stored, embedded, or counted against the allowance. Show new vs already-covered counts, including a pre-crawl dry-run. Idempotent `content_hash` migration and staging-only backfill. No live cleanup, no live migration, no allowance or price changes, do not fix the FloBot `knowledge_chunks` path. Exact hash only.
+* **Changes**:
+  - Shared normalisation (lowercase, collapse whitespace, NFC/sanitize) and SHA-256 helper. Unique on `(tenant_id, chatbot_id, content_hash)`.
+  - Crawl, text, file, and Shopify execute skip duplicates, embed only new rows, and return inserted vs already-covered counts. `dryRun` previews without writing. The knowledge screen shows “X new knowledge items, Y already covered (not charged).”
+  - Migration backfills hashes, drops newer exact copies, and adds the partial unique index. Seeded local rows are hashed after seed because seed runs after migrations.
+  - FloBot still writes to the missing `knowledge_chunks` table; noted in code, not redirected.
+  - Playwright covers normalisation, SQL/TS hash parity, crawl/text/file/Shopify, cross-tenant and cross-chatbot, allowance, same-source replace, dry-run, and a unique-constraint race.
+  - STYL-186 fixtures now use distinct text per run so an exact-hash skip cannot hide a source the test expects to create.
+
+### Session (STYL-199 mock reply gate - 6 Nov 2026)
+* **User**: Implement the signed-off STYL-199 brief. Honour `mockModelReply`, `mockPass2Reply`, and the `x-mock-*` / `body.call` mirrors only when server-only `ALLOW_MOCK_REPLY` is `true` or `1` and `resolveAppEnv` is not production. When the gate is closed, ignore the fields and do not return a special 4xx. Branch `cursor/styl-199-mock-reply-guard` from latest `staging`, PR into `staging` only. Do not merge, do not use `--no-verify`, do not set the flag in App Hosting yaml, and do not weaken STYL-198.
+* **Changes**:
+  - Added `src/lib/env/allow-mock-reply.ts` (`isMockReplyAllowed`, `resolveMockModelReply`). Empty, unset, `false`, and `0` are off. Production (`APP_ENV=production`, or `APP_ENV` unset with `NODE_ENV=production`) ignores mocks even if the flag is set.
+  - Chat stream and voice `[chatbotId]/chat/completions` read body, header, and `body.call` mirrors through that helper. The legacy `POST /api/voice/chat/completions` route has no mock override.
+  - `.env.example` documents the flag as never set on production. `playwright.config.ts` and the Playwright half of `scripts/write-local-env.mjs` set `ALLOW_MOCK_REPLY=true`. It is not in `apphosting.yaml` or `apphosting.staging.yaml`. `docs/staging.md` says staging salon traffic keeps the real model.
+  - Playwright `tests/styl-199-mock-reply-guard.spec.ts` covers the helper matrix, production-like ignore (body, headers, `body.call`, no booking side effect, canned model instead of the marker), and flag-on synthetic streams. Gemini is stubbed. No live voice calls or bookings.
