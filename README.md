@@ -4179,4 +4179,4 @@ Highlighted adjustments in the modal:
   - Text gate shows: "You're chatting with our AI assistant. We keep a transcript of this chat for reference and contact purposes, as explained in our Privacy Policy." Header, "Please read before you start", and the Terms tick stay as STYL-184 set them. Voice gate keeps the voice notice. After a text gate, Voice Call or the mic shows that notice once in the chat, then connects.
   - "Connecting agent..." is `display: none` unless an explicit voice attempt is connecting, and it clears on call-start, call-end, error, a failed start, cancel/close, or 20 seconds.
   - `src/widget/index.ts` and `embed.ts` stay identical. `public/widget.js` and `public/embed.js` rebuilt with the local dummy Turnstile site key.
-  - Playwright: `tests/styl-241-text-chat-no-voice.spec.ts`. STYL-184 text assertion updated; voice gate still expects the call notice.
+  - Playwright: `tests/styl-241-text-chat-no-voice.spec.ts`. STYL-184 text assertion updated; voice gate still expects the call notice. STYL-193 footer tests now expect the text-chat notice to stay when the footer is removed.
