@@ -4169,6 +4169,18 @@ Highlighted adjustments in the modal:
   - `apphosting.yaml` binds `VAPI_WEBHOOK_SECRET` to secret `VAPI_WEBHOOK_SECRET` with availability `RUNTIME` only, matching `apphosting.staging.yaml`.
   - Playwright `tests/vapi-webhook-secret-prod-apphosting.spec.ts` asserts the production block equals the staging block (secret ref, RUNTIME, no value).
 
+### Session (STYL-241 text chat must not start voice - 6 Nov 2026)
+* **User / Jira**: Implement STYL-241 from the 6 Nov product brief. Branch `cursor/styl-241-text-chat-no-voice` from latest `staging`. One PR into `staging` only. Do not merge. Never `--no-verify`. Vapi mocked and blocked. Linked to STYL-184 (update the test that pinned the old "this call" wording).
+* **Root cause reproduced on the staging widget** (local Supabase, mock Vapi, `api.vapi.ai` aborted):
+  1. Voice Call or the mic, before the gate is accepted, sets `pendingVoiceCall`. Close and Text Chat did not clear it. Submitting the gate then called `startVoiceCall()`, which built a web-call payload (`__STYLEFLO_LAST_VAPI_CALL__`). With the mock off, that is `vapi.start()` and `POST api.vapi.ai/call/web`.
+  2. "Connecting agent..." is created when the widget loads and was hidden only with Tailwind `opacity: 0`. `checkVisibility()` still reports that node, and the post-gate Voice Call path had no hide on call-start, error, close, or a 20s cap. While the ring was playing, further clicks were ignored.
+* **Changes**:
+  - Gate purpose is `text` or `voice`. Text Chat, close, and a text gate clear `pendingVoiceCall`. Gate submit starts voice only in voice mode.
+  - Text gate shows: "You're chatting with our AI assistant. We keep a transcript of this chat for reference and contact purposes, as explained in our Privacy Policy." Header, "Please read before you start", and the Terms tick stay as STYL-184 set them. Voice gate keeps the voice notice. After a text gate, Voice Call or the mic shows that notice once in the chat, then connects.
+  - "Connecting agent..." is `display: none` unless an explicit voice attempt is connecting, and it clears on call-start, call-end, error, a failed start, cancel/close, or 20 seconds.
+  - `src/widget/index.ts` and `embed.ts` stay identical. `public/widget.js` and `public/embed.js` rebuilt with the local dummy Turnstile site key.
+  - Playwright: `tests/styl-241-text-chat-no-voice.spec.ts`. STYL-184 text assertion updated; voice gate still expects the call notice. STYL-193 footer tests now expect the text-chat notice to stay when the footer is removed.
+
 ### Session (STYL-240 prompt leak guard - 6 Nov 2026)
 * **User**: Implement the Product Owner brief for STYL-240. After a widget booking on 6 Nov 2026 the customer chat showed internal prompt text (“tag needed.” / “When outputting a secret tag like”) and then offered days because the quoted `[CHECK_AVAILABILITY...]` was treated as an unfinished tool tag. Staging PR only. Do not merge. No live calls, bookings, or schema changes.
 * **Changes**:
@@ -4177,3 +4189,9 @@ Highlighted adjustments in the modal:
   - The chat prompt says “tool tag” and tells the model not to quote the instructions.
   - SMS and the legacy voice route check the finished reply before it is sent (no extra delay). Streaming voice checks text already in hand before the next chunk, sanitises text already held for a tool tag, and sanitises turn logs. It does not add sentence buffering, so a fragment spoken before the pattern is complete can still be heard. That remaining gap is a follow-up.
   - Playwright `tests/styl-240-prompt-leak-guard.spec.ts` replays the 6 Nov reply, a mocked booking then a leak (HTTP and stored transcript), a pass-2 leak, empty-stream and route-failure copy, and the widget DOM. Local run with the Supabase CLI and mock keys: that spec plus STYL-198, STYL-199, STYL-182, and the homepage widget — 42 passed.
+  - Merged `origin/staging` (`6dd1bb5`, PR 33 / STYL-241) into this branch. The only conflict was `README.md`. Widget voice rules from STYL-241 are unchanged.
+
+### Session (STYL-240 merge staging after STYL-241 - 6 Nov 2026)
+* **User**: Do not merge PR 32. CI on `1f708b7` was green, then `origin/staging` moved because PR 33 (STYL-241, `6dd1bb5`) merged and GitHub reported `mergeable_state` dirty. Merge `origin/staging` into `cursor/styl-240-prompt-leak-guard`. Keep the customer-output guard and do not weaken STYL-241. Do not start STYL-233. Never `--no-verify`. Do not merge the PR.
+* **Changes**:
+  - Merged `origin/staging`. Only `README.md` conflicted. Both session logs are kept. No widget or chat-stream code conflict. STYL-241 text-chat behaviour stays as merged in PR 33.
