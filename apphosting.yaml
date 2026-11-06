@@ -123,3 +123,19 @@ env:
     secret: TENANT_CREATED_WEBHOOK_SECRET
     availability:
       - RUNTIME
+
+  # Production publishing (STYL-237). Production App Hosting
+  # (styleflo-ai / delightful-kepler-1) reads this base file. The site URL is a
+  # plain value. The create-business token is a name-only Secret Manager ref —
+  # the value stays in Secret Manager. Staging stays unwired: do not copy these
+  # blocks into apphosting.staging.yaml. Do not rename the token to
+  # STYLEFLO_WP_API_SECRET.
+  - variable: WORDPRESS_SITE_URL
+    value: "https://styleflo.ai"
+    availability:
+      - RUNTIME
+
+  - variable: STYLEFLO_WP_CREATE_BUSINESS_TOKEN
+    secret: STYLEFLO_WP_CREATE_BUSINESS_TOKEN
+    availability:
+      - RUNTIME
