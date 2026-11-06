@@ -22,4 +22,7 @@ export async function register() {
 
   const { warnOrRefuseUnsafeVoiceAtStartup } = await import('@/lib/env/vapi-config');
   warnOrRefuseUnsafeVoiceAtStartup(process.env, console);
+
+  const { ignoreClientAbort } = await import('@/lib/server/ignore-client-abort');
+  ignoreClientAbort();
 }

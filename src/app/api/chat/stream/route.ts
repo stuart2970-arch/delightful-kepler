@@ -12,13 +12,13 @@ import {
   getAvailabilityData,
   bookMeeting,
   lookupAppointments,
+  type AvailabilityResult,
 } from './calendar';
 import { calendarFallbackMessage, directAvailabilitySpeech } from '@/lib/calendar/fallback-message';
 import {
   parseTruncatedAvailabilityTag,
   resolveByIdPrefix,
   splitAtToolTag,
-  visibleLength,
 } from '@/lib/calendar/tool-tags';
 import {
   formatQuickDaysTag,
@@ -38,9 +38,29 @@ import {
   CUSTOMER_TROUBLE_REPLY,
   CUSTOMER_UNFINISHED_REPLY,
   containsInternalText,
-  createCustomerTextGuard,
   sanitiseForTranscript,
 } from '@/lib/chat/customer-output-guard';
+import {
+  BOOKING_UNCONFIRMED_SUFFIX,
+  INCOMPLETE_REPLY_SUFFIX,
+  CHAT_CALENDAR_TIMEOUT_MS,
+  CHAT_GENERATION_SETTINGS,
+  CHAT_MODEL_TIMEOUT_MS,
+  CHAT_REPLY_DEADLINE_MS,
+  DeadlineError,
+  announcesAvailabilityCheck,
+  claimsBookingDone,
+  formatBookingConfirmation,
+  isCompleteCustomerReply,
+  guardStreamPromise,
+  pipeReply,
+  resolvePositiveMs,
+  settleUnreadStreamResult,
+  unsentFinalised,
+  withDeadline,
+  type PipeReplyResult,
+  type UsageSummary,
+} from '@/lib/chat/stream-reply';
 
 async function scrapeWebsiteContent(targetUrl: string): Promise<string> {
   try {
@@ -254,41 +274,25 @@ function getSupabaseAdmin() {
   });
 }
 
-/**
- * Show only the customer-safe part of a model stream.
- * Tool-tag holdback (STYL-198) still runs first. The leak guard then drops
- * internal wording, including a phrase split across chunks.
- */
-async function readGuardedModelText(
-  textStream: AsyncIterable<string> | Iterable<string>,
-  emit: (text: string) => void,
-): Promise<{ raw: string; tripped: boolean }> {
-  const guard = createCustomerTextGuard();
-  let raw = '';
-  let shown = 0;
-  const emitPiece = (piece: string) => {
-    if (!piece || guard.tripped) return;
-    const out = guard.push(piece);
-    if (out) emit(out);
+function logModelPass(
+  requestId: string,
+  pass: string,
+  info: { finishReason: string; timedOut: boolean; usage: UsageSummary | null },
+) {
+  console.log(
+    `[Chat Stream][${requestId}] pass=${pass} finishReason=${info.finishReason} timedOut=${info.timedOut} usage=${JSON.stringify(info.usage)}`,
+  );
+}
+
+function unavailableResult(text: string): AvailabilityResult {
+  return {
+    text,
+    outcome: 'unreachable',
+    slots: [],
+    availableDays: [],
+    quickDaysTag: '',
+    timeSlotsTag: '',
   };
-
-  for await (const chunk of textStream) {
-    raw += typeof chunk === 'string' ? chunk : String(chunk ?? '');
-    const safeLength = visibleLength(raw);
-    if (safeLength > shown) {
-      emitPiece(raw.slice(shown, safeLength));
-      shown = safeLength;
-    }
-  }
-
-  if (!guard.tripped) {
-    const before = splitAtToolTag(raw).before;
-    if (before.length > shown) emitPiece(before.slice(shown));
-    const tail = guard.finish();
-    if (tail) emit(tail);
-  }
-
-  return { raw, tripped: guard.tripped || containsInternalText(raw) };
 }
 
 export async function POST(request: Request) {
@@ -603,6 +607,64 @@ Help them specify:
       configuredStaff.length > 0 &&
       hasConnectedCalendar;
 
+    const replyStarted = Date.now();
+    const remainingReplyMs = () => Math.max(1, CHAT_REPLY_DEADLINE_MS - (Date.now() - replyStarted));
+    const modelTimeoutMs = () => Math.min(
+      resolvePositiveMs(process.env.CHAT_MODEL_TIMEOUT_MS, CHAT_MODEL_TIMEOUT_MS),
+      remainingReplyMs(),
+    );
+    const calendarTimeoutMs = () => Math.min(
+      resolvePositiveMs(process.env.CHAT_CALENDAR_TIMEOUT_MS, CHAT_CALENDAR_TIMEOUT_MS),
+      remainingReplyMs(),
+    );
+
+    const loadAvailability = async (
+      staffId: string,
+      serviceId: string,
+      start: string,
+      end: string,
+    ): Promise<AvailabilityResult> => {
+      const timeoutMs = calendarTimeoutMs();
+      try {
+        return await withDeadline(
+          getAvailabilityData(tenantId, staffId, serviceId, start, end, timezone, { timeoutMs }),
+          timeoutMs,
+          'Calendar',
+        );
+      } catch (err) {
+        if (err instanceof DeadlineError) {
+          return unavailableResult(calendarFallbackMessage('unreachable', bookingUrl));
+        }
+        throw err;
+      }
+    };
+
+    const loadBooking = async (
+      staffId: string,
+      serviceId: string,
+      custName: string,
+      custEmail: string,
+      custPhone: string,
+      start: string,
+      end: string,
+    ): Promise<string> => {
+      try {
+        return await withDeadline(
+          bookMeeting(tenantId, staffId, serviceId, custName, custEmail, custPhone, start, end, timezone),
+          calendarTimeoutMs(),
+          'Calendar',
+        );
+      } catch (err) {
+        if (err instanceof DeadlineError) return calendarFallbackMessage('unreachable', bookingUrl);
+        throw err;
+      }
+    };
+
+    const staffNameFor = (staffId: string): string => {
+      const match = configuredStaff.find((member: { id?: string; name?: string }) => member.id === staffId);
+      return typeof match?.name === 'string' ? match.name.trim() : '';
+    };
+
     const tenantCompany = (tenantRes.data?.company_name || tenantRes.data?.rwg_business_name || '').trim();
     const chatbotName = ((chatbotRecord?.name as string) || '').trim();
     const agentName = ((configData.agent_name as string) || chatbotName || 'AI Assistant').trim();
@@ -747,7 +809,7 @@ Help them specify:
 
       const now = new Date();
       const nextFortnight = new Date(now.getTime() + 14 * 24 * 60 * 60 * 1000);
-      const availData = await getAvailabilityData(tenantId, 'ANY', serviceId, now.toISOString(), nextFortnight.toISOString(), timezone);
+      const availData = await loadAvailability('ANY', serviceId, now.toISOString(), nextFortnight.toISOString());
       const directSpeech = directAvailabilitySpeech(availData.outcome, availData.text);
 
       let replyText = directSpeech || `Which day suits you best for your ${serviceName}?`;
@@ -767,7 +829,7 @@ Help them specify:
       const dayStart = `${dateStr}T00:00:00`;
       const dayEnd = `${dateStr}T23:59:59`;
 
-      const availData = await getAvailabilityData(tenantId, staffId, serviceId, dayStart, dayEnd, timezone);
+      const availData = await loadAvailability(staffId, serviceId, dayStart, dayEnd);
       const directSpeech = directAvailabilitySpeech(availData.outcome, availData.text);
       const daySlots = getSlotsForDay(availData.slots, dateStr);
 
@@ -801,12 +863,12 @@ Help them specify:
         return streamDirectResponse(replyText, message || parts.timeStr);
       }
 
-      const bookingResult = await bookMeeting(tenantId, staffId, serviceId, custName, custEmail, custPhone, slotStart, '', timezone);
+      const bookingResult = await loadBooking(staffId, serviceId, custName, custEmail, custPhone, slotStart, '');
 
       let replyText = '';
-      if (bookingResult.includes('Error:') || bookingResult.includes('Failed')) {
-        // Race condition: slot taken! Apologise and re-offer remaining times for that day
-        const dayAvail = await getAvailabilityData(tenantId, staffId, serviceId, `${parts.dateStr}T00:00:00`, `${parts.dateStr}T23:59:59`, timezone);
+      if (bookingResult.includes('Error:') || bookingResult.includes('Failed') || bookingResult === calendarFallbackMessage('unreachable', bookingUrl)) {
+        // Race condition or calendar timeout: apologise and re-offer remaining times for that day
+        const dayAvail = await loadAvailability(staffId, serviceId, `${parts.dateStr}T00:00:00`, `${parts.dateStr}T23:59:59`);
         const directSpeech = directAvailabilitySpeech(dayAvail.outcome, dayAvail.text);
         const daySlots = getSlotsForDay(dayAvail.slots, parts.dateStr);
 
@@ -815,7 +877,13 @@ Help them specify:
       } else {
         const svc = configuredServices.find((s: any) => s.id === serviceId);
         const svcName = svc ? svc.name : 'appointment';
-        replyText = `Your ${svcName} is confirmed for ${parts.displayDate} at ${parts.timeStr}! A confirmation email has been sent to ${custEmail}.`;
+        replyText = formatBookingConfirmation({
+          service: svcName,
+          staff: staffNameFor(staffId),
+          displayDate: parts.displayDate,
+          time: parts.timeStr,
+          email: custEmail,
+        });
       }
 
       return streamDirectResponse(replyText, message || parts.timeStr);
@@ -903,6 +971,7 @@ The current date and time is: ${new Date().toISOString()}. Use this to resolve r
 
 Guidelines:
 - Write in a natural, warm, and human-like conversational tone.
+- Keep replies short; finish every sentence.
 - Use emojis occasionally to feel friendly.
 - Use short paragraphs and avoid overwhelming the user with long blocks of text.
 - If presenting multiple items, use clean bullet points.
@@ -994,7 +1063,7 @@ ${staffContext}`;
         model: google(activeModelName),
         system: systemPrompt,
         messages: formattedMessages,
-        maxOutputTokens: 1024,
+        ...CHAT_GENERATION_SETTINGS,
         onError: (err: unknown) => {
           console.error(`[Chat Stream][${requestId}] API Stream Error:`, err);
           if (err instanceof Error) {
@@ -1075,7 +1144,11 @@ ${staffContext}`;
           }
         },
       });
+      settleUnreadStreamResult(result);
     }
+
+    const firstFinishReason = guardStreamPromise<string>(result?.finishReason, 'error');
+    const firstUsage = guardStreamPromise<unknown>(result?.usage, undefined);
 
     const encoder = new TextEncoder();
     let isStreamClosed = false;
@@ -1125,12 +1198,20 @@ ${staffContext}`;
             emitted = true;
           };
 
-          const first = await readGuardedModelText(result.textStream, emit);
-          const rawText = first.raw;
+          const first: PipeReplyResult = await pipeReply({
+            textStream: result.textStream,
+            finishReason: firstFinishReason,
+            usage: firstUsage,
+            timeoutMs: modelTimeoutMs(),
+            enqueue: emit,
+            finalise: false,
+          });
+          logModelPass(requestId, '1', first);
+          const rawText = first.rawText;
           const leakTripped = first.tripped;
           const { hadTag: hasToolTag } = splitAtToolTag(rawText);
 
-          if (!rawText) {
+          if (!rawText.trim()) {
             console.error(`[Chat Stream][${requestId}] Empty model stream`);
             if (lastApiError) {
               console.error(`[Chat Stream][${requestId}] Model stream error detail:`, lastApiError);
@@ -1140,54 +1221,77 @@ ${staffContext}`;
             return;
           }
 
-          // --- AVAILABILITY TOOL PASS ---
-          // A quoted [CHECK_AVAILABILITY...] inside echoed instructions is not a tool call.
-          const availMatch = rawText.match(/\[CHECK_AVAILABILITY:\s*(.+?),\s*(.+?),\s*(.+?),\s*(.+?)\]/);
-          const truncatedAvail = availMatch || leakTripped ? null : parseTruncatedAvailabilityTag(rawText);
-          if (truncatedAvail) {
-            // The model stopped before closing the tag, so pick up from what it did say.
-            if (!mockModelReply && typeof result.finishReason?.then === 'function') {
-              result.finishReason.then((reason: string) => {
-                console.warn(`[Chat Stream][${requestId}] Unfinished CHECK_AVAILABILITY tag (finish reason: ${reason}).`);
-              }).catch(() => {});
-            }
-
+          const recoverAvailability = async (staffRef: string, serviceRef: string): Promise<string> => {
             const lowerMessage = (message || '').toLowerCase();
             const namedStaff = configuredStaff.filter((s: any) => {
               const firstName = typeof s.name === 'string' ? s.name.trim().split(/\s+/)[0]?.toLowerCase() : '';
               return firstName && new RegExp(`\\b${firstName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`).test(lowerMessage);
             });
-            const staffMember = resolveByIdPrefix(configuredStaff, truncatedAvail.staffRef)
+            const staffMember = resolveByIdPrefix(configuredStaff, staffRef)
               || (namedStaff.length === 1 ? namedStaff[0] : null);
             const namedServices = configuredServices.filter(
               (s: any) => typeof s.name === 'string' && s.name.trim() && lowerMessage.includes(s.name.toLowerCase())
             );
-            const service = resolveByIdPrefix(configuredServices, truncatedAvail.serviceRef)
+            const service = resolveByIdPrefix(configuredServices, serviceRef)
               || (namedServices.length === 1 ? namedServices[0] : null)
               || (configuredServices.length === 1 ? configuredServices[0] : null);
 
-            let recoveryReply = '';
             if (service) {
               const staffId = staffMember?.id || 'ANY';
               const now = new Date();
               const nextFortnight = new Date(now.getTime() + 14 * 24 * 60 * 60 * 1000);
-              const availData = await getAvailabilityData(tenantId, staffId, service.id, now.toISOString(), nextFortnight.toISOString(), timezone);
+              const availData = await loadAvailability(staffId, service.id, now.toISOString(), nextFortnight.toISOString());
               const directSpeech = directAvailabilitySpeech(availData.outcome, availData.text);
-
-              if (directSpeech) {
-                recoveryReply = directSpeech;
-              } else if (availData.availableDays.length > 0) {
-                recoveryReply = `Here are the days with free times:\n\n${availData.quickDaysTag}`;
-              } else {
-                recoveryReply = `I'm sorry, I couldn't find any available days for ${service.name || 'that service'} in the next 2 weeks. Please let us know your contact details and our team will get in touch!`;
+              if (directSpeech) return directSpeech;
+              if (availData.availableDays.length > 0) {
+                return `Here are the days with free times:\n\n${availData.quickDaysTag}`;
               }
-            } else if (configuredServices.length > 0) {
-              recoveryReply = `Which service would you like to book?\n\n${formatQuickServicesTag(configuredServices.map((s: any) => ({ id: s.id, name: s.name, duration_minutes: s.duration_minutes || 30, price: s.price })))}`;
-            } else {
-              recoveryReply = calendarFallbackMessage('unreachable', bookingUrl);
+              return `I'm sorry, I couldn't find any available days for ${service.name || 'that service'} in the next 2 weeks. Please let us know your contact details and our team will get in touch!`;
             }
+            if (configuredServices.length > 0) {
+              return `Which service would you like to book?\n\n${formatQuickServicesTag(configuredServices.map((s: any) => ({ id: s.id, name: s.name, duration_minutes: s.duration_minutes || 30, price: s.price })))}`;
+            }
+            return calendarFallbackMessage('unreachable', bookingUrl);
+          };
 
+          // --- AVAILABILITY TOOL PASS ---
+          // A quoted [CHECK_AVAILABILITY...] inside echoed instructions is not a tool call.
+          const availMatch = rawText.match(/\[CHECK_AVAILABILITY:\s*(.+?),\s*(.+?),\s*(.+?),\s*(.+?)\]/);
+          const truncatedAvail = availMatch || leakTripped ? null : parseTruncatedAvailabilityTag(rawText);
+          const bookMatch = rawText.match(/\[BOOK_MEETING:\s*(.+?),\s*(.+?),\s*(.+?),\s*(.+?),\s*(.+?),\s*(.+?),\s*(.+?)\]/);
+          const lookupMatch = rawText.match(/\[LOOKUP_APPOINTMENTS:\s*(.+?),\s*(.+?)\]/);
+          const toolWillRun = Boolean(availMatch || truncatedAvail || bookMatch || lookupMatch);
+          const announcedCheck = !toolWillRun && !leakTripped && hasBookingCapabilities
+            && announcesAvailabilityCheck(first.visibleText);
+          const bookedClaim = !toolWillRun && !leakTripped && !announcedCheck
+            && claimsBookingDone(first.visibleText);
+          let endingApplied = false;
+
+          if (toolWillRun) {
+            if (first.pending) emit(first.pending);
+          } else if (announcedCheck) {
+            if (first.pending && isCompleteCustomerReply(first.visibleText)) emit(first.pending);
+          } else if (bookedClaim) {
+            emit(unsentFinalised(first.enqueuedText, first.visibleText, BOOKING_UNCONFIRMED_SUFFIX));
+            endingApplied = true;
+          } else if ((first.cutShort || first.timedOut) && !leakTripped) {
+            emit(unsentFinalised(first.enqueuedText, first.visibleText, INCOMPLETE_REPLY_SUFFIX));
+            endingApplied = true;
+          } else if (first.pending) {
+            emit(first.pending);
+          }
+
+          if (truncatedAvail) {
+            console.warn(`[Chat Stream][${requestId}] Unfinished CHECK_AVAILABILITY tag (finish reason: ${first.finishReason}).`);
+            const recoveryReply = await recoverAvailability(truncatedAvail.staffRef, truncatedAvail.serviceRef);
             emit(`\n\n${recoveryReply}`);
+            await storeBotText(recoveryReply);
+            transcriptSaved = true;
+          }
+          if (announcedCheck) {
+            console.warn(`[Chat Stream][${requestId}] Announced availability check had no tool tag (finish reason: ${first.finishReason}).`);
+            const recoveryReply = await recoverAvailability('', '');
+            emit(customerVisible.trim() ? `\n\n${recoveryReply}` : recoveryReply);
             await storeBotText(recoveryReply);
             transcriptSaved = true;
           }
@@ -1197,7 +1301,7 @@ ${staffContext}`;
             const startStr = availMatch[3].trim().replace(/['"]/g, '');
             const endStr = availMatch[4].trim().replace(/['"]/g, '');
             
-            const availData = await getAvailabilityData(tenantId, staffId, serviceId, startStr, endStr, timezone);
+            const availData = await loadAvailability(staffId, serviceId, startStr, endStr);
             const directSpeech = directAvailabilitySpeech(availData.outcome, availData.text);
 
             const pass2Messages = [
@@ -1212,17 +1316,30 @@ ${staffContext}`;
               emit(`\n\n${directSpeech}`);
             } else if (mockModelReply && mockPass2Reply) {
               const chunks = Array.isArray(mockPass2Reply) ? mockPass2Reply : [mockPass2Reply];
-              const pass2 = await readGuardedModelText(chunks, emit);
-              pass2Text = pass2.raw;
+              const pass2 = await pipeReply({
+                textStream: chunks,
+                timeoutMs: modelTimeoutMs(),
+                enqueue: emit,
+              });
+              logModelPass(requestId, '2', pass2);
+              pass2Text = pass2.rawText;
             } else {
               const result2 = await (streamText as any)({
                 model: google(activeModelName),
                 system: systemPrompt,
                 messages: pass2Messages as any,
-                maxOutputTokens: 1024,
+                ...CHAT_GENERATION_SETTINGS,
               });
-              const pass2 = await readGuardedModelText(result2.textStream, emit);
-              pass2Text = pass2.raw;
+              settleUnreadStreamResult(result2);
+              const pass2 = await pipeReply({
+                textStream: result2.textStream,
+                finishReason: guardStreamPromise<string>(result2.finishReason, 'error'),
+                usage: guardStreamPromise<unknown>(result2.usage, undefined),
+                timeoutMs: modelTimeoutMs(),
+                enqueue: emit,
+              });
+              logModelPass(requestId, '2', pass2);
+              pass2Text = pass2.rawText;
             }
 
             // Quick-link tags are only for times a calendar actually confirmed.
@@ -1254,7 +1371,6 @@ ${staffContext}`;
           }
 
           // --- BOOKING TOOL PASS ---
-          const bookMatch = rawText.match(/\[BOOK_MEETING:\s*(.+?),\s*(.+?),\s*(.+?),\s*(.+?),\s*(.+?),\s*(.+?),\s*(.+?)\]/);
           if (bookMatch) {
             const staffId = bookMatch[1].trim().replace(/['"]/g, '');
             const serviceId = bookMatch[2].trim().replace(/['"]/g, '');
@@ -1264,13 +1380,15 @@ ${staffContext}`;
             const startStr = bookMatch[6].trim().replace(/['"]/g, '');
             const endStr = bookMatch[7].trim().replace(/['"]/g, '');
             
-            const toolResult = await bookMeeting(tenantId, staffId, serviceId, custName, custEmail, custPhone, startStr, endStr, timezone);
-            console.log(`[Chat Stream][${requestId}] Booking Result:`, toolResult);
-            
+            const toolResult = await loadBooking(staffId, serviceId, custName, custEmail, custPhone, startStr, endStr);
+            const bookingFailed = !toolResult || toolResult.includes('Error:') || toolResult.includes('Failed')
+              || toolResult === calendarFallbackMessage('unreachable', bookingUrl);
+            console.log(`[Chat Stream][${requestId}] Booking result: ${bookingFailed ? 'failed' : 'ok'}`);
+
             let bookingReply = '';
-            if (toolResult && toolResult.includes('Error:')) {
+            if (bookingFailed) {
               const parts = utcToLocalParts(new Date(startStr), timezone);
-              const availData = await getAvailabilityData(tenantId, staffId, serviceId, `${parts.dateStr}T00:00:00`, `${parts.dateStr}T23:59:59`, timezone);
+              const availData = await loadAvailability(staffId, serviceId, `${parts.dateStr}T00:00:00`, `${parts.dateStr}T23:59:59`);
               const directSpeech = directAvailabilitySpeech(availData.outcome, availData.text);
               const daySlots = getSlotsForDay(availData.slots, parts.dateStr);
 
@@ -1281,7 +1399,13 @@ ${staffContext}`;
               const parts = utcToLocalParts(new Date(startStr), timezone);
               const svc = configuredServices.find((s: any) => s.id === serviceId);
               const svcName = svc ? svc.name : 'appointment';
-              bookingReply = `Your ${svcName} is confirmed for ${parts.displayDate} at ${parts.timeStr}! A confirmation email has been sent to ${custEmail}.`;
+              bookingReply = formatBookingConfirmation({
+                service: svcName,
+                staff: staffNameFor(staffId),
+                displayDate: parts.displayDate,
+                time: parts.timeStr,
+                email: custEmail,
+              });
               emit(`\n\n${bookingReply}`);
             }
 
@@ -1290,7 +1414,6 @@ ${staffContext}`;
           }
 
           // --- LOOKUP APPOINTMENTS TOOL PASS ---
-          const lookupMatch = rawText.match(/\[LOOKUP_APPOINTMENTS:\s*(.+?),\s*(.+?)\]/);
           if (lookupMatch) {
             const custEmail = lookupMatch[1].trim().replace(/['"]/g, '');
             const custPhone = lookupMatch[2].trim().replace(/['"]/g, '');
@@ -1307,15 +1430,23 @@ ${staffContext}`;
               model: google(activeModelName),
               system: systemPrompt,
               messages: pass2Messages as Parameters<typeof streamText>[0]['messages'],
-              maxOutputTokens: 1024,
+              ...CHAT_GENERATION_SETTINGS,
             });
+            settleUnreadStreamResult(result2);
 
-            const lookedUp = await readGuardedModelText(result2.textStream, emit);
-            await storeBotText(lookedUp.raw);
+            const lookedUp = await pipeReply({
+              textStream: result2.textStream,
+              finishReason: guardStreamPromise<string>(result2.finishReason, 'error'),
+              usage: guardStreamPromise<unknown>(result2.usage, undefined),
+              timeoutMs: modelTimeoutMs(),
+              enqueue: emit,
+            });
+            logModelPass(requestId, 'lookup', lookedUp);
+            await storeBotText(lookedUp.rawText);
             transcriptSaved = true;
           }
 
-          if (hasToolTag && !availMatch && !truncatedAvail && !bookMatch && !lookupMatch) {
+          if (hasToolTag && !availMatch && !truncatedAvail && !bookMatch && !lookupMatch && !announcedCheck && !endingApplied) {
             emit(`\n\n${CUSTOMER_UNFINISHED_REPLY}`);
           }
           if (!emitted) {
