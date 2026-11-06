@@ -288,14 +288,25 @@ function stoppedEarly(finishReason: string, timedOut: boolean, visible: string):
  * Reads a model stream with the STYL-198 tool-tag holdback first, then the
  * STYL-240 leak guard. A length cap or a timeout trims the visible reply.
  */
-/** A failed model call rejects every unread result promise. Attach handlers so one failure is not an unhandled rejection. */
+function isPromiseLike<T>(value: unknown): value is PromiseLike<T> {
+  return Boolean(value) && typeof (value as PromiseLike<T>).then === 'function';
+}
+
+/**
+ * Attach a rejection handler before the caller awaits. A failed model call
+ * rejects every result promise, and an unhandled rejection takes down the dev server.
+ */
+export function guardStreamPromise<T>(promise: PromiseLike<T> | undefined, fallback: T): Promise<T> | undefined {
+  if (!isPromiseLike<T>(promise)) return undefined;
+  return Promise.resolve(promise).then((value) => value, () => fallback);
+}
+
+/** A failed model call rejects every unread result promise. */
 export function settleUnreadStreamResult(result: object | null | undefined) {
   if (!result) return;
   for (const key of ['text', 'totalUsage', 'response', 'content', 'reasoning', 'reasoningText', 'providerMetadata', 'steps', 'sources', 'files', 'warnings']) {
     const value = (result as Record<string, unknown>)[key];
-    if (value && typeof (value as Promise<unknown>).then === 'function') {
-      (value as Promise<unknown>).then(() => undefined, () => undefined);
-    }
+    if (isPromiseLike(value)) value.then(() => undefined, () => undefined);
   }
 }
 

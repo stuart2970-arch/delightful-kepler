@@ -52,6 +52,7 @@ import {
   claimsBookingDone,
   formatBookingConfirmation,
   isCompleteCustomerReply,
+  guardStreamPromise,
   pipeReply,
   resolvePositiveMs,
   settleUnreadStreamResult,
@@ -1062,7 +1063,6 @@ ${staffContext}`;
         model: google(activeModelName),
         system: systemPrompt,
         messages: formattedMessages,
-        abortSignal: AbortSignal.timeout(modelTimeoutMs()),
         ...CHAT_GENERATION_SETTINGS,
         onError: (err: unknown) => {
           console.error(`[Chat Stream][${requestId}] API Stream Error:`, err);
@@ -1147,6 +1147,9 @@ ${staffContext}`;
       settleUnreadStreamResult(result);
     }
 
+    const firstFinishReason = guardStreamPromise<string>(result?.finishReason, 'error');
+    const firstUsage = guardStreamPromise<unknown>(result?.usage, undefined);
+
     const encoder = new TextEncoder();
     let isStreamClosed = false;
     const stream = new ReadableStream({
@@ -1197,8 +1200,8 @@ ${staffContext}`;
 
           const first: PipeReplyResult = await pipeReply({
             textStream: result.textStream,
-            finishReason: result.finishReason,
-            usage: result.usage,
+            finishReason: firstFinishReason,
+            usage: firstUsage,
             timeoutMs: modelTimeoutMs(),
             enqueue: emit,
             finalise: false,
@@ -1325,14 +1328,13 @@ ${staffContext}`;
                 model: google(activeModelName),
                 system: systemPrompt,
                 messages: pass2Messages as any,
-                abortSignal: AbortSignal.timeout(modelTimeoutMs()),
                 ...CHAT_GENERATION_SETTINGS,
               });
               settleUnreadStreamResult(result2);
               const pass2 = await pipeReply({
                 textStream: result2.textStream,
-                finishReason: result2.finishReason,
-                usage: result2.usage,
+                finishReason: guardStreamPromise<string>(result2.finishReason, 'error'),
+                usage: guardStreamPromise<unknown>(result2.usage, undefined),
                 timeoutMs: modelTimeoutMs(),
                 enqueue: emit,
               });
@@ -1428,15 +1430,14 @@ ${staffContext}`;
               model: google(activeModelName),
               system: systemPrompt,
               messages: pass2Messages as Parameters<typeof streamText>[0]['messages'],
-              abortSignal: AbortSignal.timeout(modelTimeoutMs()),
               ...CHAT_GENERATION_SETTINGS,
             });
             settleUnreadStreamResult(result2);
 
             const lookedUp = await pipeReply({
               textStream: result2.textStream,
-              finishReason: result2.finishReason,
-              usage: result2.usage,
+              finishReason: guardStreamPromise<string>(result2.finishReason, 'error'),
+              usage: guardStreamPromise<unknown>(result2.usage, undefined),
               timeoutMs: modelTimeoutMs(),
               enqueue: emit,
             });
