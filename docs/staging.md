@@ -327,6 +327,10 @@ Live has tables that no repo migration creates. Capturing them later would need 
 
 Live also appears to track far fewer applied migration versions than the repo (hand-applied drift). Do not “repair” live from this workstream without an explicit STYL-197/207 plan.
 
+## Mock model replies (STYL-199)
+
+`ALLOW_MOCK_REPLY` lets automated tests supply `mockModelReply` / `mockPass2Reply` and the `x-mock-*` headers on the chat and voice routes. Those fields are honoured only when the value is `true` or `1` and `resolveAppEnv` is not production. Production Cloud Run must never set the flag. Do not add it to `apphosting.yaml` or `apphosting.staging.yaml` — staging salon traffic uses the real model. Playwright and the test file written by `npm run env:local` set it for the test process only.
+
 ## Follow-on: other production URLs (not this ticket)
 
 Hard-coded `app.styleflo.ai` still appears in `src/lib/lead-notifier.ts`, dashboard help text, Meta webhook copy, and telephony provision fallbacks. Those do not steal a login session. Clean them up later; they are not blockers for the staging gate.
