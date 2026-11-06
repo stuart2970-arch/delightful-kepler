@@ -2,6 +2,11 @@ import Vapi from '@vapi-ai/web';
 import { buildGreeting, getFirstName, isEchoOfGreeting } from '../lib/greeting';
 import { resolveChatFooter } from '../lib/billing/branding';
 
+// STYL-241: text-chat gate copy. Voice calls keep globalVoiceDisclaimer.
+const TEXT_CHAT_NOTICE =
+  "You're chatting with our AI assistant. We keep a transcript of this chat for reference and contact purposes, as explained in our Privacy Policy.";
+const CONNECTING_TIMEOUT_MS = 20000;
+
 (function () {
   if (typeof document === 'undefined') return;
 
@@ -605,6 +610,8 @@ import { resolveChatFooter } from '../lib/billing/branding';
     const callStatus = document.createElement('div');
     callStatus.className = 'fixed bottom-7 right-24 bg-gray-900 text-blue-400 border border-gray-800 px-4 py-2 rounded-full text-xs font-medium shadow-lg transition-all duration-300 opacity-0 pointer-events-none z-50';
     callStatus.textContent = 'Connecting agent...';
+    callStatus.style.display = 'none';
+    callStatus.setAttribute('aria-hidden', 'true');
     widgetContainer.appendChild(callStatus);
 
     // Chat Window
@@ -659,11 +666,11 @@ import { resolveChatFooter } from '../lib/billing/branding';
           <p class="text-gray-500 text-xs mb-3 shrink-0">${globalVoiceDisclaimer ? 'Please review the notice below and confirm your details to start chatting.' : 'Please enter your details to start chatting.'}</p>
 
           ${globalVoiceDisclaimer ? `
-            <div class="w-full bg-blue-50/80 border border-blue-100 rounded-xl p-3.5 mb-4 text-xs text-blue-950 text-left leading-relaxed shadow-sm max-h-48 overflow-y-auto">
+            <div id="styleflo-gate-notice" class="w-full bg-blue-50/80 border border-blue-100 rounded-xl p-3.5 mb-4 text-xs text-blue-950 text-left leading-relaxed shadow-sm max-h-48 overflow-y-auto">
               <div class="font-bold text-blue-900 text-[11px] mb-1 flex items-center gap-1">
                 <span>📋</span> <span>Please read before you start</span>
               </div>
-              ${globalVoiceDisclaimer.replace(/\bour AI agent\b/gi, 'our AI assistant').replace(/\bAI agent\b/gi, 'AI assistant')}
+              <div id="styleflo-gate-notice-body"></div>
             </div>
           ` : ''}
         `}
@@ -1176,7 +1183,80 @@ import { resolveChatFooter } from '../lib/billing/branding';
       renderTaskButtons();
     }
 
+    let gateMode: 'text' | 'voice' = 'text';
     let pendingVoiceCall = false;
+    let voiceAttempt = 0;
+    let connectingTimer: ReturnType<typeof setTimeout> | null = null;
+    const voiceNoticeKey = `styleflo_voice_notice_${chatbotId}`;
+    let voiceNoticeShown = false;
+    try {
+      voiceNoticeShown = sessionStorage.getItem(voiceNoticeKey) === '1';
+    } catch {
+      voiceNoticeShown = false;
+    }
+
+    function renderGateNotice() {
+      const body = shadowRoot.getElementById('styleflo-gate-notice-body');
+      if (!body) return;
+      if (gateMode === 'voice') {
+        body.textContent = globalVoiceDisclaimer;
+        markVoiceNoticeShown();
+      } else {
+        body.textContent = TEXT_CHAT_NOTICE;
+      }
+    }
+
+    function markVoiceNoticeShown() {
+      voiceNoticeShown = true;
+      try {
+        sessionStorage.setItem(voiceNoticeKey, '1');
+      } catch {
+        // The in-memory flag still stops a repeat in this page.
+      }
+    }
+
+    function showVoiceNoticeOnce() {
+      if (!globalVoiceDisclaimer || voiceNoticeShown) return;
+      markVoiceNoticeShown();
+      appendMessage('bot', globalVoiceDisclaimer);
+    }
+
+    function hideConnecting() {
+      if (connectingTimer !== null) {
+        clearTimeout(connectingTimer);
+        connectingTimer = null;
+      }
+      callStatus.style.display = 'none';
+      callStatus.style.opacity = '0';
+      callStatus.setAttribute('aria-hidden', 'true');
+      callStatus.classList.add('opacity-0', 'pointer-events-none');
+      callStatus.classList.remove('opacity-100');
+    }
+
+    function showConnecting() {
+      callStatus.style.display = 'block';
+      callStatus.style.opacity = '1';
+      callStatus.removeAttribute('aria-hidden');
+      callStatus.classList.remove('opacity-0', 'pointer-events-none');
+      callStatus.classList.add('opacity-100');
+      if (connectingTimer !== null) return;
+      connectingTimer = setTimeout(() => {
+        hideConnecting();
+      }, CONNECTING_TIMEOUT_MS);
+    }
+
+    function setGateMode(mode: 'text' | 'voice') {
+      gateMode = mode;
+      if (mode === 'text') {
+        pendingVoiceCall = false;
+        voiceAttempt += 1;
+        stopRing();
+        hideConnecting();
+      }
+      renderGateNotice();
+    }
+
+    renderGateNotice();
 
     onboardingForm.addEventListener('submit', async (e) => {
       e.preventDefault();
@@ -1240,9 +1320,12 @@ import { resolveChatFooter } from '../lib/billing/branding';
       chatForm.style.setProperty('display', 'flex', 'important');
       renderTaskButtons();
 
-      if (pendingVoiceCall) {
-        pendingVoiceCall = false;
-        startVoiceCall();
+      // A text gate never starts voice, even if a previous Voice Call left the flag set.
+      const shouldStartVoice = gateMode === 'voice' && pendingVoiceCall;
+      pendingVoiceCall = false;
+      if (shouldStartVoice) {
+        showConnecting();
+        void startVoiceCall();
       } else {
         inputField.focus();
       }
@@ -1268,6 +1351,22 @@ import { resolveChatFooter } from '../lib/billing/branding';
       inputField.focus();
     }
 
+    function stopRing() {
+      isRinging = false;
+      bubble.classList.remove('styleflo-ringing');
+      if (ringAudio) {
+        ringAudio.pause();
+        ringAudio.currentTime = 0;
+      }
+    }
+
+    function cancelVoiceAttempt() {
+      voiceAttempt += 1;
+      pendingVoiceCall = false;
+      stopRing();
+      hideConnecting();
+    }
+
     function closeChatUI() {
       isOpen = false;
       chatWindow.classList.remove('scale-100', 'opacity-100', 'pointer-events-auto');
@@ -1276,15 +1375,63 @@ import { resolveChatFooter } from '../lib/billing/branding';
       chatIcon.classList.add('scale-100');
       closeIcon.classList.remove('scale-100');
       closeIcon.classList.add('scale-0');
-      
+
+      gateMode = 'text';
+      renderGateNotice();
+      cancelVoiceAttempt();
+
       if (isVapiActive && vapiInstance) {
         vapiInstance.stop();
       }
     }
 
+    function openVoiceGate() {
+      gateMode = 'voice';
+      pendingVoiceCall = true;
+      renderGateNotice();
+      openChatUI();
+      messagesContainer.style.setProperty('display', 'none', 'important');
+      chatForm.style.setProperty('display', 'none', 'important');
+      onboardingContainer.style.setProperty('display', 'flex', 'important');
+      if (onboardingName) onboardingName.focus();
+    }
+
+    function beginExplicitVoice(ring: boolean) {
+      const attempt = ++voiceAttempt;
+      showConnecting();
+      if (!ring) {
+        showVoiceNoticeOnce();
+        void startVoiceCall();
+        return;
+      }
+
+      isRinging = true;
+      bubble.classList.add('styleflo-ringing');
+      if (!ringAudio) {
+        ringAudio = new Audio('https://actions.google.com/sounds/v1/alarms/phone_ringing.ogg');
+        ringAudio.loop = true;
+      }
+      ringAudio.play().catch(e => console.error('Audio play failed:', e));
+
+      setTimeout(() => {
+        stopRing();
+        if (attempt !== voiceAttempt) return;
+        openChatUI();
+        showVoiceNoticeOnce();
+        setTimeout(() => {
+          if (attempt !== voiceAttempt) return;
+          void startVoiceCall();
+        }, 300);
+      }, 3500);
+    }
+
     // Toggle Chat Window or Menu
     function toggleChat() {
-      if (isRinging) return;
+      if (isRinging) {
+        cancelVoiceAttempt();
+        if (isOpen) closeChatUI();
+        return;
+      }
       
       if (voiceEnabled && !isOpen) {
         isMenuOpen = !isMenuOpen;
@@ -1301,11 +1448,15 @@ import { resolveChatFooter } from '../lib/billing/branding';
       if (isOpen) {
         closeChatUI();
       } else {
+        setGateMode('text');
         openChatUI();
       }
     }
 
-    menuChatBtn.addEventListener('click', openChatUI);
+    menuChatBtn.addEventListener('click', () => {
+      setGateMode('text');
+      openChatUI();
+    });
 
     menuCallBtn.addEventListener('click', () => {
       isMenuOpen = false;
@@ -1313,41 +1464,11 @@ import { resolveChatFooter } from '../lib/billing/branding';
       voiceMenu.classList.remove('scale-100', 'opacity-100', 'pointer-events-auto');
       
       if (needsGate && !getSessionGateState()) {
-        pendingVoiceCall = true;
-        openChatUI();
-        messagesContainer.style.setProperty('display', 'none', 'important');
-        chatForm.style.setProperty('display', 'none', 'important');
-        onboardingContainer.style.setProperty('display', 'flex', 'important');
-        if (onboardingName) onboardingName.focus();
+        openVoiceGate();
         return;
       }
 
-      isRinging = true;
-      bubble.classList.add('styleflo-ringing');
-      callStatus.classList.remove('opacity-0', 'pointer-events-none');
-      callStatus.classList.add('opacity-100');
-      
-      if (!ringAudio) {
-        ringAudio = new Audio('https://actions.google.com/sounds/v1/alarms/phone_ringing.ogg');
-        ringAudio.loop = true;
-      }
-      ringAudio.play().catch(e => console.error('Audio play failed:', e));
-      
-      setTimeout(() => {
-        if (ringAudio) {
-          ringAudio.pause();
-          ringAudio.currentTime = 0;
-        }
-        isRinging = false;
-        bubble.classList.remove('styleflo-ringing');
-        callStatus.classList.add('opacity-0', 'pointer-events-none');
-        callStatus.classList.remove('opacity-100');
-        
-        openChatUI();
-        setTimeout(() => {
-          startVoiceCall();
-        }, 300);
-      }, 3500);
+      beginExplicitVoice(true);
     });
 
     bubble.addEventListener('click', toggleChat);
@@ -1420,10 +1541,12 @@ import { resolveChatFooter } from '../lib/billing/branding';
 
         vapiInstance.on('call-start', () => {
           isVapiActive = true;
+          hideConnecting();
           vapiBtn.style.backgroundColor = primaryColor;
         });
         vapiInstance.on('call-end', () => {
           isVapiActive = false;
+          hideConnecting();
           vapiBtn.style.backgroundColor = '#6B7280';
           vapiBtn.classList.remove('styleflo-animate-pulse');
         });
@@ -1452,7 +1575,8 @@ import { resolveChatFooter } from '../lib/billing/branding';
         });
         vapiInstance.on('error', (e: any) => {
           console.error('[StyleFlo Widget] Vapi error:', e);
-          
+          hideConnecting();
+
           // Ignore harmless WebRTC ejection errors
           if (
             e?.type === 'daily-error' && 
@@ -1469,17 +1593,21 @@ import { resolveChatFooter } from '../lib/billing/branding';
       startVoiceCall = async () => {
         const mockVapi = Boolean((window as any).__STYLEFLO_MOCK_VAPI__);
         if (!voiceRuntimeAllowed && !mockVapi) {
+          hideConnecting();
           appendMessage('bot', 'Voice is currently unavailable.');
           return;
         }
         if (!vapiPublicKey && !mockVapi) {
+          hideConnecting();
           appendMessage('bot', 'Missing Vapi Public Key in widget configuration.');
           return;
         }
         if (!vapiInstance && !mockVapi) {
+          hideConnecting();
           appendMessage('bot', 'Voice call service is not initialized.');
           return;
         }
+        showConnecting();
         try {
           const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(voiceId);
           const actualVoiceId = voiceId && voiceId.length >= 15 && !isUuid ? voiceId : 'c8MZcZcr0JnMAwkwnTIu';
@@ -1565,6 +1693,7 @@ import { resolveChatFooter } from '../lib/billing/branding';
           });
         } catch (e: any) {
           console.error('[StyleFlo Widget] Vapi start error:', e);
+          hideConnecting();
           appendMessage('bot', e?.message ? `Microphone / Voice Error: ${e.message}` : 'Microphone access denied or voice connection failed.');
         }
       };
@@ -1572,20 +1701,16 @@ import { resolveChatFooter } from '../lib/billing/branding';
       vapiBtn.addEventListener('click', async () => {
         if (isVapiActive && vapiInstance) {
           vapiInstance.stop();
+          hideConnecting();
           return;
         }
 
         if (needsGate && !getSessionGateState()) {
-          pendingVoiceCall = true;
-          openChatUI();
-          messagesContainer.style.setProperty('display', 'none', 'important');
-          chatForm.style.setProperty('display', 'none', 'important');
-          onboardingContainer.style.setProperty('display', 'flex', 'important');
-          if (onboardingName) onboardingName.focus();
+          openVoiceGate();
           return;
         }
 
-        startVoiceCall();
+        beginExplicitVoice(false);
       });
     }
 

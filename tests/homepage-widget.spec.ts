@@ -227,9 +227,14 @@ test.describe('STYL-181: Per-Session Name & Terms Gate, Voice Call Interception,
     const classAttr = await noticeHeader.getAttribute('class');
     expect(classAttr).not.toContain('uppercase');
 
-    // Item 3: The voice notice text "our AI agent" becomes "our AI assistant"
+    // Item 3 (STYL-241): a text chat shows the chat notice, not the voice "this call" wording.
+    // The widget still rewrites any leftover "AI agent" to "AI assistant".
     const noticeText = await onboarding.locator('.bg-blue-50\\/80, [class*="bg-blue-50"]').textContent();
-    expect(noticeText).toContain('this call is between you and our AI assistant');
+    expect(noticeText).toContain(
+      "You're chatting with our AI assistant. We keep a transcript of this chat for reference and contact purposes, as explained in our Privacy Policy.",
+    );
+    expect(noticeText).not.toContain('this call');
+    expect(noticeText).not.toContain('Before we connect you');
     expect(noticeText).not.toContain('our AI agent');
     expect(noticeText).not.toContain('AI agent');
 
@@ -249,6 +254,42 @@ test.describe('STYL-181: Per-Session Name & Terms Gate, Voice Call Interception,
     const submitBtn = host.locator('#styleflo-onboarding-submit-btn');
     await expect(submitBtn).toHaveText('Start Chat 💬');
     await expect(submitBtn).toBeDisabled();
+  });
+
+  test('STYL-241: voice gate still shows the voice notice with AI assistant wording', async ({ page }) => {
+    await page.route(`**/api/chatbots/${homepageBotId}*`, async (route) => {
+      const response = await route.fetch();
+      const json = await response.json();
+      json.globalVoiceDisclaimer = 'Before we connect you, this call is between you and our AI agent, and we keep a record of the transcription for reference and contact purposes, this is outlined in our privacy-policy which can be found on our website.';
+      json.voiceEnabled = true;
+      await route.fulfill({ response, json });
+    });
+
+    await page.goto('/login');
+    await page.evaluate((botId) => {
+      const win = window as unknown as TestWindow;
+      win.__STYLEFLO_TEST_TURNSTILE_TOKEN__ = '1x0000000000000000000000000000000AA';
+      win.__STYLEFLO_MOCK_VAPI__ = true;
+      const s = document.createElement('script');
+      s.src = '/widget.js';
+      s.setAttribute('data-bot-id', botId);
+      document.body.appendChild(s);
+    }, homepageBotId);
+
+    const host = page.locator('#styleflo-chat-widget');
+    await expect(host).toBeAttached({ timeout: 10000 });
+    const menuCall = host.locator('#styleflo-menu-call');
+    await expect(menuCall).toBeAttached({ timeout: 10000 });
+    await menuCall.evaluate((btn: HTMLButtonElement) => btn.click());
+
+    const onboarding = host.locator('#styleflo-onboarding');
+    await expect(onboarding).toBeVisible({ timeout: 10000 });
+    await expect(onboarding.locator('h4')).toHaveText('Meet our AI assistant');
+    const noticeText = await onboarding.locator('.bg-blue-50\\/80, [class*="bg-blue-50"]').textContent();
+    expect(noticeText).toContain('this call is between you and our AI assistant');
+    expect(noticeText).toContain('Before we connect you');
+    expect(noticeText).not.toContain('our AI agent');
+    expect(noticeText).not.toContain('AI agent');
   });
 
   test('start chat button becomes enabled only when both name and terms checkbox are completed', async ({ page }) => {

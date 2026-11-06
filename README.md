@@ -4168,3 +4168,15 @@ Highlighted adjustments in the modal:
 * **Changes**:
   - `apphosting.yaml` binds `VAPI_WEBHOOK_SECRET` to secret `VAPI_WEBHOOK_SECRET` with availability `RUNTIME` only, matching `apphosting.staging.yaml`.
   - Playwright `tests/vapi-webhook-secret-prod-apphosting.spec.ts` asserts the production block equals the staging block (secret ref, RUNTIME, no value).
+
+### Session (STYL-241 text chat must not start voice - 6 Nov 2026)
+* **User / Jira**: Implement STYL-241 from the 6 Nov product brief. Branch `cursor/styl-241-text-chat-no-voice` from latest `staging`. One PR into `staging` only. Do not merge. Never `--no-verify`. Vapi mocked and blocked. Linked to STYL-184 (update the test that pinned the old "this call" wording).
+* **Root cause reproduced on the staging widget** (local Supabase, mock Vapi, `api.vapi.ai` aborted):
+  1. Voice Call or the mic, before the gate is accepted, sets `pendingVoiceCall`. Close and Text Chat did not clear it. Submitting the gate then called `startVoiceCall()`, which built a web-call payload (`__STYLEFLO_LAST_VAPI_CALL__`). With the mock off, that is `vapi.start()` and `POST api.vapi.ai/call/web`.
+  2. "Connecting agent..." is created when the widget loads and was hidden only with Tailwind `opacity: 0`. `checkVisibility()` still reports that node, and the post-gate Voice Call path had no hide on call-start, error, close, or a 20s cap. While the ring was playing, further clicks were ignored.
+* **Changes**:
+  - Gate purpose is `text` or `voice`. Text Chat, close, and a text gate clear `pendingVoiceCall`. Gate submit starts voice only in voice mode.
+  - Text gate shows: "You're chatting with our AI assistant. We keep a transcript of this chat for reference and contact purposes, as explained in our Privacy Policy." Header, "Please read before you start", and the Terms tick stay as STYL-184 set them. Voice gate keeps the voice notice. After a text gate, Voice Call or the mic shows that notice once in the chat, then connects.
+  - "Connecting agent..." is `display: none` unless an explicit voice attempt is connecting, and it clears on call-start, call-end, error, a failed start, cancel/close, or 20 seconds.
+  - `src/widget/index.ts` and `embed.ts` stay identical. `public/widget.js` and `public/embed.js` rebuilt with the local dummy Turnstile site key.
+  - Playwright: `tests/styl-241-text-chat-no-voice.spec.ts`. STYL-184 text assertion updated; voice gate still expects the call notice.
