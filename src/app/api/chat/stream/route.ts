@@ -33,6 +33,7 @@ import { sendConsolidatedLeadEmail } from '@/lib/lead-notifier';
 import { getActiveGeminiModel } from '@/lib/gemini-config';
 import { generateEmbedding } from '@/lib/embeddings';
 import { getFirstName } from '@/lib/greeting';
+import { resolveMockModelReply } from '@/lib/env/allow-mock-reply';
 
 async function scrapeWebsiteContent(targetUrl: string): Promise<string> {
   try {
@@ -919,8 +920,16 @@ ${staffContext}`;
 
     let lastApiError = "";
     
-    // 9. Invoke streamText (or mock stream for automated testing) and setup async database transaction logging
-    const mockModelReply = (body as any).mockModelReply || request.headers.get('x-mock-model-reply');
+    // 9. Invoke streamText (or a test mock) and setup async database transaction logging.
+    // STYL-199: mockModelReply / mockPass2Reply / x-mock-* are ignored unless
+    // ALLOW_MOCK_REPLY is true or 1 and the app is not production. A closed
+    // gate behaves as if the fields were never sent.
+    const mockModelReply = resolveMockModelReply(
+      (body as any).mockModelReply || request.headers.get('x-mock-model-reply'),
+    );
+    const mockPass2Reply = resolveMockModelReply(
+      (body as any).mockPass2Reply || request.headers.get('x-mock-pass2-reply'),
+    );
     let result: any;
 
     if (mockModelReply) {
@@ -1142,8 +1151,8 @@ ${staffContext}`;
             if (directSpeech) {
               pass2Text = directSpeech;
               safeEnqueue(`\n\n${directSpeech}`);
-            } else if (mockModelReply && (body as any).mockPass2Reply) {
-              pass2Text = (body as any).mockPass2Reply;
+            } else if (mockModelReply && mockPass2Reply) {
+              pass2Text = Array.isArray(mockPass2Reply) ? mockPass2Reply.join('') : mockPass2Reply;
               safeEnqueue(pass2Text);
             } else {
               const result2 = await (streamText as any)({

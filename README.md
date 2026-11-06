@@ -4109,3 +4109,11 @@ Highlighted adjustments in the modal:
   - FloBot still writes to the missing `knowledge_chunks` table; noted in code, not redirected.
   - Playwright covers normalisation, SQL/TS hash parity, crawl/text/file/Shopify, cross-tenant and cross-chatbot, allowance, same-source replace, dry-run, and a unique-constraint race.
   - STYL-186 fixtures now use distinct text per run so an exact-hash skip cannot hide a source the test expects to create.
+
+### Session (STYL-199 mock reply gate - 6 Nov 2026)
+* **User**: Implement the signed-off STYL-199 brief. Honour `mockModelReply`, `mockPass2Reply`, and the `x-mock-*` / `body.call` mirrors only when server-only `ALLOW_MOCK_REPLY` is `true` or `1` and `resolveAppEnv` is not production. When the gate is closed, ignore the fields and do not return a special 4xx. Branch `cursor/styl-199-mock-reply-guard` from latest `staging`, PR into `staging` only. Do not merge, do not use `--no-verify`, do not set the flag in App Hosting yaml, and do not weaken STYL-198.
+* **Changes**:
+  - Added `src/lib/env/allow-mock-reply.ts` (`isMockReplyAllowed`, `resolveMockModelReply`). Empty, unset, `false`, and `0` are off. Production (`APP_ENV=production`, or `APP_ENV` unset with `NODE_ENV=production`) ignores mocks even if the flag is set.
+  - Chat stream and voice `[chatbotId]/chat/completions` read body, header, and `body.call` mirrors through that helper. The legacy `POST /api/voice/chat/completions` route has no mock override.
+  - `.env.example` documents the flag as never set on production. `playwright.config.ts` and the Playwright half of `scripts/write-local-env.mjs` set `ALLOW_MOCK_REPLY=true`. It is not in `apphosting.yaml` or `apphosting.staging.yaml`. `docs/staging.md` says staging salon traffic keeps the real model.
+  - Playwright `tests/styl-199-mock-reply-guard.spec.ts` covers the helper matrix, production-like ignore (body, headers, `body.call`, no booking side effect, canned model instead of the marker), and flag-on synthetic streams. Gemini is stubbed. No live voice calls or bookings.
