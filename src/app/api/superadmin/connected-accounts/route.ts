@@ -30,7 +30,7 @@ export const GET = withSuperAdmin(async (_req: NextRequest) => {
 
     // Resolved API keys (Env takes priority, fallback to DB saved keys)
     const elevenLabsKey = process.env.ELEVENLABS_API_KEY || process.env.XI_API_KEY || savedKeys.elevenlabs_api_key || '';
-    const vapiKey = process.env.VAPI_API_KEY || process.env.VAPI_PRIVATE_KEY || process.env.VAPI_SECRET_KEY || savedKeys.vapi_api_key || '';
+    const vapiKey = process.env.VAPI_API_KEY || process.env.VAPI_PRIVATE_KEY || savedKeys.vapi_api_key || '';
     const twilioSid = process.env.TWILIO_ACCOUNT_SID || savedKeys.twilio_account_sid || '';
     const twilioAuthToken = process.env.TWILIO_AUTH_TOKEN || savedKeys.twilio_auth_token || '';
     const geminiKey = process.env.GEMINI_API_KEY || process.env.GOOGLE_GENERATIVE_AI_API_KEY || process.env.GOOGLE_AI_API_KEY || process.env.GOOGLE_API_KEY || savedKeys.gemini_api_key || '';

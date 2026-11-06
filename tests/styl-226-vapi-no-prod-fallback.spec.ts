@@ -46,6 +46,7 @@ test.describe('STYL-226: Vapi has no production fallback', () => {
       const body = await res.json();
       expect(body.vapiPublicKey || '').toBe('');
       expect(body.vapiAssistantId || '').toBe('');
+      expect(body.voiceRuntimeAllowed).toBe(false);
       expect(body.voiceEnabled === false || body.vapiPublicKey === '').toBeTruthy();
     } finally {
       for (const [key, value] of Object.entries(previous)) {

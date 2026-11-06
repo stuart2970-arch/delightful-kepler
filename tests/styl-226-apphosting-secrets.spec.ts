@@ -18,7 +18,7 @@ const REQUIRED_SECRET_NAMES = [
   'VAPI_PRIVATE_API_KEY',
   'VAPI_PRIVATE_KEY',
   'VAPI_PUBLIC_KEY',
-  'VAPI_SECRET_KEY',
+  'VAPI_WEBHOOK_SECRET',
   'MAILGUN_API_KEY',
   'MAILGUN_DOMAIN',
   'CRON_SECRET',
@@ -57,6 +57,11 @@ test.describe('STYL-226: App Hosting staging secrets and public URL', () => {
       expect(staging, name).toContain(`variable: ${name}`);
     }
     expect(staging).toContain('secret: STRIPE_SECRET_KEY');
+    expect(staging).toContain('secret: VAPI_WEBHOOK_SECRET');
+    expect(staging).not.toContain('VAPI_SECRET_KEY');
+    expect(staging).toContain('variable: VOICE_ENABLED');
+    expect(staging).toMatch(/variable: VOICE_ENABLED\n\s+value: ["']?false["']?/);
+    expect(staging).not.toContain('secret: VOICE_ENABLED');
     expect(staging).not.toContain('STYLEFLO_WP_API_SECRET');
     expect(staging).not.toContain('STYLEFLO_WP_CREATE_BUSINESS_TOKEN');
     expect(staging).not.toContain('WPMUDEV_WEBHOOK_SECRET');

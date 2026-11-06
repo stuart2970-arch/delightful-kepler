@@ -68,10 +68,11 @@ function buildEnvFile({ apiUrl, anon, service, appUrl, appEnv, playwright }) {
     'OPENAI_API_KEY=mock-test-key',
     'VAPI_API_KEY=mock-vapi-key',
     'VAPI_PRIVATE_API_KEY=mock-vapi-key',
-    'VAPI_SECRET_KEY=mock-vapi-key',
     'NEXT_PUBLIC_VAPI_PUBLIC_KEY=mock-vapi-public-key',
     'VAPI_PUBLIC_KEY=mock-vapi-public-key',
     'VAPI_MASTER_ASSISTANT_ID=00000000-0000-0000-0000-0000000000va',
+    'VAPI_WEBHOOK_SECRET=test-vapi-webhook-secret',
+    'VOICE_ENABLED=false',
     'STRIPE_WEBHOOK_SECRET=whsec_test_local_mock_secret',
     'TWILIO_ACCOUNT_SID=ACmocktwilioaccountsid000000000000',
     'TWILIO_AUTH_TOKEN=mock_twilio_auth_token',
@@ -86,6 +87,9 @@ function buildEnvFile({ apiUrl, anon, service, appUrl, appEnv, playwright }) {
   if (playwright) {
     lines.push('PLAYWRIGHT_TEST=true');
     lines.push('NODE_ENV=test');
+    // STYL-199: Playwright injects mockModelReply. Never copy this to production
+    // or to apphosting.yaml / apphosting.staging.yaml.
+    lines.push('ALLOW_MOCK_REPLY=true');
     // Production default is 20/15min. The suite shares one IP against a
     // 15-minute window, so tests need a high ceiling. Do not copy this to Cloud Run.
     lines.push('AUTH_RATE_LIMIT_PER_IP=10000');

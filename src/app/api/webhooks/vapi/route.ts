@@ -1,11 +1,15 @@
 import { NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import { sendConsolidatedLeadEmail } from '@/lib/lead-notifier';
+import { verifyVapiWebhookSecret } from '@/lib/env/vapi-webhook-auth';
 
 // Vapi sends a POST request with call details.
 // We only care about 'end-of-call-report' messages.
 export async function POST(request: Request) {
   try {
+    const auth = verifyVapiWebhookSecret(request);
+    if (!auth.ok) return auth.response;
+
     const body = await request.json();
 
     // Vapi webhook payload structure

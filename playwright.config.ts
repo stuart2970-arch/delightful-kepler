@@ -30,6 +30,8 @@ export default defineConfig({
     env: {
       ...process.env,
       PLAYWRIGHT_TEST: 'true',
+      // STYL-199: existing suites inject mockModelReply. Never set this on production.
+      ALLOW_MOCK_REPLY: 'true',
       // High ceiling so the shared test IP is not blocked. Production omits this (default 20).
       AUTH_RATE_LIMIT_PER_IP: process.env.AUTH_RATE_LIMIT_PER_IP || '10000',
       APP_URL: process.env.APP_URL || process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3001',

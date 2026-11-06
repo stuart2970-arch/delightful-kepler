@@ -9,6 +9,8 @@ import { splitAtToolTag } from '@/lib/calendar/tool-tags';
 import { getActiveGeminiModel } from '@/lib/gemini-config';
 import { generateEmbedding } from '@/lib/embeddings';
 import { buildGreeting, getFirstName, isEchoOfGreeting } from '@/lib/greeting';
+import { voiceLogError } from '@/lib/voice/log-error';
+import { resolveMockModelReply } from '@/lib/env/allow-mock-reply';
 
 export const maxDuration = 300;
 
@@ -175,7 +177,7 @@ export async function POST(
           .eq('id', preConv.id);
       }
     } catch (preConvErr) {
-      console.error('[Vapi Custom LLM] Pre-logging conversation error:', preConvErr);
+      voiceLogError('[Vapi Custom LLM] Pre-logging conversation error', preConvErr);
     }
     const agentName = ((configData.agent_name as string) || chatbotName || 'AI Assistant').trim();
     const businessName = (configData.businessName as string)?.trim() || tenantCompany || chatbotName || agentName || 'our business';
@@ -216,7 +218,7 @@ export async function POST(
     const isEchoedGreeting = isEchoOfGreeting(queryText, formattedGreeting);
 
     if (isEchoedGreeting) {
-      console.log('[Vapi Custom LLM] Ignoring echoed assistant greeting turn:', queryText);
+      console.log('[Vapi Custom LLM] Ignoring echoed assistant greeting turn', { chatbotId });
       const isStream = body.stream !== false;
       if (!isStream) {
         return NextResponse.json({
@@ -299,7 +301,7 @@ export async function POST(
           new Promise<string>((resolve) => setTimeout(() => resolve(''), 2500))
         ]);
       } catch (e) {
-        console.error('[Vapi Custom LLM] RAG embedding/match error:', e);
+        voiceLogError('[Vapi Custom LLM] RAG embedding/match error', e);
       }
     }
 
@@ -473,8 +475,14 @@ ${globalDisclaimer}`;
           };
           controller.enqueue(encoder.encode(`data: ${JSON.stringify(startRoleChunk)}\n\n`));
 
-          const mockModelReply = (body as any).mockModelReply || req.headers.get('x-mock-model-reply') || (body.call as any)?.mockModelReply;
-          const mockPass2Reply = (body as any).mockPass2Reply || req.headers.get('x-mock-pass2-reply') || (body.call as any)?.mockPass2Reply;
+          // STYL-199: body, x-mock-* headers, and body.call mirrors are ignored
+          // unless ALLOW_MOCK_REPLY is true or 1 and the app is not production.
+          const mockModelReply = resolveMockModelReply(
+            (body as any).mockModelReply || req.headers.get('x-mock-model-reply') || (body.call as any)?.mockModelReply,
+          );
+          const mockPass2Reply = resolveMockModelReply(
+            (body as any).mockPass2Reply || req.headers.get('x-mock-pass2-reply') || (body.call as any)?.mockPass2Reply,
+          );
 
           if (!mockModelReply && (process.env.PLAYWRIGHT_TEST === 'true' || apiKey.startsWith('mock') || !apiKey)) {
             const mockChunk = {
@@ -597,7 +605,7 @@ ${globalDisclaimer}`;
                 toolResult = await Promise.race([bookPromise, timeoutPromise]);
               }
             } catch (toolErr: any) {
-              console.error('[Vapi Custom LLM] Calendar tool error:', toolErr);
+              voiceLogError('[Vapi Custom LLM] Calendar tool error', toolErr);
               toolFailed = true;
               toolResult = `Failed to process calendar request: ${toolErr?.message || 'Tool error'}`;
             }
@@ -625,8 +633,9 @@ ${globalDisclaimer}`;
                 : `[SYSTEM RESULT]:\n${toolResult}\nSpeak the result naturally to the caller in plain conversational English without markdown, codes, or bracket tags. CRITICAL INSTRUCTION: Maintain the exact staff member (${requestedStaffId !== 'ANY' ? 'the requested staff member' : 'any available staff member'}) and time slot agreed upon by the caller. DO NOT switch staff members unless the caller explicitly asked to change staff or the requested staff member has zero availability. If the result says a calendar could not be checked, do not invent times for that person.`;
 
               try {
-                const pass2Result = (mockPass2Reply || (mockModelReply && (process.env.PLAYWRIGHT_TEST === 'true' || apiKey.startsWith('mock') || !apiKey)))
-                  ? { textStream: [mockPass2Reply || (isBookingSuccess ? "Your booking is confirmed!" : "We have availability on Friday at 2:00 PM with Sarah Miller. Would you like me to book that for you?")] }
+                const mockPass2Text = Array.isArray(mockPass2Reply) ? mockPass2Reply.join('') : mockPass2Reply;
+                const pass2Result = (mockPass2Text || (mockModelReply && (process.env.PLAYWRIGHT_TEST === 'true' || apiKey.startsWith('mock') || !apiKey)))
+                  ? { textStream: [mockPass2Text || (isBookingSuccess ? "Your booking is confirmed!" : "We have availability on Friday at 2:00 PM with Sarah Miller. Would you like me to book that for you?")] }
                   : streamText({
                       model: googleProvider(activeModelName),
                       messages: [
@@ -652,7 +661,7 @@ ${globalDisclaimer}`;
                   }
                 }
               } catch (pass2Err: any) {
-                console.error('[Vapi Custom LLM] Pass 2 streaming error:', pass2Err);
+                voiceLogError('[Vapi Custom LLM] Pass 2 streaming error', pass2Err);
                 if (!pass2SpokenText) {
                   const errorFallback = "I'm sorry, I encountered a brief issue checking our calendar. Please try again in a moment.";
                   pass2SpokenText = errorFallback;
@@ -761,13 +770,13 @@ actualSpokenBotText = (availMatch || bookMatch)
               }
             }
           } catch (dbErr) {
-            console.error('[Vapi Custom LLM] Database voice logging error:', dbErr);
+            voiceLogError('[Vapi Custom LLM] Database voice logging error', dbErr);
           } finally {
             controller.close();
           }
 
         } catch (err: any) {
-          console.error('[Vapi Custom LLM Stream Error]:', err);
+          voiceLogError('[Vapi Custom LLM Stream Error]', err);
 
           // Record failed turn to database if not aborted
           if (!req.signal.aborted) {
@@ -814,7 +823,7 @@ actualSpokenBotText = (availMatch || bookMatch)
                 });
               }
             } catch (logErr) {
-              console.error('[Vapi Custom LLM] Failed turn logging error:', logErr);
+              voiceLogError('[Vapi Custom LLM] Failed turn logging error', logErr);
             }
           }
 
@@ -856,7 +865,7 @@ actualSpokenBotText = (availMatch || bookMatch)
     });
 
   } catch (error: any) {
-    console.error('[Vapi Custom LLM] Unexpected failure:', error);
-    return NextResponse.json({ error: 'Internal server error', details: error?.message || String(error) }, { status: 500, headers: corsHeaders });
+    voiceLogError('[Vapi Custom LLM] Unexpected failure', error);
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500, headers: corsHeaders });
   }
 }
