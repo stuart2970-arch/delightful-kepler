@@ -24,6 +24,14 @@ const nextConfig: any = {
         },
       }
     : {}),
+  // Next.js 16 defaults `next build` and `next dev` to Turbopack. A `webpack`
+  // hook with no `turbopack` key makes that build exit 1
+  // ("This build is using Turbopack, with a `webpack` config and no `turbopack` config").
+  // The hook below is a no-op in production (`dev` is false). An empty turbopack
+  // config keeps App Hosting on Turbopack, which is what previously shipped.
+  // The Firebase adapter spreads this object and only sets images.unoptimized,
+  // so this key is still present when that overlay runs.
+  turbopack: {},
   webpack: (config: { devtool?: false | string; cache?: false | object }, { dev }: { dev: boolean }) => {
     if (dev && playwrightServer) {
       config.devtool = false;
