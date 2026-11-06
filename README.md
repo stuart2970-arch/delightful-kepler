@@ -4162,3 +4162,9 @@ Highlighted adjustments in the modal:
   1. Merged `origin/staging` into `cursor/styl-226-vapi-orchestration-ec25` (conflicts in README, deprovision, voice completions).
   2. Retry safety: persist the chosen E.164 on the reservation before Twilio `create`; list incoming numbers by that exact `phoneNumber` (limit 1); never match shared inbound `voiceUrl`; never null `phone_number` on timeout; atomic `unknown` → `pending` claim so a second retry 409s.
   3. Paid period: phone gate allows `active`/`trialing`/`past_due` and NULL/empty `subscription_status` while `is_active` is not false; invoice sync uses SQL-null-safe not-cancelled matching and fills NULL `stripe_subscription_id` from tenant + catalog/price. `cancelled` still blocks.
+
+### Session (production VAPI_WEBHOOK_SECRET App Hosting binding - 6 Nov 2026)
+* **User**: Production App Hosting (`delightful-kepler-1`, project `styleflo-ai`) was promoted on 6 Nov 2026 via PR 28 to `a3c3bf995967e845601fd6e8c0bf4f03d099127c`. `VAPI_WEBHOOK_SECRET` already exists in that project's Secret Manager. Staging injects it from `apphosting.staging.yaml` at RUNTIME. Production reads base `apphosting.yaml`, which had no binding, so the process never received `process.env.VAPI_WEBHOOK_SECRET`. Do not change other secrets or URLs, do not paste secret values, do not apply migrations or buy numbers, do not merge.
+* **Changes**:
+  - `apphosting.yaml` binds `VAPI_WEBHOOK_SECRET` to secret `VAPI_WEBHOOK_SECRET` with availability `RUNTIME` only, matching `apphosting.staging.yaml`.
+  - Playwright `tests/vapi-webhook-secret-prod-apphosting.spec.ts` asserts the production block equals the staging block (secret ref, RUNTIME, no value).
