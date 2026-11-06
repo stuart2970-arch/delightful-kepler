@@ -223,6 +223,23 @@ test.describe('STYL-239: tenant-created webhook requires a shared secret', () =>
     });
   });
 
+  test('error redaction runs before the log is truncated', async () => {
+    await withIsolatedEnv(async ({ logs }) => {
+      enablePublishConfig();
+      process.env.TENANT_CREATED_WEBHOOK_SECRET = WEBHOOK_SECRET;
+      const lateToken = 'ef'.repeat(12);
+      const body = `${'n'.repeat(189)} ${lateToken}`;
+      globalThis.fetch = (async () => new Response(body, { status: 422 })) as typeof fetch;
+
+      const res = await tenantCreated(postTenantCreated(`Bearer ${WEBHOOK_SECRET}`));
+      const logged = logs.join('\n');
+
+      expect(res.status).toBe(422);
+      expect(logged).not.toContain(lateToken);
+      expect(logged).not.toContain(lateToken.slice(0, 10));
+    });
+  });
+
   test('route checks the webhook secret before create-business and uses secretsEqual', () => {
     const src = readFileSync(join(root, 'src/app/api/webhooks/tenant-created/route.ts'), 'utf8');
     expect(src).toContain('TENANT_CREATED_WEBHOOK_SECRET');

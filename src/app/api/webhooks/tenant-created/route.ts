@@ -29,12 +29,12 @@ function safeIdentifier(value: unknown): string | undefined {
 }
 
 function redactSensitive(text: string): string {
-  return text
-    .slice(0, 200)
+  const redacted = text
     .replace(/[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/gi, '[redacted-email]')
     .replace(/\+?\d[\d\s().-]{8,}\d/g, '[redacted-phone]')
     .replace(/\b[0-9a-fA-F]{20,}\b/g, '[redacted]')
     .replace(/(token|authorization|secret|password|api[_-]?key)(\s*[:=]\s*)(\S+)/gi, '$1$2[redacted]');
+  return redacted.slice(0, 200);
 }
 
 export async function POST(req: NextRequest) {

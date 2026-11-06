@@ -795,7 +795,7 @@ oute.ts and src/app/api/voice/[chatbotId]/chat/completions/route.ts for maximum 
 
   2. **Fixed DOM-Based XSS in Chat Simulation**: Replaced unsafe `innerHTML` interpolation of user input with safe `textContent` DOM construction in `styleflo_landing_page.html` (line 945). Bot replies using hardcoded strings remain as `innerHTML` since they contain no user-controlled data.
 
-  3. **Moved WP Secrets to wp-config.php**: Replaced HMAC fallback (`'your_fallback_shared_secret'`) in `styleflo_verify_api_signature()` with strict rejection when `STYLEFLO_WP_API_SECRET` is undefined. Replaced hardcoded API token (`'d1f5e82b79a83604f05c48b2'`) with `STYLEFLO_CREATE_BUSINESS_SECRET` constant + `hash_equals()` timing-safe comparison. Moved auth check into `permission_callback` for the `/create-business` REST route for defense in depth.
+  3. **Moved WP Secrets to wp-config.php**: Replaced HMAC fallback (`'your_fallback_shared_secret'`) in `styleflo_verify_api_signature()` with strict rejection when `STYLEFLO_WP_API_SECRET` is undefined. Replaced hardcoded API token (the hard-coded create-business token (removed; see STYL-238)) with `STYLEFLO_CREATE_BUSINESS_SECRET` constant + `hash_equals()` timing-safe comparison. Moved auth check into `permission_callback` for the `/create-business` REST route for defense in depth.
 
   4. **Secured Public Web Root Scripts**: Backed up 6 unauthenticated PHP scripts (`dump_header.php`, `get_homepage.php`, `get_post_content.php`, `local-xdebuginfo.php`, `update_avada_header.php`, `update_homepage.php`) to `_deprecated_scripts/` and added `php_sapi_name() !== 'cli'` guards returning HTTP 403 to all originals.
 
@@ -4178,3 +4178,10 @@ Highlighted adjustments in the modal:
   - `tests/styl-238-no-wp-token-literal.spec.ts` fails if a quoted hex string of 20 or more characters is reintroduced under `tests/` or `src/`. Before the literal was deleted, that scan failed on the STYL-226 spec (length 24, matching the frozen digest). 34-character Twilio SID literals stay allowlisted. The plaintext value is not in the test.
   - `.env.example` documents server-only `TENANT_CREATED_WEBHOOK_SECRET`. `docs/staging.md` records that staging App Hosting leaves it unwired (401). Production still reads `STYLEFLO_WP_CREATE_BUSINESS_TOKEN`.
   - Playwright route-import specs for STYL-239, STYL-238, and STYL-226 passed without a live WordPress call. `tsc --noEmit` passed with `NODE_OPTIONS=--max-old-space-size=8192`. Full Playwright suite: 495 passed against local Supabase and mock keys.
+
+### Session (PR 31 review - remove historical token from session notes - 6 Nov 2026)
+* **User**: Product Owner blocked PR 31. Do not merge. The webhook auth and test hygiene are accepted. Old session notes in `README.md` and `Styleflo AI/delightful-kepler/README.md` still quote the historical create-business token. Replace those with a placeholder and widen the scan. Do not paste the value. Never `--no-verify`.
+* **Changes**:
+  - Both session notes now say the hard-coded create-business token was removed (see STYL-238). The value is not in the replacement.
+  - The scan covers `tests/`, `src/`, `docs/`, `Styleflo AI/`, and repo-root markdown. It excludes `node_modules`, `.git`, and lockfiles. A frozen digest still flags the historical value if it reappears.
+  - Error-log redaction runs before the 200-character truncation, so a token that starts near the cut is not partially logged.

@@ -1,11 +1,12 @@
 import { test, expect } from '@playwright/test';
 import { createHash } from 'node:crypto';
 import { readdirSync, readFileSync, statSync } from 'node:fs';
-import { extname, join, relative } from 'node:path';
+import { basename, extname, join, relative } from 'node:path';
 
 const root = process.cwd();
-const SCAN_ROOTS = ['tests', 'src'];
-const SKIP_DIRS = new Set(['node_modules', 'playwright-report', 'test-results', '.next']);
+const SCAN_ROOTS = ['tests', 'src', 'docs', 'Styleflo AI'];
+const SKIP_DIRS = new Set(['node_modules', '.git', 'playwright-report', 'test-results', '.next']);
+const LOCKFILES = new Set(['package-lock.json', 'pnpm-lock.yaml', 'yarn.lock']);
 const TEXT_EXT = new Set([
   '.ts', '.tsx', '.js', '.jsx', '.mjs', '.cjs', '.md', '.json', '.sql', '.css', '.html',
 ]);
@@ -35,7 +36,7 @@ const TWILIO_SID = /^(AC|AD|BU|CA|CH|CL|IS|MG|PN|SK|SM|VA)[0-9a-fA-F]{32}$/;
 
 function walk(dir: string, out: string[] = []): string[] {
   for (const name of readdirSync(dir)) {
-    if (SKIP_DIRS.has(name)) continue;
+    if (SKIP_DIRS.has(name) || LOCKFILES.has(name)) continue;
     const path = join(dir, name);
     if (statSync(path).isDirectory()) walk(path, out);
     else out.push(path);
@@ -43,32 +44,48 @@ function walk(dir: string, out: string[] = []): string[] {
   return out;
 }
 
+function filesToScan(): string[] {
+  const files: string[] = [];
+  for (const relRoot of SCAN_ROOTS) {
+    walk(join(root, relRoot), files);
+  }
+  for (const name of readdirSync(root)) {
+    if (!name.endsWith('.md') || LOCKFILES.has(name)) continue;
+    const path = join(root, name);
+    if (statSync(path).isFile()) files.push(path);
+  }
+  return files;
+}
+
 test.describe('STYL-238: no WordPress token-shaped literals', () => {
-  test('tests and src reject quoted hex string literals of 20 or more characters', () => {
+  test('tests, src, docs, and markdown reject token-shaped hex literals', () => {
     const offenders: string[] = [];
 
-    for (const relRoot of SCAN_ROOTS) {
-      for (const file of walk(join(root, relRoot))) {
-        const ext = extname(file);
-        if (ext && !TEXT_EXT.has(ext)) continue;
-        const text = readFileSync(file, 'utf8');
-        if (text.includes('\0')) continue;
-        text.split('\n').forEach((line, index) => {
-          QUOTED_HEX.lastIndex = 0;
-          let match: RegExpExecArray | null;
-          while ((match = QUOTED_HEX.exec(line))) {
-            const literal = match[2];
-            const where = `${relative(root, file)}:${index + 1} len=${literal.length}`;
-            const digest = createHash('sha256').update(literal).digest('hex');
-            if (digest === REMOVED_WP_TOKEN_SHA256) {
-              offenders.push(`${where} matches removed token digest`);
-              continue;
-            }
-            if (TWILIO_SID.test(literal)) continue;
-            offenders.push(where);
+    for (const file of filesToScan()) {
+      const ext = extname(file);
+      if (ext && !TEXT_EXT.has(ext)) continue;
+      if (LOCKFILES.has(basename(file))) continue;
+      const text = readFileSync(file, 'utf8');
+      if (text.includes('\0')) continue;
+      text.split('\n').forEach((line, index) => {
+        const where = `${relative(root, file)}:${index + 1}`;
+        const runs = line.match(/[0-9a-fA-F]{20,}/g) || [];
+        for (const run of runs) {
+          const digest = createHash('sha256').update(run).digest('hex');
+          if (digest === REMOVED_WP_TOKEN_SHA256) {
+            offenders.push(`${where} len=${run.length} matches removed token digest`);
           }
-        });
-      }
+        }
+        QUOTED_HEX.lastIndex = 0;
+        let match: RegExpExecArray | null;
+        while ((match = QUOTED_HEX.exec(line))) {
+          const literal = match[2];
+          const digest = createHash('sha256').update(literal).digest('hex');
+          if (digest === REMOVED_WP_TOKEN_SHA256) continue;
+          if (TWILIO_SID.test(literal)) continue;
+          offenders.push(`${where} len=${literal.length}`);
+        }
+      });
     }
 
     expect(offenders, 'token-shaped hex string literal reintroduced').toEqual([]);

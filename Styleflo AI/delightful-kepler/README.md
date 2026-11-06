@@ -678,7 +678,7 @@ oute.ts and src/app/api/voice/[chatbotId]/chat/completions/route.ts for maximum 
 
   2. **Fixed DOM-Based XSS in Chat Simulation**: Replaced unsafe `innerHTML` interpolation of user input with safe `textContent` DOM construction in `styleflo_landing_page.html` (line 945). Bot replies using hardcoded strings remain as `innerHTML` since they contain no user-controlled data.
 
-  3. **Moved WP Secrets to wp-config.php**: Replaced HMAC fallback (`'your_fallback_shared_secret'`) in `styleflo_verify_api_signature()` with strict rejection when `STYLEFLO_WP_API_SECRET` is undefined. Replaced hardcoded API token (`'d1f5e82b79a83604f05c48b2'`) with `STYLEFLO_CREATE_BUSINESS_SECRET` constant + `hash_equals()` timing-safe comparison. Moved auth check into `permission_callback` for the `/create-business` REST route for defense in depth.
+  3. **Moved WP Secrets to wp-config.php**: Replaced HMAC fallback (`'your_fallback_shared_secret'`) in `styleflo_verify_api_signature()` with strict rejection when `STYLEFLO_WP_API_SECRET` is undefined. Replaced hardcoded API token (the hard-coded create-business token (removed; see STYL-238)) with `STYLEFLO_CREATE_BUSINESS_SECRET` constant + `hash_equals()` timing-safe comparison. Moved auth check into `permission_callback` for the `/create-business` REST route for defense in depth.
 
   4. **Secured Public Web Root Scripts**: Backed up 6 unauthenticated PHP scripts (`dump_header.php`, `get_homepage.php`, `get_post_content.php`, `local-xdebuginfo.php`, `update_avada_header.php`, `update_homepage.php`) to `_deprecated_scripts/` and added `php_sapi_name() !== 'cli'` guards returning HTTP 403 to all originals.
 
