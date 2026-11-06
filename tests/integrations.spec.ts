@@ -1,10 +1,15 @@
 import { test, expect } from '@playwright/test';
 
+const vapiWebhookHeaders = {
+  'x-vapi-secret': process.env.VAPI_WEBHOOK_SECRET || 'test-vapi-webhook-secret',
+};
+
 test.describe('Vapi, ElevenLabs & Telephony Integrations', () => {
   const testChatbotId = 'e0000000-0000-0000-0000-000000000001'; // Acme Support Bot (seeded locally)
 
-  test('Vapi Assistant Webhook returns valid dynamic assistant with 11labs voice', async ({ request }) => {
+  test('Vapi Assistant Webhook returns voice unavailable while VOICE_ENABLED is off', async ({ request }) => {
     const response = await request.post('/api/webhooks/vapi/assistant', {
+      headers: vapiWebhookHeaders,
       data: {
         message: {
           type: 'assistant-request',
@@ -16,21 +21,10 @@ test.describe('Vapi, ElevenLabs & Telephony Integrations', () => {
     expect(response.ok()).toBeTruthy();
     const data = await response.json();
     
-    // Assert Vapi root and messageResponse assistant structures
     const assistant = data.assistant || data.messageResponse?.assistant;
     expect(assistant).toBeTruthy();
-    expect(assistant.name).toBeTruthy();
-    expect(assistant.firstMessage).toBeTruthy();
-
-    // Assert 11labs voice provider & persona configuration
-    expect(assistant.voice).toBeTruthy();
-    expect(assistant.voice.provider).toBe('11labs');
-    expect(assistant.voice.voiceId).toBeTruthy();
-
-    // Assert custom LLM provider pointing to styleflo voice completion endpoint
-    expect(assistant.model).toBeTruthy();
-    expect(assistant.model.provider).toBe('custom-llm');
-    expect(assistant.model.url).toContain('/api/voice/');
+    expect(assistant.firstMessage).toMatch(/voice is currently unavailable/i);
+    expect(assistant.artifactPlan?.recordingEnabled).toBe(false);
   });
 
   test('ElevenLabs Custom LLM Voice Completion endpoint streams response successfully', async ({ request }) => {
@@ -186,6 +180,7 @@ test.describe('Vapi, ElevenLabs & Telephony Integrations', () => {
 
     // 2. Test inbound call dialed to Landline (+441514538001)
     const landlineVapiRes = await request.post('/api/webhooks/vapi/assistant', {
+      headers: vapiWebhookHeaders,
       data: {
         message: {
           type: 'assistant-request',
@@ -203,14 +198,11 @@ test.describe('Vapi, ElevenLabs & Telephony Integrations', () => {
     const landlineData = await landlineVapiRes.json();
     const landlineAssistant = landlineData.assistant || landlineData.messageResponse?.assistant;
     expect(landlineAssistant).toBeTruthy();
-    expect(landlineAssistant.name).toBeTruthy();
-    expect(landlineAssistant.firstMessage).toBeTruthy();
-    expect(landlineAssistant.model.provider).toBe('custom-llm');
-    // Ensure trailing slash is present to prevent Vapi /chat/completions URL corruption
-    expect(landlineAssistant.model.url.endsWith('/')).toBe(true);
+    expect(landlineAssistant.firstMessage).toMatch(/voice is currently unavailable/i);
 
     // 3. Test inbound call dialed to Mobile (+447446900875)
     const mobileVapiRes = await request.post('/api/webhooks/vapi/assistant', {
+      headers: vapiWebhookHeaders,
       data: {
         message: {
           type: 'assistant-request',
@@ -228,12 +220,10 @@ test.describe('Vapi, ElevenLabs & Telephony Integrations', () => {
     const mobileData = await mobileVapiRes.json();
     const mobileAssistant = mobileData.assistant || mobileData.messageResponse?.assistant;
     expect(mobileAssistant).toBeTruthy();
-    expect(mobileAssistant.name).toBeTruthy();
-    expect(mobileAssistant.model.url.endsWith('/')).toBe(true);
+    expect(mobileAssistant.firstMessage).toMatch(/voice is currently unavailable/i);
 
-    // 4. Test that the returned Custom LLM endpoint actually responds to Vapi chat completion requests
-    const completionUrl = new URL('chat/completions', landlineAssistant.model.url).pathname;
-    const completionRes = await request.post(completionUrl, {
+    // 4. Custom LLM endpoint still responds when called directly
+    const completionRes = await request.post(`/api/voice/${testChatbotId}/chat/completions`, {
       data: {
         model: 'gemini-1.5-flash',
         messages: [{ role: 'user', content: 'What time are you open?' }],

@@ -145,6 +145,17 @@ env:
     availability:
       - RUNTIME
 
+  - variable: VAPI_WEBHOOK_SECRET
+    secret: VAPI_WEBHOOK_SECRET
+    availability:
+      - RUNTIME
+
+  - variable: VOICE_ENABLED
+    value: "false"
+    availability:
+      - BUILD
+      - RUNTIME
+
   # Aliases for existing readers (same Secret Manager names).
   - variable: VAPI_PRIVATE_API_KEY
     secret: VAPI_API_KEY
@@ -160,11 +171,6 @@ env:
     secret: NEXT_PUBLIC_VAPI_PUBLIC_KEY
     availability:
       - BUILD
-      - RUNTIME
-
-  - variable: VAPI_SECRET_KEY
-    secret: VAPI_API_KEY
-    availability:
       - RUNTIME
 
   - variable: MAILGUN_API_KEY

@@ -516,6 +516,7 @@ import { resolveChatFooter } from '../lib/billing/branding';
   let hideStyleFloBranding = false;
   let brandingHtml = resolveChatFooter({ hideStyleFloBranding: false, brandingHtml: '' }).html;
   let voiceEnabled = false;
+  let voiceRuntimeAllowed = false;
   let requireClientName = false;
   let vapiPublicKey = '';
   let vapiAssistantId = '';
@@ -546,6 +547,7 @@ import { resolveChatFooter } from '../lib/billing/branding';
         hideStyleFloBranding = footer.hide;
         brandingHtml = footer.html;
         voiceEnabled = config.voiceEnabled || false;
+        voiceRuntimeAllowed = Boolean(config.voiceRuntimeAllowed);
         requireClientName = config.requireClientName || false;
         vapiPublicKey = config.vapiPublicKey || '';
         vapiAssistantId = config.vapiAssistantId || '';
@@ -1465,19 +1467,23 @@ import { resolveChatFooter } from '../lib/billing/branding';
       }
 
       startVoiceCall = async () => {
-        if (!vapiPublicKey) {
+        const mockVapi = Boolean((window as any).__STYLEFLO_MOCK_VAPI__);
+        if (!voiceRuntimeAllowed && !mockVapi) {
+          appendMessage('bot', 'Voice is currently unavailable.');
+          return;
+        }
+        if (!vapiPublicKey && !mockVapi) {
           appendMessage('bot', 'Missing Vapi Public Key in widget configuration.');
           return;
         }
-        if (!vapiInstance) {
+        if (!vapiInstance && !mockVapi) {
           appendMessage('bot', 'Voice call service is not initialized.');
           return;
         }
         try {
           const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(voiceId);
           const actualVoiceId = voiceId && voiceId.length >= 15 && !isUuid ? voiceId : 'c8MZcZcr0JnMAwkwnTIu';
-          const isLocalHost = apiHost.includes('localhost') || apiHost.includes('127.0.0.1') || apiHost.includes('.test');
-          const targetVoiceHost = isLocalHost ? 'https://app.styleflo.ai' : apiHost;
+          const targetVoiceHost = apiHost;
 
           const ambientPresets = ['office', 'salon', 'barber', 'coffee-shop', 'restaurant', 'diner'];
           let resolvedBackgroundSound: string = 'off';
@@ -1514,7 +1520,7 @@ import { resolveChatFooter } from '../lib/billing/branding';
             return;
           }
 
-          await (vapiInstance.start as any)({
+          await (vapiInstance!.start as any)({
             name: `${agentName} Assistant`,
             transcriber: {
               provider: "deepgram",
@@ -1523,6 +1529,13 @@ import { resolveChatFooter } from '../lib/billing/branding';
             },
             silenceTimeoutSeconds: 30,
             maxDurationSeconds: 600,
+            recordingEnabled: false,
+            artifactPlan: {
+              recordingEnabled: false,
+            },
+            // No client `server` object: a transient server.url would drop the
+            // org credential, and server.secret/headers would leak in the browser.
+            // Org-level Vapi Server URL + X-Vapi-Secret must be set in the dashboard.
             model: {
               provider: "custom-llm",
               url: `${targetVoiceHost}/api/voice/${chatbotId}/chat/completions`,

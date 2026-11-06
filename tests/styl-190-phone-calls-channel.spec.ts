@@ -4,6 +4,9 @@ import { createTestNormalUser, TestUserSession } from './test-auth-helper';
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || 'http://127.0.0.1:54321';
 const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
+const vapiWebhookHeaders = {
+  'x-vapi-secret': process.env.VAPI_WEBHOOK_SECRET || 'test-vapi-webhook-secret',
+};
 
 test.describe('STYL-190: Phone calls channel, caller number, stop storing recordings and remove recording wording', () => {
   let userSession: TestUserSession;
@@ -85,6 +88,7 @@ test.describe('STYL-190: Phone calls channel, caller number, stop storing record
     };
 
     const res = await request.post('/api/webhooks/vapi', {
+      headers: vapiWebhookHeaders,
       data: vapiPayload,
     });
     expect(res.status()).toBe(200);
@@ -125,6 +129,7 @@ test.describe('STYL-190: Phone calls channel, caller number, stop storing record
     };
 
     const res = await request.post('/api/webhooks/vapi', {
+      headers: vapiWebhookHeaders,
       data: vapiPayload,
     });
     expect(res.status()).toBe(200);
@@ -141,8 +146,9 @@ test.describe('STYL-190: Phone calls channel, caller number, stop storing record
     expect(conv.recording_url).toBeNull();
   });
 
-  test('3. Assistant webhook returns server.url pointing to /api/webhooks/vapi and artifactPlan.recordingEnabled=false', async ({ request }) => {
+  test('3. Assistant webhook returns voice unavailable while VOICE_ENABLED is off', async ({ request }) => {
     const res = await request.post('/api/webhooks/vapi/assistant', {
+      headers: vapiWebhookHeaders,
       data: {
         message: {
           type: 'assistant-request',
@@ -155,12 +161,7 @@ test.describe('STYL-190: Phone calls channel, caller number, stop storing record
     const data = await res.json();
     const assistant = data.assistant || data.messageResponse?.assistant;
     expect(assistant).toBeTruthy();
-
-    // Check server.url or serverUrl
-    const serverUrl = assistant.server?.url || assistant.serverUrl;
-    expect(serverUrl).toContain('/api/webhooks/vapi');
-
-    // Check recordingEnabled is false
+    expect(assistant.firstMessage).toMatch(/voice is currently unavailable/i);
     expect(assistant.artifactPlan?.recordingEnabled).toBe(false);
   });
 
@@ -169,6 +170,7 @@ test.describe('STYL-190: Phone calls channel, caller number, stop storing record
     const callerNumber = `+447999${Math.floor(100000 + Math.random() * 900000)}`;
 
     const res = await request.post('/api/webhooks/vapi/assistant', {
+      headers: vapiWebhookHeaders,
       data: {
         message: {
           type: 'end-of-call-report',

@@ -4017,6 +4017,34 @@ Highlighted adjustments in the modal:
   - `safePublicReturnUrl` rejects backslash and userinfo-@ URLs.
   - Playwright: signed-in tab loads for billing/scheduling/crawler/telephony; Extra Knowledge success redirect; returnUrl edge cases. Full suite 351 passed locally.
 
+### Session (STYL-226 item 3 - Vapi orchestration safety - 1 Nov 2026)
+* **User / Jira**: STYL-226 item 3. PR base `staging` (not main). Do not merge. Signed off by Stuart on 1 Nov 2026 at 19:56 UK.
+* **Changes**:
+  - `VOICE_ENABLED` off by default. Widget will not start a live Vapi call; inbound assistant webhook returns a short voice-unavailable message; `/api/telephony/provision` refuses. Placeholder or known production Vapi IDs also refuse voice.
+  - Safer number buy: verify Vapi key, require an active paid landline/mobile bolt-on, one number per tenant, release the Twilio number if Vapi import fails, import with `server` (no `assistantId` / no `serverUrl`).
+  - Removed production `app.styleflo.ai` fallbacks from provision and the assistant webhook, and the hard-coded production Twilio bundle/address SIDs.
+  - Vapi webhooks require `X-Vapi-Secret` (`VAPI_WEBHOOK_SECRET`, constant-time). No first-business chatbot fallback. Log ids only.
+  - Widget web calls set `recordingEnabled: false` and point `server.url` at `/api/webhooks/vapi`. No Vapi call deletion.
+  - Removed unused `VAPI_SECRET_KEY` alias from connected-accounts.
+  - `apphosting.staging.yaml` references `VAPI_WEBHOOK_SECRET` and `VOICE_ENABLED` by name only.
+  - Playwright: `tests/styl-226-voice-gate.spec.ts`, `tests/styl-226-telephony-provision-safety.spec.ts`, `tests/styl-226-vapi-webhook-auth.spec.ts`, `tests/styl-226-widget-voice-recording.spec.ts`, `tests/styl-226-connected-accounts-no-vapi-secret-alias.spec.ts`. Existing `tests/styl-226-vapi-no-prod-fallback.spec.ts` kept. Full suite **362 passed** locally against `.env.test` / local Supabase / mock keys (never live).
+
+### Session (STYL-226 PR 20 PO review - 1 Nov 2026)
+* **User**: Product Owner BLOCK on PR 20. Same branch. Base `staging`. Do not merge.
+* **Changes**:
+  - Reserve a unique `tenant_phone_number_purchases` row (pending + unique `tenant_id`) before any Twilio buy; clear it on failure; mark `active` or `orphan`.
+  - On DB save failure, release Twilio and delete the Vapi import. If release fails, do not claim it was released; persist an orphan row with the SID and return honest error text.
+  - Paid bolt-on gate is `subscription_status` `active`/`trialing` only (price_paid is not enough).
+  - Voice completion logs are ids only. Removed the unused private-key alias everywhere. `VOICE_ENABLED` is a plain `false` env value. `VAPI_WEBHOOK_SECRET` stays a secret ref (must exist before rollout).
+  - Web-call secret: Vapi has no safe server-headers path for a transient browser `vapi.start()` assistant. `server.secret` / `server.headers` would leak; a client `server.url` also stops Vapi attaching the org credential. Widget omits `server`. Set org-level Server URL + `X-Vapi-Secret` credential. Dropped legacy `serverUrl`. Recording stays off on phone and web.
+
+### Session (STYL-226 PR 20 PO re-review - 1 Nov 2026)
+* **User**: Product Owner BLOCK on head 8a39956. Same branch. Base `staging`. Do not merge. Do not apply migrations.
+* **Changes**:
+  - Stripe writes `tenant_active_addons.subscription_status` on activate, deactivate, invoice success/failure, and subscription cancel. Backfill copies the tenant's known Stripe status instead of blanket `active`.
+  - Reservation 409 only on Postgres 23505; other errors 500. Stale pending rows older than 10 minutes are reclaimed. Deprovision clears the reservation. Vapi/Twilio vendor calls time out at 15s via AbortController / Promise.race.
+  - Unexpected throw after a Twilio buy unwinds the number. Failed Vapi delete is reported and recorded as an orphan (`TODO(STYL-227)` for ops alerts). markActive/clear errors are checked. Voice routes log `{ message, code }` only.
+
 ### Session (paid bolt-on activation after Stripe checkout - 1 Nov 2026)
 * **User**: Follow the Bolton fix brief. Branch off `staging` (566a854). Open a PR with base `staging`, not `main`. Do not merge. Never `--no-verify`. No live Stripe, live Supabase, WordPress publishing, or Vapi/number provisioning.
 * **Root cause**: Bolt-on Checkout Sessions used inline `price_data` and omitted `is_addon: 'true'`. `/api/webhooks/stripe` only treated a session as a bolt-on when `metadata.is_addon === 'true'`, so paid bolt-ons fell into the base-plan path (`plan_tier='base_tier'`, +10 voice minutes, no `tenant_active_addons` row). `customer.subscription.updated` looked up add-ons by `stripe_price_id` (never matches inline prices). `customer.subscription.deleted` without `is_addon` cancelled the whole tenant. The category map had no `microsoft_calendar` entry.
@@ -4073,6 +4101,16 @@ Highlighted adjustments in the modal:
   - Tests cover auto top-up after a successful RPC, both delete failures, RPC already_granted, RPC unique-violation, missing-function fallback, and a partial pack whose mock writes the ledger.
   - Local: `npm run typecheck` passed. Playwright **386 passed** against `.env.test` / local Supabase / `sk_test_mock` (never live). Migration not applied.
 
+### Session (STYL-226 PR 20 fix round 3 - 2 Nov 2026)
+* **User**: PR 20 blocked at `f6c747ab`. Merge `origin/staging` (do not force-push). Move subscription_status writes into `process-stripe-webhook.ts`. Per-subscription invoice updates. NULL backfill. Atomic stale reclaim. Timeout marks `unknown` and reconciles before retry. Deprovision keeps orphans. Rename migration after PR 21. Do not merge or apply migrations.
+* **Changes**:
+  - Merged staging (PRs 19/21). Stripe route stays a wrapper. Helpers are exported from the lib only.
+  - Invoice success/failure update only the matching `stripe_subscription_id` and never cancelled/inactive rows.
+  - Migration `20261102120000` leaves `subscription_status` NULL and adds `unknown` reservations.
+  - Stale reclaim is an atomic conditional delete. Twilio purchase timeout keeps the row as `unknown` and retry lists incoming numbers instead of buying again.
+  - `recordOrphanedPhonePurchase` errors are logged. Chatbot voice route returns a generic 500.
+  - Stripe and telephony test stores now support `neq`/`lt` filters and reservation reclaim/unknown paths.
+
 ### Session (expired calendar test dates - release PR 22 CI - 5 Nov 2026)
 * **User**: Make CI green for release PR 22 (`staging` → `main`) by fixing tests pinned to dates now in the past. Test-only. Symptom: CI run 42037737385, `tests/styl-182-calendar-booking.spec.ts` (~line 92) `slots.length = 0`. Hypothesis: hard-coded Mon 2 Nov 2026 09:00–17:00 London is clamped/dropped once that day is past.
 * **Changes**:
@@ -4117,3 +4155,10 @@ Highlighted adjustments in the modal:
   - Chat stream and voice `[chatbotId]/chat/completions` read body, header, and `body.call` mirrors through that helper. The legacy `POST /api/voice/chat/completions` route has no mock override.
   - `.env.example` documents the flag as never set on production. `playwright.config.ts` and the Playwright half of `scripts/write-local-env.mjs` set `ALLOW_MOCK_REPLY=true`. It is not in `apphosting.yaml` or `apphosting.staging.yaml`. `docs/staging.md` says staging salon traffic keeps the real model.
   - Playwright `tests/styl-199-mock-reply-guard.spec.ts` covers the helper matrix, production-like ignore (body, headers, `body.call`, no booking side effect, canned model instead of the marker), and flag-on synthetic streams. Gemini is stubbed. No live voice calls or bookings.
+
+### Session (STYL-226 PR 20 - staging rebase + retry/paid-period blockers - 6 Nov 2026)
+* **User**: Priority follow-up on PR 20. Merge current `origin/staging` (through PR 27 / `278a47a3`). Keep PR 20. Two remaining PO blockers: a slow Twilio retry must not attach another salon’s number or buy a second number; a paying salon must keep access through the current paid period. Do not merge, do not apply reservation migration `20261102120000`, do not add `VAPI_WEBHOOK_SECRET`, no live buys/calls.
+* **Changes**:
+  1. Merged `origin/staging` into `cursor/styl-226-vapi-orchestration-ec25` (conflicts in README, deprovision, voice completions).
+  2. Retry safety: persist the chosen E.164 on the reservation before Twilio `create`; list incoming numbers by that exact `phoneNumber` (limit 1); never match shared inbound `voiceUrl`; never null `phone_number` on timeout; atomic `unknown` → `pending` claim so a second retry 409s.
+  3. Paid period: phone gate allows `active`/`trialing`/`past_due` and NULL/empty `subscription_status` while `is_active` is not false; invoice sync uses SQL-null-safe not-cancelled matching and fills NULL `stripe_subscription_id` from tenant + catalog/price. `cancelled` still blocks.

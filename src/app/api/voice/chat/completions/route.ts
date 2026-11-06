@@ -7,6 +7,7 @@ import { calendarFallbackMessage, directAvailabilitySpeech } from '@/lib/calenda
 import { splitAtToolTag } from '@/lib/calendar/tool-tags';
 
 import { getActiveGeminiModel } from '@/lib/gemini-config';
+import { voiceLogError } from '@/lib/voice/log-error';
 import { generateEmbedding } from '@/lib/embeddings';
 
 export const maxDuration = 300;
@@ -136,7 +137,7 @@ export async function POST(req: Request) {
           .eq('id', preConv.id);
       }
     } catch (preConvErr) {
-      console.error('[Vapi Custom LLM] Pre-logging conversation error:', preConvErr);
+      voiceLogError('[Vapi Custom LLM] Pre-logging conversation error', preConvErr);
     }
     const agentName = ((configData.agent_name as string) || chatbotName || 'AI Assistant').trim();
     const businessName = (configData.businessName as string)?.trim() || tenantCompany || chatbotName || agentName || 'our business';
@@ -204,7 +205,7 @@ export async function POST(req: Request) {
           }
         }
       } catch (e) {
-        console.error('[Vapi Custom LLM] RAG embedding/match error:', e);
+        voiceLogError('[Vapi Custom LLM] RAG embedding/match error', e);
       }
     }
 
@@ -333,7 +334,7 @@ ${globalDisclaimer}`;
       const startStr = bookMatch[6].trim().replace(/['"]/g, '');
       const endStr = bookMatch[7].trim().replace(/['"]/g, '');
 
-      console.log(`[Vapi Custom LLM Legacy] Executing bookMeeting for ${custName} (${custEmail}, ${custPhone})`);
+      console.log('[Vapi Custom LLM Legacy] Executing bookMeeting', { tenantId, staffId, serviceId });
       const bookResult = await bookMeeting(tenantId, staffId, serviceId, custName, custEmail, custPhone, startStr, endStr, timezone);
 
       const { text: pass2Text } = await generateText({
@@ -439,10 +440,10 @@ ${globalDisclaimer}`;
               }
             }
           } catch (dbErr) {
-            console.error('[Vapi Custom LLM Legacy] DB logging error:', dbErr);
+            voiceLogError('[Vapi Custom LLM Legacy] DB logging error', dbErr);
           }
         } catch (err) {
-          console.error('[Vapi Custom LLM Legacy] Stream error:', err);
+          voiceLogError('[Vapi Custom LLM Legacy] Stream error', err);
           controller.error(err);
         }
       }
@@ -458,7 +459,7 @@ ${globalDisclaimer}`;
     });
 
   } catch (error: any) {
-    console.error('[Vapi Custom LLM Legacy] Unexpected failure:', error);
+    voiceLogError('[Vapi Custom LLM Legacy] Unexpected failure', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500, headers: corsHeaders });
   }
 }

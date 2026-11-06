@@ -2,6 +2,9 @@ import { NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 
 import { getActiveGeminiModel } from '@/lib/gemini-config';
+import { evaluateVoiceGate, requireConfiguredAppUrl } from '@/lib/env/vapi-config';
+import { verifyVapiWebhookSecret } from '@/lib/env/vapi-webhook-auth';
+import { voiceUnavailableAssistantResponse } from '@/lib/voice/unavailable-assistant';
 import { POST as handleVapiWebhook } from '../route';
 
 export const dynamic = 'force-dynamic';
@@ -9,11 +12,16 @@ export const dynamic = 'force-dynamic';
 // Vapi sends a POST request when a call comes in
 export async function POST(request: Request) {
   try {
-    const body = await request.json();
-    console.log('[Vapi Assistant Webhook] Full incoming body:', JSON.stringify(body, null, 2));
+    const auth = verifyVapiWebhookSecret(request);
+    if (!auth.ok) return auth.response;
 
-    // Vapi webhook payload structure
+    const body = await request.json();
     const message = body.message;
+    const incomingCallId = message?.call?.id || body.call?.id || null;
+    console.log('[Vapi Assistant Webhook] Incoming message', {
+      type: message?.type || null,
+      callId: incomingCallId,
+    });
     if (!message || message.type !== 'assistant-request') {
       if (message?.type === 'end-of-call-report') {
         const forwardReq = new Request(request.url, {
@@ -24,6 +32,11 @@ export async function POST(request: Request) {
         return handleVapiWebhook(forwardReq);
       }
       return NextResponse.json({ success: true, ignored: true });
+    }
+
+    const voiceGate = evaluateVoiceGate();
+    if (!voiceGate.allowed) {
+      return NextResponse.json(voiceUnavailableAssistantResponse(voiceGate.reason));
     }
 
     const call = message.call;
@@ -42,7 +55,7 @@ export async function POST(request: Request) {
       '';
 
     const twilioNumber = rawNumber.trim();
-    console.log(`[Vapi Assistant Webhook] Incoming call payload received. Target Number: "${twilioNumber}"`);
+    console.log('[Vapi Assistant Webhook] Assistant request', { callId: call.id || null });
 
     // Initialize Supabase Admin Client to bypass RLS
     const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
@@ -95,25 +108,10 @@ export async function POST(request: Request) {
       chatbot = matchedChatbot;
     }
 
-    // Fallback: If no tenant/chatbot matched the phone number, fetch the first active client chatbot
-    if (!chatbot) {
-      console.warn(`[Vapi Assistant Webhook] Target number "${twilioNumber}" did not match an active tenant chatbot. Falling back to active client chatbot.`);
-      const { data: fallbackChatbot } = await supabaseAdmin
-        .from('chatbots')
-        .select('id, tenant_id, configuration_json')
-        .neq('id', '00000000-0000-0000-0000-000000000000')
-        .not('tenant_id', 'is', null)
-        .limit(1)
-        .single();
-
-      if (fallbackChatbot) {
-        chatbot = fallbackChatbot;
-        tenant = { id: fallbackChatbot.tenant_id, plan_tier: 'ultimate' };
-      }
-    }
-
     if (!chatbot || !tenant) {
-      console.error('[Vapi Assistant Webhook] No active chatbots exist in database.');
+      console.warn('[Vapi Assistant Webhook] No tenant match for assistant-request', {
+        callId: call.id || null,
+      });
       return NextResponse.json({});
     }
 
@@ -149,7 +147,12 @@ export async function POST(request: Request) {
     const activeModelName = await getActiveGeminiModel();
 
     // Custom LLM model provider pointing to Gemini 1.5 Flash endpoint
-    const appUrl = (process.env.NEXT_PUBLIC_APP_URL || 'https://app.styleflo.ai').replace(/\/$/, '');
+    const appUrlResult = requireConfiguredAppUrl();
+    if (!appUrlResult.ok) {
+      console.error('[Vapi Assistant Webhook] APP_URL is not configured');
+      return NextResponse.json(voiceUnavailableAssistantResponse('Voice is currently unavailable.'));
+    }
+    const appUrl = appUrlResult.url;
     const modelOverrides: any = {
       provider: 'custom-llm',
       url: `${appUrl}/api/voice/${chatbot.id}/`,
@@ -198,10 +201,11 @@ export async function POST(request: Request) {
       firstMessage: config.welcome_message || 'Hello, how can I help you today?',
       backgroundSound: resolvedBgSound,
       backchannelingEnabled: true,
+      recordingEnabled: false,
       server: {
         url: `${appUrl}/api/webhooks/vapi`,
+        secret: (process.env.VAPI_WEBHOOK_SECRET || '').trim() || undefined,
       },
-      serverUrl: `${appUrl}/api/webhooks/vapi`,
       artifactPlan: {
         recordingEnabled: false,
       },
@@ -235,7 +239,11 @@ export async function POST(request: Request) {
       }
     };
 
-    console.log(`[Vapi Assistant Webhook] Returning custom assistant for ${twilioNumber} (Tenant: ${tenant.id}, Voice: ${resolvedVoiceId})`);
+    console.log('[Vapi Assistant Webhook] Returning custom assistant', {
+      callId: call.id || null,
+      tenantId: tenant.id,
+      chatbotId: chatbot.id,
+    });
 
     // Vapi documentation is inconsistent. Send both root properties and the messageResponse wrapper.
     return NextResponse.json({

@@ -8,6 +8,7 @@ import {
   releaseVapiNumber,
   telephonyReleaseCallLog,
 } from '@/lib/telephony/release-vendors';
+import { clearTenantPhonePurchase } from '@/lib/telephony/provision-safety';
 
 export const dynamic = 'force-dynamic';
 
@@ -66,6 +67,10 @@ export async function POST(request: Request) {
 
     const numberToRelease = isMobile ? tenant.twilio_mobile_number : tenant.twilio_shadow_number;
     if (!numberToRelease) {
+      const cleared = await clearTenantPhonePurchase(adminSupabase, tenantId);
+      if (cleared.error) {
+        return NextResponse.json({ error: cleared.error.message || 'Failed to clear phone reservation' }, { status: 500 });
+      }
       return NextResponse.json({
         success: true,
         message: `No ${isMobile ? 'mobile' : 'landline'} phone number currently provisioned for this tenant`,
@@ -97,8 +102,17 @@ export async function POST(request: Request) {
       .eq('id', tenantId);
 
     if (clearError) {
-      console.error('[Telephony Deprovisioning] Error clearing tenant number in Supabase:', clearError);
+      console.error('[Telephony Deprovisioning] Error clearing tenant number in Supabase:', {
+        message: clearError.message,
+      });
       return NextResponse.json({ error: 'Failed to update database' }, { status: 500 });
+    }
+
+    const reservationCleared = await clearTenantPhonePurchase(adminSupabase, tenantId);
+    if (reservationCleared.error) {
+      return NextResponse.json({
+        error: reservationCleared.error.message || 'Number was released but the reservation could not be cleared.',
+      }, { status: 500 });
     }
 
     return NextResponse.json({

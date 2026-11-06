@@ -19,4 +19,7 @@ export async function register() {
   // Staging must fail loud — never continue against live.
   assertNoLiveSupabaseWhenStaging(process.env);
   warnIfLiveSupabaseInNonProduction(process.env, console);
+
+  const { warnOrRefuseUnsafeVoiceAtStartup } = await import('@/lib/env/vapi-config');
+  warnOrRefuseUnsafeVoiceAtStartup(process.env, console);
 }
