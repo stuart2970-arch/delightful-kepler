@@ -8,6 +8,9 @@ import {
 } from '../src/lib/billing/branding';
 
 const AI_NOTICE = 'This conversation uses an AI assistant and may be transcribed.';
+// STYL-241: a text gate shows this chat notice instead of the configured voice disclaimer.
+const TEXT_CHAT_NOTICE =
+  "You're chatting with our AI assistant. We keep a transcript of this chat for reference and contact purposes, as explained in our Privacy Policy.";
 const WIDGET_ID = 'styl193-widget';
 
 function widgetConfig(hide: boolean) {
@@ -71,11 +74,12 @@ test.describe('STYL-193 chat footer', () => {
     expect(html).toContain('Terms');
     expect(html).toContain('Privacy Policy');
     expect(html).toContain('Please read before you start');
-    expect(html).toContain(AI_NOTICE);
+    expect(html).toContain(TEXT_CHAT_NOTICE);
+    expect(html).not.toContain(AI_NOTICE);
     await expect(host.getByText('Powered by')).toBeVisible();
     await expect(host.getByRole('link', { name: 'Terms' })).toBeVisible();
     await expect(host.getByRole('link', { name: 'Privacy Policy' })).toBeVisible();
-    await expect(host.getByText(AI_NOTICE)).toBeVisible();
+    await expect(host.getByText(TEXT_CHAT_NOTICE)).toBeVisible();
   });
 
   test('the bolt-on hides the footer and tracking link, and the legal and AI notice stay', async ({ page }) => {
@@ -86,10 +90,11 @@ test.describe('STYL-193 chat footer', () => {
     expect(html).toContain('Terms');
     expect(html).toContain('Privacy Policy');
     expect(html).toContain('Please read before you start');
-    expect(html).toContain(AI_NOTICE);
+    expect(html).toContain(TEXT_CHAT_NOTICE);
+    expect(html).not.toContain(AI_NOTICE);
     await expect(host.getByRole('link', { name: 'Terms' })).toBeVisible();
     await expect(host.getByRole('link', { name: 'Privacy Policy' })).toBeVisible();
-    await expect(host.getByText(AI_NOTICE)).toBeVisible();
+    await expect(host.getByText(TEXT_CHAT_NOTICE)).toBeVisible();
     await expect(host.getByText('Powered by')).toHaveCount(0);
   });
 });
