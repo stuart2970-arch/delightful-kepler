@@ -53,6 +53,7 @@ export type PhoneAddonRow = {
   addon_catalog_id?: string | null;
   is_active?: boolean | null;
   subscription_status?: string | null;
+  stripe_subscription_id?: string | null;
   price_paid_pence?: number | null;
 };
 
@@ -76,7 +77,16 @@ export function tenantHasPaidPhoneAddon(rows: PhoneAddonRow[] | null | undefined
     }
     if (row.is_active === false) return false;
     const status = (row.subscription_status || '').trim().toLowerCase();
-    return status === 'active' || status === 'trialing';
+    if (status === 'cancelled' || status === 'canceled' || status === 'unpaid' || status === 'incomplete_expired') {
+      return false;
+    }
+    // active/trialing: currently entitled.
+    // past_due: the current paid period is still in force until Stripe cancels.
+    // NULL/empty: checkout already activated the row; do not wait for the next renewal invoice.
+    if (status === 'active' || status === 'trialing' || status === 'past_due' || !status) {
+      return true;
+    }
+    return false;
   });
 }
 
@@ -213,21 +223,12 @@ export type IncomingTwilioNumber = {
 
 export function matchIncomingNumberForTenant(
   numbers: IncomingTwilioNumber[] | null | undefined,
-  input: { phoneNumber?: string | null; voiceUrl?: string | null },
+  input: { phoneNumber?: string | null },
 ): IncomingTwilioNumber | null {
-  const rows = numbers || [];
   const wanted = (input.phoneNumber || '').trim();
-  if (wanted) {
-    const exact = rows.find((row) => row.phoneNumber === wanted);
-    if (exact) return exact;
-  }
-  const voiceUrl = (input.voiceUrl || '').trim();
-  if (voiceUrl) {
-    const matches = rows.filter((row) => (row.voiceUrl || '').trim() === voiceUrl);
-    if (matches.length === 1) return matches[0];
-    if (matches.length > 1) return matches[0];
-  }
-  return null;
+  if (!wanted) return null;
+  const exact = (numbers || []).filter((row) => row.phoneNumber === wanted);
+  return exact.length === 1 ? exact[0] : null;
 }
 
 export type PurchaseStore = {
@@ -283,7 +284,22 @@ export async function reserveTenantPhonePurchase(
     }
     if (existing.data) {
       if ((existing.data.status || '').trim() === 'unknown') {
-        return { ok: true, reconcile: true, reservation: existing.data };
+        const claimed = await claimUnknownPhonePurchase(store, tenantId);
+        if (claimed.error) {
+          return {
+            ok: false,
+            status: 500,
+            error: claimed.error.message || 'Failed to claim an unknown phone reservation.',
+          };
+        }
+        if (!claimed.reservation) {
+          return {
+            ok: false,
+            status: 409,
+            error: 'This tenant already has a phone number reservation. Number purchase is buy-once.',
+          };
+        }
+        return { ok: true, reconcile: true, reservation: claimed.reservation };
       }
       if (isPendingReservationExpired(existing.data, nowMs)) {
         const reclaimed = await reclaimExpiredPendingPurchase(store, tenantId, nowMs);
@@ -339,18 +355,49 @@ export async function clearTenantPhonePurchase(
     .neq('status', 'orphan');
 }
 
+export async function saveReservationPhoneNumber(
+  store: PurchaseStore,
+  tenantId: string,
+  phoneNumber: string,
+): Promise<{ error: { message?: string } | null }> {
+  return store.from('tenant_phone_number_purchases').update({
+    phone_number: phoneNumber,
+    updated_at: new Date().toISOString(),
+  }).eq('tenant_id', tenantId);
+}
+
+export async function claimUnknownPhonePurchase(
+  store: PurchaseStore,
+  tenantId: string,
+): Promise<{ reservation: PurchaseReservationRow | null; error: { message?: string } | null }> {
+  const result = await store
+    .from('tenant_phone_number_purchases')
+    .update({
+      status: 'pending',
+      updated_at: new Date().toISOString(),
+    })
+    .eq('tenant_id', tenantId)
+    .eq('status', 'unknown')
+    .select('*');
+  if (result?.error) {
+    return { reservation: null, error: result.error };
+  }
+  const rows = Array.isArray(result?.data) ? result.data : result?.data ? [result.data] : [];
+  return { reservation: rows[0] || null, error: null };
+}
+
 export async function markTenantPhonePurchaseUnknown(
   store: PurchaseStore,
   tenantId: string,
-  details?: { error?: string | null; twilioSid?: string | null; phoneNumber?: string | null },
+  details?: { error?: string | null; twilioSid?: string | null },
 ): Promise<{ error: { message?: string } | null }> {
-  return store.from('tenant_phone_number_purchases').update({
+  const patch: Record<string, unknown> = {
     status: 'unknown',
     error: details?.error || 'Twilio purchase timed out; reconcile before retry.',
-    twilio_sid: details?.twilioSid || null,
-    phone_number: details?.phoneNumber || null,
     updated_at: new Date().toISOString(),
-  }).eq('tenant_id', tenantId);
+  };
+  if (details?.twilioSid) patch.twilio_sid = details.twilioSid;
+  return store.from('tenant_phone_number_purchases').update(patch).eq('tenant_id', tenantId);
 }
 
 export async function markTenantPhonePurchaseActive(

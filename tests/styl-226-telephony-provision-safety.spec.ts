@@ -6,6 +6,7 @@ import {
   fetchWithVendorTimeout,
   importTwilioNumberToVapi,
   isPendingReservationExpired,
+  matchIncomingNumberForTenant,
   reclaimExpiredPendingPurchase,
   releaseTwilioIncomingNumber,
   reserveTenantPhonePurchase,
@@ -52,6 +53,16 @@ test.describe('STYL-226: safer telephony provision', () => {
     expect(
       tenantHasPaidPhoneAddon([
         { addon_catalog_id: 'landline_addon', is_active: true, price_paid_pence: 899 },
+      ]),
+    ).toBe(true);
+    expect(
+      tenantHasPaidPhoneAddon([
+        { addon_catalog_id: 'landline_addon', is_active: true, subscription_status: 'past_due' },
+      ]),
+    ).toBe(true);
+    expect(
+      tenantHasPaidPhoneAddon([
+        { addon_catalog_id: 'landline_addon', is_active: true, subscription_status: 'cancelled' },
       ]),
     ).toBe(false);
     expect(
@@ -218,6 +229,77 @@ test.describe('STYL-226: safer telephony provision', () => {
       reclaimed: false,
       error: null,
     });
+    expect(purchases.filter((row) => row.status === 'pending')).toHaveLength(1);
+  });
+
+  test('incoming Twilio reconcile matches only the reserved number', () => {
+    const other = {
+      sid: 'PNOTHER',
+      phoneNumber: '+449999999999',
+      voiceUrl: 'https://staging.styleflo.ai/api/telephony/inbound',
+    };
+    const ours = {
+      sid: 'PNOURS',
+      phoneNumber: '+441234567890',
+      voiceUrl: 'https://staging.styleflo.ai/api/telephony/inbound',
+    };
+    expect(matchIncomingNumberForTenant([other, ours], { phoneNumber: '+441234567890' })).toEqual(ours);
+    expect(matchIncomingNumberForTenant([other], { phoneNumber: '+441234567890' })).toBeNull();
+    expect(matchIncomingNumberForTenant([other, ours], { phoneNumber: null })).toBeNull();
+  });
+
+  test('only one concurrent unknown reservation claim wins', async () => {
+    const purchases: Array<Record<string, any>> = [{
+      tenant_id: 'tenant-unknown',
+      status: 'unknown',
+      phone_number: '+441234567890',
+      created_at: new Date().toISOString(),
+    }];
+    let claimLock = Promise.resolve();
+    const store = {
+      from() {
+        return {
+          select: () => ({
+            eq: () => ({
+              maybeSingle: async () => ({ data: purchases[0] || null, error: null }),
+            }),
+          }),
+          update(row: Record<string, any>) {
+            const filters: Array<[string, string, any]> = [];
+            const apply = () => {
+              const next = claimLock.then(() => {
+                const hits = purchases.filter((item) => filters.every(([op, col, val]) => (
+                  op === 'eq' ? item[col] === val : true
+                )));
+                for (const item of hits) Object.assign(item, row);
+                return { data: hits, error: null };
+              });
+              claimLock = next.then(() => undefined, () => undefined);
+              return next;
+            };
+            const chain: any = {
+              eq(column: string, value: string) {
+                filters.push(['eq', column, value]);
+                return chain;
+              },
+              select: apply,
+              then(resolve: (value: any) => unknown, reject?: (reason: any) => unknown) {
+                return apply().then(resolve, reject);
+              },
+            };
+            return chain;
+          },
+          insert: async () => ({ error: { code: '23505', message: 'duplicate key' } }),
+        };
+      },
+    };
+    const [first, second] = await Promise.all([
+      reserveTenantPhonePurchase(store as any, 'tenant-unknown'),
+      reserveTenantPhonePurchase(store as any, 'tenant-unknown'),
+    ]);
+    const outcomes = [first, second];
+    expect(outcomes.filter((row) => row.ok && 'reconcile' in row && row.reconcile)).toHaveLength(1);
+    expect(outcomes.filter((row) => !row.ok && row.status === 409)).toHaveLength(1);
     expect(purchases.filter((row) => row.status === 'pending')).toHaveLength(1);
   });
 

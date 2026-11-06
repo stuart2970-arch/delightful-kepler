@@ -4155,3 +4155,10 @@ Highlighted adjustments in the modal:
   - Chat stream and voice `[chatbotId]/chat/completions` read body, header, and `body.call` mirrors through that helper. The legacy `POST /api/voice/chat/completions` route has no mock override.
   - `.env.example` documents the flag as never set on production. `playwright.config.ts` and the Playwright half of `scripts/write-local-env.mjs` set `ALLOW_MOCK_REPLY=true`. It is not in `apphosting.yaml` or `apphosting.staging.yaml`. `docs/staging.md` says staging salon traffic keeps the real model.
   - Playwright `tests/styl-199-mock-reply-guard.spec.ts` covers the helper matrix, production-like ignore (body, headers, `body.call`, no booking side effect, canned model instead of the marker), and flag-on synthetic streams. Gemini is stubbed. No live voice calls or bookings.
+
+### Session (STYL-226 PR 20 - staging rebase + retry/paid-period blockers - 6 Nov 2026)
+* **User**: Priority follow-up on PR 20. Merge current `origin/staging` (through PR 27 / `278a47a3`). Keep PR 20. Two remaining PO blockers: a slow Twilio retry must not attach another salon’s number or buy a second number; a paying salon must keep access through the current paid period. Do not merge, do not apply reservation migration `20261102120000`, do not add `VAPI_WEBHOOK_SECRET`, no live buys/calls.
+* **Changes**:
+  1. Merged `origin/staging` into `cursor/styl-226-vapi-orchestration-ec25` (conflicts in README, deprovision, voice completions).
+  2. Retry safety: persist the chosen E.164 on the reservation before Twilio `create`; list incoming numbers by that exact `phoneNumber` (limit 1); never match shared inbound `voiceUrl`; never null `phone_number` on timeout; atomic `unknown` → `pending` claim so a second retry 409s.
+  3. Paid period: phone gate allows `active`/`trialing`/`past_due` and NULL/empty `subscription_status` while `is_active` is not false; invoice sync uses SQL-null-safe not-cancelled matching and fills NULL `stripe_subscription_id` from tenant + catalog/price. `cancelled` still blocks.

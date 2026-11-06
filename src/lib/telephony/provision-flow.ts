@@ -8,6 +8,7 @@ import {
   markTenantPhonePurchaseActive,
   markTenantPhonePurchaseUnknown,
   matchIncomingNumberForTenant,
+  saveReservationPhoneNumber,
   recordOrphanedPhonePurchase,
   releaseTwilioIncomingNumber,
   reserveTenantPhonePurchase,
@@ -224,6 +225,15 @@ export async function handleProvisionPost(
           addressSid,
           bundleSid,
           env,
+          persistChosen: async (phoneNumber) => {
+            const saved = await saveReservationPhoneNumber(deps.adminSupabase, tenant_id, phoneNumber);
+            if (saved.error) {
+              console.error('[Telephony Provisioning] Failed to persist chosen phone number', {
+                message: saved.error.message,
+                tenantId: tenant_id,
+              });
+            }
+          },
           reconcile: 'reservation' in reserved
             ? { phoneNumber: reserved.reservation.phone_number }
             : null,
@@ -365,27 +375,29 @@ async function purchaseTwilioNumber(input: {
   addressSid?: string;
   bundleSid?: string;
   env?: NodeJS.ProcessEnv;
+  persistChosen?: (phoneNumber: string) => Promise<void>;
   reconcile?: { phoneNumber?: string | null } | null;
 }): Promise<ProvisionTwilioNumber> {
   const timeoutMs = vendorTimeoutMs(input.env);
   const voiceUrl = `${input.appBaseUrl.replace(/\/+$/, '')}/api/telephony/inbound`;
+  const reservedNumber = (input.reconcile?.phoneNumber || '').trim();
 
   if (input.reconcile) {
+    if (!reservedNumber) {
+      throw new Error('Cannot reconcile a timed-out purchase without the reserved phone number.');
+    }
     const owned = await withVendorTimeout(
-      input.client.incomingPhoneNumbers.list({ limit: 1000 }),
+      input.client.incomingPhoneNumbers.list({ phoneNumber: reservedNumber, limit: 1 }),
       'Twilio list incoming',
       timeoutMs,
     );
-    const match = matchIncomingNumberForTenant(owned, {
-      phoneNumber: input.reconcile.phoneNumber || input.phone_number,
-      voiceUrl,
-    });
+    const match = matchIncomingNumberForTenant(owned, { phoneNumber: reservedNumber });
     if (match) {
       return { sid: match.sid, phoneNumber: match.phoneNumber };
     }
   }
 
-  let targetPhoneNumber = input.phone_number;
+  let targetPhoneNumber = reservedNumber || input.phone_number;
 
   if (!targetPhoneNumber) {
     let available: Array<{ phoneNumber: string }> = [];
@@ -438,6 +450,10 @@ async function purchaseTwilioNumber(input: {
   };
   if (input.addressSid && !input.isMobile) purchaseParams.addressSid = input.addressSid;
   if (input.bundleSid) purchaseParams.bundleSid = input.bundleSid;
+
+  if (targetPhoneNumber) {
+    await input.persistChosen?.(targetPhoneNumber);
+  }
 
   console.log('[Telephony Provisioning] Purchasing number', {
     country: input.country,

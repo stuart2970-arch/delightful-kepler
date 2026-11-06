@@ -27,6 +27,7 @@ function createHarness(opts?: {
   failMarkActive?: boolean;
   failReserveWith?: { code?: string; message?: string };
   seedPurchase?: Row;
+  seedIncoming?: Array<{ sid: string; phoneNumber: string; voiceUrl?: string }>;
   purchaseDelayMs?: number;
 }) {
   const purchases: Row[] = [];
@@ -55,11 +56,20 @@ function createHarness(opts?: {
     return [];
   }
 
+  function rowMatches(row: Row, filters: Array<[string, string, any]>) {
+    return filters.every(([op, col, val]) => {
+      if (op === 'eq') return row[col] === val;
+      if (op === 'in') return Array.isArray(val) && val.includes(row[col]);
+      if (op === 'neq') return row[col] != null && row[col] !== val;
+      if (op === 'lt') return row[col] < val;
+      if (op === 'is') return val === null ? row[col] == null : row[col] === val;
+      return true;
+    });
+  }
+
   function from(name: string) {
     const filters: Array<[string, string, any]> = [];
-    const matched = () => rowsFor(name).filter((row) => filters.every(([op, col, val]) => (
-      op === 'eq' ? row[col] === val : val.includes(row[col])
-    )));
+    const matched = () => rowsFor(name).filter((row) => rowMatches(row, filters));
     const api: any = {
       select() { return api; },
       eq(column: string, value: string) {
@@ -68,6 +78,14 @@ function createHarness(opts?: {
       },
       in(column: string, values: string[]) {
         filters.push(['in', column, values]);
+        return api;
+      },
+      neq(column: string, value: string) {
+        filters.push(['neq', column, value]);
+        return api;
+      },
+      is(column: string, value: any) {
+        filters.push(['is', column, value]);
         return api;
       },
       then(resolve: (value: any) => unknown, reject?: (reason: any) => unknown) {
@@ -91,23 +109,40 @@ function createHarness(opts?: {
         return { error: null };
       },
       update(row: Row) {
-        return {
-          async eq(column: string, value: string) {
-            if (name === 'tenants' && opts?.failTenantSave) {
-              return { error: { message: 'save failed' } };
-            }
-            if (name === 'tenants' && opts?.throwAfterBuy) {
-              throw new Error('boom after Twilio buy');
-            }
-            if (name === 'tenant_phone_number_purchases' && opts?.failMarkActive && row.status === 'active') {
-              return { error: { message: 'mark active failed' } };
-            }
-            for (const item of rowsFor(name)) {
-              if (item[column] === value) Object.assign(item, row);
-            }
-            return { error: null };
+        const updateFilters: Array<[string, string, any]> = [];
+        const apply = () => serialized(async () => {
+          if (name === 'tenants' && opts?.failTenantSave) {
+            return { error: { message: 'save failed' } };
+          }
+          if (name === 'tenants' && opts?.throwAfterBuy) {
+            throw new Error('boom after Twilio buy');
+          }
+          if (name === 'tenant_phone_number_purchases' && opts?.failMarkActive && row.status === 'active') {
+            return { error: { message: 'mark active failed' } };
+          }
+          const hits = rowsFor(name).filter((item) => rowMatches(item, updateFilters));
+          for (const item of hits) Object.assign(item, row);
+          return { data: hits, error: null };
+        });
+        const chain: any = {
+          eq(column: string, value: string) {
+            updateFilters.push(['eq', column, value]);
+            return chain;
+          },
+          neq(column: string, value: string) {
+            updateFilters.push(['neq', column, value]);
+            return chain;
+          },
+          is(column: string, value: any) {
+            updateFilters.push(['is', column, value]);
+            return chain;
+          },
+          select: apply,
+          then(resolve: (value: any) => unknown, reject?: (reason: any) => unknown) {
+            return apply().then(resolve, reject);
           },
         };
+        return chain;
       },
       delete() {
         const deleteFilters: Array<[string, string, any]> = [];
@@ -155,32 +190,55 @@ function createHarness(opts?: {
 
   const supabase = { from };
 
-  const incomingList: Array<{ sid: string; phoneNumber: string; voiceUrl?: string }> = [];
+  let writeLock = Promise.resolve();
+  function serialized<T>(work: () => Promise<T>): Promise<T> {
+    const run = writeLock.then(work, work);
+    writeLock = run.then(() => undefined, () => undefined);
+    return run;
+  }
+
+  const incomingList: Array<{ sid: string; phoneNumber: string; voiceUrl?: string }> = [
+    ...(opts?.seedIncoming || []),
+  ];
+  const inflightCreates = new Map<string, Promise<{ sid: string; phoneNumber: string; voiceUrl?: string }>>();
   const incoming = ((sid: string) => ({
     remove: async () => {
       if (opts?.failTwilioRelease) throw new Error('release failed');
       return { sid };
     },
   })) as ProvisionTwilioClient['incomingPhoneNumbers'];
-  (incoming as any).list = async () => incomingList.slice();
-  (incoming as any).create = async (params: { voiceUrl?: string }) => {
+  (incoming as any).list = async (params?: { phoneNumber?: string; limit?: number }) => {
+    const filtered = params?.phoneNumber
+      ? incomingList.filter((item) => item.phoneNumber === params.phoneNumber)
+      : incomingList.slice();
+    return params?.limit ? filtered.slice(0, params.limit) : filtered;
+  };
+  (incoming as any).create = async (params: { phoneNumber?: string; voiceUrl?: string }) => {
+    const phoneNumber = params?.phoneNumber || '+441234567890';
+    const owned = incomingList.find((item) => item.phoneNumber === phoneNumber);
+    if (owned) return owned;
+    const pending = inflightCreates.get(phoneNumber);
+    if (pending) return pending;
     counters.purchases += 1;
     const purchased = {
       sid: `PN${counters.purchases}`,
-      phoneNumber: '+441234567890',
+      phoneNumber,
       voiceUrl: params?.voiceUrl,
     };
     const delay = opts?.purchaseDelayMs || 0;
-    if (!delay) {
-      incomingList.push(purchased);
-      return purchased;
-    }
-    return new Promise((resolve) => {
-      setTimeout(() => {
-        incomingList.push(purchased);
-        resolve(purchased);
-      }, delay);
-    });
+    const work = !delay
+      ? Promise.resolve().then(() => {
+          incomingList.push(purchased);
+          return purchased;
+        })
+      : new Promise<{ sid: string; phoneNumber: string; voiceUrl?: string }>((resolve) => {
+          setTimeout(() => {
+            incomingList.push(purchased);
+            resolve(purchased);
+          }, delay);
+        });
+    inflightCreates.set(phoneNumber, work);
+    return work.finally(() => inflightCreates.delete(phoneNumber));
   };
 
   const client: ProvisionTwilioClient = {
@@ -327,10 +385,18 @@ test.describe('STYL-226: provision route with mocked Twilio and Vapi', () => {
   });
 
   test('Twilio purchase timeout that later succeeds does not buy a second number on retry', async () => {
-    const { deps, counters, purchases } = createHarness({ purchaseDelayMs: 80 });
+    const { deps, counters, purchases } = createHarness({
+      purchaseDelayMs: 80,
+      seedIncoming: [{
+        sid: 'PNOTHER',
+        phoneNumber: '+449999999999',
+        voiceUrl: 'http://localhost:3001/api/telephony/inbound',
+      }],
+    });
     const first = await handleProvisionPost(provisionRequest(), deps);
     expect(first.status).toBe(504);
     expect(purchases[0].status).toBe('unknown');
+    expect(purchases[0].phone_number).toBe('+441234567890');
     expect(counters.purchases).toBe(1);
     await new Promise((resolve) => setTimeout(resolve, 120));
     const second = await handleProvisionPost(provisionRequest(), deps);
@@ -338,6 +404,34 @@ test.describe('STYL-226: provision route with mocked Twilio and Vapi', () => {
     expect(counters.purchases).toBe(1);
     const body = await second.json();
     expect(body.number).toBe('+441234567890');
+    expect(purchases.filter((row) => row.status === 'active')).toHaveLength(1);
+  });
+
+  test('concurrent unknown retries claim once and do not buy another number', async () => {
+    const { deps, counters, purchases } = createHarness({
+      seedPurchase: {
+        tenant_id: TENANT,
+        status: 'unknown',
+        phone_number: '+441234567890',
+        created_at: new Date().toISOString(),
+      },
+      seedIncoming: [{
+        sid: 'PN1',
+        phoneNumber: '+441234567890',
+        voiceUrl: 'http://localhost:3001/api/telephony/inbound',
+      }, {
+        sid: 'PNOTHER',
+        phoneNumber: '+449999999999',
+        voiceUrl: 'http://localhost:3001/api/telephony/inbound',
+      }],
+    });
+    const [first, second] = await Promise.all([
+      handleProvisionPost(provisionRequest(), deps),
+      handleProvisionPost(provisionRequest(), deps),
+    ]);
+    const statuses = [first.status, second.status].sort();
+    expect(statuses).toEqual([200, 409]);
+    expect(counters.purchases).toBe(0);
     expect(purchases.filter((row) => row.status === 'active')).toHaveLength(1);
   });
 

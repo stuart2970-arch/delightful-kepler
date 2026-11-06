@@ -35,12 +35,23 @@ function createStripeStore(addons: Row[] = []) {
 
   function from(name: string) {
     const filters: Array<[string, string, any]> = [];
-    const matched = () => (tables[name] || []).filter((row) => filters.every(([op, col, val]) => {
+    const rowMatches = (row: Row) => filters.every(([op, col, val]) => {
       if (op === 'eq') return row[col] === val;
-      if (op === 'neq') return row[col] !== val;
+      if (op === 'in') return Array.isArray(val) && val.includes(row[col]);
+      if (op === 'neq') return row[col] != null && row[col] !== val;
       if (op === 'lt') return row[col] < val;
+      if (op === 'is') return val === null ? row[col] == null : row[col] === val;
+      if (op === 'or') {
+        return String(val).split(',').some((part) => {
+          const [column, pred, rhs] = part.split('.');
+          if (pred === 'is' && rhs === 'null') return row[column] == null;
+          if (pred === 'neq') return row[column] != null && row[column] !== rhs;
+          return false;
+        });
+      }
       return true;
-    }));
+    });
+    const matched = () => (tables[name] || []).filter(rowMatches);
     const api: any = {
       select() { return api; },
       eq(column: string, value: string) {
@@ -54,6 +65,21 @@ function createStripeStore(addons: Row[] = []) {
       lt(column: string, value: string) {
         filters.push(['lt', column, value]);
         return api;
+      },
+      is(column: string, value: any) {
+        filters.push(['is', column, value]);
+        return api;
+      },
+      in(column: string, values: string[]) {
+        filters.push(['in', column, values]);
+        return api;
+      },
+      or(expr: string) {
+        filters.push(['or', '', expr]);
+        return api;
+      },
+      then(resolve: (value: any) => unknown, reject?: (reason: any) => unknown) {
+        return Promise.resolve({ data: matched(), error: null }).then(resolve, reject);
       },
       async maybeSingle() {
         return { data: matched()[0] || null, error: null };
@@ -78,6 +104,18 @@ function createStripeStore(addons: Row[] = []) {
           },
           lt(column: string, value: string) {
             filters.push(['lt', column, value]);
+            return chain;
+          },
+          is(column: string, value: any) {
+            filters.push(['is', column, value]);
+            return chain;
+          },
+          in(column: string, values: string[]) {
+            filters.push(['in', column, values]);
+            return chain;
+          },
+          or(expr: string) {
+            filters.push(['or', '', expr]);
             return chain;
           },
           then(resolve: (value: any) => unknown, reject?: (reason: any) => unknown) {
@@ -210,5 +248,33 @@ test.describe('STYL-226: Stripe writes addon subscription_status', () => {
     expect(store.addons[0].subscription_status).toBe('active');
     expect(store.addons[1].subscription_status).toBe('active');
     expect(store.addons[2].is_active).toBe(false);
+  });
+
+  test('invoice success fills a NULL subscription id without waiting for the next renewal', async () => {
+    const store = createStripeStore([{
+      id: 'row-null',
+      tenant_id: TENANT,
+      addon_catalog_id: 'landline_addon',
+      is_active: true,
+      subscription_status: null,
+      stripe_subscription_id: null,
+      price_paid_pence: 899,
+    }]);
+    expect(tenantHasPaidPhoneAddon(store.addons)).toBe(true);
+
+    await handleStripeBillingEvent({
+      type: 'invoice.payment_succeeded',
+      data: {
+        object: {
+          subscription: 'sub_landline',
+          metadata: { tenant_id: TENANT, is_addon: 'true', addon_catalog_id: 'landline_addon' },
+          lines: { data: [{ price: { id: 'price_landline' } }] },
+        },
+      },
+    }, { supabaseAdmin: store, allocateRollingCredits: async () => undefined });
+
+    expect(store.addons[0].subscription_status).toBe('active');
+    expect(store.addons[0].stripe_subscription_id).toBe('sub_landline');
+    expect(tenantHasPaidPhoneAddon(store.addons)).toBe(true);
   });
 });
