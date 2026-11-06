@@ -7,7 +7,7 @@ import { POST as tenantCreated } from '../src/app/api/webhooks/tenant-created/ro
 import { getWordpressPublishConfig } from '../src/lib/env/wordpress-publish';
 
 const root = process.cwd();
-const HARD_CODED_WP_TOKEN = 'd1f5e82b79a83604f05c48b2';
+const TENANT_CREATED_TEST_SECRET = 'tenant-created-staging-guard';
 
 test.describe('STYL-226: WordPress publishing disabled on staging', () => {
   test('helper refuses staging and missing config without a live fallback', () => {
@@ -20,7 +20,7 @@ test.describe('STYL-226: WordPress publishing disabled on staging', () => {
     expect(missing.enabled === false && missing.reason).toMatch(/not configured/i);
   });
 
-  test('publish routes have no live WordPress fallback or hard-coded token', () => {
+  test('publish routes use getWordpressPublishConfig and have no live site fallback', () => {
     for (const rel of [
       'src/app/api/tenants/publish-page/route.ts',
       'src/app/api/webhooks/tenant-created/route.ts',
@@ -28,7 +28,6 @@ test.describe('STYL-226: WordPress publishing disabled on staging', () => {
       const src = readFileSync(join(root, rel), 'utf8');
       expect(src, rel).toContain('getWordpressPublishConfig');
       expect(src, rel).not.toContain("|| 'https://styleflo.ai'");
-      expect(src, rel).not.toContain(HARD_CODED_WP_TOKEN);
     }
   });
 
@@ -38,6 +37,7 @@ test.describe('STYL-226: WordPress publishing disabled on staging', () => {
       NEXT_PUBLIC_ENV: process.env.NEXT_PUBLIC_ENV,
       WORDPRESS_SITE_URL: process.env.WORDPRESS_SITE_URL,
       STYLEFLO_WP_CREATE_BUSINESS_TOKEN: process.env.STYLEFLO_WP_CREATE_BUSINESS_TOKEN,
+      TENANT_CREATED_WEBHOOK_SECRET: process.env.TENANT_CREATED_WEBHOOK_SECRET,
     };
     const fetches: string[] = [];
     const originalFetch = globalThis.fetch;
@@ -45,6 +45,7 @@ test.describe('STYL-226: WordPress publishing disabled on staging', () => {
     try {
       process.env.APP_ENV = 'staging';
       process.env.NEXT_PUBLIC_ENV = 'staging';
+      process.env.TENANT_CREATED_WEBHOOK_SECRET = TENANT_CREATED_TEST_SECRET;
       delete process.env.WORDPRESS_SITE_URL;
       delete process.env.STYLEFLO_WP_CREATE_BUSINESS_TOKEN;
 
@@ -62,13 +63,15 @@ test.describe('STYL-226: WordPress publishing disabled on staging', () => {
         }),
       });
       const publishRes = await publishPage(publishReq);
-      const publishJson = await publishRes.json();
+      await publishRes.json();
       expect(fetches.some((url) => url.includes('styleflo.ai'))).toBe(false);
-      expect(JSON.stringify(publishJson)).not.toContain(HARD_CODED_WP_TOKEN);
 
       const createdReq = new NextRequest('http://localhost:3001/api/webhooks/tenant-created', {
         method: 'POST',
-        headers: { 'content-type': 'application/json' },
+        headers: {
+          'content-type': 'application/json',
+          authorization: `Bearer ${TENANT_CREATED_TEST_SECRET}`,
+        },
         body: JSON.stringify({
           slug: 'staging-wp-guard',
           company_name: 'Staging WP Guard',
@@ -78,7 +81,6 @@ test.describe('STYL-226: WordPress publishing disabled on staging', () => {
       const createdJson = await createdRes.json();
       expect(JSON.stringify(createdJson)).toMatch(/disabled on staging/i);
       expect(fetches.some((url) => url.includes('styleflo.ai'))).toBe(false);
-      expect(JSON.stringify(createdJson)).not.toContain(HARD_CODED_WP_TOKEN);
     } finally {
       globalThis.fetch = originalFetch;
       for (const [key, value] of Object.entries(previous)) {

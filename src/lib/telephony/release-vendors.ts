@@ -1,5 +1,7 @@
-import { timingSafeEqual } from 'node:crypto';
 import twilio from 'twilio';
+import { secretsEqual } from '@/lib/security/secrets-equal';
+
+export { secretsEqual };
 
 export const telephonyReleaseCallLog = {
   twilio: 0,
@@ -55,14 +57,6 @@ export async function releaseVapiNumber(numberToRelease: string): Promise<void> 
   } else {
     console.error('[Telephony Deprovisioning] Failed to delete number from Vapi:', await delRes.text());
   }
-}
-
-export function secretsEqual(provided: string, expected: string): boolean {
-  if (!expected || !provided) return false;
-  const a = Buffer.from(provided);
-  const b = Buffer.from(expected);
-  if (a.length !== b.length) return false;
-  return timingSafeEqual(a, b);
 }
 
 export function isInternalCronRequest(req: Request): boolean {

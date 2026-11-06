@@ -157,7 +157,11 @@ test.describe('Telephony deprovision source audits (no live services)', () => {
       path.resolve(__dirname, '../src/lib/telephony/release-vendors.ts'),
       'utf8',
     );
-    expect(vendorSrc).toContain('timingSafeEqual');
+    const secretsSrc = fs.readFileSync(
+      path.resolve(__dirname, '../src/lib/security/secrets-equal.ts'),
+      'utf8',
+    );
+    expect(secretsSrc).toContain('timingSafeEqual');
     expect(vendorSrc).toContain('secretsEqual');
     expect(vendorSrc).not.toMatch(/token === cronSecret/);
     expect(src).toContain('recordSuperadminAudit');

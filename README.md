@@ -4168,3 +4168,13 @@ Highlighted adjustments in the modal:
 * **Changes**:
   - `apphosting.yaml` binds `VAPI_WEBHOOK_SECRET` to secret `VAPI_WEBHOOK_SECRET` with availability `RUNTIME` only, matching `apphosting.staging.yaml`.
   - Playwright `tests/vapi-webhook-secret-prod-apphosting.spec.ts` asserts the production block equals the staging block (secret ref, RUNTIME, no value).
+
+### Session (STYL-239 / STYL-238 - tenant-created auth and WP token hygiene - 6 Nov 2026)
+* **User**: Implement the signed-off Product Owner brief for STYL-239 and STYL-238 together. Branch `cursor/styl-239-238-wordpress-auth` from latest `origin/staging` (`3956cf3`). One PR into `staging` only. Do not merge, do not use `--no-verify`, do not paste the WordPress create-business token, do not rotate live secrets, do not re-enable the STYL-202 no-op trigger, and do not add `TENANT_CREATED_WEBHOOK_SECRET` to App Hosting yaml.
+* **Changes**:
+  - `POST /api/webhooks/tenant-created` requires `Authorization: Bearer` matching `TENANT_CREATED_WEBHOOK_SECRET`, compared with `secretsEqual` (`timingSafeEqual` in `src/lib/security/secrets-equal.ts`). Missing, blank, or wrong secrets return 401 before any WordPress call. Unlike the WPMUDEV webhook, an unset secret fails closed.
+  - Logs keep slug and tenant id only. Emails, names, phones, and token-like fields are not logged. WordPress error bodies are redacted and are not returned to the caller.
+  - Removed the hard-coded create-business token literal from `tests/styl-226-wordpress-disabled-on-staging.spec.ts`. Staging publish stays disabled. The tenant-created check sends the test Bearer so it still reaches the disabled response.
+  - `tests/styl-238-no-wp-token-literal.spec.ts` fails if a quoted hex string of 20 or more characters is reintroduced under `tests/` or `src/`. Before the literal was deleted, that scan failed on the STYL-226 spec (length 24, matching the frozen digest). 34-character Twilio SID literals stay allowlisted. The plaintext value is not in the test.
+  - `.env.example` documents server-only `TENANT_CREATED_WEBHOOK_SECRET`. `docs/staging.md` records that staging App Hosting leaves it unwired (401). Production still reads `STYLEFLO_WP_CREATE_BUSINESS_TOKEN`.
+  - Playwright route-import specs for STYL-239, STYL-238, and STYL-226 passed without a live WordPress call. `tsc --noEmit` passed with `NODE_OPTIONS=--max-old-space-size=8192`.
