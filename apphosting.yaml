@@ -115,3 +115,11 @@ env:
     secret: VAPI_WEBHOOK_SECRET
     availability:
       - RUNTIME
+
+  # Production App Hosting (styleflo-ai / delightful-kepler-1) reads this base
+  # file only. Name-only Secret Manager ref — the value stays in Secret Manager.
+  # Staging stays unwired: do not copy this block into apphosting.staging.yaml.
+  - variable: TENANT_CREATED_WEBHOOK_SECRET
+    secret: TENANT_CREATED_WEBHOOK_SECRET
+    availability:
+      - RUNTIME
