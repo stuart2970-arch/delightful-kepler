@@ -1,6 +1,14 @@
 import { google } from 'googleapis';
 import { createClient } from '@supabase/supabase-js';
 import { getMicrosoftAccessToken, createMicrosoftCalendarEvent } from '@/lib/microsoft-calendar';
+import { CHAT_CALENDAR_TIMEOUT_MS, resolvePositiveMs } from '@/lib/chat/stream-reply';
+
+/** Test-only calendar id. Production calendars are never delayed. */
+const SLOW_TEST_CALENDAR_ID = 'slow-calendar';
+
+function slowCalendarTestEnabled(): boolean {
+  return process.env.PLAYWRIGHT_TEST === 'true' || process.env.NODE_ENV === 'test';
+}
 
 function getSupabaseAdmin() {
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
@@ -125,6 +133,12 @@ export async function getGoogleBusy(
   startUtc: Date,
   endUtc: Date
 ): Promise<BusyInterval[]> {
+  if (calendarId === SLOW_TEST_CALENDAR_ID && slowCalendarTestEnabled()) {
+    const waitMs = resolvePositiveMs(process.env.CHAT_CALENDAR_TIMEOUT_MS, CHAT_CALENDAR_TIMEOUT_MS) + 2_000;
+    await new Promise((resolve) => setTimeout(resolve, waitMs));
+    return [];
+  }
+
   const calendar = await getGoogleCalendarClient(tenantId);
 
   // If in a mock test environment and no real client was created

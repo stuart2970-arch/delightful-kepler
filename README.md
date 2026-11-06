@@ -795,7 +795,7 @@ oute.ts and src/app/api/voice/[chatbotId]/chat/completions/route.ts for maximum 
 
   2. **Fixed DOM-Based XSS in Chat Simulation**: Replaced unsafe `innerHTML` interpolation of user input with safe `textContent` DOM construction in `styleflo_landing_page.html` (line 945). Bot replies using hardcoded strings remain as `innerHTML` since they contain no user-controlled data.
 
-  3. **Moved WP Secrets to wp-config.php**: Replaced HMAC fallback (`'your_fallback_shared_secret'`) in `styleflo_verify_api_signature()` with strict rejection when `STYLEFLO_WP_API_SECRET` is undefined. Replaced hardcoded API token (`'d1f5e82b79a83604f05c48b2'`) with `STYLEFLO_CREATE_BUSINESS_SECRET` constant + `hash_equals()` timing-safe comparison. Moved auth check into `permission_callback` for the `/create-business` REST route for defense in depth.
+  3. **Moved WP Secrets to wp-config.php**: Replaced HMAC fallback (`'your_fallback_shared_secret'`) in `styleflo_verify_api_signature()` with strict rejection when `STYLEFLO_WP_API_SECRET` is undefined. Replaced hardcoded API token (the hard-coded create-business token (removed; see STYL-238)) with `STYLEFLO_CREATE_BUSINESS_SECRET` constant + `hash_equals()` timing-safe comparison. Moved auth check into `permission_callback` for the `/create-business` REST route for defense in depth.
 
   4. **Secured Public Web Root Scripts**: Backed up 6 unauthenticated PHP scripts (`dump_header.php`, `get_homepage.php`, `get_post_content.php`, `local-xdebuginfo.php`, `update_avada_header.php`, `update_homepage.php`) to `_deprecated_scripts/` and added `php_sapi_name() !== 'cli'` guards returning HTTP 403 to all originals.
 
@@ -4168,3 +4168,74 @@ Highlighted adjustments in the modal:
 * **Changes**:
   - `apphosting.yaml` binds `VAPI_WEBHOOK_SECRET` to secret `VAPI_WEBHOOK_SECRET` with availability `RUNTIME` only, matching `apphosting.staging.yaml`.
   - Playwright `tests/vapi-webhook-secret-prod-apphosting.spec.ts` asserts the production block equals the staging block (secret ref, RUNTIME, no value).
+
+### Session (STYL-241 text chat must not start voice - 6 Nov 2026)
+* **User / Jira**: Implement STYL-241 from the 6 Nov product brief. Branch `cursor/styl-241-text-chat-no-voice` from latest `staging`. One PR into `staging` only. Do not merge. Never `--no-verify`. Vapi mocked and blocked. Linked to STYL-184 (update the test that pinned the old "this call" wording).
+* **Root cause reproduced on the staging widget** (local Supabase, mock Vapi, `api.vapi.ai` aborted):
+  1. Voice Call or the mic, before the gate is accepted, sets `pendingVoiceCall`. Close and Text Chat did not clear it. Submitting the gate then called `startVoiceCall()`, which built a web-call payload (`__STYLEFLO_LAST_VAPI_CALL__`). With the mock off, that is `vapi.start()` and `POST api.vapi.ai/call/web`.
+  2. "Connecting agent..." is created when the widget loads and was hidden only with Tailwind `opacity: 0`. `checkVisibility()` still reports that node, and the post-gate Voice Call path had no hide on call-start, error, close, or a 20s cap. While the ring was playing, further clicks were ignored.
+* **Changes**:
+  - Gate purpose is `text` or `voice`. Text Chat, close, and a text gate clear `pendingVoiceCall`. Gate submit starts voice only in voice mode.
+  - Text gate shows: "You're chatting with our AI assistant. We keep a transcript of this chat for reference and contact purposes, as explained in our Privacy Policy." Header, "Please read before you start", and the Terms tick stay as STYL-184 set them. Voice gate keeps the voice notice. After a text gate, Voice Call or the mic shows that notice once in the chat, then connects.
+  - "Connecting agent..." is `display: none` unless an explicit voice attempt is connecting, and it clears on call-start, call-end, error, a failed start, cancel/close, or 20 seconds.
+  - `src/widget/index.ts` and `embed.ts` stay identical. `public/widget.js` and `public/embed.js` rebuilt with the local dummy Turnstile site key.
+  - Playwright: `tests/styl-241-text-chat-no-voice.spec.ts`. STYL-184 text assertion updated; voice gate still expects the call notice. STYL-193 footer tests now expect the text-chat notice to stay when the footer is removed.
+
+### Session (STYL-239 / STYL-238 - tenant-created auth and WP token hygiene - 6 Nov 2026)
+* **User**: Implement the signed-off Product Owner brief for STYL-239 and STYL-238 together. Branch `cursor/styl-239-238-wordpress-auth` from latest `origin/staging` (`3956cf3`). One PR into `staging` only. Do not merge, do not use `--no-verify`, do not paste the WordPress create-business token, do not rotate live secrets, do not re-enable the STYL-202 no-op trigger, and do not add `TENANT_CREATED_WEBHOOK_SECRET` to App Hosting yaml.
+* **Changes**:
+  - `POST /api/webhooks/tenant-created` requires `Authorization: Bearer` matching `TENANT_CREATED_WEBHOOK_SECRET`, compared with `secretsEqual` (`timingSafeEqual` in `src/lib/security/secrets-equal.ts`). Missing, blank, or wrong secrets return 401 before any WordPress call. Unlike the WPMUDEV webhook, an unset secret fails closed.
+  - Logs keep slug and tenant id only. Emails, names, phones, and token-like fields are not logged. WordPress error bodies are redacted and are not returned to the caller.
+  - Removed the hard-coded create-business token literal from `tests/styl-226-wordpress-disabled-on-staging.spec.ts`. Staging publish stays disabled. The tenant-created check sends the test Bearer so it still reaches the disabled response.
+  - `tests/styl-238-no-wp-token-literal.spec.ts` fails if a quoted hex string of 20 or more characters is reintroduced under `tests/` or `src/`. Before the literal was deleted, that scan failed on the STYL-226 spec (length 24, matching the frozen digest). 34-character Twilio SID literals stay allowlisted. The plaintext value is not in the test.
+  - `.env.example` documents server-only `TENANT_CREATED_WEBHOOK_SECRET`. `docs/staging.md` records that staging App Hosting leaves it unwired (401). Production still reads `STYLEFLO_WP_CREATE_BUSINESS_TOKEN`.
+  - Playwright route-import specs for STYL-239, STYL-238, and STYL-226 passed without a live WordPress call. `tsc --noEmit` passed with `NODE_OPTIONS=--max-old-space-size=8192`. Full Playwright suite: 495 passed against local Supabase and mock keys.
+
+### Session (PR 31 review - remove historical token from session notes - 6 Nov 2026)
+* **User**: Product Owner blocked PR 31. Do not merge. The webhook auth and test hygiene are accepted. Old session notes in `README.md` and `Styleflo AI/delightful-kepler/README.md` still quote the historical create-business token. Replace those with a placeholder and widen the scan. Do not paste the value. Never `--no-verify`.
+* **Changes**:
+  - Both session notes now say the hard-coded create-business token was removed (see STYL-238). The value is not in the replacement.
+  - The scan covers `tests/`, `src/`, `docs/`, `Styleflo AI/`, and repo-root markdown. It excludes `node_modules`, `.git`, and lockfiles. A frozen digest still flags the historical value if it reappears.
+  - Error-log redaction runs before the 200-character truncation, so a token that starts near the cut is not partially logged.
+
+### Session (PR 31 review - scan README files that contain NUL bytes - 6 Nov 2026)
+* **User**: Product Owner blocked PR 31 again. Do not merge. The placeholder notes and redaction order are accepted. The scan skipped any file containing a NUL byte, so both README copies (and `Styleflo AI/delightful-kepler/test_stream.ts`) were never hashed. Do not paste the historical token. Never `--no-verify`.
+* **Changes**:
+  - The scan strips NUL bytes and hashes every selected text file. Both `README.md` paths must appear in the scanned set.
+  - A synthetic token-shaped literal injected into the NUL-containing README, including one split by NUL bytes, is reported. 32- and 40-character public ids and commit SHAs stay out of the shape check. The 24-character shape does not.
+
+### Session (merge staging STYL-241 into PR 31 - 6 Nov 2026)
+* **User**: PR 31 was not mergeable after STYL-241 landed on staging (`6dd1bb5`). Merge `origin/staging` into `cursor/styl-239-238-wordpress-auth`. Do not merge the pull request. Never `--no-verify`. Do not reintroduce the historical create-business token.
+* **Changes**:
+  - The only conflict was `README.md` session logs. Both the STYL-241 text-chat log and the STYL-239/238 logs are kept. The placeholder wording stays. Webhook auth, the NUL-stripping scan, and the requirement that both README paths are scanned are unchanged. `pendingVoiceCall` text-chat rules from staging stay.
+
+### Session (STYL-240 prompt leak guard - 6 Nov 2026)
+* **User**: Implement the Product Owner brief for STYL-240. After a widget booking on 6 Nov 2026 the customer chat showed internal prompt text (“tag needed.” / “When outputting a secret tag like”) and then offered days because the quoted `[CHECK_AVAILABILITY...]` was treated as an unfinished tool tag. Staging PR only. Do not merge. No live calls, bookings, or schema changes.
+* **Changes**:
+  - Shared `src/lib/chat/customer-output-guard.ts` drops prompt, tool-protocol, `[SYSTEM]`, and debug wording. Streaming releases at a newline, sentence end, or a 200-character hold. Once tripped, the rest of that pass is dropped. If nothing visible remains, the customer sees “I'm sorry, I couldn't finish that just now. Could you tell me again what you'd like to do?”
+  - Chat stream applies the guard after the existing tool-tag holdback on the first pass, availability pass 2, lookup pass 2, recovery text, and every `messages` insert. A quoted tag does not run truncated-availability recovery. `[DEBUG]`, `[STREAM ERROR]`, and `Unexpected failure` are replaced with “I'm sorry, I'm having trouble right now. Please try again in a moment.” Details stay in the server log.
+  - The chat prompt says “tool tag” and tells the model not to quote the instructions.
+  - SMS and the legacy voice route check the finished reply before it is sent (no extra delay). Streaming voice checks text already in hand before the next chunk, sanitises text already held for a tool tag, and sanitises turn logs. It does not add sentence buffering, so a fragment spoken before the pattern is complete can still be heard. That remaining gap is a follow-up.
+  - Playwright `tests/styl-240-prompt-leak-guard.spec.ts` replays the 6 Nov reply, a mocked booking then a leak (HTTP and stored transcript), a pass-2 leak, empty-stream and route-failure copy, and the widget DOM. Local run with the Supabase CLI and mock keys: that spec plus STYL-198, STYL-199, STYL-182, and the homepage widget — 42 passed.
+  - Merged `origin/staging` (`6dd1bb5`, PR 33 / STYL-241) into this branch. The only conflict was `README.md`. Widget voice rules from STYL-241 are unchanged.
+
+### Session (STYL-240 merge staging after STYL-241 - 6 Nov 2026)
+* **User**: Do not merge PR 32. CI on `1f708b7` was green, then `origin/staging` moved because PR 33 (STYL-241, `6dd1bb5`) merged and GitHub reported `mergeable_state` dirty. Merge `origin/staging` into `cursor/styl-240-prompt-leak-guard`. Keep the customer-output guard and do not weaken STYL-241. Do not start STYL-233. Never `--no-verify`. Do not merge the PR.
+* **Changes**:
+  - Merged `origin/staging`. Only `README.md` conflicted. Both session logs are kept. No widget or chat-stream code conflict. STYL-241 text-chat behaviour stays as merged in PR 33.
+
+### Session (merge staging STYL-240 into PR 31 - 6 Nov 2026)
+* **User**: PR 31 was not mergeable after STYL-240 landed on staging (`8ad0f6e`). Merge `origin/staging` into `cursor/styl-239-238-wordpress-auth`. Do not merge the pull request. Never `--no-verify`. Do not reintroduce the historical create-business token or weaken the customer-output guard.
+* **Changes**:
+  - The only conflict was `README.md` session logs. The STYL-240, STYL-241, and STYL-239/238 logs are all kept. The placeholder wording stays. Webhook auth, the NUL-stripping scan, and the requirement that both README paths are scanned are unchanged. The STYL-240 customer-output guard from staging stays.
+
+### Session (STYL-233 complete chat replies - 6 Nov 2026)
+* **User**: Implement STYL-233 from the 6 Nov product brief. Branch from current `origin/staging` (`f775881`, merge of PR 31 / STYL-239 and STYL-238, which already includes PR 32 / STYL-240 and PR 33 / STYL-241). One PR into `staging`. Do not merge. Do not weaken the STYL-240 leak guard or the STYL-241 text-chat voice rules. No live voice, bookings, or schema changes. Never `--no-verify`.
+* **Root cause**: The chat route called `streamText` three times with `maxOutputTokens: 1024` and no thinking setting. The installed `@ai-sdk/google` v3 passes `providerOptions.google.thinkingConfig.thinkingLevel` through for Gemini 3.6 Flash. The first pass did not read `finishReason` except when a `[CHECK_AVAILABILITY` tag was already cut off, so a length stop mid-sentence was forwarded as-is. An announcement such as "Let me check…" with no tool tag never ran a calendar check. Model passes and `bookMeeting` had no deadline. The server confirmation omitted the staff name. The widget decoder was not flushed at `done`. Hypothesis H1 (thinking tokens consuming the 1024 budget) matches that code, but staging never logged finish reasons or reasoning tokens, and this change does not call live Gemini, so H1 is not confirmed from logs. The 6 Nov hang also matches the leak guard holding text that has no sentence boundary until the stream ends, with nothing to force that stream to end. No separate bug was found that should be split out.
+* **Changes**:
+  - `CHAT_GENERATION_SETTINGS` sets `maxOutputTokens` to 4096 and `thinkingConfig.thinkingLevel` to `low`, and all three chat `streamText` calls use it. Each pass logs finish reason and token usage, including reasoning tokens, with the request id. Prompts and contact details are not logged.
+  - `pipeReply` keeps the STYL-198 tool-tag holdback and then the STYL-240 guard. A length, error, content-filter, other, or timeout ending is trimmed to the last complete sentence or bullet, unpaired `**` is removed, and the reply ends with "Sorry, I didn't get to finish that. Could you ask me again?" A normal stop is left as the model wrote it.
+  - If booking is enabled and the first pass announces a check without a tool tag, the same days recovery runs. A "booked" claim with no `[BOOK_MEETING` tag is replaced by "I haven't been able to confirm that booking yet. Shall I try again?" and no booking is made. A successful booking says `Your {service} with {staff} is confirmed for {displayDate} at {time}. A confirmation email has been sent to {email}.`
+  - Calendar availability and booking calls time out at 10 seconds and use the existing calendar fallback. Each model pass stops being read after 25 seconds. The whole reply is capped at 35 seconds. A browser that leaves mid-stream resets the socket; that abort is ignored so the dev server stays up. The provider fetch itself is not aborted.
+  - `src/widget/index.ts` and `embed.ts` stay identical. The only widget change is `decoder.decode()` at stream `done`, then the final text is rendered. `public/widget.js` and `public/embed.js` were rebuilt. Voice and consent behaviour is unchanged.
+  - Playwright `tests/styl-233-chat-reply-complete.spec.ts`. Local Supabase CLI and mock keys only. STYL-233, STYL-199, and STYL-240: 25 passed. STYL-241, STYL-198, STYL-182, and the homepage widget: 33 passed. `tsc --noEmit` passed. The Playwright dev server drops inactive pages and the webpack cache so a full run does not exhaust memory.
