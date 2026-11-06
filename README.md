@@ -4168,3 +4168,12 @@ Highlighted adjustments in the modal:
 * **Changes**:
   - `apphosting.yaml` binds `VAPI_WEBHOOK_SECRET` to secret `VAPI_WEBHOOK_SECRET` with availability `RUNTIME` only, matching `apphosting.staging.yaml`.
   - Playwright `tests/vapi-webhook-secret-prod-apphosting.spec.ts` asserts the production block equals the staging block (secret ref, RUNTIME, no value).
+
+### Session (STYL-240 prompt leak guard - 6 Nov 2026)
+* **User**: Implement the Product Owner brief for STYL-240. After a widget booking on 6 Nov 2026 the customer chat showed internal prompt text (“tag needed.” / “When outputting a secret tag like”) and then offered days because the quoted `[CHECK_AVAILABILITY...]` was treated as an unfinished tool tag. Staging PR only. Do not merge. No live calls, bookings, or schema changes.
+* **Changes**:
+  - Shared `src/lib/chat/customer-output-guard.ts` drops prompt, tool-protocol, `[SYSTEM]`, and debug wording. Streaming releases at a newline, sentence end, or a 200-character hold. Once tripped, the rest of that pass is dropped. If nothing visible remains, the customer sees “I'm sorry, I couldn't finish that just now. Could you tell me again what you'd like to do?”
+  - Chat stream applies the guard after the existing tool-tag holdback on the first pass, availability pass 2, lookup pass 2, recovery text, and every `messages` insert. A quoted tag does not run truncated-availability recovery. `[DEBUG]`, `[STREAM ERROR]`, and `Unexpected failure` are replaced with “I'm sorry, I'm having trouble right now. Please try again in a moment.” Details stay in the server log.
+  - The chat prompt says “tool tag” and tells the model not to quote the instructions.
+  - SMS and the legacy voice route check the finished reply before it is sent (no extra delay). Streaming voice checks text already in hand before the next chunk, sanitises text already held for a tool tag, and sanitises turn logs. It does not add sentence buffering, so a fragment spoken before the pattern is complete can still be heard. That remaining gap is a follow-up.
+  - Playwright `tests/styl-240-prompt-leak-guard.spec.ts` replays the 6 Nov reply, a mocked booking then a leak (HTTP and stored transcript), a pass-2 leak, empty-stream and route-failure copy, and the widget DOM. Local run with the Supabase CLI and mock keys: that spec plus STYL-198, STYL-199, STYL-182, and the homepage widget — 42 passed.

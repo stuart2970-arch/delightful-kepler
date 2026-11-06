@@ -5,6 +5,7 @@ import { createGoogleGenerativeAI } from '@ai-sdk/google';
 import { getAvailabilityData, bookMeeting } from '@/app/api/chat/stream/calendar';
 import { calendarFallbackMessage, directAvailabilitySpeech } from '@/lib/calendar/fallback-message';
 import { splitAtToolTag } from '@/lib/calendar/tool-tags';
+import { CUSTOMER_UNFINISHED_REPLY, sanitiseForTranscript } from '@/lib/chat/customer-output-guard';
 
 import { getActiveGeminiModel } from '@/lib/gemini-config';
 import { voiceLogError } from '@/lib/voice/log-error';
@@ -355,6 +356,8 @@ ${globalDisclaimer}`;
     if (unfinished.hadTag) {
       finalSpokenText = `${unfinished.before.trim()} ${calendarFallbackMessage('unreachable', bookingUrl)}`.trim();
     }
+    // The reply is already complete, so this check adds no speech delay.
+    finalSpokenText = sanitiseForTranscript(finalSpokenText).trim() || CUSTOMER_UNFINISHED_REPLY;
 
     // 7. Stream back to Vapi
     const encoder = new TextEncoder();
