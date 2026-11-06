@@ -66,8 +66,14 @@ test.describe('STYL-226: App Hosting staging secrets and public URL', () => {
     expect(staging).not.toContain('STYLEFLO_WP_CREATE_BUSINESS_TOKEN');
     expect(staging).not.toContain('WPMUDEV_WEBHOOK_SECRET');
     expect(staging).not.toContain('TENANT_CREATED_WEBHOOK_SECRET');
+    // Production App Hosting (styleflo-ai / delightful-kepler-1) reads the base
+    // file only. The name is a Secret Manager ref, RUNTIME only. Staging stays unwired.
     const base = readFileSync(join(root, 'apphosting.yaml'), 'utf8');
-    expect(base).not.toContain('TENANT_CREATED_WEBHOOK_SECRET');
+    const tenantCreated = base.match(
+      /- variable: TENANT_CREATED_WEBHOOK_SECRET\n\s+secret: TENANT_CREATED_WEBHOOK_SECRET\n\s+availability:\n(?:\s+- (?:BUILD|RUNTIME)\n)+/,
+    );
+    expect(tenantCreated?.[0] ?? '').toContain('- RUNTIME');
+    expect(tenantCreated?.[0] ?? '').not.toContain('BUILD');
 
     const envBody = staging
       .split('\n')
