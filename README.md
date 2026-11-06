@@ -4185,3 +4185,9 @@ Highlighted adjustments in the modal:
   - Both session notes now say the hard-coded create-business token was removed (see STYL-238). The value is not in the replacement.
   - The scan covers `tests/`, `src/`, `docs/`, `Styleflo AI/`, and repo-root markdown. It excludes `node_modules`, `.git`, and lockfiles. A frozen digest still flags the historical value if it reappears.
   - Error-log redaction runs before the 200-character truncation, so a token that starts near the cut is not partially logged.
+
+### Session (PR 31 review - scan README files that contain NUL bytes - 6 Nov 2026)
+* **User**: Product Owner blocked PR 31 again. Do not merge. The placeholder notes and redaction order are accepted. The scan skipped any file containing a NUL byte, so both README copies (and `Styleflo AI/delightful-kepler/test_stream.ts`) were never hashed. Do not paste the historical token. Never `--no-verify`.
+* **Changes**:
+  - The scan strips NUL bytes and hashes every selected text file. Both `README.md` paths must appear in the scanned set.
+  - A synthetic token-shaped literal injected into the NUL-containing README, including one split by NUL bytes, is reported. 32- and 40-character public ids and commit SHAs stay out of the shape check. The 24-character shape does not.
