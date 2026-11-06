@@ -63,6 +63,7 @@ let baseUrl = '';
 const hits: string[] = [];
 const googleCalls: string[] = [];
 let originalFetch: typeof fetch;
+let savedEnv: SavedEnv;
 
 const botRow = {
   id: BOT,
@@ -258,6 +259,7 @@ function sawBookingSideEffect(): boolean {
 
 test.describe('STYL-199 mock reply guard', () => {
   test.beforeAll(async () => {
+    savedEnv = snapshotEnv();
     server = createServer((req, res) => {
       try {
         handleSupabase(req, res);
@@ -273,6 +275,7 @@ test.describe('STYL-199 mock reply guard', () => {
   });
 
   test.afterAll(async () => {
+    restoreEnv(savedEnv);
     globalThis.fetch = originalFetch;
     await new Promise<void>((resolve, reject) => server.close((err) => (err ? reject(err) : resolve())));
   });
