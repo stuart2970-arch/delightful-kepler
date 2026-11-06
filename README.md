@@ -795,7 +795,7 @@ oute.ts and src/app/api/voice/[chatbotId]/chat/completions/route.ts for maximum 
 
   2. **Fixed DOM-Based XSS in Chat Simulation**: Replaced unsafe `innerHTML` interpolation of user input with safe `textContent` DOM construction in `styleflo_landing_page.html` (line 945). Bot replies using hardcoded strings remain as `innerHTML` since they contain no user-controlled data.
 
-  3. **Moved WP Secrets to wp-config.php**: Replaced HMAC fallback (`'your_fallback_shared_secret'`) in `styleflo_verify_api_signature()` with strict rejection when `STYLEFLO_WP_API_SECRET` is undefined. Replaced hardcoded API token (`'d1f5e82b79a83604f05c48b2'`) with `STYLEFLO_CREATE_BUSINESS_SECRET` constant + `hash_equals()` timing-safe comparison. Moved auth check into `permission_callback` for the `/create-business` REST route for defense in depth.
+  3. **Moved WP Secrets to wp-config.php**: Replaced HMAC fallback (`'your_fallback_shared_secret'`) in `styleflo_verify_api_signature()` with strict rejection when `STYLEFLO_WP_API_SECRET` is undefined. Replaced hardcoded API token (the hard-coded create-business token (removed; see STYL-238)) with `STYLEFLO_CREATE_BUSINESS_SECRET` constant + `hash_equals()` timing-safe comparison. Moved auth check into `permission_callback` for the `/create-business` REST route for defense in depth.
 
   4. **Secured Public Web Root Scripts**: Backed up 6 unauthenticated PHP scripts (`dump_header.php`, `get_homepage.php`, `get_post_content.php`, `local-xdebuginfo.php`, `update_avada_header.php`, `update_homepage.php`) to `_deprecated_scripts/` and added `php_sapi_name() !== 'cli'` guards returning HTTP 403 to all originals.
 
@@ -4181,6 +4181,34 @@ Highlighted adjustments in the modal:
   - `src/widget/index.ts` and `embed.ts` stay identical. `public/widget.js` and `public/embed.js` rebuilt with the local dummy Turnstile site key.
   - Playwright: `tests/styl-241-text-chat-no-voice.spec.ts`. STYL-184 text assertion updated; voice gate still expects the call notice. STYL-193 footer tests now expect the text-chat notice to stay when the footer is removed.
 
+### Session (STYL-239 / STYL-238 - tenant-created auth and WP token hygiene - 6 Nov 2026)
+* **User**: Implement the signed-off Product Owner brief for STYL-239 and STYL-238 together. Branch `cursor/styl-239-238-wordpress-auth` from latest `origin/staging` (`3956cf3`). One PR into `staging` only. Do not merge, do not use `--no-verify`, do not paste the WordPress create-business token, do not rotate live secrets, do not re-enable the STYL-202 no-op trigger, and do not add `TENANT_CREATED_WEBHOOK_SECRET` to App Hosting yaml.
+* **Changes**:
+  - `POST /api/webhooks/tenant-created` requires `Authorization: Bearer` matching `TENANT_CREATED_WEBHOOK_SECRET`, compared with `secretsEqual` (`timingSafeEqual` in `src/lib/security/secrets-equal.ts`). Missing, blank, or wrong secrets return 401 before any WordPress call. Unlike the WPMUDEV webhook, an unset secret fails closed.
+  - Logs keep slug and tenant id only. Emails, names, phones, and token-like fields are not logged. WordPress error bodies are redacted and are not returned to the caller.
+  - Removed the hard-coded create-business token literal from `tests/styl-226-wordpress-disabled-on-staging.spec.ts`. Staging publish stays disabled. The tenant-created check sends the test Bearer so it still reaches the disabled response.
+  - `tests/styl-238-no-wp-token-literal.spec.ts` fails if a quoted hex string of 20 or more characters is reintroduced under `tests/` or `src/`. Before the literal was deleted, that scan failed on the STYL-226 spec (length 24, matching the frozen digest). 34-character Twilio SID literals stay allowlisted. The plaintext value is not in the test.
+  - `.env.example` documents server-only `TENANT_CREATED_WEBHOOK_SECRET`. `docs/staging.md` records that staging App Hosting leaves it unwired (401). Production still reads `STYLEFLO_WP_CREATE_BUSINESS_TOKEN`.
+  - Playwright route-import specs for STYL-239, STYL-238, and STYL-226 passed without a live WordPress call. `tsc --noEmit` passed with `NODE_OPTIONS=--max-old-space-size=8192`. Full Playwright suite: 495 passed against local Supabase and mock keys.
+
+### Session (PR 31 review - remove historical token from session notes - 6 Nov 2026)
+* **User**: Product Owner blocked PR 31. Do not merge. The webhook auth and test hygiene are accepted. Old session notes in `README.md` and `Styleflo AI/delightful-kepler/README.md` still quote the historical create-business token. Replace those with a placeholder and widen the scan. Do not paste the value. Never `--no-verify`.
+* **Changes**:
+  - Both session notes now say the hard-coded create-business token was removed (see STYL-238). The value is not in the replacement.
+  - The scan covers `tests/`, `src/`, `docs/`, `Styleflo AI/`, and repo-root markdown. It excludes `node_modules`, `.git`, and lockfiles. A frozen digest still flags the historical value if it reappears.
+  - Error-log redaction runs before the 200-character truncation, so a token that starts near the cut is not partially logged.
+
+### Session (PR 31 review - scan README files that contain NUL bytes - 6 Nov 2026)
+* **User**: Product Owner blocked PR 31 again. Do not merge. The placeholder notes and redaction order are accepted. The scan skipped any file containing a NUL byte, so both README copies (and `Styleflo AI/delightful-kepler/test_stream.ts`) were never hashed. Do not paste the historical token. Never `--no-verify`.
+* **Changes**:
+  - The scan strips NUL bytes and hashes every selected text file. Both `README.md` paths must appear in the scanned set.
+  - A synthetic token-shaped literal injected into the NUL-containing README, including one split by NUL bytes, is reported. 32- and 40-character public ids and commit SHAs stay out of the shape check. The 24-character shape does not.
+
+### Session (merge staging STYL-241 into PR 31 - 6 Nov 2026)
+* **User**: PR 31 was not mergeable after STYL-241 landed on staging (`6dd1bb5`). Merge `origin/staging` into `cursor/styl-239-238-wordpress-auth`. Do not merge the pull request. Never `--no-verify`. Do not reintroduce the historical create-business token.
+* **Changes**:
+  - The only conflict was `README.md` session logs. Both the STYL-241 text-chat log and the STYL-239/238 logs are kept. The placeholder wording stays. Webhook auth, the NUL-stripping scan, and the requirement that both README paths are scanned are unchanged. `pendingVoiceCall` text-chat rules from staging stay.
+
 ### Session (STYL-240 prompt leak guard - 6 Nov 2026)
 * **User**: Implement the Product Owner brief for STYL-240. After a widget booking on 6 Nov 2026 the customer chat showed internal prompt text (“tag needed.” / “When outputting a secret tag like”) and then offered days because the quoted `[CHECK_AVAILABILITY...]` was treated as an unfinished tool tag. Staging PR only. Do not merge. No live calls, bookings, or schema changes.
 * **Changes**:
@@ -4195,3 +4223,8 @@ Highlighted adjustments in the modal:
 * **User**: Do not merge PR 32. CI on `1f708b7` was green, then `origin/staging` moved because PR 33 (STYL-241, `6dd1bb5`) merged and GitHub reported `mergeable_state` dirty. Merge `origin/staging` into `cursor/styl-240-prompt-leak-guard`. Keep the customer-output guard and do not weaken STYL-241. Do not start STYL-233. Never `--no-verify`. Do not merge the PR.
 * **Changes**:
   - Merged `origin/staging`. Only `README.md` conflicted. Both session logs are kept. No widget or chat-stream code conflict. STYL-241 text-chat behaviour stays as merged in PR 33.
+
+### Session (merge staging STYL-240 into PR 31 - 6 Nov 2026)
+* **User**: PR 31 was not mergeable after STYL-240 landed on staging (`8ad0f6e`). Merge `origin/staging` into `cursor/styl-239-238-wordpress-auth`. Do not merge the pull request. Never `--no-verify`. Do not reintroduce the historical create-business token or weaken the customer-output guard.
+* **Changes**:
+  - The only conflict was `README.md` session logs. The STYL-240, STYL-241, and STYL-239/238 logs are all kept. The placeholder wording stays. Webhook auth, the NUL-stripping scan, and the requirement that both README paths are scanned are unchanged. The STYL-240 customer-output guard from staging stays.

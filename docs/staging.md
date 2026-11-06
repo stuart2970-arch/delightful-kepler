@@ -105,6 +105,7 @@ Optional: enable the Custom Access Token hook `public.custom_access_token_hook` 
 | Core + feature secrets | Secret Manager | Listed below — referenced **by name** in `apphosting.staging.yaml` |
 | Twilio bundle / address SIDs | Plain values | Staging SIDs from Jira STYL-226 comment 10163 (not secrets) |
 | WordPress secrets | **Unwired** | `STYLEFLO_WP_API_SECRET`, `STYLEFLO_WP_CREATE_BUSINESS_TOKEN`, `WPMUDEV_WEBHOOK_SECRET` stay unset. Publishing is disabled when `APP_ENV=staging` or when WordPress config is missing — the code must not fall back to the live site. |
+| Tenant-created webhook | **Unwired** | `TENANT_CREATED_WEBHOOK_SECRET` is not in `apphosting.yaml` or `apphosting.staging.yaml`. `POST /api/webhooks/tenant-created` returns 401 until Ops provisions a secret. A staging-only random value may be added later for integration tests; do not reuse a production value. |
 
 Plain `NEXT_PUBLIC_*` values live in **base** `apphosting.yaml` so App Hosting BUILD still sees them even if the backend Environment name is unset (that caused the `/login` prerender failure on build `f287d45b`). This Firebase project hosts staging only; production Cloud Run via `deploy.yml` does **not** read `apphosting.yaml`.
 
@@ -282,7 +283,9 @@ Leave these unset until a later ticket. Do not add them to `apphosting.staging.y
 
 #### WordPress (must stay unwired)
 
-Do **not** run `secrets:set` / `grantaccess` for `WPMUDEV_WEBHOOK_SECRET`, `STYLEFLO_WP_API_SECRET`, or `STYLEFLO_WP_CREATE_BUSINESS_TOKEN`. Publishing is refused when `APP_ENV=staging` or when those values are missing.
+Do **not** run `secrets:set` / `grantaccess` for `WPMUDEV_WEBHOOK_SECRET`, `STYLEFLO_WP_API_SECRET`, or `STYLEFLO_WP_CREATE_BUSINESS_TOKEN`. Publishing is refused when `APP_ENV=staging` or when those values are missing. Production still reads `STYLEFLO_WP_CREATE_BUSINESS_TOKEN` (not `STYLEFLO_WP_API_SECRET`) through `getWordpressPublishConfig`. Ops rotates that live value separately.
+
+Do **not** add `TENANT_CREATED_WEBHOOK_SECRET` to `apphosting.staging.yaml` until Ops chooses to provision it. While it is unset, `/api/webhooks/tenant-created` fails closed with 401 and does not call WordPress. Callers that should succeed must send `Authorization: Bearer` with that secret. The in-repo database trigger remains the STYL-202 no-op; a future webhook definition must take the secret from Secret Manager, not from SQL.
 
 #### OpenClaw (optional, still unwired)
 
