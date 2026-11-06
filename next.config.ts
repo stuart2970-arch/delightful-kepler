@@ -9,9 +9,28 @@ const isStaging =
 // Docker builds so those paths still typecheck (CI/deploy.yml already gate PRs).
 const isAppHostingBuild = process.env.STYL_APPHOSTING_BUILD === "1";
 
+const playwrightServer = process.env.PLAYWRIGHT_TEST === 'true';
+
 const nextConfig: any = {
   output: 'standalone',
   allowedDevOrigins: ['app.styleflo.test', 'styleflo.test'],
+  // The Playwright dev server compiles every route. Drop inactive pages and
+  // skip the webpack cache so a long run does not exhaust the machine.
+  ...(playwrightServer
+    ? {
+        onDemandEntries: {
+          maxInactiveAge: 15 * 1000,
+          pagesBufferLength: 2,
+        },
+      }
+    : {}),
+  webpack: (config: { devtool?: false | string; cache?: false | object }, { dev }: { dev: boolean }) => {
+    if (dev && playwrightServer) {
+      config.devtool = false;
+      config.cache = false;
+    }
+    return config;
+  },
   typescript: {
     // App Hosting e2-medium (~4 GB) OOMs during next build's embedded tsc.
     // Skip only on App Hosting; Playwright workflow + deploy.yml still run tsc.
