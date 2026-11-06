@@ -4208,3 +4208,23 @@ Highlighted adjustments in the modal:
 * **User**: PR 31 was not mergeable after STYL-241 landed on staging (`6dd1bb5`). Merge `origin/staging` into `cursor/styl-239-238-wordpress-auth`. Do not merge the pull request. Never `--no-verify`. Do not reintroduce the historical create-business token.
 * **Changes**:
   - The only conflict was `README.md` session logs. Both the STYL-241 text-chat log and the STYL-239/238 logs are kept. The placeholder wording stays. Webhook auth, the NUL-stripping scan, and the requirement that both README paths are scanned are unchanged. `pendingVoiceCall` text-chat rules from staging stay.
+
+### Session (STYL-240 prompt leak guard - 6 Nov 2026)
+* **User**: Implement the Product Owner brief for STYL-240. After a widget booking on 6 Nov 2026 the customer chat showed internal prompt text (“tag needed.” / “When outputting a secret tag like”) and then offered days because the quoted `[CHECK_AVAILABILITY...]` was treated as an unfinished tool tag. Staging PR only. Do not merge. No live calls, bookings, or schema changes.
+* **Changes**:
+  - Shared `src/lib/chat/customer-output-guard.ts` drops prompt, tool-protocol, `[SYSTEM]`, and debug wording. Streaming releases at a newline, sentence end, or a 200-character hold. Once tripped, the rest of that pass is dropped. If nothing visible remains, the customer sees “I'm sorry, I couldn't finish that just now. Could you tell me again what you'd like to do?”
+  - Chat stream applies the guard after the existing tool-tag holdback on the first pass, availability pass 2, lookup pass 2, recovery text, and every `messages` insert. A quoted tag does not run truncated-availability recovery. `[DEBUG]`, `[STREAM ERROR]`, and `Unexpected failure` are replaced with “I'm sorry, I'm having trouble right now. Please try again in a moment.” Details stay in the server log.
+  - The chat prompt says “tool tag” and tells the model not to quote the instructions.
+  - SMS and the legacy voice route check the finished reply before it is sent (no extra delay). Streaming voice checks text already in hand before the next chunk, sanitises text already held for a tool tag, and sanitises turn logs. It does not add sentence buffering, so a fragment spoken before the pattern is complete can still be heard. That remaining gap is a follow-up.
+  - Playwright `tests/styl-240-prompt-leak-guard.spec.ts` replays the 6 Nov reply, a mocked booking then a leak (HTTP and stored transcript), a pass-2 leak, empty-stream and route-failure copy, and the widget DOM. Local run with the Supabase CLI and mock keys: that spec plus STYL-198, STYL-199, STYL-182, and the homepage widget — 42 passed.
+  - Merged `origin/staging` (`6dd1bb5`, PR 33 / STYL-241) into this branch. The only conflict was `README.md`. Widget voice rules from STYL-241 are unchanged.
+
+### Session (STYL-240 merge staging after STYL-241 - 6 Nov 2026)
+* **User**: Do not merge PR 32. CI on `1f708b7` was green, then `origin/staging` moved because PR 33 (STYL-241, `6dd1bb5`) merged and GitHub reported `mergeable_state` dirty. Merge `origin/staging` into `cursor/styl-240-prompt-leak-guard`. Keep the customer-output guard and do not weaken STYL-241. Do not start STYL-233. Never `--no-verify`. Do not merge the PR.
+* **Changes**:
+  - Merged `origin/staging`. Only `README.md` conflicted. Both session logs are kept. No widget or chat-stream code conflict. STYL-241 text-chat behaviour stays as merged in PR 33.
+
+### Session (merge staging STYL-240 into PR 31 - 6 Nov 2026)
+* **User**: PR 31 was not mergeable after STYL-240 landed on staging (`8ad0f6e`). Merge `origin/staging` into `cursor/styl-239-238-wordpress-auth`. Do not merge the pull request. Never `--no-verify`. Do not reintroduce the historical create-business token or weaken the customer-output guard.
+* **Changes**:
+  - The only conflict was `README.md` session logs. The STYL-240, STYL-241, and STYL-239/238 logs are all kept. The placeholder wording stays. Webhook auth, the NUL-stripping scan, and the requirement that both README paths are scanned are unchanged. The STYL-240 customer-output guard from staging stays.

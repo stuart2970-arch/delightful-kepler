@@ -5,6 +5,7 @@ import { google } from '@ai-sdk/google';
 import twilio from 'twilio';
 import { sendConsolidatedLeadEmail } from '@/lib/lead-notifier';
 import { getActiveGeminiModel } from '@/lib/gemini-config';
+import { CUSTOMER_UNFINISHED_REPLY, sanitiseForTranscript } from '@/lib/chat/customer-output-guard';
 
 export const dynamic = 'force-dynamic';
 
@@ -365,7 +366,9 @@ STRICT SMS FORMATTING RULES:
       });
 
       if (aiResponse) {
-        cleanAiResponse = aiResponse.replace(/[*#`_-]/g, '').trim();
+        // The SMS reply is fully generated before send, so the check adds no delay.
+        const safe = sanitiseForTranscript(aiResponse).trim() || CUSTOMER_UNFINISHED_REPLY;
+        cleanAiResponse = safe.replace(/[*#`_-]/g, '').trim() || CUSTOMER_UNFINISHED_REPLY;
       }
     } catch (llmErr: any) {
       console.error('[Twilio SMS Webhook] Gemini generation error:', llmErr?.message || llmErr);
