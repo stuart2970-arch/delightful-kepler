@@ -1854,11 +1854,12 @@ const CONNECTING_TIMEOUT_MS = 20000;
         // 5. Read stream chunks and update UI
         while (true) {
           const { done, value } = await reader.read();
-          if (done) break;
+          if (done) {
+            rawText += decoder.decode();
+          } else {
+            rawText += decoder.decode(value, { stream: true });
+          }
 
-          const chunk = decoder.decode(value, { stream: true });
-          rawText += chunk;
-          
           let formattedText = stripCalendarTags(rawText)
             .replace(/\[REMAINING_TASKS:[\s\S]*?(?:\]|$)/g, '')
             .replace(/\[BOOKING_OPTIONS:[\s\S]*?(?:\]|$)/g, '')
@@ -1876,6 +1877,7 @@ const CONNECTING_TIMEOUT_MS = 20000;
 
           botResponseContainer.innerHTML = formattedText;
           scrollToBottom();
+          if (done) break;
         }
 
         if (rawText.includes('[ACCOUNT_CREATED_DASHBOARD]') || rawText.includes('created your account') || rawText.includes('set up your AI Receptionist') || rawText.includes('looked at your website')) {
