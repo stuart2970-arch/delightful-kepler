@@ -9,6 +9,7 @@ import {
 } from '../src/lib/billing/process-stripe-webhook';
 import { tenantHasPaidPhoneAddon } from '../src/lib/telephony/provision-safety';
 import { stripeStatusToAddonStatus } from '../src/lib/billing/addon-subscription-status';
+import { createActivateTenantAddon } from './helpers/activate-tenant-addon-fake';
 
 const TENANT = '10000000-0000-0000-0000-000000000002';
 const root = process.cwd();
@@ -32,6 +33,7 @@ function createStripeStore(addons: Row[] = []) {
     tenant_active_addons: addons,
     addon_audit_log: [],
   };
+  const activateTenantAddon = createActivateTenantAddon(tables.tenant_active_addons);
 
   function from(name: string) {
     const filters: Array<[string, string, any]> = [];
@@ -130,7 +132,13 @@ function createStripeStore(addons: Row[] = []) {
 
   return {
     from,
-    rpc: async () => ({ error: null }),
+    rpc: async (name: string, args: any) => {
+      if (name === 'activate_tenant_addon') {
+        const data = await activateTenantAddon(args);
+        return { data, error: null };
+      }
+      return { error: null };
+    },
     addons,
   };
 }

@@ -490,6 +490,9 @@ export default async function DashboardPage(props: { searchParams?: Promise<{ [k
           .from('tenant_active_addons')
           .select(addonEmbed)
           .eq('tenant_id', tenantId);
+        if (fallback.error) {
+          console.warn('[Dashboard] tenant_active_addons fallback read failed:', fallback.error.code || 'unknown');
+        }
         purchaseRows = fallback.data || [];
       }
       const activeAddons = purchaseRows.filter((row: any) => row.is_active);
