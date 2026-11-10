@@ -329,6 +329,23 @@ Use repair only to align **bookkeeping**. Prefer applying new forward migrations
 
 `tenant_active_addons` has a unique constraint on `(tenant_id, addon_catalog_id)` so re-running seed does not duplicate the Acme `google_calendar_addon` row.
 
+## STYL-243 — never run `20261024130000` on production
+
+`supabase/migrations/20261024130000_styl202_addon_unique_and_helpers.sql` step 1 **DELETEs** duplicate `tenant_active_addons` rows, then adds `UNIQUE (tenant_id, addon_catalog_id)`. **Never apply that file to production** (`tkoasyjvrgaglofpzduq`). It would delete live rows. Leave the file in the repo (local and staging already applied it, and `supabase/seed.sql` relies on the full unique constraint). Do not edit it.
+
+`20261109171005_styl242_243_tenant_active_addons_rls_and_unique.sql` supersedes that uniqueness step for production. Apply it to **staging first**. Step 0 refuses to run while two active rows share a bolt-on, and changes nothing. It deactivates (it does not delete) newer duplicates only when that same session has run `SELECT set_config('app.styl243_dedupe','deactivate_newer', false);`. Production currently has one active landline duplicate, so the migration stops there until Stuart chooses. Do not set that opt-in from this repo or from CI.
+
+### Promoting the STYL-202 RLS migrations production is missing
+
+Production's `schema_migrations` has none of the `styl202_*` versions. Staging has all four. On promote, apply the repo files production is missing in timestamp order, **excluding** `20261024130000_styl202_addon_unique_and_helpers.sql`:
+
+1. `20261024120000_styl202_entitlement_tables_rls.sql` — SELECT policies. Safe to apply. The STYL-242 migration drops and recreates the same policy names, so either order leaves the same policies.
+2. `20261024120100_styl202_security_definer_hardening.sql`
+3. `20261024120200_styl202_seed_mode_guc.sql`
+4. `20261109171005_styl242_243_tenant_active_addons_rls_and_unique.sql` — after the duplicate decision. This is the production uniqueness step.
+
+Do not apply `20261024130000_styl202_addon_unique_and_helpers.sql` to production at any point in that list.
+
 ## Empty historical migration
 
 `20260712182829_add_chatbot_to_services_staff.sql` is intentionally empty; the real `chatbot_id` columns are added in `20260712183000_add_chatbot_id_to_services_staff.sql`. Do not edit the empty file (checksum already recorded on staging).

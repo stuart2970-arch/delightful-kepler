@@ -8,6 +8,7 @@ import {
   resolveCheckoutSuccessBanner,
 } from '../../src/lib/billing/bolt-on';
 import { handleStripeBillingEvent } from '../../src/lib/billing/process-stripe-webhook';
+import { createActivateTenantAddon } from '../helpers/activate-tenant-addon-fake';
 
 const TENANT_ID = 'tenant-bolton-1';
 const DATA_PACK_ID = 'data_pack_500';
@@ -143,6 +144,7 @@ function createFakeBillingDb(seed?: {
   const audit: any[] = [];
   const ledger: any[] = [];
   const rpcCalls: Array<{ name: string; args: any }> = [];
+  const activateTenantAddon = createActivateTenantAddon(activeAddons);
 
   const matches = (row: Record<string, any>, filters: Array<[string, any]>) =>
     filters.every(([col, val]) => {
@@ -355,6 +357,10 @@ function createFakeBillingDb(seed?: {
           data: null,
           error: { code: 'PGRST202', message: 'Could not find the function public.grant_one_off_pack' },
         };
+      }
+      if (name === 'activate_tenant_addon') {
+        const data = await activateTenantAddon(args);
+        return { data, error: null };
       }
       return { data: null, error: null };
     },
