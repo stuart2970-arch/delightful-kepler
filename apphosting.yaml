@@ -161,3 +161,13 @@ env:
     secret: STYLEFLO_WP_CREATE_BUSINESS_TOKEN
     availability:
       - RUNTIME
+
+  - variable: META_APP_SECRET
+    secret: META_APP_SECRET
+    availability:
+      - RUNTIME
+
+  - variable: TOKEN_ENC_KEY
+    secret: TOKEN_ENC_KEY
+    availability:
+      - RUNTIME
