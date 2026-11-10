@@ -92,6 +92,28 @@ env:
       - BUILD
       - RUNTIME
 
+  # STYL-254: public Meta Embedded Signup ids (not secrets). BUILD so Next
+  # inlines NEXT_PUBLIC_* into the client bundle. Staging merges
+  # apphosting.staging.yaml on top without overriding these; production
+  # (no environment name) reads this file only.
+  - variable: NEXT_PUBLIC_META_APP_ID
+    value: "1878987246712536"
+    availability:
+      - BUILD
+      - RUNTIME
+
+  - variable: NEXT_PUBLIC_META_ES_CONFIG_ID
+    value: "1585526442975797"
+    availability:
+      - BUILD
+      - RUNTIME
+
+  - variable: NEXT_PUBLIC_META_GRAPH_VERSION
+    value: "v21.0"
+    availability:
+      - BUILD
+      - RUNTIME
+
   # Anon key must be available at BUILD so Next can embed NEXT_PUBLIC_* into
   # prerendered client pages (/login, /register, /onboard). Grant access:
   #   firebase apphosting:secrets:grantaccess NEXT_PUBLIC_SUPABASE_ANON_KEY \
