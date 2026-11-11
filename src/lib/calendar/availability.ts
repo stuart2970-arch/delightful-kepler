@@ -409,6 +409,17 @@ export function getSlotsForDay(slots: CalculatedSlot[], dateStr: string): Calcul
   return slots.filter((s) => s.date === dateStr);
 }
 
+/** Drops the slot the customer just tried, so a refusal is not offered again. */
+export function excludeBookedSlot(slots: CalculatedSlot[], staffId: string, slotStartIso: string, timeLabel: string): CalculatedSlot[] {
+  const target = new Date(slotStartIso).getTime();
+  return slots.filter((slot) => {
+    if (slot.staffId !== staffId) return true;
+    if (timeLabel && slot.time === timeLabel) return false;
+    if (Number.isFinite(target) && new Date(slot.start).getTime() === target) return false;
+    return true;
+  });
+}
+
 /**
  * Formats structured day quick-links tag for widget rendering.
  * [QUICK_DAYS: {"serviceId":"...","staffId":"ANY","days":["2026-10-23", ...]}]

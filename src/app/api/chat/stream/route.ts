@@ -12,6 +12,7 @@ import {
   getAvailabilityData,
   bookMeeting,
   lookupAppointments,
+  bookingResultKind,
   type AvailabilityResult,
 } from './calendar';
 import { calendarFallbackMessage, directAvailabilitySpeech } from '@/lib/calendar/fallback-message';
@@ -26,6 +27,8 @@ import {
   formatQuickServicesTag,
   getSlotsForDay,
   utcToLocalParts,
+  localTimeToUtc,
+  excludeBookedSlot,
   stripCalendarTags,
 } from '@/lib/calendar/availability';
 import { sendConsolidatedLeadEmail } from '@/lib/lead-notifier';
@@ -674,6 +677,51 @@ Help them specify:
       }
     };
 
+    const replyAfterBooking = async (args: {
+      result: string;
+      staffId: string;
+      serviceId: string;
+      slotStart: string;
+      custEmail: string;
+    }): Promise<string> => {
+      const parts = utcToLocalParts(new Date(args.slotStart), timezone);
+      const kind = bookingResultKind(args.result);
+      if (kind === 'booked') {
+        const svc = configuredServices.find((s: any) => s.id === args.serviceId);
+        return formatBookingConfirmation({
+          service: svc ? svc.name : 'appointment',
+          staff: staffNameFor(args.staffId),
+          displayDate: parts.displayDate,
+          time: parts.timeStr,
+          email: args.custEmail,
+        });
+      }
+      if (kind !== 'taken') {
+        return `I couldn't complete that booking just now. Please try again, or leave your phone number and the salon will confirm.`;
+      }
+
+      const [year, month, day] = parts.dateStr.split('-').map(Number);
+      const nextDate = new Date(Date.UTC(year, month - 1, day + 1)).toISOString().slice(0, 10);
+      const dayAvail = await loadAvailability(
+        args.staffId,
+        args.serviceId,
+        localTimeToUtc(parts.dateStr, '00:00', timezone).toISOString(),
+        localTimeToUtc(nextDate, '00:00', timezone).toISOString(),
+      );
+      const directSpeech = directAvailabilitySpeech(dayAvail.outcome, dayAvail.text);
+      const daySlots = excludeBookedSlot(
+        getSlotsForDay(dayAvail.slots, parts.dateStr),
+        args.staffId,
+        args.slotStart,
+        parts.timeStr,
+      );
+      if (directSpeech) return directSpeech;
+      if (daySlots.length === 0) {
+        return `I'm sorry, that ${parts.timeStr} slot was just taken. Please choose another day:\n\n${formatQuickDaysTag(args.serviceId, args.staffId, dayAvail.availableDays)}`;
+      }
+      return `I'm sorry, that ${parts.timeStr} slot was just taken! Here are the remaining available times for ${parts.displayDate}:\n\n${formatQuickTimesTag(parts.dateStr, args.serviceId, daySlots)}\n${formatQuickDaysTag(args.serviceId, args.staffId, dayAvail.availableDays)}`;
+    };
+
     const loadBooking = async (
       staffId: string,
       serviceId: string,
@@ -893,33 +941,19 @@ Help them specify:
       const custEmail = body.clientEmail || body.email || (emailMatch ? emailMatch[0] : '');
       const custPhone = body.clientPhone || body.phone || '';
 
-      if (!custEmail || !custPhone) {
+      if (!custEmail) {
         const replyText = `To confirm your appointment for ${parts.displayDate} at ${parts.timeStr}, please provide your email address and mobile phone number.`;
         return streamDirectResponse(replyText, message || parts.timeStr);
       }
 
-      const bookingResult = await loadBooking(staffId, serviceId, custName, custEmail, custPhone, slotStart, '');
-
-      let replyText = '';
-      if (bookingResult.includes('Error:') || bookingResult.includes('Failed') || bookingResult === calendarFallbackMessage('unreachable', bookingUrl)) {
-        // Race condition or calendar timeout: apologise and re-offer remaining times for that day
-        const dayAvail = await loadAvailability(staffId, serviceId, `${parts.dateStr}T00:00:00`, `${parts.dateStr}T23:59:59`);
-        const directSpeech = directAvailabilitySpeech(dayAvail.outcome, dayAvail.text);
-        const daySlots = getSlotsForDay(dayAvail.slots, parts.dateStr);
-
-        replyText = directSpeech
-          || `I'm sorry, that ${parts.timeStr} slot was just taken! Here are the remaining available times for ${parts.displayDate}:\n\n${formatQuickTimesTag(parts.dateStr, serviceId, daySlots)}\n${formatQuickDaysTag(serviceId, staffId, dayAvail.availableDays)}`;
-      } else {
-        const svc = configuredServices.find((s: any) => s.id === serviceId);
-        const svcName = svc ? svc.name : 'appointment';
-        replyText = formatBookingConfirmation({
-          service: svcName,
-          staff: staffNameFor(staffId),
-          displayDate: parts.displayDate,
-          time: parts.timeStr,
-          email: custEmail,
-        });
-      }
+      const bookingResult = await loadBooking(staffId, serviceId, custName, custEmail, custPhone, slotStart, body.end || '');
+      const replyText = await replyAfterBooking({
+        result: bookingResult,
+        staffId,
+        serviceId,
+        slotStart,
+        custEmail,
+      });
 
       return streamDirectResponse(replyText, message || parts.timeStr);
     }
@@ -1428,33 +1462,17 @@ ${staffContext}`;
             const endStr = bookMatch[7].trim().replace(/['"]/g, '');
             
             const toolResult = await loadBooking(staffId, serviceId, custName, custEmail, custPhone, startStr, endStr);
-            const bookingFailed = !toolResult || toolResult.includes('Error:') || toolResult.includes('Failed')
-              || toolResult === calendarFallbackMessage('unreachable', bookingUrl);
-            console.log(`[Chat Stream][${requestId}] Booking result: ${bookingFailed ? 'failed' : 'ok'}`);
+            const bookingKind = bookingResultKind(toolResult);
+            console.log(`[Chat Stream][${requestId}] Booking result: ${bookingKind}`);
 
-            let bookingReply = '';
-            if (bookingFailed) {
-              const parts = utcToLocalParts(new Date(startStr), timezone);
-              const availData = await loadAvailability(staffId, serviceId, `${parts.dateStr}T00:00:00`, `${parts.dateStr}T23:59:59`);
-              const directSpeech = directAvailabilitySpeech(availData.outcome, availData.text);
-              const daySlots = getSlotsForDay(availData.slots, parts.dateStr);
-
-              bookingReply = directSpeech
-                || `I'm sorry, that time slot was just taken! Here are the remaining available times for ${parts.displayDate}:\n\n${formatQuickTimesTag(parts.dateStr, serviceId, daySlots)}\n${formatQuickDaysTag(serviceId, staffId, availData.availableDays)}`;
-              emit(`\n\n${bookingReply}`);
-            } else {
-              const parts = utcToLocalParts(new Date(startStr), timezone);
-              const svc = configuredServices.find((s: any) => s.id === serviceId);
-              const svcName = svc ? svc.name : 'appointment';
-              bookingReply = formatBookingConfirmation({
-                service: svcName,
-                staff: staffNameFor(staffId),
-                displayDate: parts.displayDate,
-                time: parts.timeStr,
-                email: custEmail,
-              });
-              emit(`\n\n${bookingReply}`);
-            }
+            const bookingReply = await replyAfterBooking({
+              result: toolResult,
+              staffId,
+              serviceId,
+              slotStart: startStr,
+              custEmail,
+            });
+            emit(`\n\n${bookingReply}`);
 
             await storeBotText(bookingReply);
             transcriptSaved = true;
