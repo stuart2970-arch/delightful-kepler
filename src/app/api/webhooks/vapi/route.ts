@@ -73,7 +73,7 @@ export async function POST(request: Request) {
         const unitCost = feature?.unit_cost_estimated || 0;
         const actualCost = unitCost * durationMinutes;
 
-        // Record against voice_minutes. The dashboard balance and 85% alerts
+        // Record against voice_minutes. The dashboard balance and usage alerts
         // read that id. The rate still comes from the vapi_voice_minutes feature.
         const { error: meterError } = await supabaseAdmin.from('usage_ledger').insert({
           tenant_id: tenantId,

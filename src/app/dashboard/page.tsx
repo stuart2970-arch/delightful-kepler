@@ -5,6 +5,7 @@ import { cookies } from 'next/headers';
 import DashboardClient from '@/components/DashboardClient';
 import { redirect } from 'next/navigation';
 import { getTenantChannelFlags, isVoiceConsumptionFeature, sumVoiceConsumption, VOICE_CONSUMPTION_FEATURE_IDS } from '@/lib/entitlements';
+import { usageAlertLevel } from '@/lib/usage-alerts';
 import { applyPublicAddonFilter } from '@/lib/addons/public-catalogue';
 import { buildAccountOwnership } from '@/lib/billing/account-ownership';
 import { knowledgeItemsTotal } from '@/lib/billing/bolt-on';
@@ -576,7 +577,7 @@ export default async function DashboardPage(props: { searchParams?: Promise<{ [k
         sms_remaining: Math.max(0, sumFeature(allocations, 'sms_messages') - sumFeature(consumptions, 'sms_messages')),
       };
 
-      // Compute 85% capacity thresholds
+      // In-app usage alerts: warning at 80%, limit at 100%.
       const thresholds: any[] = [];
       const featureUpgradeMap: Record<string, { category: string; addonId: string; defaultName: string }> = {
         knowledge_data_chunks: { category: 'data_pack', addonId: 'data_pack_500', defaultName: 'Extra Knowledge' },
@@ -607,7 +608,8 @@ export default async function DashboardPage(props: { searchParams?: Promise<{ [k
 
         if (!limit || limit <= 0) continue;
         const percentUsed = Math.round((currentUsage / limit) * 100);
-        if (percentUsed >= 85) {
+        const alertLevel = usageAlertLevel(percentUsed);
+        if (alertLevel !== 'none') {
           const upgrade = featureUpgradeMap[ent.feature_id];
           if (upgrade) {
             const catalogItem: any = catalogMap.get(upgrade.addonId);
@@ -620,6 +622,7 @@ export default async function DashboardPage(props: { searchParams?: Promise<{ [k
               percentUsed,
               currentUsage,
               limit,
+              alertLevel,
               upgradeCategory: upgrade.category,
               upgradeAddonId: upgrade.addonId,
               upgradeAddonName,

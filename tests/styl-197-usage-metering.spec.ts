@@ -10,11 +10,13 @@ import {
   getTenantEffectiveLimit,
   logMeteredUsage,
 } from '../src/lib/entitlements';
+import { usageAlertLevel } from '../src/lib/usage-alerts';
 import {
   decideVoiceMinuteGate,
   INBOUND_MINUTES_EXHAUSTED_MESSAGE,
 } from '../src/lib/telephony/voice-minute-gate';
 import { POST as inboundPost } from '../src/app/api/telephony/inbound/route';
+import { createTestNormalUser, type TestUserSession } from './test-auth-helper';
 
 const root = process.cwd();
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || 'http://127.0.0.1:54321';
@@ -170,6 +172,25 @@ test.describe('STYL-197 usage metering and allowances', () => {
 
     expect(INBOUND_MINUTES_EXHAUSTED_MESSAGE).toMatch(/run out of voice minutes/i);
   });
+
+  test('dashboard usage alerts warn at 80% and mark the limit at 100%', () => {
+    expect(usageAlertLevel(79)).toBe('none');
+    expect(usageAlertLevel(80)).toBe('warning');
+    expect(usageAlertLevel(99)).toBe('warning');
+    expect(usageAlertLevel(100)).toBe('limit');
+    expect(usageAlertLevel(120)).toBe('limit');
+
+    const dashboard = readFileSync(join(root, 'src/app/dashboard/page.tsx'), 'utf8');
+    const banner = readFileSync(join(root, 'src/components/CapacityThresholdBanner.tsx'), 'utf8');
+    const checker = readFileSync(join(root, 'src/lib/entitlements.ts'), 'utf8');
+    for (const src of [dashboard, banner, checker]) {
+      expect(src).not.toMatch(/>= 85/);
+      expect(src).not.toContain('85%');
+    }
+    expect(banner).toContain('You have used all of your allocated');
+    expect(banner).toContain('You have now used');
+    expect(banner).not.toMatch(/mail|sendgrid|resend/i);
+  });
 });
 
 test.describe('STYL-197 database metering', () => {
@@ -227,7 +248,7 @@ test.describe('STYL-197 database metering', () => {
     expect(present).toBeNull();
   });
 
-  test('legacy vapi_voice_minutes consumption reduces the voice balance and can trip the 85% alert', async () => {
+  test('legacy vapi_voice_minutes consumption reduces the voice balance and can trip the 80% warning', async () => {
     const limit = await getTenantEffectiveLimit(GLOBEX, 'voice_minutes');
     expect(typeof limit).toBe('number');
     expect(limit).toBeGreaterThan(0);
@@ -248,7 +269,7 @@ test.describe('STYL-197 database metering', () => {
     const after = await getRolloverBalance(GLOBEX);
     expect(after.voice_minutes_consumed).toBe(before.voice_minutes_consumed + quantity);
 
-    const needed = Math.max(0, Math.ceil((limit as number) * 0.85) - after.voice_minutes_consumed);
+    const needed = Math.max(0, Math.ceil((limit as number) * 0.8) - after.voice_minutes_consumed);
     if (needed > 0) {
       const { error: topUpError } = await admin.from('usage_ledger').insert({
         tenant_id: GLOBEX,
@@ -264,8 +285,9 @@ test.describe('STYL-197 database metering', () => {
     const thresholds = await checkCapacityThresholds(GLOBEX);
     const voice = thresholds.find((row) => row.featureId === 'voice_minutes');
     expect(voice).toBeTruthy();
-    expect(voice!.percentUsed).toBeGreaterThanOrEqual(85);
-    expect(voice!.currentUsage).toBeGreaterThanOrEqual(Math.ceil((limit as number) * 0.85));
+    expect(voice!.percentUsed).toBeGreaterThanOrEqual(80);
+    expect(voice!.alertLevel === 'warning' || voice!.alertLevel === 'limit').toBe(true);
+    expect(voice!.currentUsage).toBeGreaterThanOrEqual(Math.ceil((limit as number) * 0.8));
 
     await admin.from('usage_ledger').delete().eq('sector_tag', marker);
   });
@@ -308,6 +330,77 @@ test.describe('STYL-197 database metering', () => {
 
     await admin.from('usage_ledger').delete().eq('sector_tag', `Vapi Call ID: ${callId}`);
     await admin.from('conversations').delete().eq('user_session_id', callId);
+  });
+});
+
+test.describe('STYL-197 dashboard usage alerts', () => {
+  test.skip(!serviceKey, 'Requires the local Supabase service role key');
+
+  const marker = 'styl-197-dashboard-alert';
+  let admin: SupabaseClient;
+  let session: TestUserSession;
+  let savedVoiceRows: Array<Record<string, unknown>> = [];
+
+  test.beforeAll(async () => {
+    admin = createClient(supabaseUrl, serviceKey, {
+      auth: { persistSession: false, autoRefreshToken: false },
+    });
+    const { data: existing } = await admin
+      .from('usage_ledger')
+      .select('*')
+      .eq('tenant_id', GLOBEX)
+      .in('feature_id', VOICE_IDS);
+    savedVoiceRows = existing || [];
+    if (savedVoiceRows.length > 0) {
+      await admin.from('usage_ledger').delete().eq('tenant_id', GLOBEX).in('feature_id', VOICE_IDS);
+    }
+    session = await createTestNormalUser(GLOBEX);
+  });
+
+  test.afterAll(async () => {
+    if (admin) {
+      await admin.from('usage_ledger').delete().eq('sector_tag', marker);
+      await admin.from('usage_ledger').delete().eq('tenant_id', GLOBEX).in('feature_id', VOICE_IDS);
+      if (savedVoiceRows.length > 0) {
+        await admin.from('usage_ledger').insert(savedVoiceRows.map((row) => {
+          const copy = { ...row };
+          delete copy.id;
+          return copy;
+        }));
+      }
+    }
+    if (session) await session.cleanup();
+  });
+
+  async function setVoiceUsed(quantity: number) {
+    await admin.from('usage_ledger').delete().eq('sector_tag', marker);
+    const { error } = await admin.from('usage_ledger').insert({
+      tenant_id: GLOBEX,
+      feature_id: 'voice_minutes',
+      quantity,
+      usage_type: 'consumption',
+      sector_tag: marker,
+      recorded_at: new Date().toISOString(),
+    });
+    expect(error).toBeNull();
+  }
+
+  test('the dashboard warns at 80% and says the allowance is used up at 100%', async ({ page }) => {
+    await setVoiceUsed(8);
+    await page.goto('/login');
+    await page.locator('input[type="email"]').fill(session.user.email);
+    await page.locator('input[type="password"]').fill('Password123!');
+    await page.locator('form button[type="submit"]').click();
+    await expect(page).toHaveURL(/\/dashboard/, { timeout: 20000 });
+
+    await expect(page.getByText(/You have now used 80% of your allocated/)).toBeVisible();
+    await expect(page.getByText(/You have used all of your allocated/)).toHaveCount(0);
+
+    await setVoiceUsed(10);
+    await page.reload();
+    await expect(page.getByText(/You have used all of your allocated/)).toBeVisible();
+    await expect(page.getByText(/This allowance is used up/)).toBeVisible();
+    await expect(page.getByText(/You have now used 80% of your allocated/)).toHaveCount(0);
   });
 });
 

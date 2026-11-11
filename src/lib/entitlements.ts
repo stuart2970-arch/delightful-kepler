@@ -1,4 +1,8 @@
 import { createClient } from '@supabase/supabase-js';
+import { usageAlertLevel, type UsageAlertLevel } from './usage-alerts';
+
+export { USAGE_ALERT_LIMIT_PERCENT, USAGE_ALERT_WARNING_PERCENT, usageAlertLevel } from './usage-alerts';
+export type { UsageAlertLevel } from './usage-alerts';
 
 // =========================================================================
 // Admin Client
@@ -60,13 +64,14 @@ export type CapacityThreshold = {
   percentUsed: number;
   currentUsage: number;
   limit: number;
+  alertLevel: UsageAlertLevel;
   upgradeCategory: string;
   upgradeAddonId: string;
   upgradeAddonName: string;
   upgradePricePence: number;
 };
 
-/** Feature id the chat allowance checker and 85% warning already read. */
+/** Feature id the chat allowance checker and the dashboard usage alert already read. */
 export const CHAT_MESSAGE_FEATURE_ID = 'message_allowance';
 
 /**
@@ -454,7 +459,7 @@ export async function checkFeatureEntitlement(
 }
 
 // =========================================================================
-// 85% Capacity Threshold Checker
+// Capacity threshold checker (80% warning, 100% limit)
 // Points users to bolt-on upgrades (not percentage-based tier upgrades)
 // =========================================================================
 export async function checkCapacityThresholds(
@@ -519,8 +524,9 @@ export async function checkCapacityThresholds(
     }
 
     const percentUsed = Math.round((currentUsage / limit) * 100);
+    const alertLevel = usageAlertLevel(percentUsed);
 
-    if (percentUsed >= 85) {
+    if (alertLevel !== 'none') {
       const upgradeInfo = FEATURE_TO_UPGRADE_MAP[feature.id] || {
         category: 'data_pack',
         addonId: 'data_pack_500',
@@ -537,6 +543,7 @@ export async function checkCapacityThresholds(
         percentUsed,
         currentUsage,
         limit,
+        alertLevel,
         upgradeCategory: upgradeInfo.category,
         upgradeAddonId: upgradeInfo.addonId,
         upgradeAddonName,
