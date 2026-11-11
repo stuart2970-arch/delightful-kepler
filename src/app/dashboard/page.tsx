@@ -467,6 +467,8 @@ export default async function DashboardPage(props: { searchParams?: Promise<{ [k
           addon_catalog_id,
           is_active,
           activated_at,
+          cancel_at_period_end,
+          cancel_at,
           addon_catalog (
             name,
             category,
@@ -485,15 +487,26 @@ export default async function DashboardPage(props: { searchParams?: Promise<{ [k
 
       let purchaseRows: any[] = withPrice.data || [];
       if (withPrice.error) {
-        console.warn('[Dashboard] Price paid is not available yet:', withPrice.error.message);
+        console.warn('[Dashboard] Price paid or cancel columns are not available yet:', withPrice.error.message);
         const fallback = await queryClient
           .from('tenant_active_addons')
           .select(addonEmbed)
           .eq('tenant_id', tenantId);
+        purchaseRows = fallback.data || [];
         if (fallback.error) {
           console.warn('[Dashboard] tenant_active_addons fallback read failed:', fallback.error.code || 'unknown');
+          const legacyEmbed = addonEmbed
+            .replace('cancel_at_period_end,', '')
+            .replace('cancel_at,', '');
+          const legacy = await queryClient
+            .from('tenant_active_addons')
+            .select(legacyEmbed)
+            .eq('tenant_id', tenantId);
+          if (legacy.error) {
+            console.warn('[Dashboard] tenant_active_addons legacy read failed:', legacy.error.code || 'unknown');
+          }
+          purchaseRows = legacy.data || [];
         }
-        purchaseRows = fallback.data || [];
       }
       const activeAddons = purchaseRows.filter((row: any) => row.is_active);
       billingData.addons = activeAddons.map((a: any) => ({
@@ -503,6 +516,8 @@ export default async function DashboardPage(props: { searchParams?: Promise<{ [k
         category: a.addon_catalog?.category || '',
         monthly_price_pence: a.addon_catalog?.monthly_price_pence || 0,
         price_paid_pence: a.price_paid_pence ?? null,
+        cancel_at_period_end: a.cancel_at_period_end === true,
+        cancel_at: a.cancel_at ?? null,
         included_voice_minutes: a.addon_catalog?.included_voice_minutes || 0,
         included_sms: a.addon_catalog?.included_sms || 0,
         included_messages: a.addon_catalog?.included_messages || 0,
@@ -537,6 +552,8 @@ export default async function DashboardPage(props: { searchParams?: Promise<{ [k
           addon_catalog_id: row.addon_catalog_id,
           is_active: Boolean(row.is_active),
           price_paid_pence: row.price_paid_pence ?? null,
+          cancel_at_period_end: row.cancel_at_period_end === true,
+          cancel_at: row.cancel_at ?? null,
         })) as PurchaseRecord[],
         inclusions: inclusionError ? [] : ((inclusionRows || []) as InclusionRecord[]),
       });

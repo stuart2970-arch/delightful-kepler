@@ -47,3 +47,42 @@ export function addonPastDueStatusFields(): {
 } {
   return { subscription_status: 'past_due' };
 }
+
+export type PendingCancelPair = {
+  cancel_at_period_end: boolean;
+  cancel_at: string | null;
+};
+
+function stripeInstantToIso(value: unknown): string | null {
+  if (value == null || value === '') return null;
+  if (typeof value === 'number' && Number.isFinite(value)) {
+    return new Date(value * 1000).toISOString();
+  }
+  if (typeof value === 'string') {
+    const trimmed = value.trim();
+    if (!trimmed) return null;
+    if (/^\d+(\.\d+)?$/.test(trimmed)) {
+      return new Date(Number(trimmed) * 1000).toISOString();
+    }
+    const parsed = Date.parse(trimmed);
+    if (!Number.isNaN(parsed)) return new Date(parsed).toISOString();
+  }
+  return null;
+}
+
+/**
+ * Stripe cancel_at is Unix seconds. A pending cancel with a null cancel_at
+ * falls back to current_period_end so Billing still has a date.
+ * A subscription that is not pending stores false and null.
+ */
+export function pendingCancelPairFromStripe(
+  object: Record<string, any> | null | undefined,
+): PendingCancelPair {
+  if (object?.cancel_at_period_end !== true) {
+    return { cancel_at_period_end: false, cancel_at: null };
+  }
+  return {
+    cancel_at_period_end: true,
+    cancel_at: stripeInstantToIso(object.cancel_at) ?? stripeInstantToIso(object.current_period_end),
+  };
+}

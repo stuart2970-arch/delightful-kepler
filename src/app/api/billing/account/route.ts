@@ -56,10 +56,19 @@ export async function GET(req: NextRequest) {
       .select('id, name, description, category, monthly_price_pence, is_sliding, is_active, display_order')
       .order('display_order', { ascending: true });
 
-    const { data: purchaseRows } = await supabase
+    const purchaseQuery = await supabase
       .from('tenant_active_addons')
-      .select('addon_catalog_id, is_active, price_paid_pence')
+      .select('addon_catalog_id, is_active, price_paid_pence, cancel_at_period_end, cancel_at')
       .eq('tenant_id', tenantId);
+    let purchaseRows: Array<Record<string, unknown>> | null = purchaseQuery.data;
+    if (purchaseQuery.error) {
+      console.warn('[Billing Account] Cancel columns are not available yet:', purchaseQuery.error.message);
+      const fallback = await supabase
+        .from('tenant_active_addons')
+        .select('addon_catalog_id, is_active, price_paid_pence')
+        .eq('tenant_id', tenantId);
+      purchaseRows = fallback.data;
+    }
 
     const { data: inclusionRows, error: inclusionError } = await supabase
       .from('tenant_addon_inclusions')
