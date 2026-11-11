@@ -4249,3 +4249,15 @@ Highlighted adjustments in the modal:
   - `docs/staging.md` says not to apply `20261024130000` to production and lists the STYL-202 files to promote instead.
 * **SQL**: The brief's activation function and duplicate guard compiled and ran on the local stack, which already has the full unique constraint. No sketch SQL was rewritten to make it compile. The guard lives in a function so the migration and the test call the same body.
 * **Tests**: Local Supabase CLI only, `sk_test_mock`, no live project. `tsc --noEmit` passed. Full Playwright suite: 535 passed. That includes the new race, reactivation, migration-guard, RLS, and Billing "Already included" specs.
+
+## Session Chat History Log
+
+### Session (STYL-256 WhatsApp starter templates rejected by Meta - 11 Nov 2026)
+* **User / Jira**: STYL-256. Meta rejected `missed_call_followup` and `appointment_reminder` (en_GB, UTILITY) on WABA 1955389302102945 with no `rejected_reason`. Investigate, then apply Stuart's approved wording. Branch from `main`. Do not merge or deploy. Do not touch `apphosting.yaml`, migrations, or secrets. Do not run `20261024130000_styl202_addon_unique_and_helpers.sql`. Do not call Meta from CI or tests.
+* **Diagnosis**: The missed-call body ended with "How can we help you today?", which opens a conversation. A missed voice call is not a request to continue on WhatsApp, so that copy reads as marketing rather than utility. `appointment_reminder` is a real utility reminder, but four variables sat in one short sentence and neither template (nor `booking_link`) sent `example.body_text`. The dashboard preview did not match the submitted text and always said "Approved by Meta". No production caller sends `missed_call_followup` yet.
+* **Changes**:
+  - Starter bodies and positional `example.body_text` live in `src/lib/whatsapp-starter-templates.ts`. Onboarding still posts those objects to `POST /{waba-id}/message_templates`.
+  - `buildMissedCallFollowupSendComponents` passes customer name, business name, and call time.
+  - The dashboard preview renders the starter text. A status badge appears only when Meta returns one.
+  - `POST /api/superadmin/whatsapp-templates/resubmit` edits a REJECTED template with `POST /{template-id}` and skips pending or existing templates. Playwright refuses the route before any Graph call. A duplicate name is not created, and templates are not deleted.
+* **Tests**: `tsc --noEmit` passed. Playwright `tests/unit/styl-256-whatsapp-templates.spec.ts`: 10 passed, with a mock `fetch` only. `npm run lint` still reports the repo's existing `no-explicit-any` findings; the new template module, resubmit route, and unit spec are clean. Local Supabase was not started.
