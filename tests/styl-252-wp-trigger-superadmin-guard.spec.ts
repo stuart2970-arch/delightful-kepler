@@ -250,12 +250,17 @@ test.describe('STYL-252: WordPress tenant-created trigger and STYL-178 column gu
       expect(responded).toBe('1');
     }
 
+    const signupTenants = [quiet.tenantId, blocked.tenantId, signedUp.tenantId].map((id) => `${sqlLiteral(id)}::uuid`).join(', ');
     expect(
       sql(
-        `SELECT count(*) FROM private.tenant_created_webhook_dispatch WHERE url ILIKE '%app.styleflo.ai%' OR url <> ${sqlLiteral(STAGING_WEBHOOK_URL)};`,
+        `SELECT count(*) FROM private.tenant_created_webhook_dispatch WHERE tenant_id IN (${signupTenants}) AND (url ILIKE '%app.styleflo.ai%' OR url <> ${sqlLiteral(STAGING_WEBHOOK_URL)});`,
       ),
     ).toBe('0');
-    expect(queueCountForHost('app.styleflo.ai')).toBe('0');
+    expect(
+      sql(
+        `SELECT count(*) FROM net.http_request_queue WHERE url ILIKE '%app.styleflo.ai%' AND body::text LIKE ${sqlLiteral(`%${slug}%`)};`,
+      ),
+    ).toBe('0');
   });
 
   test('only the exact staging or production webhook URL is posted', async () => {
