@@ -1,6 +1,21 @@
 import { test, expect } from '@playwright/test';
 import { createClient } from '@supabase/supabase-js';
+import crypto from 'crypto';
 import { createTestSuperadminUser, createTestUser } from './test-auth-helper';
+
+function base64Url(input: Buffer | string): string {
+  return Buffer.from(input)
+    .toString('base64')
+    .replace(/\+/g, '-')
+    .replace(/\//g, '_')
+    .replace(/=+$/g, '');
+}
+
+function metaSignedRequest(payload: Record<string, unknown>, secret: string): string {
+  const encoded = base64Url(JSON.stringify(payload));
+  const signature = base64Url(crypto.createHmac('sha256', secret).update(encoded).digest());
+  return `${signature}.${encoded}`;
+}
 
 const vapiWebhookHeaders = {
   'x-vapi-secret': process.env.VAPI_WEBHOOK_SECRET || 'test-vapi-webhook-secret',
@@ -162,10 +177,17 @@ test.describe('Vapi, ElevenLabs & Telephony Integrations', () => {
   });
 
   test('Meta Data Deletion compliance callback returns valid tracking URL and confirmation code', async ({ request }) => {
-    const response = await request.post('/api/data-deletion');
+    const secret = (process.env.META_APP_SECRET || '').trim();
+    const signedRequest = metaSignedRequest(
+      { algorithm: 'HMAC-SHA256', user_id: '218471' },
+      secret,
+    );
+    const response = await request.post('/api/data-deletion', {
+      data: { signed_request: signedRequest },
+    });
     expect(response.status()).toBe(200);
     const data = await response.json();
-    expect(data.confirmation_code).toBeTruthy();
+    expect(data.confirmation_code).toContain('218471');
     expect(data.url).toContain('https://styleflo.ai/data-deletion');
   });
 

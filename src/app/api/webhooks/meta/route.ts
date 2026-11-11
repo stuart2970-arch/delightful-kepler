@@ -3,7 +3,6 @@ import { createClient } from '@supabase/supabase-js';
 import { generateText, embed } from 'ai';
 import { google } from '@ai-sdk/google';
 import {
-  DEFAULT_META_VERIFY_TOKEN,
   sendWhatsAppMessage,
   sendWhatsAppTemplateMessage,
   markWhatsAppMessageAsRead,
@@ -43,8 +42,11 @@ export async function GET(request: NextRequest) {
   console.log(`[Meta Webhook Handshake] mode: "${mode}"`);
 
   if (mode === 'subscribe') {
-    // Check against global env or default verify token
-    const expectedToken = process.env.META_VERIFY_TOKEN || DEFAULT_META_VERIFY_TOKEN;
+    const expectedToken = (process.env.META_VERIFY_TOKEN || '').trim();
+    if (!expectedToken) {
+      console.error('[Meta Webhook Handshake] META_VERIFY_TOKEN is unset; rejecting verification');
+      return new NextResponse('Verification token is not configured', { status: 403 });
+    }
 
     if (verifyToken === expectedToken) {
       console.log('[Meta Webhook Handshake] Verification successful!');
