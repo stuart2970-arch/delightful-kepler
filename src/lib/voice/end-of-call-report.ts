@@ -1,9 +1,7 @@
 import { NextResponse } from 'next/server';
 import { createClient, SupabaseClient } from '@supabase/supabase-js';
 import { sendConsolidatedLeadEmail } from '@/lib/lead-notifier';
-import { logMeteredUsage } from '@/lib/entitlements';
-
-const VOICE_FEATURE_ID = 'vapi_voice_minutes';
+import { logMeteredUsage, VOICE_USAGE_FEATURE_ID } from '@/lib/entitlements';
 
 type AdminClient = SupabaseClient;
 
@@ -287,7 +285,7 @@ export async function handleEndOfCallReport(body: unknown): Promise<NextResponse
     }
 
     if (minutes > 0) {
-      await logMeteredUsage(supabase, tenantId, VOICE_FEATURE_ID, minutes, `Vapi call ${callId}`);
+      await logMeteredUsage(supabase, tenantId, VOICE_USAGE_FEATURE_ID, minutes, `Vapi call ${callId}`);
     }
 
     if (targetConvId && targetChatbotId) {

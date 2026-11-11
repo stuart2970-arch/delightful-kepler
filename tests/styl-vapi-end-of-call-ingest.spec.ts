@@ -3,6 +3,7 @@ import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { createClient } from '@supabase/supabase-js';
 import { verifyVapiWebhookSecret } from '../src/lib/env/vapi-webhook-auth';
+import { VOICE_USAGE_FEATURE_ID } from '../src/lib/entitlements';
 
 const root = process.cwd();
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || 'http://127.0.0.1:54321';
@@ -89,7 +90,7 @@ test.describe('Vapi end-of-call reports are stored once and metered', () => {
       .eq('description', `Vapi call ${callId}`);
     expect(logError).toBeNull();
     expect(logs).toHaveLength(1);
-    expect(logs?.[0]?.feature_id).toBe('vapi_voice_minutes');
+    expect(logs?.[0]?.feature_id).toBe(VOICE_USAGE_FEATURE_ID);
     expect(Number(logs?.[0]?.amount)).toBe(2);
 
     const replay = await request.post('/api/webhooks/vapi', {
@@ -145,7 +146,7 @@ test.describe('Vapi end-of-call reports are stored once and metered', () => {
       .from('usage_ledger')
       .select('id', { count: 'exact', head: true })
       .eq('tenant_id', TENANT_ID)
-      .eq('feature_id', 'vapi_voice_minutes')
+      .eq('feature_id', VOICE_USAGE_FEATURE_ID)
       .eq('usage_type', 'consumption');
     expect(beforeError).toBeNull();
 
@@ -177,14 +178,14 @@ test.describe('Vapi end-of-call reports are stored once and metered', () => {
       .eq('description', `Vapi call ${callId}`);
     expect(logError).toBeNull();
     expect(logs).toHaveLength(1);
-    expect(logs?.[0]?.feature_id).toBe('vapi_voice_minutes');
+    expect(logs?.[0]?.feature_id).toBe(VOICE_USAGE_FEATURE_ID);
     expect(Number(logs?.[0]?.amount)).toBe(1);
 
     const { count: ledgerAfter, error: afterError } = await admin
       .from('usage_ledger')
       .select('id', { count: 'exact', head: true })
       .eq('tenant_id', TENANT_ID)
-      .eq('feature_id', 'vapi_voice_minutes')
+      .eq('feature_id', VOICE_USAGE_FEATURE_ID)
       .eq('usage_type', 'consumption');
     expect(afterError).toBeNull();
     expect((ledgerAfter ?? 0) - (ledgerBefore ?? 0)).toBe(1);
