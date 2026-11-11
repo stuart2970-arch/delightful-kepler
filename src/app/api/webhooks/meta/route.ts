@@ -11,6 +11,7 @@ import {
   validateMetaSignature,
 } from '@/lib/meta';
 import { decryptToken } from '@/lib/crypto';
+import { secretsEqual } from '@/lib/security/secrets-equal';
 
 export const dynamic = 'force-dynamic';
 
@@ -48,7 +49,7 @@ export async function GET(request: NextRequest) {
       return new NextResponse('Verification token is not configured', { status: 403 });
     }
 
-    if (verifyToken === expectedToken) {
+    if (secretsEqual(verifyToken || '', expectedToken)) {
       console.log('[Meta Webhook Handshake] Verification successful!');
       return new NextResponse(challenge || 'challenge_accepted', {
         status: 200,

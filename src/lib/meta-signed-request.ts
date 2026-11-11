@@ -32,7 +32,7 @@ export function verifyMetaSignedRequest(
     return {
       ok: false,
       status: 401,
-      error: 'META_APP_SECRET is missing or whitespace-only',
+      error: 'Unauthorized',
     };
   }
 
@@ -70,7 +70,8 @@ export function verifyMetaSignedRequest(
   }
 
   const record = payload as { algorithm?: unknown; user_id?: unknown };
-  if (record.algorithm !== 'HMAC-SHA256') {
+  const algorithm = typeof record.algorithm === 'string' ? record.algorithm.trim().toUpperCase() : '';
+  if (algorithm !== 'HMAC-SHA256') {
     return { ok: false, status: 400, error: 'Malformed signed_request' };
   }
 

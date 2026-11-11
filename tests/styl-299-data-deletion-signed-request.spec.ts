@@ -1,5 +1,7 @@
 import { test, expect } from '@playwright/test';
 import crypto from 'crypto';
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
 import { NextRequest } from 'next/server';
 import { POST as dataDeletion } from '../src/app/api/data-deletion/route';
 import { GET as metaHandshake } from '../src/app/api/webhooks/meta/route';
@@ -71,6 +73,23 @@ test.describe('STYL-299: Meta data-deletion signed_request', () => {
     expect(data.url).toBeUndefined();
   });
 
+  test('a wrong algorithm is rejected even when the signature matches', async () => {
+    const signed = signPayload({ algorithm: 'HMAC-SHA1', user_id: '218471' }, SECRET);
+    const res = await withEnv('META_APP_SECRET', SECRET, () => postDeletion(signed));
+    expect(res.status).toBe(400);
+    const data = await res.json();
+    expect(data.confirmation_code).toBeUndefined();
+    expect(data.url).toBeUndefined();
+  });
+
+  test('algorithm comparison accepts HMAC-SHA256 regardless of case', async () => {
+    const signed = signPayload({ algorithm: 'hmac-sha256', user_id: '218471' }, SECRET);
+    const res = await withEnv('META_APP_SECRET', SECRET, () => postDeletion(signed));
+    expect(res.status).toBe(200);
+    const data = await res.json();
+    expect(data.confirmation_code).toContain('218471');
+  });
+
   test('a malformed signed_request is rejected and returns no confirmation', async () => {
     const res = await withEnv('META_APP_SECRET', SECRET, () => postDeletion('not-a-signed-request'));
     expect(res.status).toBe(400);
@@ -89,10 +108,11 @@ test.describe('STYL-299: Meta data-deletion signed_request', () => {
       };
       try {
         const res = await withEnv('META_APP_SECRET', secret, () => postDeletion(signed));
-        expect([400, 401]).toContain(res.status);
+        expect(res.status).toBe(401);
         const data = await res.json();
         expect(data.confirmation_code).toBeUndefined();
         expect(data.url).toBeUndefined();
+        expect(JSON.stringify(data)).not.toMatch(/META_APP_SECRET/i);
         expect(errors.some((line) => /META_APP_SECRET/i.test(line))).toBe(true);
       } finally {
         console.error = originalError;
@@ -102,6 +122,19 @@ test.describe('STYL-299: Meta data-deletion signed_request', () => {
 });
 
 test.describe('STYL-300: Meta verify handshake requires META_VERIFY_TOKEN', () => {
+  test('the handshake compares the token in constant time and application code has no built-in fallback', () => {
+    const root = process.cwd();
+    const route = readFileSync(join(root, 'src/app/api/webhooks/meta/route.ts'), 'utf8');
+    const meta = readFileSync(join(root, 'src/lib/meta.ts'), 'utf8');
+    const settings = readFileSync(join(root, 'src/app/api/integrations/meta/settings/route.ts'), 'utf8');
+    expect(route).toContain('secretsEqual');
+    expect(route).not.toContain('verifyToken === expectedToken');
+    expect(meta).not.toContain('DEFAULT_META_VERIFY_TOKEN');
+    expect(meta).not.toContain('styleflo_meta_verify_2026');
+    expect(settings).not.toContain('DEFAULT_META_VERIFY_TOKEN');
+    expect(settings).not.toContain('styleflo_meta_verify_2026');
+  });
+
   test('an unset or blank META_VERIFY_TOKEN does not accept the built-in token', async () => {
     const challenge = 'challenge_should_not_echo';
     for (const value of [undefined, '', '   ']) {
