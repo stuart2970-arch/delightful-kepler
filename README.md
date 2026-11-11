@@ -4362,3 +4362,13 @@ Highlighted adjustments in the modal:
 ### Session (STYL-289 OpenClaw - meta tenant target - 13 Nov 2026)
 * **User**: OpenClaw review on the rebased head. Fix genuine bugs. Ignore style nits.
 * **Changes**: Meta settings PATCH writes the session tenant, or the named tenant when the caller is a superadmin. A chatbot from another salon is 403 for every role. WhatsApp settings sends a refreshed dashboard access token.
+### Session (STYL-290 OAuth callback state - 11 Nov 2026)
+* **User**: Stop calendar OAuth callbacks accepting `mock_` codes and a legacy `state=tenantId` on production. Require a signed state bound to the initiating user and tenant.
+* **Changes**:
+  - Google and Microsoft authorize routes put a signed, expiring state on the provider redirect. Callbacks require the signed-in user to match that state. Unsigned base64 and a plain tenant id are rejected. `mock_` codes run only when `ALLOW_MOCK_OAUTH_CODES` is true or 1 and the app is not production. That flag is unset here and is not in App Hosting config.
+  - Connect links stay normal navigations, so the browser sends the session cookie. Bearer still works for the same routes.
+  - Playwright `tests/styl-290-oauth-callback-auth.spec.ts` and `styl-226-app-origin`: 14 passed. Local Supabase CLI and mock keys only. The colleague mock callback now expects 401.
+
+### Session (STYL-290 review - roles, live project, rebase - 13 Nov 2026)
+* **User**: Product Owner review. Rebase onto current `origin/staging`. Refuse `mock_` codes when the Supabase URL is the live project. Salon calendar connect is owner or admin. A staff connect is also allowed when `staff.user_id` is the signed-in user, checked again on the callback. Keep the Google account email lookup inside the signed-state flow and delete the legacy tenant id branch. The mock id token stays behind the mock check. Remove the hard-coded chat-session salt. Never `--no-verify`. Force-with-lease only.
+* **Tests**: The OAuth spec covers the live URL, the member role, and the signing secret. The pre-push hook runs `tsc --noEmit` and the full Playwright suite.
