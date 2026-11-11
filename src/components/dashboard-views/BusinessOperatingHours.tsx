@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useDashboardStore, BusinessWeeklySchedule, BusinessDailySchedule } from '../../lib/store';
 import { getMondayDate, formatMondayTabLabel, formatMondayFull, generateRollingSchedule, addDaysToDate } from '../../lib/dateUtils';
+import { browserAuthHeaders } from '@/lib/auth/client-auth-headers';
 
 export default function BusinessOperatingHours() {
   const { tenantId, maxAdvanceWeeks, generalOperatingHours, setGeneralOperatingHours, operatingHoursOverrides, setOperatingHoursOverrides, holidaySettings, setHolidaySettings } = useDashboardStore();
@@ -60,7 +61,7 @@ export default function BusinessOperatingHours() {
     try {
       const res = await fetch('/api/tenants/settings', {
         method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
+        headers: await browserAuthHeaders({ 'Content-Type': 'application/json' }),
         body: JSON.stringify({ 
           tenantId, 
           general_operating_hours: localGeneral,

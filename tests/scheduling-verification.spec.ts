@@ -1,10 +1,14 @@
 import { test, expect } from '@playwright/test';
+import { createTestUser } from './test-auth-helper';
 
 test.describe('Scheduling & Staff Section Verification', () => {
   const testTenantId = '10000000-0000-0000-0000-000000000001';
 
   test('Tenant Settings API handles calendar policies save without error', async ({ request }) => {
+    const owner = await createTestUser({ tenantId: testTenantId, role: 'owner' });
+    try {
     const response = await request.patch('/api/tenants/settings', {
+      headers: { Authorization: `Bearer ${owner.token}` },
       data: {
         tenantId: testTenantId,
         bookingMode: 'single_calendar',
@@ -28,6 +32,10 @@ test.describe('Scheduling & Staff Section Verification', () => {
     expect(response.status()).toBe(200);
     const body = await response.json();
     expect(body.success).toBeTruthy();
+    expect(body.tenant.id).toBe(testTenantId);
+    } finally {
+      await owner.cleanup();
+    }
   });
 
   test('Google Calendar Integration status endpoint returns status structure', async ({ request }) => {

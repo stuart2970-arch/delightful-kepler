@@ -1,9 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
-import { openingHoursForSave } from '@/lib/opening-hours';
+import { requireTenantRole } from '@/lib/auth/require-tenant-role';
+import { openingHoursForSave, stampStaffHoursAcceptance } from '@/lib/opening-hours';
 
 export async function PATCH(req: NextRequest) {
   try {
+    const auth = await requireTenantRole(req, ['owner', 'admin']);
+    if (!auth.ok) return auth.response;
+
     const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.SUPABASE_URL;
     const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
     
@@ -15,8 +19,11 @@ export async function PATCH(req: NextRequest) {
     const supabase = createClient(supabaseUrl, supabaseKey);
 
     const body = await req.json();
-    let { 
-      tenantId, 
+    // Membership decides the row. requireTenantRole rejects a body tenantId
+    // that is not this user's tenant (superadmins may name one). Never pick
+    // the first tenant when the body omits an id.
+    const tenantId = auth.tenantId;
+    const { 
       domain,
       business_address,
       postcode,
@@ -45,21 +52,19 @@ export async function PATCH(req: NextRequest) {
       rwg_address_same_as_trading, rwgAddressSameAsTrading
     } = body;
 
-    // Auto-resolve tenantId if missing or uninitialized
-    if (!tenantId || tenantId === '00000000-0000-0000-0000-000000000000') {
-      const { data: firstTenant } = await supabase.from('tenants').select('id').limit(1).maybeSingle();
-      if (firstTenant?.id) {
-        tenantId = firstTenant.id;
-      }
-    }
-
     if (!tenantId) {
-      return NextResponse.json({ error: 'tenantId is required' }, { status: 400 });
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
 
     if (general_operating_hours !== undefined) {
       general_operating_hours = openingHoursForSave(general_operating_hours);
     }
+
+    // Acceptance identity comes from the session and the server clock.
+    // A browser-supplied email or timestamp is never stored.
+    const stampedHolidaySettings = holiday_settings === undefined
+      ? undefined
+      : stampStaffHoursAcceptance(holiday_settings, auth.email, new Date().toISOString());
 
     // Tier 1: Core Base Fields (Guaranteed in all Supabase schemas)
     const baselineUpdate: Record<string, any> = {
@@ -85,7 +90,7 @@ export async function PATCH(req: NextRequest) {
     // Tier 2: Advanced Policy Fields (May be missing in unmigrated schemas)
     const advancedPolicyUpdate: Record<string, any> = {
       ...(operating_hours_overrides !== undefined && { operating_hours_overrides }),
-      ...(holiday_settings !== undefined && { holiday_settings }),
+      ...(stampedHolidaySettings !== undefined && { holiday_settings: stampedHolidaySettings }),
       ...((flexible_breaks !== undefined || flexibleBreaks !== undefined) && { flexible_breaks: flexible_breaks ?? flexibleBreaks }),
       ...((is_24_7 !== undefined || is247 !== undefined) && { is_24_7: is_24_7 ?? is247 }),
       ...((open_public_holidays !== undefined || openPublicHolidays !== undefined) && { open_public_holidays: open_public_holidays ?? openPublicHolidays }),

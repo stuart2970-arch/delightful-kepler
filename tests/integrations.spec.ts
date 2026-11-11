@@ -1,8 +1,28 @@
 import { test, expect } from '@playwright/test';
+import { createClient } from '@supabase/supabase-js';
+import { createTestUser } from './test-auth-helper';
 
 const vapiWebhookHeaders = {
   'x-vapi-secret': process.env.VAPI_WEBHOOK_SECRET || 'test-vapi-webhook-secret',
 };
+
+async function ownerOfTelephonyTenant(tenantId: string) {
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.SUPABASE_URL;
+  const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  if (!supabaseUrl || !serviceRoleKey) {
+    throw new Error('Local Supabase env is missing');
+  }
+  const admin = createClient(supabaseUrl, serviceRoleKey, {
+    auth: { persistSession: false, autoRefreshToken: false },
+  });
+  const { error } = await admin.from('tenants').upsert({
+    id: tenantId,
+    tenant_id: tenantId,
+    company_name: 'Playwright Telephony Tenant',
+  }, { onConflict: 'id' });
+  if (error) throw new Error(error.message);
+  return createTestUser({ tenantId, role: 'owner' });
+}
 
 test.describe('Vapi, ElevenLabs & Telephony Integrations', () => {
   const testChatbotId = 'e0000000-0000-0000-0000-000000000001'; // Acme Support Bot (seeded locally)
@@ -122,9 +142,14 @@ test.describe('Vapi, ElevenLabs & Telephony Integrations', () => {
     const testTenantId = '7b0f485d-49b8-416e-8c6f-1effea14a57b';
     const testLandline = '+441619460000';
     const testMobile = '+447446900875';
+    const owner = await ownerOfTelephonyTenant(testTenantId);
 
+    try {
     // 1. Update tenant settings with dedicated phone numbers
     const patchRes = await request.patch('/api/tenants/settings', {
+      headers: {
+        Authorization: `Bearer ${owner.token}`,
+      },
       data: {
         tenantId: testTenantId,
         twilioShadowNumber: testLandline,
@@ -162,6 +187,9 @@ test.describe('Vapi, ElevenLabs & Telephony Integrations', () => {
     expect(inboundMobileRes.status()).toBe(200);
     const twimlMobileText = await inboundMobileRes.text();
     expect(twimlMobileText).not.toContain('Sorry, this number is not configured correctly');
+    } finally {
+      await owner.cleanup();
+    }
   });
 
   test('Inbound Vapi voice call webhook resolves assistant and provides valid trailing-slash custom LLM endpoint for both landline and mobile numbers', async ({ request }) => {
@@ -170,7 +198,12 @@ test.describe('Vapi, ElevenLabs & Telephony Integrations', () => {
     const mobileNumber = '+447446900875';
 
     // 1. Ensure tenant has both landline and mobile numbers mapped in DB
+    const owner = await ownerOfTelephonyTenant(testTenantId);
+    try {
     await request.patch('/api/tenants/settings', {
+      headers: {
+        Authorization: `Bearer ${owner.token}`,
+      },
       data: {
         tenantId: testTenantId,
         twilioShadowNumber: landlineNumber,
@@ -233,6 +266,9 @@ test.describe('Vapi, ElevenLabs & Telephony Integrations', () => {
 
     expect(completionRes.status()).toBe(200);
     expect(completionRes.headers()['content-type']).toContain('text/event-stream');
+    } finally {
+      await owner.cleanup();
+    }
   });
 });
 

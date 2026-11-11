@@ -154,6 +154,37 @@ export function recordStaffHoursAcceptance(
   };
 }
 
+/**
+ * Server-side stamp. The signed-in email and server time replace anything
+ * the browser put in the accepted-by and accepted-at fields.
+ */
+export function stampStaffHoursAcceptance(
+  settings: unknown,
+  acceptedBy: string | null,
+  nowIso: string,
+): Record<string, unknown> {
+  const base = isRecord(settings) ? { ...settings } : {};
+  delete base.staff_hours_outside_opening_accepted_at;
+  delete base.staff_hours_outside_opening_accepted_by;
+  if (base.staff_hours_outside_opening_accepted === true) {
+    return {
+      ...base,
+      staff_hours_outside_opening_accepted: true,
+      staff_hours_outside_opening_accepted_at: nowIso,
+      staff_hours_outside_opening_accepted_by: acceptedBy,
+    };
+  }
+  if (base.staff_hours_outside_opening_accepted === false) {
+    return {
+      ...base,
+      staff_hours_outside_opening_accepted: false,
+      staff_hours_outside_opening_accepted_at: null,
+      staff_hours_outside_opening_accepted_by: null,
+    };
+  }
+  return base;
+}
+
 /** Clip a staff shift to the salon's opening window. Null when the day is closed or the overlap is empty. */
 export function clipShiftToOpening(shift: ShiftWindow, day: Pick<DayHours, 'closed' | 'open' | 'close'>): ShiftWindow | null {
   if (day.closed) return null;
