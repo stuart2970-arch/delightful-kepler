@@ -4261,8 +4261,6 @@ Highlighted adjustments in the modal:
 * **Approach**: Merged `main` so `apphosting.yaml` matches production. Firebase App Hosting merges `apphosting.staging.yaml` over the base file by variable name and keeps base entries the environment file does not replace, including `secret:` bindings. There is no unset key, and `value: ""` is rejected. Staging therefore replaces the three production-only secrets and the production WordPress URL with plain values: three spaces for the secrets (routes that trim treat that as unset) and `https://wordpress.invalid` for the site URL. `TOKEN_ENC_KEY` stays the existing staging Secret Manager name. `NEXT_PUBLIC_META_*` ids are not overridden.
 * **Tests**: Local Supabase CLI and mock keys only. `tsc --noEmit` passed with `NODE_OPTIONS=--max-old-space-size=8192`. Playwright: STYL-203 App Hosting guards, STYL-203 core secrets, STYL-226 apphosting secrets, STYL-226 WordPress disabled on staging, STYL-239 tenant-created auth, and the production `VAPI_WEBHOOK_SECRET` binding — 31 passed. `npm run check:apphosting-yaml` and `npm run check:staging-no-live-ref` passed. Pre-push then ran `tsc --noEmit` and the full Playwright suite: 536 passed.
 
-## Session Chat History Log
-
 ### Session (STYL-256 WhatsApp starter templates rejected by Meta - 11 Nov 2026)
 * **User / Jira**: STYL-256. Meta rejected `missed_call_followup` and `appointment_reminder` (en_GB, UTILITY) on WABA 1955389302102945 with no `rejected_reason`. Investigate, then apply Stuart's approved wording. Branch from `main`. Do not merge or deploy. Do not touch `apphosting.yaml`, migrations, or secrets. Do not run `20261024130000_styl202_addon_unique_and_helpers.sql`. Do not call Meta from CI or tests.
 * **Diagnosis**: The missed-call body ended with "How can we help you today?", which opens a conversation. A missed voice call is not a request to continue on WhatsApp, so that copy reads as marketing rather than utility. `appointment_reminder` is a real utility reminder, but four variables sat in one short sentence and neither template (nor `booking_link`) sent `example.body_text`. The dashboard preview did not match the submitted text and always said "Approved by Meta". No production caller sends `missed_call_followup` yet.
@@ -4339,3 +4337,9 @@ Highlighted adjustments in the modal:
 * **Changes**: `mergeHolidaySettings` keeps a stored acceptance when a hours save sends only `behavior`. Business hours keeps those fields in the dashboard store. Twilio non-null writes are 403. Amount and price are left for the Stripe webhook.
 * **Tests**: The settings spec covers the kept acceptance, a refused phone number, and an unchanged top-up price. The pre-push hook runs `tsc --noEmit` and the full Playwright suite.
 * **Follow-up**: `browserAuthHeaders` now calls `getDashboardAuthHeaders`, so settings saves use a fresh access token. Integrations crawl still uses `dashboardFetch`.
+### Session (STYL-288 conversations auth - 11 Nov 2026)
+* **User**: Close the unauthenticated `GET /api/conversations` hole. The route returned any salon's transcripts, including customer phone numbers. Require a signed-in member and scope the query to that tenant. Keep the select compatible with the separate preview-session filter.
+* **Changes**:
+  - The route uses `requireTenantRole` for owner, admin, and member. A query `tenantId` for another salon is 403. Results use the session tenant.
+  - The inbox list and the sync button send the dashboard Bearer session header.
+  - Playwright `tests/styl-288-conversations-auth.spec.ts`: 3 passed. Local Supabase CLI and mock keys only.

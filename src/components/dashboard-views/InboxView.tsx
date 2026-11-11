@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useDashboardStore, Message } from '../../lib/store';
 import { createBrowserClient } from '@supabase/ssr';
+import { browserAuthHeaders } from '@/lib/auth/client-auth-headers';
 
 export type ChannelFilterOption = 'all' | 'chat' | 'sms' | 'web_voice' | 'instagram' | 'whatsapp';
 
@@ -84,7 +85,9 @@ export default function InboxView() {
 
     const syncConvs = async () => {
       try {
-        const res = await fetch(`/api/conversations?tenantId=${encodeURIComponent(tenantId)}`);
+        const res = await fetch(`/api/conversations?tenantId=${encodeURIComponent(tenantId)}`, {
+          headers: await browserAuthHeaders(),
+        });
         if (res.ok) {
           const data = await res.json();
           if (data.conversations && Array.isArray(data.conversations)) {
@@ -210,7 +213,9 @@ export default function InboxView() {
                     onClick={async () => {
                       if (!tenantId) return;
                       try {
-                        const res = await fetch(`/api/conversations?tenantId=${encodeURIComponent(tenantId)}`);
+                        const res = await fetch(`/api/conversations?tenantId=${encodeURIComponent(tenantId)}`, {
+                          headers: await browserAuthHeaders(),
+                        });
                         if (res.ok) {
                           const data = await res.json();
                           if (data.conversations && Array.isArray(data.conversations)) {
