@@ -45,10 +45,13 @@ export function validateMetaSignature(
   signatureHeader: string | null,
   appSecret?: string
 ): boolean {
-  const secret = appSecret || process.env.META_APP_SECRET;
+  const rawSecret = appSecret !== undefined ? appSecret : process.env.META_APP_SECRET;
+  const secret = (rawSecret ?? '').trim();
   if (!secret) {
-    // If no secret configured, proceed (helpful during initial dev/testing)
-    return true;
+    console.error(
+      '[Meta Webhook] META_APP_SECRET is missing or whitespace-only; rejecting webhook'
+    );
+    return false;
   }
   if (!signatureHeader) {
     return false;
