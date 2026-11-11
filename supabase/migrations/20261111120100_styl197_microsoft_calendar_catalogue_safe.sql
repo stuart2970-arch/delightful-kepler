@@ -12,14 +12,30 @@
 -- It does not replace sync_tenant_channel_flags (hardened by 20261024120100)
 -- and does not touch 20261024120200, 20261024130000, or the WordPress trigger.
 
--- 1. Keep remove_branding in the bolt-on category check (match the live list).
-ALTER TABLE public.addon_catalog
-    DROP CONSTRAINT IF EXISTS addon_catalog_category_check;
-
+-- 1. Keep remove_branding in the bolt-on category check.
+--    If a category check already lists remove_branding, leave that constraint
+--    alone. Only drop and rebuild when remove_branding is missing.
 DO $$
 DECLARE
     constraint_name text;
 BEGIN
+    IF EXISTS (
+        SELECT 1
+        FROM pg_constraint con
+        JOIN pg_class rel ON rel.oid = con.conrelid
+        JOIN pg_namespace nsp ON nsp.oid = rel.relnamespace
+        WHERE nsp.nspname = 'public'
+          AND rel.relname = 'addon_catalog'
+          AND con.contype = 'c'
+          AND pg_get_constraintdef(con.oid) ILIKE '%category%'
+          AND pg_get_constraintdef(con.oid) ILIKE '%remove_branding%'
+    ) THEN
+        RETURN;
+    END IF;
+
+    ALTER TABLE public.addon_catalog
+        DROP CONSTRAINT IF EXISTS addon_catalog_category_check;
+
     FOR constraint_name IN
         SELECT con.conname
         FROM pg_constraint con
@@ -32,13 +48,13 @@ BEGIN
     LOOP
         EXECUTE format('ALTER TABLE public.addon_catalog DROP CONSTRAINT %I', constraint_name);
     END LOOP;
-END $$;
 
-ALTER TABLE public.addon_catalog
-    ADD CONSTRAINT addon_catalog_category_check CHECK (category IN (
-        'landline', 'mobile', 'whatsapp', 'voice_pack', 'sms_pack', 'data_pack',
-        'google_calendar', 'microsoft_calendar', 'remove_branding'
-    ));
+    ALTER TABLE public.addon_catalog
+        ADD CONSTRAINT addon_catalog_category_check CHECK (category IN (
+            'landline', 'mobile', 'whatsapp', 'voice_pack', 'sms_pack', 'data_pack',
+            'google_calendar', 'microsoft_calendar', 'remove_branding'
+        ));
+END $$;
 
 -- 2. Catalogue row. Insert only when missing. Do not overwrite a curated row.
 INSERT INTO public.addon_catalog (

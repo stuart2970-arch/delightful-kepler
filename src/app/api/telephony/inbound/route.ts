@@ -2,13 +2,23 @@ import { NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import twilio from 'twilio';
 import { evaluateVoiceGate, getVapiMasterAssistantId } from '@/lib/env/vapi-config';
+import { loadRolloverBalance } from '@/lib/entitlements';
 import {
   catalogLimitFromRow,
   decideVoiceMinuteGate,
   INBOUND_MINUTES_EXHAUSTED_MESSAGE,
+  type CatalogLimit,
 } from '@/lib/telephony/voice-minute-gate';
 
 export const dynamic = 'force-dynamic';
+
+export type InboundMinuteSources = {
+  loadBalance: (tenantId: string) => Promise<{ allocated: number; consumed: number; error: string | null }>;
+  loadCatalog: (planTier: string) => Promise<{
+    row: { limit_value: number | null } | null;
+    error: { message: string } | null;
+  }>;
+};
 
 function getSupabaseAdmin() {
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
@@ -20,8 +30,32 @@ function getSupabaseAdmin() {
 }
 
 export async function POST(request: Request) {
+  return handleInboundPost(request);
+}
+
+export async function handleInboundPost(request: Request, sources?: Partial<InboundMinuteSources>) {
   try {
     const supabase = getSupabaseAdmin();
+    const minuteSources: InboundMinuteSources = {
+      loadBalance: async (tenantId) => {
+        const result = await loadRolloverBalance(tenantId, supabase);
+        return {
+          allocated: result.balance.voice_minutes_allocated,
+          consumed: result.balance.voice_minutes_consumed,
+          error: result.error,
+        };
+      },
+      loadCatalog: async (planTier) => {
+        const { data, error } = await supabase
+          .from('tier_entitlements')
+          .select('limit_value')
+          .eq('tier_id', planTier)
+          .eq('feature_id', 'voice_minutes')
+          .maybeSingle();
+        return { row: data, error };
+      },
+      ...sources,
+    };
     const formData = await request.formData();
     const to = formData.get('To') as string;
     
@@ -52,9 +86,9 @@ export async function POST(request: Request) {
       });
     }
 
-    // 2. Voice minutes. No entitlement or usage row falls back to the plan
-    // catalogue and does not block. At or over a known allowance, the Terms
-    // message is played and the block is logged.
+    // 2. Voice minutes use the same rolling balance as the dashboard.
+    // No allocation in that window falls back to the plan catalogue.
+    // A failed read does not block the call.
     const { data: tenantData } = await supabase
       .from('tenants')
       .select('plan_tier')
@@ -63,29 +97,22 @@ export async function POST(request: Request) {
 
     const planTier = tenantData?.plan_tier || 'foundation';
 
-    const { data: voiceUsage, error: usageError } = await supabase
-      .from('usage_ledger')
-      .select('quantity, usage_type')
-      .eq('tenant_id', tenant.id)
-      .in('feature_id', ['voice_minutes', 'vapi_voice_minutes', 'voice_agent_minutes_web']);
+    const balanceRead = await minuteSources.loadBalance(tenant.id);
+    const entitlementRead = await minuteSources.loadCatalog(planTier);
+    const entitlementError = entitlementRead.error;
+    const entitlement = entitlementRead.row;
 
-    const { data: entitlement, error: entitlementError } = await supabase
-      .from('tier_entitlements')
-      .select('limit_value')
-      .eq('tier_id', planTier)
-      .eq('feature_id', 'voice_minutes')
-      .maybeSingle();
-
-    if (usageError) {
-      console.error(`[Telephony Inbound] usage_ledger read failed for tenant ${tenant.id}; allowing the call.`, usageError.message);
+    if (balanceRead.error) {
+      console.error(`[Telephony Inbound] usage_ledger read failed for tenant ${tenant.id}; allowing the call.`, balanceRead.error);
     }
     if (entitlementError) {
       console.error(`[Telephony Inbound] voice allowance read failed for tenant ${tenant.id}; allowing the call.`, entitlementError.message);
     }
 
+    const catalogLimit: CatalogLimit = catalogLimitFromRow(entitlement ?? null, Boolean(entitlementError));
     const minuteGate = decideVoiceMinuteGate({
-      usageRows: usageError ? null : (voiceUsage || []),
-      catalogLimit: catalogLimitFromRow(entitlement ?? null, Boolean(entitlementError)),
+      balance: balanceRead.error ? null : { allocated: balanceRead.allocated, consumed: balanceRead.consumed },
+      catalogLimit,
     });
 
     const VoiceResponse = twilio.twiml.VoiceResponse;

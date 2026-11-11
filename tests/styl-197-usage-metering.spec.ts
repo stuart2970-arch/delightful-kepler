@@ -1,4 +1,5 @@
 import { test, expect } from '@playwright/test';
+import { execFileSync } from 'node:child_process';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
@@ -15,7 +16,7 @@ import {
   decideVoiceMinuteGate,
   INBOUND_MINUTES_EXHAUSTED_MESSAGE,
 } from '../src/lib/telephony/voice-minute-gate';
-import { POST as inboundPost } from '../src/app/api/telephony/inbound/route';
+import { POST as inboundPost, handleInboundPost, type InboundMinuteSources } from '../src/app/api/telephony/inbound/route';
 import { createTestNormalUser, type TestUserSession } from './test-auth-helper';
 
 const root = process.cwd();
@@ -118,6 +119,8 @@ test.describe('STYL-197 usage metering and allowances', () => {
     expect(calendar).toContain('ON CONFLICT (id) DO NOTHING');
     expect(calendar).toContain('ON CONFLICT (tier_id, feature_id) DO NOTHING');
     expect(calendar).toContain('information_schema.columns');
+    expect(calendarSql).toMatch(/ILIKE '%remove_branding%'/);
+    expect(calendarSql).not.toMatch(/^ALTER TABLE public\.addon_catalog\s+DROP CONSTRAINT/m);
     expect(calendarSql).not.toContain('DO UPDATE');
     expect(calendarSql).not.toContain('sync_tenant_channel_flags');
     expect(calendarSql).not.toMatch(/INSERT INTO public\.features \(id, category_id, name, description\)/);
@@ -128,49 +131,6 @@ test.describe('STYL-197 usage metering and allowances', () => {
     );
     expect(recorded).toContain('INSERT INTO public.features (id, category_id, name, description)');
     expect(recorded).toContain('ON CONFLICT (tier_id, feature_id) DO UPDATE SET limit_value = 0');
-  });
-
-  test('minute gate allows under the allowance, blocks at 100%, and uses the plan default when there is no usage row', () => {
-    expect(
-      decideVoiceMinuteGate({
-        usageRows: [{ quantity: 1, usage_type: 'consumption' }],
-        catalogLimit: 10,
-      }),
-    ).toMatchObject({ allowed: true, reason: 'under_allowance', allowanceMinutes: 10, consumedMinutes: 1 });
-
-    expect(
-      decideVoiceMinuteGate({
-        usageRows: [{ quantity: 10, usage_type: 'consumption' }],
-        catalogLimit: 10,
-      }),
-    ).toMatchObject({ allowed: false, blockedForAllowance: true, reason: 'at_allowance', allowanceMinutes: 10, consumedMinutes: 10 });
-
-    expect(
-      decideVoiceMinuteGate({ usageRows: [], catalogLimit: 10 }),
-    ).toMatchObject({ allowed: true, reason: 'plan_default', allowanceMinutes: 10, consumedMinutes: 0 });
-
-    expect(
-      decideVoiceMinuteGate({
-        usageRows: [{ quantity: 100, usage_type: 'consumption' }],
-        catalogLimit: null,
-      }),
-    ).toMatchObject({ allowed: true, reason: 'fail_open' });
-
-    expect(
-      decideVoiceMinuteGate({ usageRows: null, catalogLimit: 10 }),
-    ).toMatchObject({ allowed: true, reason: 'fail_open' });
-
-    expect(
-      decideVoiceMinuteGate({
-        usageRows: [
-          { quantity: 20, usage_type: 'allocation' },
-          { quantity: 20, usage_type: 'consumption' },
-        ],
-        catalogLimit: 10,
-      }),
-    ).toMatchObject({ allowed: false, reason: 'at_allowance', allowanceMinutes: 20, consumedMinutes: 20 });
-
-    expect(INBOUND_MINUTES_EXHAUSTED_MESSAGE).toMatch(/run out of voice minutes/i);
   });
 
   test('dashboard usage alerts warn at 80% and mark the limit at 100%', () => {
@@ -189,7 +149,68 @@ test.describe('STYL-197 usage metering and allowances', () => {
     }
     expect(banner).toContain('You have used all of your allocated');
     expect(banner).toContain('You have now used');
+    expect(banner).toContain('View plan');
+    expect(banner).not.toContain('Extra Knowledge');
     expect(banner).not.toMatch(/mail|sendgrid|resend/i);
+    expect(dashboard).not.toMatch(/message_allowance:[\s\S]{0,120}Extra Knowledge/);
+    expect(dashboard).toContain("upgradeAction: 'plan'");
+    expect(checker).toContain("upgradeAction: 'plan'");
+  });
+
+  test('minute gate uses the rolling balance, not an all-time sum', () => {
+    expect(
+      decideVoiceMinuteGate({
+        balance: { allocated: 0, consumed: 1 },
+        catalogLimit: 10,
+      }),
+    ).toMatchObject({ allowed: true, reason: 'under_allowance', allowanceMinutes: 10, consumedMinutes: 1 });
+
+    expect(
+      decideVoiceMinuteGate({
+        balance: { allocated: 0, consumed: 10 },
+        catalogLimit: 10,
+      }),
+    ).toMatchObject({ allowed: false, blockedForAllowance: true, reason: 'at_allowance', allowanceMinutes: 10, consumedMinutes: 10 });
+
+    expect(
+      decideVoiceMinuteGate({ balance: { allocated: 0, consumed: 0 }, catalogLimit: 10 }),
+    ).toMatchObject({ allowed: true, reason: 'plan_default', allowanceMinutes: 10, consumedMinutes: 0 });
+
+    expect(
+      decideVoiceMinuteGate({
+        balance: { allocated: 0, consumed: 100 },
+        catalogLimit: null,
+      }),
+    ).toMatchObject({ allowed: true, reason: 'fail_open' });
+
+    expect(
+      decideVoiceMinuteGate({ balance: null, catalogLimit: 10 }),
+    ).toMatchObject({ allowed: true, reason: 'fail_open' });
+
+    expect(
+      decideVoiceMinuteGate({
+        balance: { allocated: 0, consumed: 100 },
+        catalogLimit: undefined,
+      }),
+    ).toMatchObject({ allowed: true, reason: 'fail_open' });
+
+    expect(
+      decideVoiceMinuteGate({
+        balance: { allocated: 20, consumed: 20 },
+        catalogLimit: 10,
+      }),
+    ).toMatchObject({ allowed: false, reason: 'at_allowance', allowanceMinutes: 20, consumedMinutes: 20 });
+
+    expect(
+      decideVoiceMinuteGate({
+        balance: { allocated: 30, consumed: 10 },
+        catalogLimit: 10,
+      }),
+    ).toMatchObject({ allowed: true, reason: 'under_allowance', allowanceMinutes: 30, consumedMinutes: 10 });
+
+    expect(INBOUND_MINUTES_EXHAUSTED_MESSAGE).toBe(
+      "We can't take your call right now. Please contact us through our website or by text message.",
+    );
   });
 });
 
@@ -387,14 +408,28 @@ test.describe('STYL-197 dashboard usage alerts', () => {
 
   test('the dashboard warns at 80% and says the allowance is used up at 100%', async ({ page }) => {
     await setVoiceUsed(8);
+    const { error: chatError } = await admin.from('usage_ledger').insert({
+      tenant_id: GLOBEX,
+      feature_id: 'message_allowance',
+      quantity: 1200,
+      usage_type: 'consumption',
+      sector_tag: marker,
+      recorded_at: new Date().toISOString(),
+    });
+    expect(chatError).toBeNull();
     await page.goto('/login');
     await page.locator('input[type="email"]').fill(session.user.email);
     await page.locator('input[type="password"]').fill('Password123!');
     await page.locator('form button[type="submit"]').click();
     await expect(page).toHaveURL(/\/dashboard/, { timeout: 20000 });
 
-    await expect(page.getByText(/You have now used 80% of your allocated/)).toBeVisible();
+    await expect(page.getByText('You have now used 80% of your allocated Shared Voice Minutes.')).toBeVisible();
+    await expect(page.getByText('You have now used 80% of your allocated Monthly Message Allowance.')).toBeVisible();
     await expect(page.getByText(/You have used all of your allocated/)).toHaveCount(0);
+    await expect(page.getByText('Extra Knowledge')).toHaveCount(0);
+    await page.getByRole('button', { name: 'View plan' }).click();
+    await expect(page).toHaveURL(/tab=billing/);
+    await expect(page.getByText(/Current plan/)).toBeVisible();
 
     await setVoiceUsed(10);
     await page.reload();
@@ -460,28 +495,34 @@ test.describe('STYL-197 inbound minute gate', () => {
     }
   });
 
-  async function placeCall(): Promise<{ body: string; warns: string[]; logs: string[] }> {
+  async function placeCall(sources?: Partial<InboundMinuteSources>): Promise<{ body: string; warns: string[]; logs: string[] }> {
     const warns: string[] = [];
     const logs: string[] = [];
     const originalWarn = console.warn;
     const originalLog = console.log;
+    const originalError = console.error;
     console.warn = (...args: unknown[]) => {
       warns.push(args.map(String).join(' '));
     };
     console.log = (...args: unknown[]) => {
       logs.push(args.map(String).join(' '));
     };
+    console.error = (...args: unknown[]) => {
+      logs.push(args.map(String).join(' '));
+    };
     try {
       const form = new FormData();
       form.set('To', GATE_PHONE);
       form.set('From', '+447700900198');
-      const response = await inboundPost(
-        new Request('http://localhost:3001/api/telephony/inbound', { method: 'POST', body: form }),
-      );
+      const request = new Request('http://localhost:3001/api/telephony/inbound', { method: 'POST', body: form });
+      const response = sources
+        ? await handleInboundPost(request, sources)
+        : await inboundPost(request);
       return { body: await response.text(), warns, logs };
     } finally {
       console.warn = originalWarn;
       console.log = originalLog;
+      console.error = originalError;
     }
   }
 
@@ -534,11 +575,176 @@ test.describe('STYL-197 inbound minute gate', () => {
     expect(error).toBeNull();
     expect(count ?? 0).toBe(0);
 
+    const balance = await getRolloverBalance(GLOBEX);
+    expect(balance.voice_minutes_allocated).toBe(0);
+    expect(balance.voice_minutes_consumed).toBe(0);
+
     const { body, warns, logs } = await placeCall();
     expect(body).toContain('https://api.vapi.ai/twilio/inbound_call');
     expect(body).not.toContain(INBOUND_MINUTES_EXHAUSTED_MESSAGE);
     expect(warns.join('\n')).not.toContain('[Telephony Inbound] BLOCK');
     expect(logs.join('\n')).toContain('reason: plan_default');
     expect(logs.join('\n')).toContain('allowance: 10');
+  });
+
+  test('voice_minutes and vapi_voice_minutes in the current window add up, and that total is what the gate uses', async () => {
+    const now = new Date().toISOString();
+    const { error } = await admin.from('usage_ledger').insert([
+      {
+        tenant_id: GLOBEX,
+        feature_id: 'voice_minutes',
+        quantity: 4,
+        usage_type: 'consumption',
+        sector_tag: 'styl-197-gate-sum',
+        recorded_at: now,
+      },
+      {
+        tenant_id: GLOBEX,
+        feature_id: 'vapi_voice_minutes',
+        quantity: 6,
+        usage_type: 'consumption',
+        sector_tag: 'styl-197-gate-sum',
+        recorded_at: now,
+      },
+    ]);
+    expect(error).toBeNull();
+
+    const balance = await getRolloverBalance(GLOBEX);
+    expect(balance.voice_minutes_consumed).toBe(10);
+    expect(balance.voice_minutes_allocated).toBe(0);
+
+    const { body, warns } = await placeCall();
+    expect(body).toContain(INBOUND_MINUTES_EXHAUSTED_MESSAGE);
+    expect(warns.join('\n')).toContain('allowance=10');
+    expect(warns.join('\n')).toContain('consumed=10');
+
+    await admin.from('usage_ledger').delete().eq('sector_tag', 'styl-197-gate-sum');
+  });
+
+  test('a current-period allocation is the allowance, and an expired one is ignored', async () => {
+    const now = new Date();
+    const expires = new Date(now);
+    expires.setMonth(expires.getMonth() + 2);
+    const fourMonthsAgo = new Date(now);
+    fourMonthsAgo.setMonth(fourMonthsAgo.getMonth() - 4);
+    const yesterday = new Date(now);
+    yesterday.setDate(yesterday.getDate() - 1);
+
+    const { error: currentError } = await admin.from('usage_ledger').insert([
+      {
+        tenant_id: GLOBEX,
+        feature_id: 'voice_minutes',
+        quantity: 30,
+        usage_type: 'allocation',
+        sector_tag: 'styl-197-gate-current',
+        expires_at: expires.toISOString(),
+        billing_period_start: now.toISOString(),
+        recorded_at: now.toISOString(),
+      },
+      {
+        tenant_id: GLOBEX,
+        feature_id: 'voice_minutes',
+        quantity: 4,
+        usage_type: 'consumption',
+        sector_tag: 'styl-197-gate-current',
+        recorded_at: now.toISOString(),
+      },
+      {
+        tenant_id: GLOBEX,
+        feature_id: 'vapi_voice_minutes',
+        quantity: 6,
+        usage_type: 'consumption',
+        sector_tag: 'styl-197-gate-current',
+        recorded_at: now.toISOString(),
+      },
+      {
+        tenant_id: GLOBEX,
+        feature_id: 'voice_minutes',
+        quantity: 100,
+        usage_type: 'allocation',
+        sector_tag: 'styl-197-gate-expired',
+        expires_at: yesterday.toISOString(),
+        billing_period_start: fourMonthsAgo.toISOString(),
+        recorded_at: fourMonthsAgo.toISOString(),
+      },
+      {
+        tenant_id: GLOBEX,
+        feature_id: 'vapi_voice_minutes',
+        quantity: 80,
+        usage_type: 'consumption',
+        sector_tag: 'styl-197-gate-expired',
+        recorded_at: fourMonthsAgo.toISOString(),
+      },
+    ]);
+    expect(currentError).toBeNull();
+
+    const balance = await getRolloverBalance(GLOBEX);
+    expect(balance.voice_minutes_allocated).toBe(30);
+    expect(balance.voice_minutes_consumed).toBe(10);
+
+    const { body, logs } = await placeCall();
+    expect(body).toContain('https://api.vapi.ai/twilio/inbound_call');
+    expect(body).not.toContain(INBOUND_MINUTES_EXHAUSTED_MESSAGE);
+    expect(logs.join('\n')).toContain('allowance: 30');
+    expect(logs.join('\n')).toContain('consumed: 10');
+
+    await admin.from('usage_ledger').delete().eq('sector_tag', 'styl-197-gate-current');
+    await admin.from('usage_ledger').delete().eq('sector_tag', 'styl-197-gate-expired');
+  });
+
+  test('a rolling-balance read failure does not block the call', async () => {
+    const { body, logs } = await placeCall({
+      loadBalance: async () => ({ allocated: 0, consumed: 100, error: 'usage_ledger read failed' }),
+      loadCatalog: async () => ({ row: { limit_value: 10 }, error: null }),
+    });
+    expect(body).toContain('https://api.vapi.ai/twilio/inbound_call');
+    expect(body).not.toContain(INBOUND_MINUTES_EXHAUSTED_MESSAGE);
+    expect(logs.join('\n')).toContain('usage_ledger read failed');
+    expect(logs.join('\n')).toContain('allowing the call');
+  });
+
+  test('an entitlement read failure does not block the call', async () => {
+    const { body, logs } = await placeCall({
+      loadBalance: async () => ({ allocated: 0, consumed: 100, error: null }),
+      loadCatalog: async () => ({ row: null, error: { message: 'tier_entitlements read failed' } }),
+    });
+    expect(body).toContain('https://api.vapi.ai/twilio/inbound_call');
+    expect(body).not.toContain(INBOUND_MINUTES_EXHAUSTED_MESSAGE);
+    expect(logs.join('\n')).toContain('tier_entitlements read failed');
+    expect(logs.join('\n')).toContain('allowing the call');
+  });
+});
+
+test.describe('STYL-197 category check stays put when remove_branding is already listed', () => {
+  test('the forward migration rebuilds the check only when remove_branding is missing', () => {
+    let db = '';
+    try {
+      const names = execFileSync('docker', ['ps', '--format', '{{.Names}}'], { encoding: 'utf8' });
+      db = names.split('\n').find((name) => name.startsWith('supabase_db_')) || '';
+    } catch {
+      db = '';
+    }
+    test.skip(!db, 'local Supabase database container is not running');
+
+    const psql = (sql: string) => execFileSync(
+      'docker',
+      ['exec', '-i', db, 'psql', '-U', 'postgres', '-d', 'postgres', '-v', 'ON_ERROR_STOP=1', '-t', '-A'],
+      { input: sql, encoding: 'utf8' },
+    );
+    const constraintSql = readFileSync(
+      join(root, 'supabase/migrations/20261111120100_styl197_microsoft_calendar_catalogue_safe.sql'),
+      'utf8',
+    );
+    const before = psql("SELECT pg_get_constraintdef(oid) FROM pg_constraint WHERE conname = 'addon_catalog_category_check';");
+    expect(before).toContain('remove_branding');
+    psql(constraintSql);
+    const afterLeave = psql("SELECT pg_get_constraintdef(oid) FROM pg_constraint WHERE conname = 'addon_catalog_category_check';");
+    expect(afterLeave).toBe(before);
+
+    psql('ALTER TABLE public.addon_catalog DROP CONSTRAINT addon_catalog_category_check;');
+    psql(constraintSql);
+    const rebuilt = psql("SELECT pg_get_constraintdef(oid) FROM pg_constraint WHERE conname = 'addon_catalog_category_check';");
+    expect(rebuilt).toContain('remove_branding');
+    expect(rebuilt).toContain('microsoft_calendar');
   });
 });

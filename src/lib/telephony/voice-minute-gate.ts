@@ -1,21 +1,16 @@
 /**
  * Inbound voice-minute gate (STYL-197).
  *
- * With no usage row, the plan catalogue (tier_entitlements.voice_minutes) is
- * the allowance. Once any allocation row exists, that ledger total is the
- * allowance, because checkout already writes the included minutes there.
- * A missing entitlement and no allocation, or a failed read, never blocks
- * the call. At or over a known allowance the caller hears the Terms message
- * and the route logs the block.
+ * Allocated and consumed minutes come from the dashboard rolling balance
+ * (getRolloverBalance / loadRolloverBalance). Expired allocations and usage
+ * outside that window are not counted. With no allocation in the window, the
+ * plan catalogue is the allowance. A missing entitlement, or a failed read,
+ * never blocks the call. At or over a known allowance the caller hears the
+ * holding line below. Final wording is still with the solicitor.
  */
 
 export const INBOUND_MINUTES_EXHAUSTED_MESSAGE =
-  'Thank you for calling. This business line has run out of voice minutes. Please reach out by text message or online.';
-
-export type VoiceUsageRow = {
-  quantity?: number | null;
-  usage_type?: string | null;
-};
+  "We can't take your call right now. Please contact us through our website or by text message.";
 
 export type CatalogLimit = number | 'unlimited' | null | undefined;
 
@@ -33,6 +28,11 @@ export type VoiceMinuteGateDecision = {
   reason: VoiceMinuteGateReason;
 };
 
+export type VoiceMinuteBalance = {
+  allocated: number;
+  consumed: number;
+};
+
 export function catalogLimitFromRow(
   row: { limit_value: number | null } | null,
   lookupFailed: boolean,
@@ -43,17 +43,9 @@ export function catalogLimitFromRow(
   return Number(row.limit_value);
 }
 
-function sumByType(rows: VoiceUsageRow[], allocation: boolean): number {
-  return rows.reduce((sum, row) => {
-    const isAllocation = row.usage_type === 'allocation';
-    if (isAllocation !== allocation) return sum;
-    return sum + Number(row.quantity || 0);
-  }, 0);
-}
-
 export function decideVoiceMinuteGate(input: {
-  /** null when the usage_ledger read failed. */
-  usageRows: VoiceUsageRow[] | null;
+  /** null when the rolling-balance read failed. */
+  balance: VoiceMinuteBalance | null;
   /**
    * undefined: entitlement lookup failed.
    * null: no tier_entitlements row.
@@ -62,20 +54,28 @@ export function decideVoiceMinuteGate(input: {
    */
   catalogLimit: CatalogLimit;
 }): VoiceMinuteGateDecision {
-  if (input.usageRows === null || input.catalogLimit === undefined || input.catalogLimit === 'unlimited') {
-    const consumed = input.usageRows ? sumByType(input.usageRows, false) : 0;
+  if (input.balance === null || input.catalogLimit === undefined) {
     return {
       allowed: true,
       blockedForAllowance: false,
       allowanceMinutes: null,
-      consumedMinutes: consumed,
-      reason: input.catalogLimit === 'unlimited' ? 'under_allowance' : 'fail_open',
+      consumedMinutes: input.balance?.consumed ?? 0,
+      reason: 'fail_open',
     };
   }
 
-  const rows = input.usageRows;
-  const consumed = sumByType(rows, false);
-  const allocated = sumByType(rows, true);
+  if (input.catalogLimit === 'unlimited') {
+    return {
+      allowed: true,
+      blockedForAllowance: false,
+      allowanceMinutes: null,
+      consumedMinutes: input.balance.consumed,
+      reason: 'under_allowance',
+    };
+  }
+
+  const allocated = Number(input.balance.allocated || 0);
+  const consumed = Number(input.balance.consumed || 0);
   const catalog = input.catalogLimit;
 
   if (catalog === null && allocated <= 0) {
@@ -107,6 +107,6 @@ export function decideVoiceMinuteGate(input: {
     blockedForAllowance: false,
     allowanceMinutes: allowance,
     consumedMinutes: consumed,
-    reason: usedPlanDefault && rows.length === 0 ? 'plan_default' : 'under_allowance',
+    reason: usedPlanDefault && consumed === 0 ? 'plan_default' : 'under_allowance',
   };
 }

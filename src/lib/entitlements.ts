@@ -65,6 +65,8 @@ export type CapacityThreshold = {
   currentUsage: number;
   limit: number;
   alertLevel: UsageAlertLevel;
+  /** Chat messages have no bolt-on. The alert opens the plan and usage page. */
+  upgradeAction: 'addon' | 'plan';
   upgradeCategory: string;
   upgradeAddonId: string;
   upgradeAddonName: string;
@@ -181,14 +183,31 @@ export async function getTenantActiveAddons(tenantId: string): Promise<ActiveAdd
 // =========================================================================
 // 3-Month Rolling Balance (Voice Minutes & SMS)
 // =========================================================================
-export async function getRolloverBalance(tenantId: string): Promise<RolloverBalance> {
-  const supabase = createAdminClient();
+const EMPTY_ROLLOVER: RolloverBalance = {
+  voice_minutes_allocated: 0,
+  voice_minutes_consumed: 0,
+  voice_minutes_remaining: 0,
+  sms_allocated: 0,
+  sms_consumed: 0,
+  sms_remaining: 0,
+};
+
+/**
+ * One rolling-balance read. Allocations count only while unexpired and inside
+ * the last three months. Voice consumption in that window includes
+ * voice_minutes, vapi_voice_minutes and voice_agent_minutes_web.
+ * The filters are the dashboard rule. Callers that need a failure (the inbound
+ * gate) use `error`; getRolloverBalance still returns the numbers only.
+ */
+export async function loadRolloverBalance(
+  tenantId: string,
+  supabase: { from: (table: string) => any } = createAdminClient(),
+): Promise<{ balance: RolloverBalance; error: string | null }> {
   const now = new Date();
   const threeMonthsAgo = new Date(now);
   threeMonthsAgo.setMonth(threeMonthsAgo.getMonth() - 3);
 
-  // Query allocations (credits) that haven't expired
-  const { data: allocations } = await supabase
+  const allocationsResult = await supabase
     .from('usage_ledger')
     .select('feature_id, quantity')
     .eq('tenant_id', tenantId)
@@ -197,14 +216,21 @@ export async function getRolloverBalance(tenantId: string): Promise<RolloverBala
     .gte('expires_at', now.toISOString())
     .gte('billing_period_start', threeMonthsAgo.toISOString());
 
-  // Query consumptions in the same window. Voice includes the legacy Vapi ids.
-  const { data: consumptions } = await supabase
+  const consumptionsResult = await supabase
     .from('usage_ledger')
     .select('feature_id, quantity')
     .eq('tenant_id', tenantId)
     .eq('usage_type', 'consumption')
     .in('feature_id', [...VOICE_CONSUMPTION_FEATURE_IDS, 'sms_messages'])
     .gte('recorded_at', threeMonthsAgo.toISOString());
+
+  const readError = allocationsResult?.error || consumptionsResult?.error;
+  if (readError) {
+    return {
+      balance: { ...EMPTY_ROLLOVER },
+      error: readError.message || 'usage_ledger read failed',
+    };
+  }
 
   const sumByFeature = (rows: any[] | null, featureId: string): number => {
     if (!rows) return 0;
@@ -213,19 +239,29 @@ export async function getRolloverBalance(tenantId: string): Promise<RolloverBala
       .reduce((sum, r) => sum + Number(r.quantity || 0), 0);
   };
 
+  const allocations = allocationsResult?.data ?? null;
+  const consumptions = consumptionsResult?.data ?? null;
   const voiceAllocated = sumByFeature(allocations, 'voice_minutes');
   const voiceConsumed = sumVoiceConsumption(consumptions);
   const smsAllocated = sumByFeature(allocations, 'sms_messages');
   const smsConsumed = sumByFeature(consumptions, 'sms_messages');
 
   return {
-    voice_minutes_allocated: voiceAllocated,
-    voice_minutes_consumed: voiceConsumed,
-    voice_minutes_remaining: Math.max(0, voiceAllocated - voiceConsumed),
-    sms_allocated: smsAllocated,
-    sms_consumed: smsConsumed,
-    sms_remaining: Math.max(0, smsAllocated - smsConsumed),
+    balance: {
+      voice_minutes_allocated: voiceAllocated,
+      voice_minutes_consumed: voiceConsumed,
+      voice_minutes_remaining: Math.max(0, voiceAllocated - voiceConsumed),
+      sms_allocated: smsAllocated,
+      sms_consumed: smsConsumed,
+      sms_remaining: Math.max(0, smsAllocated - smsConsumed),
+    },
+    error: null,
   };
+}
+
+export async function getRolloverBalance(tenantId: string): Promise<RolloverBalance> {
+  const { balance } = await loadRolloverBalance(tenantId);
+  return balance;
 }
 
 // =========================================================================
@@ -527,6 +563,23 @@ export async function checkCapacityThresholds(
     const alertLevel = usageAlertLevel(percentUsed);
 
     if (alertLevel !== 'none') {
+      if (feature.id === 'message_allowance') {
+        thresholds.push({
+          featureId: feature.id,
+          featureName: feature.name,
+          percentUsed,
+          currentUsage,
+          limit,
+          alertLevel,
+          upgradeAction: 'plan',
+          upgradeCategory: 'plan',
+          upgradeAddonId: '',
+          upgradeAddonName: '',
+          upgradePricePence: 0,
+        });
+        continue;
+      }
+
       const upgradeInfo = FEATURE_TO_UPGRADE_MAP[feature.id] || {
         category: 'data_pack',
         addonId: 'data_pack_500',
@@ -544,6 +597,7 @@ export async function checkCapacityThresholds(
         currentUsage,
         limit,
         alertLevel,
+        upgradeAction: 'addon',
         upgradeCategory: upgradeInfo.category,
         upgradeAddonId: upgradeInfo.addonId,
         upgradeAddonName,

@@ -583,7 +583,6 @@ export default async function DashboardPage(props: { searchParams?: Promise<{ [k
         knowledge_data_chunks: { category: 'data_pack', addonId: 'data_pack_500', defaultName: 'Extra Knowledge' },
         voice_minutes: { category: 'voice_pack', addonId: 'voice_pack_20', defaultName: 'Voice Minutes Pack' },
         sms_messages: { category: 'sms_pack', addonId: 'sms_pack_100', defaultName: 'SMS Text Pack' },
-        message_allowance: { category: 'data_pack', addonId: 'data_pack_500', defaultName: 'Extra Knowledge' },
       };
       const catalogMap = new Map((billingData.catalog || []).map((c: any) => [c.id, c]));
 
@@ -610,6 +609,22 @@ export default async function DashboardPage(props: { searchParams?: Promise<{ [k
         const percentUsed = Math.round((currentUsage / limit) * 100);
         const alertLevel = usageAlertLevel(percentUsed);
         if (alertLevel !== 'none') {
+          if (ent.feature_id === 'message_allowance') {
+            thresholds.push({
+              featureId: ent.feature_id,
+              featureName: ent.features?.name || 'Monthly Chat Messages',
+              percentUsed,
+              currentUsage,
+              limit,
+              alertLevel,
+              upgradeAction: 'plan',
+              upgradeCategory: 'plan',
+              upgradeAddonId: '',
+              upgradeAddonName: '',
+              upgradePricePence: 0,
+            });
+            continue;
+          }
           const upgrade = featureUpgradeMap[ent.feature_id];
           if (upgrade) {
             const catalogItem: any = catalogMap.get(upgrade.addonId);
@@ -623,6 +638,7 @@ export default async function DashboardPage(props: { searchParams?: Promise<{ [k
               currentUsage,
               limit,
               alertLevel,
+              upgradeAction: 'addon',
               upgradeCategory: upgrade.category,
               upgradeAddonId: upgrade.addonId,
               upgradeAddonName,

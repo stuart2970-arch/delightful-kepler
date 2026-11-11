@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import AddOnUpsellModal, { AddOnCategory } from './AddOnUpsellModal';
 import { usageAlertLevel, type UsageAlertLevel } from '@/lib/usage-alerts';
+import { useDashboardStore } from '@/lib/store';
 
 export interface ThresholdAlert {
   featureId: string;
@@ -9,6 +10,7 @@ export interface ThresholdAlert {
   currentUsage: number;
   limit: number;
   alertLevel?: UsageAlertLevel;
+  upgradeAction?: 'addon' | 'plan';
   upgradeAddonId: string;
   upgradeAddonName: string;
   upgradePrice: number;
@@ -36,6 +38,13 @@ export default function CapacityThresholdBanner({ thresholds, tenantId }: Capaci
     return null;
   }
 
+  const openPlanAndUsage = () => {
+    useDashboardStore.getState().setActiveTab('billing');
+    const url = new URL(window.location.href);
+    url.searchParams.set('tab', 'billing');
+    window.history.replaceState({}, '', `${url.pathname}${url.search}`);
+  };
+
   const handleUpgradeClick = (featureId: string) => {
     let category: AddOnCategory = 'voice_pack'; // Default fallback
     
@@ -55,6 +64,7 @@ export default function CapacityThresholdBanner({ thresholds, tenantId }: Capaci
       <div className="space-y-3 mb-6 w-full">
         {activeThresholds.map((threshold) => {
           const atLimit = threshold.alertLevel === 'limit';
+          const reviewsPlan = threshold.upgradeAction === 'plan' || threshold.featureId === 'message_allowance';
           return (
           <div 
             key={threshold.featureId} 
@@ -73,18 +83,18 @@ export default function CapacityThresholdBanner({ thresholds, tenantId }: Capaci
                     : `You have now used ${threshold.percentUsed}% of your allocated ${threshold.featureName}.`}
                 </p>
                 <p className={`${atLimit ? 'text-red-700' : 'text-amber-700'} text-sm mt-0.5`}>
-                  ({threshold.currentUsage} / {threshold.limit}) — {atLimit
-                    ? 'This allowance is used up. Upgrade to add more.'
-                    : 'Upgrade before this allowance runs out.'}
+                  ({threshold.currentUsage} / {threshold.limit}) — {reviewsPlan
+                    ? (atLimit ? 'This allowance is used up. Review your plan to add more.' : 'Review your plan before this allowance runs out.')
+                    : (atLimit ? 'This allowance is used up. Upgrade to add more.' : 'Upgrade before this allowance runs out.')}
                 </p>
               </div>
             </div>
             
             <button
-              onClick={() => handleUpgradeClick(threshold.featureId)}
+              onClick={() => (reviewsPlan ? openPlanAndUsage() : handleUpgradeClick(threshold.featureId))}
               className="shrink-0 bg-[#198fd9] hover:bg-[#157ab9] text-white text-xs font-bold py-2 px-4 rounded-[4px] shadow-sm transition-colors w-full sm:w-auto"
             >
-              Upgrade Now
+              {reviewsPlan ? 'View plan' : 'Upgrade Now'}
             </button>
           </div>
           );
