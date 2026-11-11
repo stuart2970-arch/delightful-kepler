@@ -70,6 +70,11 @@ export const superadminRoutes = [
     auth: 'superadmin'
   },
   {
+    path: '/api/superadmin/whatsapp-templates/resubmit',
+    methods: ['POST'],
+    auth: 'superadmin'
+  },
+  {
     path: '/api/global-holidays',
     methods: ['GET', 'POST', 'DELETE'],
     auth: 'mixed',

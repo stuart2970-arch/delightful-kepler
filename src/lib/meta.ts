@@ -1,4 +1,17 @@
 import crypto from 'crypto';
+import {
+  STARTER_TEMPLATES_EN_GB,
+  RESUBMIT_STARTER_TEMPLATE_NAMES,
+  buildMissedCallFollowupSendComponents,
+  publicWhatsAppAccount,
+} from './whatsapp-starter-templates';
+
+export {
+  STARTER_TEMPLATES_EN_GB,
+  RESUBMIT_STARTER_TEMPLATE_NAMES,
+  buildMissedCallFollowupSendComponents,
+  publicWhatsAppAccount,
+};
 
 export const DEFAULT_META_VERIFY_TOKEN = process.env.META_VERIFY_TOKEN || 'styleflo_meta_verify_2026';
 export const META_GRAPH_VERSION = process.env.META_GRAPH_VERSION || 'v21.0';
@@ -439,45 +452,6 @@ export async function registerPhoneNumber({
 }
 
 /**
- * Starter en_GB Message Templates for Salon Booking & Followups
- */
-export const STARTER_TEMPLATES_EN_GB = [
-  {
-    name: 'appointment_reminder',
-    category: 'UTILITY',
-    language: 'en_GB',
-    components: [
-      {
-        type: 'BODY',
-        text: 'Hi {{1}}, reminder of your appointment with {{2}} on {{3}} at {{4}}. Reply YES to confirm or reply to reschedule.',
-      },
-    ],
-  },
-  {
-    name: 'booking_link',
-    category: 'UTILITY',
-    language: 'en_GB',
-    components: [
-      {
-        type: 'BODY',
-        text: 'Hi {{1}}, thanks for reaching out to {{2}}! You can view our services and book online anytime here: {{3}}',
-      },
-    ],
-  },
-  {
-    name: 'missed_call_followup',
-    category: 'UTILITY',
-    language: 'en_GB',
-    components: [
-      {
-        type: 'BODY',
-        text: 'Hi {{1}}, sorry we missed your call at {{2}}! How can we help you today?',
-      },
-    ],
-  },
-];
-
-/**
  * Submits the three en_GB starter templates to Meta for approval under the tenant's WABA.
  */
 export async function submitStarterTemplates({
@@ -518,6 +492,263 @@ export async function submitStarterTemplates({
   }
 
   return results;
+}
+
+export type StarterTemplateSyncAction =
+  | 'created'
+  | 'edited'
+  | 'skipped_pending'
+  | 'skipped_existing'
+  | 'skipped_unsupported_status'
+  | 'dry_run_create'
+  | 'dry_run_edit'
+  | 'error';
+
+export interface StarterTemplateSyncResult {
+  name: string;
+  action: StarterTemplateSyncAction;
+  id?: string;
+  status?: string;
+  error?: string;
+}
+
+type GraphFetch = (input: RequestInfo | URL, init?: RequestInit) => Promise<Response>;
+
+interface ListedMessageTemplate {
+  id?: string;
+  name?: string;
+  language?: string;
+  status?: string;
+}
+
+function assertMetaFetchAllowed(fetchImpl: GraphFetch | undefined) {
+  if (!fetchImpl && process.env.PLAYWRIGHT_TEST === 'true') {
+    throw new Error('Refusing to call Meta from tests');
+  }
+}
+
+interface GraphJson {
+  id?: string;
+  status?: string;
+  success?: boolean;
+  data?: Array<{ id?: string; name?: string; language?: string; status?: string }>;
+  error?: { message?: string };
+}
+
+async function readGraphJson(res: Response): Promise<GraphJson> {
+  try {
+    const parsed: unknown = await res.json();
+    if (!parsed || typeof parsed !== 'object') return {};
+    return parsed as GraphJson;
+  } catch {
+    return {};
+  }
+}
+
+/**
+ * Lists one starter template language on the WABA.
+ * A missing en_GB row is not an error: the caller may create it.
+ */
+async function findStarterTemplate({
+  graphBaseUrl,
+  wabaId,
+  accessToken,
+  name,
+  language,
+  fetchImpl,
+}: {
+  graphBaseUrl: string;
+  wabaId: string;
+  accessToken: string;
+  name: string;
+  language: string;
+  fetchImpl: GraphFetch;
+}): Promise<ListedMessageTemplate | null> {
+  const url = new URL(`${graphBaseUrl}/${wabaId}/message_templates`);
+  url.searchParams.set('name', name);
+  url.searchParams.set('fields', 'id,name,language,status');
+  url.searchParams.set('limit', '20');
+
+  const res = await fetchImpl(url, {
+    method: 'GET',
+    headers: { Authorization: `Bearer ${accessToken}` },
+  });
+  const data = await readGraphJson(res);
+  if (!res.ok) {
+    throw new Error(data?.error?.message || `Failed to list template ${name}`);
+  }
+
+  const rows: ListedMessageTemplate[] = Array.isArray(data?.data) ? data.data : [];
+  return rows.find((row) => row.language === language && row.id) ?? null;
+}
+
+/**
+ * Creates missing starter templates and edits rejected ones in place.
+ *
+ * Meta does not accept a second create for the same name and language
+ * (error 100, subcode 2388024, "Content in This Language Already Exists"),
+ * including when the existing row is REJECTED. The supported resubmit is
+ * POST /{template-id} with the replacement components. REJECTED templates
+ * can be edited without the 24-hour / 10-per-30-days cap that applies to
+ * APPROVED templates. PENDING templates cannot be edited. Deleting a
+ * template blocks that name for about 30 days, so this function never deletes.
+ *
+ * APPROVED and PAUSED rows are left alone so a working template is not sent
+ * back to review. Pass dryRun to list the action without POSTing.
+ */
+export async function syncStarterTemplates({
+  wabaId,
+  accessToken,
+  names,
+  dryRun = false,
+  fetchImpl,
+  graphBaseUrl = META_GRAPH_BASE_URL,
+}: {
+  wabaId: string;
+  accessToken: string;
+  names?: readonly string[];
+  dryRun?: boolean;
+  fetchImpl?: GraphFetch;
+  graphBaseUrl?: string;
+}): Promise<StarterTemplateSyncResult[]> {
+  assertMetaFetchAllowed(fetchImpl);
+  const doFetch = fetchImpl ?? fetch;
+  const selected = STARTER_TEMPLATES_EN_GB.filter((tpl) => !names || names.includes(tpl.name));
+  const results: StarterTemplateSyncResult[] = [];
+
+  for (const tpl of selected) {
+    try {
+      const existing = await findStarterTemplate({
+        graphBaseUrl,
+        wabaId,
+        accessToken,
+        name: tpl.name,
+        language: tpl.language,
+        fetchImpl: doFetch,
+      });
+
+      if (!existing) {
+        if (dryRun) {
+          results.push({ name: tpl.name, action: 'dry_run_create' });
+          continue;
+        }
+        const res = await doFetch(`${graphBaseUrl}/${wabaId}/message_templates`, {
+          method: 'POST',
+          headers: {
+            Authorization: `Bearer ${accessToken}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify(tpl),
+        });
+        const data = await readGraphJson(res);
+        if (!res.ok || !data?.id) {
+          results.push({
+            name: tpl.name,
+            action: 'error',
+            error: data?.error?.message || 'Failed to create template',
+          });
+          continue;
+        }
+        results.push({ name: tpl.name, action: 'created', id: String(data.id), status: data.status });
+        continue;
+      }
+
+      const status = String(existing.status || '').toUpperCase();
+      const id = String(existing.id);
+      if (status === 'PENDING' || status === 'IN_APPEAL') {
+        results.push({ name: tpl.name, action: 'skipped_pending', id, status });
+        continue;
+      }
+      if (status === 'APPROVED' || status === 'PAUSED') {
+        results.push({ name: tpl.name, action: 'skipped_existing', id, status });
+        continue;
+      }
+      if (status !== 'REJECTED') {
+        results.push({ name: tpl.name, action: 'skipped_unsupported_status', id, status });
+        continue;
+      }
+      if (dryRun) {
+        results.push({ name: tpl.name, action: 'dry_run_edit', id, status });
+        continue;
+      }
+
+      const res = await doFetch(`${graphBaseUrl}/${id}`, {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          category: tpl.category,
+          components: tpl.components,
+        }),
+      });
+      const data = await readGraphJson(res);
+      if (!res.ok || data?.success !== true) {
+        results.push({
+          name: tpl.name,
+          action: 'error',
+          id,
+          status,
+          error: data?.error?.message || 'Failed to edit rejected template',
+        });
+        continue;
+      }
+      results.push({ name: tpl.name, action: 'edited', id, status });
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : 'Template sync failed';
+      results.push({
+        name: tpl.name,
+        action: 'error',
+        error: message,
+      });
+    }
+  }
+
+  return results;
+}
+
+/**
+ * Reads en_GB starter-template statuses for the dashboard.
+ * Returns null when Meta cannot be read, so the UI shows no status badge.
+ * Never calls Graph while PLAYWRIGHT_TEST is set unless a fetch double is passed.
+ */
+export async function listStarterTemplateStatuses({
+  wabaId,
+  accessToken,
+  fetchImpl,
+  graphBaseUrl = META_GRAPH_BASE_URL,
+}: {
+  wabaId: string;
+  accessToken: string;
+  fetchImpl?: GraphFetch;
+  graphBaseUrl?: string;
+}): Promise<Record<string, string> | null> {
+  if (!fetchImpl && process.env.PLAYWRIGHT_TEST === 'true') {
+    return null;
+  }
+  const doFetch = fetchImpl ?? fetch;
+  try {
+    const url = new URL(`${graphBaseUrl}/${wabaId}/message_templates`);
+    url.searchParams.set('fields', 'name,language,status');
+    url.searchParams.set('limit', '100');
+    const res = await doFetch(url, {
+      method: 'GET',
+      headers: { Authorization: `Bearer ${accessToken}` },
+    });
+    if (!res.ok) return null;
+    const data = await readGraphJson(res);
+    const names = new Set(STARTER_TEMPLATES_EN_GB.map((tpl) => tpl.name));
+    const statuses: Record<string, string> = {};
+    for (const row of Array.isArray(data?.data) ? data.data : []) {
+      const templateName = row?.name;
+      if (row?.language !== 'en_GB' || !templateName || !names.has(templateName) || !row?.status) continue;
+      statuses[templateName] = String(row.status);
+    }
+    return statuses;
+  } catch {
+    return null;
+  }
 }
 
 export interface SendWhatsAppTemplateParams {
