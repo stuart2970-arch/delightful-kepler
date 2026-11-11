@@ -105,7 +105,7 @@ export function buildVapiPhoneImportPayload(input: {
     twilioAuthToken: input.twilioAuthToken,
     server: {
       url: `${input.appUrl.replace(/\/+$/, '')}/api/webhooks/vapi/assistant`,
-      secret: input.webhookSecret,
+      headers: { 'X-Vapi-Secret': input.webhookSecret },
     },
     name: `StyleFlo Tenant ${input.tenantId}`,
   };

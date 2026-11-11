@@ -67,6 +67,14 @@ export type CapacityThreshold = {
 };
 
 // Feature ID mapping for bolt-on categories
+/**
+ * Voice consumption is stored as voice_minutes. Older Vapi rows used
+ * vapi_voice_minutes (and voice_agent_minutes_web). All three count as
+ * minutes used so the dashboard balance and capacity alerts see them.
+ * Allocations stay on voice_minutes.
+ */
+export const VOICE_USAGE_FEATURE_ID = 'voice_minutes';
+
 const FEATURE_TO_UPGRADE_MAP: Record<string, { category: string; addonId: string; defaultName: string }> = {
   voice_minutes: { category: 'voice_pack', addonId: 'voice_pack_20', defaultName: 'Voice Minutes Pack' },
   sms_messages: { category: 'sms_pack', addonId: 'sms_pack_100', defaultName: 'SMS Text Pack' },

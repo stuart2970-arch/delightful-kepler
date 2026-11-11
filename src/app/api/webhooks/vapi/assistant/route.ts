@@ -4,8 +4,9 @@ import { createClient } from '@supabase/supabase-js';
 import { getActiveGeminiModel } from '@/lib/gemini-config';
 import { evaluateVoiceGate, requireConfiguredAppUrl } from '@/lib/env/vapi-config';
 import { verifyVapiWebhookSecret } from '@/lib/env/vapi-webhook-auth';
+import { handleEndOfCallReport, unwrapVapiMessage } from '@/lib/voice/end-of-call-report';
 import { voiceUnavailableAssistantResponse } from '@/lib/voice/unavailable-assistant';
-import { POST as handleVapiWebhook } from '../route';
+import { VAPI_SERVER_MESSAGES, vapiEndOfCallServer } from '@/lib/voice/vapi-server';
 
 export const dynamic = 'force-dynamic';
 
@@ -16,7 +17,7 @@ export async function POST(request: Request) {
     if (!auth.ok) return auth.response;
 
     const body = await request.json();
-    const message = body.message;
+    const message = unwrapVapiMessage(body);
     const incomingCallId = message?.call?.id || body.call?.id || null;
     console.log('[Vapi Assistant Webhook] Incoming message', {
       type: message?.type || null,
@@ -24,19 +25,19 @@ export async function POST(request: Request) {
     });
     if (!message || message.type !== 'assistant-request') {
       if (message?.type === 'end-of-call-report') {
-        const forwardReq = new Request(request.url, {
-          method: 'POST',
-          headers: request.headers,
-          body: JSON.stringify(body),
-        });
-        return handleVapiWebhook(forwardReq);
+        return handleEndOfCallReport(body);
       }
       return NextResponse.json({ success: true, ignored: true });
     }
 
+    const appUrlResult = requireConfiguredAppUrl();
+    const callServer = appUrlResult.ok
+      ? vapiEndOfCallServer(appUrlResult.url, process.env.VAPI_WEBHOOK_SECRET)
+      : undefined;
+
     const voiceGate = evaluateVoiceGate();
     if (!voiceGate.allowed) {
-      return NextResponse.json(voiceUnavailableAssistantResponse(voiceGate.reason));
+      return NextResponse.json(voiceUnavailableAssistantResponse(voiceGate.reason, callServer));
     }
 
     const call = message.call;
@@ -146,8 +147,6 @@ export async function POST(request: Request) {
 
     const activeModelName = await getActiveGeminiModel();
 
-    // Custom LLM model provider pointing to Gemini 1.5 Flash endpoint
-    const appUrlResult = requireConfiguredAppUrl();
     if (!appUrlResult.ok) {
       console.error('[Vapi Assistant Webhook] APP_URL is not configured');
       return NextResponse.json(voiceUnavailableAssistantResponse('Voice is currently unavailable.'));
@@ -202,10 +201,8 @@ export async function POST(request: Request) {
       backgroundSound: resolvedBgSound,
       backchannelingEnabled: true,
       recordingEnabled: false,
-      server: {
-        url: `${appUrl}/api/webhooks/vapi`,
-        secret: (process.env.VAPI_WEBHOOK_SECRET || '').trim() || undefined,
-      },
+      ...(callServer ? { server: callServer } : {}),
+      serverMessages: [...VAPI_SERVER_MESSAGES],
       artifactPlan: {
         recordingEnabled: false,
       },

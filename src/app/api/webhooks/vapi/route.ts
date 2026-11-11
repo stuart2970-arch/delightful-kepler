@@ -1,171 +1,44 @@
 import { NextResponse } from 'next/server';
-import { createClient } from '@supabase/supabase-js';
-import { sendConsolidatedLeadEmail } from '@/lib/lead-notifier';
 import { verifyVapiWebhookSecret } from '@/lib/env/vapi-webhook-auth';
+import { handleEndOfCallReport, unwrapVapiMessage } from '@/lib/voice/end-of-call-report';
 
-// Vapi sends a POST request with call details.
-// We only care about 'end-of-call-report' messages.
+// Vapi posts every server event here when the org, phone number, or call
+// server URL points at /api/webhooks/vapi. assistant-request is answered by
+// the assistant route. end-of-call-report is stored once per call id.
 export async function POST(request: Request) {
   try {
     const auth = verifyVapiWebhookSecret(request);
     if (!auth.ok) return auth.response;
 
-    const body = await request.json();
+    const raw = await request.text();
+    let body: unknown = {};
+    if (raw) {
+      try {
+        body = JSON.parse(raw);
+      } catch {
+        return NextResponse.json({ error: 'Invalid JSON' }, { status: 400 });
+      }
+    }
 
-    // Vapi webhook payload structure
-    const message = body.message;
+    const message = unwrapVapiMessage(body);
+    if (message?.type === 'assistant-request') {
+      const { POST: assistantPost } = await import('./assistant/route');
+      return assistantPost(new Request(request.url, {
+        method: 'POST',
+        headers: request.headers,
+        body: raw,
+      }));
+    }
+
     if (!message || message.type !== 'end-of-call-report') {
       return NextResponse.json({ success: true, ignored: true });
     }
 
-    const { call } = message;
-    if (!call) {
-      return NextResponse.json({ error: 'Missing call object' }, { status: 400 });
-    }
-
-    // Extract tenant_id and session_id from metadata we pass when starting the call
-    let rawTenantId = call.metadata?.tenant_id || call.assistantOverrides?.variableValues?.tenant_id;
-    const chatbotId = call.metadata?.chatbot_id;
-    const sessionId = call.metadata?.session_id || call.id;
-
-    // Initialize Supabase Admin Client to bypass RLS
-    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-    const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
-    if (!supabaseUrl || !serviceRoleKey) {
-      throw new Error('Supabase admin environment variables are missing');
-    }
-    const supabaseAdmin = createClient(supabaseUrl, serviceRoleKey, {
-      auth: { persistSession: false, autoRefreshToken: false },
+    return handleEndOfCallReport(body);
+  } catch (err) {
+    console.error('[Vapi Webhook] Error processing webhook', {
+      message: err instanceof Error ? err.message : 'unknown',
     });
-
-    let tenantId = rawTenantId;
-    if (rawTenantId) {
-      // Verify if rawTenantId is actually a chatbot_id
-      const { data: botLookup } = await supabaseAdmin.from('chatbots').select('tenant_id').eq('id', rawTenantId).single();
-      if (botLookup?.tenant_id) {
-        tenantId = botLookup.tenant_id;
-      }
-    } else if (chatbotId) {
-      const { data: botLookup } = await supabaseAdmin.from('chatbots').select('tenant_id').eq('id', chatbotId).single();
-      if (botLookup?.tenant_id) {
-        tenantId = botLookup.tenant_id;
-      }
-    }
-
-    if (!tenantId) {
-      console.warn('[Vapi Webhook] Unable to resolve tenantId for call:', call.id);
-    }
-
-    // Calculate duration in minutes (ceiling)
-    const durationSeconds = call.duration || 0;
-    const durationMinutes = Math.ceil(durationSeconds / 60);
-
-    // 1. Meter Usage Log (non-blocking for conversation logging)
-    if (tenantId && durationMinutes > 0) {
-      try {
-        const { data: feature } = await supabaseAdmin
-          .from('features')
-          .select('unit_cost_estimated')
-          .eq('id', 'vapi_voice_minutes')
-          .single();
-
-        const unitCost = feature?.unit_cost_estimated || 0;
-        const actualCost = unitCost * durationMinutes;
-
-        await supabaseAdmin.from('usage_ledger').insert({
-          tenant_id: tenantId,
-          feature_id: 'vapi_voice_minutes',
-          quantity: durationMinutes,
-          actual_cost: actualCost,
-          sector_tag: `Vapi Call ID: ${call.id}`,
-        });
-        console.log(`[Vapi Webhook] Successfully metered ${durationMinutes} minutes for tenant ${tenantId}`);
-      } catch (meterErr) {
-        console.error('[Vapi Webhook] Metering insert error:', meterErr);
-      }
-    }
-
-    // 3. Update Conversation record with Voice Data (STYL-190: channel, caller_number, no recording_url)
-    if (tenantId && sessionId) {
-      const transcript = call.transcript || '';
-      const isPhoneCall = call.type === 'inboundPhoneCall' || call.type === 'outboundPhoneCall' || (typeof sessionId === 'string' && sessionId.startsWith('phone_')) || Boolean(call.phoneNumberId);
-      const channel = isPhoneCall ? 'phone' : 'web_voice';
-      const callerNumber = call.customer?.number || (typeof call.phoneNumber === 'string' ? call.phoneNumber : call.phoneNumber?.number) || null;
-
-      const { data: existingConv } = await supabaseAdmin
-        .from('conversations')
-        .select('id, chatbot_id')
-        .eq('tenant_id', tenantId)
-        .eq('user_session_id', sessionId)
-        .single();
-      
-      // Determine if a booking was made
-      // Heuristic: internal calendar uses [BOOK_MEETING:], external might direct to a booking URL
-      let resultedInBooking = transcript.includes('[BOOK_MEETING:');
-      if (!resultedInBooking) {
-        const { data: tenant } = await supabaseAdmin.from('tenants').select('booking_url').eq('id', tenantId).single();
-        if (tenant?.booking_url && transcript.includes(tenant.booking_url)) {
-          resultedInBooking = true;
-        }
-      }
-
-      let targetConvId: string | null = null;
-      let targetChatbotId: string | null = null;
-
-      if (existingConv) {
-        targetConvId = existingConv.id;
-        const updatePayload: Record<string, any> = {
-          is_voice_call: true,
-          channel,
-          resulted_in_booking: resultedInBooking,
-          transcript: transcript,
-        };
-        if (callerNumber) {
-          updatePayload.caller_number = callerNumber;
-        }
-        await supabaseAdmin.from('conversations').update(updatePayload).eq('id', existingConv.id);
-        const { data: convData } = await supabaseAdmin.from('conversations').select('chatbot_id').eq('id', existingConv.id).single();
-        targetChatbotId = convData?.chatbot_id || null;
-      } else {
-        const { data: chatbot } = await supabaseAdmin.from('chatbots').select('id').eq('tenant_id', tenantId).limit(1).single();
-        if (chatbot) {
-          targetChatbotId = chatbot.id;
-          const { data: newConv } = await supabaseAdmin.from('conversations').insert({
-            tenant_id: tenantId,
-            chatbot_id: chatbot.id,
-            user_session_id: sessionId,
-            is_voice_call: true,
-            channel,
-            caller_number: callerNumber,
-            resulted_in_booking: resultedInBooking,
-            transcript: transcript,
-          }).select('id').single();
-          targetConvId = newConv?.id || null;
-        }
-      }
-
-      // Fire consolidated lead email notification with voice transcript & intent (no recording link)
-      if (targetConvId && targetChatbotId) {
-        try {
-          await sendConsolidatedLeadEmail({
-            tenantId,
-            chatbotId: targetChatbotId,
-            conversationId: targetConvId,
-            newContactInfo: callerNumber || '',
-            channelType: 'voice',
-            voiceTranscript: transcript,
-            customerName: call.customer?.name,
-          });
-        } catch (emailErr) {
-          console.error('[Vapi Webhook] Failed to send consolidated voice lead email:', emailErr);
-        }
-      }
-    }
-
-    return NextResponse.json({ success: true });
-
-  } catch (err: any) {
-    console.error('[Vapi Webhook] Error processing webhook:', err);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }
