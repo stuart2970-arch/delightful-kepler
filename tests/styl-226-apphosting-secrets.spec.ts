@@ -64,10 +64,48 @@ test.describe('STYL-226: App Hosting staging secrets and public URL', () => {
     expect(staging).not.toContain('secret: VOICE_ENABLED');
     expect(staging).not.toContain('STYLEFLO_WP_API_SECRET');
     expect(staging).not.toContain('STYLEFLO_WP_CREATE_BUSINESS_TOKEN');
+    expect(staging).not.toContain('WORDPRESS_SITE_URL');
     expect(staging).not.toContain('WPMUDEV_WEBHOOK_SECRET');
     expect(staging).not.toContain('TENANT_CREATED_WEBHOOK_SECRET');
+    // Production App Hosting (styleflo-ai / delightful-kepler-1) reads the base
+    // file only. Staging stays unwired (STYL-237 D3), so these names are absent there.
     const base = readFileSync(join(root, 'apphosting.yaml'), 'utf8');
-    expect(base).not.toContain('TENANT_CREATED_WEBHOOK_SECRET');
+    const baseBody = base
+      .split('\n')
+      .filter((line) => !/^\s*#/.test(line))
+      .join('\n');
+    const envBlock = (variable: string) => {
+      const marker = `- variable: ${variable}`;
+      const start = baseBody.indexOf(marker);
+      expect(start, variable).toBeGreaterThanOrEqual(0);
+      const next = baseBody.indexOf('\n  - variable:', start + marker.length);
+      return baseBody.slice(start, next === -1 ? undefined : next).trim();
+    };
+    expect(envBlock('TENANT_CREATED_WEBHOOK_SECRET')).toBe(
+      [
+        '- variable: TENANT_CREATED_WEBHOOK_SECRET',
+        '    secret: TENANT_CREATED_WEBHOOK_SECRET',
+        '    availability:',
+        '      - RUNTIME',
+      ].join('\n'),
+    );
+    expect(envBlock('WORDPRESS_SITE_URL')).toBe(
+      [
+        '- variable: WORDPRESS_SITE_URL',
+        '    value: "https://styleflo.ai"',
+        '    availability:',
+        '      - RUNTIME',
+      ].join('\n'),
+    );
+    expect(envBlock('STYLEFLO_WP_CREATE_BUSINESS_TOKEN')).toBe(
+      [
+        '- variable: STYLEFLO_WP_CREATE_BUSINESS_TOKEN',
+        '    secret: STYLEFLO_WP_CREATE_BUSINESS_TOKEN',
+        '    availability:',
+        '      - RUNTIME',
+      ].join('\n'),
+    );
+    expect(envBlock('STYLEFLO_WP_CREATE_BUSINESS_TOKEN')).not.toContain('STYLEFLO_WP_API_SECRET');
 
     const envBody = staging
       .split('\n')
