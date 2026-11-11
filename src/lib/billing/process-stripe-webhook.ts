@@ -5,6 +5,7 @@ import {
   addonActivateStatusFields,
   addonDeactivateStatusFields,
   addonPastDueStatusFields,
+  pendingCancelPairFromStripe,
 } from '@/lib/billing/addon-subscription-status';
 
 export type AddonLineItemContext = {
@@ -99,7 +100,12 @@ export async function deactivateAddonsForCancelledSubscription(
   supabaseAdmin: any,
   input: { tenantId: string; addonCatalogId?: string | null; stripeSubscriptionId?: string | null },
 ) {
-  const payload = { ...addonDeactivateStatusFields(), deactivated_at: new Date().toISOString() };
+  const payload = {
+    ...addonDeactivateStatusFields(),
+    deactivated_at: new Date().toISOString(),
+    cancel_at_period_end: false,
+    cancel_at: null,
+  };
   if (input.stripeSubscriptionId) {
     await supabaseAdmin
       .from('tenant_active_addons')
@@ -121,6 +127,138 @@ export async function deactivateAddonsForCancelledSubscription(
       .eq('tenant_id', input.tenantId);
   }
   return { error: null };
+}
+
+type AddonCancelRow = {
+  id: string;
+  addon_catalog_id?: string | null;
+  tenant_id?: string | null;
+  cancel_at_period_end?: boolean | null;
+  cancel_at?: string | null;
+  is_active?: boolean | null;
+};
+
+function cancelFlagsDiffer(stored: unknown, next: boolean): boolean {
+  if (stored == null) return true;
+  return (stored === true) !== next;
+}
+
+function cancelInstantsDiffer(stored: unknown, next: string | null): boolean {
+  if (stored == null && next == null) return false;
+  if (stored == null || next == null) return true;
+  const left = Date.parse(String(stored));
+  const right = Date.parse(next);
+  if (Number.isNaN(left) || Number.isNaN(right)) return String(stored) !== next;
+  return left !== right;
+}
+
+async function readActiveAddonRows(
+  supabaseAdmin: any,
+  filter: { stripeSubscriptionId?: string | null; tenantId?: string | null; addonCatalogId?: string | null },
+): Promise<{ rows: AddonCancelRow[]; error: string | null }> {
+  let query = supabaseAdmin
+    .from('tenant_active_addons')
+    .select('id, addon_catalog_id, tenant_id, is_active, cancel_at_period_end, cancel_at')
+    .eq('is_active', true);
+  if (filter.stripeSubscriptionId) {
+    query = query.eq('stripe_subscription_id', filter.stripeSubscriptionId);
+  } else if (filter.tenantId && filter.addonCatalogId) {
+    query = query.eq('tenant_id', filter.tenantId).eq('addon_catalog_id', filter.addonCatalogId);
+  } else {
+    return { rows: [], error: null };
+  }
+  const { data, error } = await query;
+  if (error) return { rows: [], error: error.message || 'Failed to read bolt-on cancel state' };
+  const rows = (Array.isArray(data) ? data : data ? [data] : []).filter((row) => row?.id && row.is_active !== false);
+  return { rows, error: null };
+}
+
+/**
+ * Persist cancel_at_period_end / cancel_at after the existing activate path.
+ * Entitlement stays on. Audit rows are written only when the stored pair changes
+ * into or out of a pending cancel (or the pending timestamp changes).
+ * PostgREST has no IS DISTINCT FROM, so the comparison is done on the row we just read.
+ */
+export async function syncBoltOnPendingCancellation(
+  supabaseAdmin: any,
+  dataObject: Record<string, any>,
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  const pair = pendingCancelPairFromStripe(dataObject);
+  const metadata = dataObject.metadata || {};
+  const stripeSubscriptionId = (typeof dataObject.id === 'string' && dataObject.id.startsWith('sub_'))
+    ? dataObject.id
+    : stripeSubscriptionIdFrom(dataObject);
+  const tenantId = typeof metadata.tenant_id === 'string' ? metadata.tenant_id : null;
+  const addonCatalogId = typeof metadata.addon_catalog_id === 'string' ? metadata.addon_catalog_id : null;
+
+  const loaded = await readActiveAddonRows(
+    supabaseAdmin,
+    stripeSubscriptionId ? { stripeSubscriptionId } : { tenantId, addonCatalogId },
+  );
+  if (loaded.error) return { ok: false, error: loaded.error };
+
+  for (const row of loaded.rows) {
+    const flagChanged = cancelFlagsDiffer(row.cancel_at_period_end, pair.cancel_at_period_end);
+    const atChanged = cancelInstantsDiffer(row.cancel_at, pair.cancel_at);
+    if (!flagChanged && !atChanged) continue;
+
+    const wasPending = row.cancel_at_period_end === true;
+    const { error: updateError } = await supabaseAdmin
+      .from('tenant_active_addons')
+      .update({
+        cancel_at_period_end: pair.cancel_at_period_end,
+        cancel_at: pair.cancel_at,
+      })
+      .eq('id', row.id);
+    if (updateError) {
+      return { ok: false, error: updateError.message || 'Failed to store bolt-on cancel state' };
+    }
+
+    const movedIntoPending = pair.cancel_at_period_end && (!wasPending || atChanged);
+    const movedOutOfPending = wasPending && !pair.cancel_at_period_end;
+    if (!movedIntoPending && !movedOutOfPending) continue;
+
+    const catalogId = row.addon_catalog_id || addonCatalogId || row.id;
+    const audit = movedIntoPending
+      ? {
+          tenant_id: row.tenant_id || tenantId,
+          addon_catalog_id: row.addon_catalog_id || addonCatalogId,
+          action: 'addon_cancel_scheduled',
+          new_value: {
+            cancel_at: pair.cancel_at,
+            cancel_at_period_end: true,
+            stripe_subscription_id: stripeSubscriptionId,
+          },
+          summary: pair.cancel_at
+            ? `Scheduled cancellation of ${catalogId} at ${pair.cancel_at}`
+            : `Scheduled cancellation of ${catalogId}`,
+        }
+      : {
+          tenant_id: row.tenant_id || tenantId,
+          addon_catalog_id: row.addon_catalog_id || addonCatalogId,
+          action: 'addon_cancel_unscheduled',
+          old_value: {
+            cancel_at: row.cancel_at ?? null,
+            cancel_at_period_end: true,
+            stripe_subscription_id: stripeSubscriptionId,
+          },
+          summary: `Cleared scheduled cancellation of ${catalogId}`,
+        };
+
+    const { error: auditError } = await supabaseAdmin.from('addon_audit_log').insert(audit);
+    if (auditError) {
+      await supabaseAdmin
+        .from('tenant_active_addons')
+        .update({
+          cancel_at_period_end: row.cancel_at_period_end ?? null,
+          cancel_at: row.cancel_at ?? null,
+        })
+        .eq('id', row.id);
+      return { ok: false, error: auditError.message || 'Failed to record bolt-on cancel audit' };
+    }
+  }
+
+  return { ok: true };
 }
 
 export type StripeBillingEvent = {
@@ -753,6 +891,10 @@ export async function handleStripeBillingEvent(
         return { status: 500, body: { success: false, error: activated.error || 'Bolt-on fulfilment failed' } };
       }
       if (activated.ok) {
+        const synced = await syncBoltOnPendingCancellation(supabaseAdmin, dataObject);
+        if (!synced.ok) {
+          return { status: 500, body: { success: false, error: synced.error } };
+        }
         return { status: 200, body: { success: true, message: 'Add-ons synced' } };
       }
     }
@@ -764,6 +906,10 @@ export async function handleStripeBillingEvent(
       });
       if (lineItemsResult.retry) {
         return { status: 500, body: { success: false, error: lineItemsResult.error || 'Bolt-on fulfilment failed' } };
+      }
+      const synced = await syncBoltOnPendingCancellation(supabaseAdmin, dataObject);
+      if (!synced.ok) {
+        return { status: 500, body: { success: false, error: synced.error } };
       }
       return { status: 200, body: { success: true, message: 'Add-ons synced' } };
     }

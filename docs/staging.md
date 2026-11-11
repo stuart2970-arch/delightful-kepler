@@ -349,6 +349,12 @@ Production's `schema_migrations` has none of the `styl202_*` versions. Staging h
 
 Do not apply `20261024130000_styl202_addon_unique_and_helpers.sql` to production at any point in that list.
 
+## STYL-249 / STYL-250 — pending cancel and audit RLS
+
+`20261111084313_styl249_250_pending_cancel_and_audit_rls.sql` adds nullable `cancel_at_period_end` and `cancel_at` on `tenant_active_addons`, replaces `addon_audit_log` `USING (true)` with own-tenant and superadmin SELECT, and widens `addon_audit_log_action_check` so `addon_cancel_scheduled` / `addon_cancel_unscheduled` can be written. It does not delete rows and does not depend on `20261024130000`, `20261024120100`, or `20261024120200`.
+
+Apply that named file on staging first. On production promote, apply this named file only — not a plain `supabase db push`, which would also pick up `20261024130000`. If `knowledge_sources` or `referral_clicks` exist, the file only enables RLS. It does not create those tables and it does not add JWT policies. Local and staging do not have them; that branch is a no-op.
+
 ## Empty historical migration
 
 `20260712182829_add_chatbot_to_services_staff.sql` is intentionally empty; the real `chatbot_id` columns are added in `20260712183000_add_chatbot_id_to_services_staff.sql`. Do not edit the empty file (checksum already recorded on staging).
