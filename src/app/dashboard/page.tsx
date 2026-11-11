@@ -6,6 +6,7 @@ import DashboardClient from '@/components/DashboardClient';
 import { redirect } from 'next/navigation';
 import { getTenantChannelFlags, isVoiceConsumptionFeature, sumVoiceConsumption, VOICE_CONSUMPTION_FEATURE_IDS } from '@/lib/entitlements';
 import { usageAlertLevel } from '@/lib/usage-alerts';
+import { resolveVoiceAllowance } from '@/lib/telephony/voice-minute-gate';
 import { applyPublicAddonFilter } from '@/lib/addons/public-catalogue';
 import { buildAccountOwnership } from '@/lib/billing/account-ownership';
 import { knowledgeItemsTotal } from '@/lib/billing/bolt-on';
@@ -452,7 +453,7 @@ export default async function DashboardPage(props: { searchParams?: Promise<{ [k
       // Current user usage (standard monthly)
       const { data: usageRows } = await queryClient
         .from('usage_ledger')
-        .select('quantity, feature_id')
+        .select('quantity, feature_id, usage_type')
         .eq('tenant_id', tenantId)
         .gte('recorded_at', firstDay.toISOString());
       
@@ -568,10 +569,22 @@ export default async function DashboardPage(props: { searchParams?: Promise<{ [k
         (rows || []).filter(r => r.feature_id === fid).reduce((s, r) => s + (r.quantity || 0), 0);
 
       const voiceConsumed = sumVoiceConsumption(consumptions);
+      const planVoiceLimit = Number(
+        (billingData.entitlements || []).find((ent: { feature_id: string; limit_value?: number | null }) => ent.feature_id === 'voice_minutes')?.limit_value || 0,
+      );
+      const monthVoiceConsumed = sumVoiceConsumption(
+        (usageRows || []).filter((row: { usage_type?: string | null }) => row.usage_type === 'consumption'),
+      );
+      const voiceBalance = resolveVoiceAllowance({
+        rolloverAllocated: sumFeature(allocations, 'voice_minutes'),
+        rolloverConsumed: voiceConsumed,
+        planMinutes: planVoiceLimit > 0 ? planVoiceLimit : null,
+        currentPeriodConsumed: monthVoiceConsumed,
+      });
       billingData.rolloverUsage = {
-        voice_minutes_allocated: sumFeature(allocations, 'voice_minutes'),
-        voice_minutes_consumed: voiceConsumed,
-        voice_minutes_remaining: Math.max(0, sumFeature(allocations, 'voice_minutes') - voiceConsumed),
+        voice_minutes_allocated: voiceBalance.allocated,
+        voice_minutes_consumed: voiceBalance.consumed,
+        voice_minutes_remaining: Math.max(0, voiceBalance.allocated - voiceBalance.consumed),
         sms_allocated: sumFeature(allocations, 'sms_messages'),
         sms_consumed: sumFeature(consumptions, 'sms_messages'),
         sms_remaining: Math.max(0, sumFeature(allocations, 'sms_messages') - sumFeature(consumptions, 'sms_messages')),

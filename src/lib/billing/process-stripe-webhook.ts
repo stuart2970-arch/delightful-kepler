@@ -135,6 +135,7 @@ export type StripeWebhookDeps = {
     featureId: string,
     quantity: number,
     addonCatalogId?: string,
+    options?: { sectorTag?: string; billingPeriodStart?: string },
   ) => Promise<{ id?: string } | void>;
 };
 
@@ -631,6 +632,86 @@ async function activateBoltOnByCatalogId(options: {
   return { ok: true, addonId: addon.id, oneOff: isOneOff };
 }
 
+const PLAN_VOICE_GRANT_PREFIX = 'plan_voice:';
+
+/**
+ * Monthly Foundation (and any other plan with included voice minutes) renewal.
+ * Signup already grants the first block from checkout. A repeated delivery of
+ * the same invoice does not grant again.
+ */
+export async function grantPlanVoiceMinutesForRenewal(
+  supabaseAdmin: any,
+  tenantId: string,
+  invoice: Record<string, any>,
+  allocateRollingCredits: NonNullable<StripeWebhookDeps['allocateRollingCredits']>,
+): Promise<{ granted: boolean; minutes: number; reason: string }> {
+  const billingReason = String(invoice.billing_reason || '');
+  if (billingReason === 'subscription_create') {
+    return { granted: false, minutes: 0, reason: 'signup_invoice' };
+  }
+
+  const invoiceId = typeof invoice.id === 'string' ? invoice.id.trim() : '';
+  const periodStartUnix = invoice.lines?.data?.[0]?.period?.start ?? invoice.period_start;
+  const periodKey = invoiceId || (periodStartUnix != null ? `period:${periodStartUnix}` : '');
+  if (!periodKey) {
+    return { granted: false, minutes: 0, reason: 'no_invoice_key' };
+  }
+  const sectorTag = `${PLAN_VOICE_GRANT_PREFIX}${periodKey}`;
+
+  const { data: existing, error: existingError } = await supabaseAdmin
+    .from('usage_ledger')
+    .select('id')
+    .eq('tenant_id', tenantId)
+    .eq('feature_id', 'voice_minutes')
+    .eq('usage_type', 'allocation')
+    .eq('sector_tag', sectorTag)
+    .limit(1)
+    .maybeSingle();
+  if (existingError) {
+    throw new Error(existingError.message || 'Could not check the plan voice grant');
+  }
+  if (existing?.id) {
+    return { granted: false, minutes: 0, reason: 'already_granted' };
+  }
+
+  const { data: tenant } = await supabaseAdmin
+    .from('tenants')
+    .select('plan_tier')
+    .eq('id', tenantId)
+    .maybeSingle();
+  const planTier = tenant?.plan_tier || 'foundation';
+  const { data: entitlement, error: entitlementError } = await supabaseAdmin
+    .from('tier_entitlements')
+    .select('limit_value')
+    .eq('tier_id', planTier)
+    .eq('feature_id', 'voice_minutes')
+    .maybeSingle();
+  if (entitlementError) {
+    throw new Error(entitlementError.message || 'Could not read the plan voice allowance');
+  }
+  const minutes = entitlement?.limit_value == null ? null : Number(entitlement.limit_value);
+  if (minutes == null || !Number.isFinite(minutes) || minutes <= 0) {
+    return { granted: false, minutes: 0, reason: 'no_plan_minutes' };
+  }
+
+  const periodStart = periodStartUnix != null
+    ? new Date(Number(periodStartUnix) * 1000).toISOString()
+    : new Date().toISOString();
+
+  try {
+    await allocateRollingCredits(tenantId, 'voice_minutes', minutes, undefined, {
+      sectorTag,
+      billingPeriodStart: periodStart,
+    });
+  } catch (err: any) {
+    if (err?.code === '23505') {
+      return { granted: false, minutes: 0, reason: 'already_granted' };
+    }
+    throw err;
+  }
+  return { granted: true, minutes, reason: 'granted' };
+}
+
 export async function handleStripeBillingEvent(
   event: StripeBillingEvent,
   deps: StripeWebhookDeps,
@@ -694,6 +775,8 @@ export async function handleStripeBillingEvent(
           }
         }
       }
+
+      await grantPlanVoiceMinutesForRenewal(supabaseAdmin, tenantId, dataObject, allocateRollingCredits);
 
       return { status: 200, body: { success: true, message: `Tenant ${tenantId} unlocked` } };
     }

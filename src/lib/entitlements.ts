@@ -264,6 +264,28 @@ export async function getRolloverBalance(tenantId: string): Promise<RolloverBala
   return balance;
 }
 
+/** Voice minutes used since the first of the current month. Same feature ids as the rollover. */
+export async function loadCurrentPeriodVoiceConsumption(
+  tenantId: string,
+  supabase: { from: (table: string) => any } = createAdminClient(),
+  now = new Date(),
+): Promise<{ consumed: number; error: string | null }> {
+  const start = new Date(now);
+  start.setDate(1);
+  start.setHours(0, 0, 0, 0);
+  const result = await supabase
+    .from('usage_ledger')
+    .select('feature_id, quantity')
+    .eq('tenant_id', tenantId)
+    .eq('usage_type', 'consumption')
+    .in('feature_id', [...VOICE_CONSUMPTION_FEATURE_IDS])
+    .gte('recorded_at', start.toISOString());
+  if (result?.error) {
+    return { consumed: 0, error: result.error.message || 'usage_ledger read failed' };
+  }
+  return { consumed: sumVoiceConsumption(result?.data ?? null), error: null };
+}
+
 // =========================================================================
 // Effective Limit (Modular Bolt-On Evaluation)
 // =========================================================================
@@ -661,7 +683,8 @@ export async function allocateRollingCredits(
   tenantId: string,
   featureId: string,
   quantity: number,
-  addonCatalogId?: string
+  addonCatalogId?: string,
+  options?: { sectorTag?: string; billingPeriodStart?: string },
 ): Promise<{ id?: string } | void> {
   const supabase = createAdminClient();
   const now = new Date();
@@ -673,14 +696,17 @@ export async function allocateRollingCredits(
     feature_id: featureId,
     quantity,
     usage_type: 'allocation',
-    billing_period_start: now.toISOString(),
+    billing_period_start: options?.billingPeriodStart || now.toISOString(),
     expires_at: expiresAt.toISOString(),
     addon_catalog_id: addonCatalogId || null,
+    sector_tag: options?.sectorTag || null,
     recorded_at: now.toISOString(),
   }).select('id').maybeSingle();
 
   if (error) {
-    throw new Error(error.message || 'Failed to allocate rolling credits');
+    const wrapped = new Error(error.message || 'Failed to allocate rolling credits') as Error & { code?: string };
+    wrapped.code = error.code;
+    throw wrapped;
   }
   return data || undefined;
 }
