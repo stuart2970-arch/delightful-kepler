@@ -301,7 +301,10 @@ function queueCountForHost(host: string): string {
 function insertTenant(slug: string): string {
   const tenantId = sql(
     `INSERT INTO public.tenants (company_name, slug) VALUES (${sqlLiteral(slug)}, ${sqlLiteral(slug)}) RETURNING id::text;`,
-  );
+  )
+    .split('\n')
+    .map((line) => line.trim())
+    .find((line) => /^[0-9a-f-]{36}$/i.test(line));
   if (!tenantId) throw new Error(`Tenant insert failed for ${slug}`);
   return tenantId;
 }
