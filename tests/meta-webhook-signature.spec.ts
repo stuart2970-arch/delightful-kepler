@@ -2,7 +2,7 @@ import { test, expect } from '@playwright/test';
 import crypto from 'crypto';
 import { NextRequest } from 'next/server';
 import { GET, POST } from '../src/app/api/webhooks/meta/route';
-import { validateMetaSignature } from '../src/lib/meta';
+import { exchangeCodeForToken, validateMetaSignature } from '../src/lib/meta';
 
 const TEST_SECRET = 'test_meta_app_secret_123';
 const VERIFY_TOKEN = process.env.META_VERIFY_TOKEN || 'styleflo_meta_verify_2026';
@@ -178,6 +178,38 @@ test.describe('Meta webhook X-Hub-Signature-256', () => {
     const padded = `  ${TEST_SECRET}\n`;
     expect(validateMetaSignature(rawBody, sign(rawBody, TEST_SECRET), padded)).toBe(true);
     expect(validateMetaSignature(rawBody, sign(rawBody, padded), padded)).toBe(false);
+  });
+
+  test('exchangeCodeForToken fails closed on a blank META_APP_SECRET and does not call Graph', async () => {
+    const calls: string[] = [];
+    const originalFetch = globalThis.fetch;
+    globalThis.fetch = (async (input: RequestInfo | URL) => {
+      calls.push(String(input));
+      return new Response(JSON.stringify({ access_token: 'should-not-be-used' }), { status: 200 });
+    }) as typeof fetch;
+
+    try {
+      for (const secret of [undefined, '', '   ', '\t\n  ']) {
+        const result = await withMetaSecret(secret, () =>
+          exchangeCodeForToken({ code: 'auth-code-styl281', clientId: 'app-id-styl281' }),
+        );
+        expect(result.success).toBe(false);
+        expect(result.accessToken).toBeUndefined();
+        expect(result.error).toMatch(/META_APP_SECRET is missing or whitespace-only/);
+      }
+      expect(calls).toEqual([]);
+
+      const padded = `  ${TEST_SECRET}\n`;
+      const exchanged = await withMetaSecret(padded, () =>
+        exchangeCodeForToken({ code: 'auth-code-styl281', clientId: 'app-id-styl281' }),
+      );
+      expect(exchanged.success).toBe(true);
+      expect(calls).toHaveLength(1);
+      expect(calls[0]).toContain(`client_secret=${encodeURIComponent(TEST_SECRET)}`);
+      expect(calls[0]).not.toContain(encodeURIComponent(padded));
+    } finally {
+      globalThis.fetch = originalFetch;
+    }
   });
 
   test('HTTP POST without X-Hub-Signature-256 returns 401', async ({ request }) => {

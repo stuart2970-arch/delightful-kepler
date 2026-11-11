@@ -38,6 +38,15 @@ export interface SendInstagramParams {
 }
 
 /**
+ * Trimmed Meta app secret. An explicit argument wins over META_APP_SECRET, including when it is blank.
+ * Returns an empty string when the value is missing or whitespace-only.
+ */
+export function readMetaAppSecret(explicit?: string): string {
+  const raw = explicit !== undefined ? explicit : process.env.META_APP_SECRET;
+  return (raw ?? '').trim();
+}
+
+/**
  * Validates the X-Hub-Signature-256 header sent by Meta webhooks.
  */
 export function validateMetaSignature(
@@ -45,8 +54,7 @@ export function validateMetaSignature(
   signatureHeader: string | null,
   appSecret?: string
 ): boolean {
-  const rawSecret = appSecret !== undefined ? appSecret : process.env.META_APP_SECRET;
-  const secret = (rawSecret ?? '').trim();
+  const secret = readMetaAppSecret(appSecret);
   if (!secret) {
     console.error(
       '[Meta Webhook] META_APP_SECRET is missing or whitespace-only; rejecting webhook'
@@ -269,9 +277,16 @@ export async function exchangeCodeForToken({
   clientSecret,
 }: ExchangeCodeParams): Promise<{ success: boolean; accessToken?: string; tokenType?: string; error?: string }> {
   const appId = clientId || process.env.META_APP_ID || process.env.NEXT_PUBLIC_META_APP_ID;
-  const appSecret = clientSecret || process.env.META_APP_SECRET;
+  const appSecret = readMetaAppSecret(clientSecret);
 
-  if (!appId || !appSecret || !code) {
+  if (!appSecret) {
+    console.error(
+      '[Meta Onboard] META_APP_SECRET is missing or whitespace-only; refusing token exchange'
+    );
+    return { success: false, error: 'META_APP_SECRET is missing or whitespace-only' };
+  }
+
+  if (!appId || !code) {
     return { success: false, error: 'Missing appId, appSecret, or authorization code' };
   }
 
