@@ -8,7 +8,10 @@
 #
 # Stuart: create secrets with `firebase apphosting:secrets:set` — see docs/staging.md.
 # FORBIDDEN: the live Supabase project ref (CI: npm run check:staging-no-live-ref).
-# Do NOT use empty-string env values. WordPress secrets stay unwired.
+# Do NOT use empty-string env values. App Hosting rejects them (build 4c860af7).
+# WordPress, the tenant-created webhook, and META_APP_SECRET stay unwired.
+# Environment name must be exactly "staging". Otherwise this file is not merged
+# and the base file's production secret bindings are fetched in styleflo-staging.
 
 runConfig:
   minInstances: 0
@@ -91,6 +94,10 @@ env:
     availability:
       - RUNTIME
 
+  # Same variable as the production binding in apphosting.yaml. This entry
+  # replaces it for the staging backend, so the secret is TOKEN_ENC_KEY in
+  # project styleflo-staging (a staging-local key). Do not use a full
+  # Secret Manager resource path.
   - variable: TOKEN_ENC_KEY
     secret: TOKEN_ENC_KEY
     availability:
@@ -242,5 +249,40 @@ env:
 
   - variable: TWILIO_ADDRESS_SID_MOBILE
     value: AD61be22428bc7bf96a243c6d83a42e57f
+    availability:
+      - RUNTIME
+
+  # ---------------------------------------------------------------------------
+  # Production-only base bindings, neutralised for styleflo-staging.
+  #
+  # Firebase merges apphosting.staging.yaml over apphosting.yaml by variable
+  # name (https://firebase.google.com/docs/app-hosting/multiple-environments).
+  # A variable present only in the base file is kept, including a secret:
+  # reference. There is no unset key. Replacing the variable with a plain
+  # value drops the Secret Manager lookup. value: "" is rejected, so the
+  # secret stand-ins are three spaces. Routes that trim treat that as unset
+  # (tenant-created stays 401; the WordPress token is blank). Meta does not
+  # trim: a whitespace META_APP_SECRET is not the production secret, so token
+  # exchange and real X-Hub-Signature-256 checks fail and WhatsApp onboarding
+  # stays off. NEXT_PUBLIC_META_* ids are public and are intentionally not
+  # overridden here (see apphosting.yaml, STYL-254).
+  # ---------------------------------------------------------------------------
+  - variable: TENANT_CREATED_WEBHOOK_SECRET
+    value: "   "
+    availability:
+      - RUNTIME
+
+  - variable: WORDPRESS_SITE_URL
+    value: "https://wordpress.invalid"
+    availability:
+      - RUNTIME
+
+  - variable: STYLEFLO_WP_CREATE_BUSINESS_TOKEN
+    value: "   "
+    availability:
+      - RUNTIME
+
+  - variable: META_APP_SECRET
+    value: "   "
     availability:
       - RUNTIME
