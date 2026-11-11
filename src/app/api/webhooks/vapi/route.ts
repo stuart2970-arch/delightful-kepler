@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import { sendConsolidatedLeadEmail } from '@/lib/lead-notifier';
 import { verifyVapiWebhookSecret } from '@/lib/env/vapi-webhook-auth';
+import { VOICE_USAGE_FEATURE_ID } from '@/lib/entitlements';
 
 // Vapi sends a POST request with call details.
 // We only care about 'end-of-call-report' messages.
@@ -72,14 +73,22 @@ export async function POST(request: Request) {
         const unitCost = feature?.unit_cost_estimated || 0;
         const actualCost = unitCost * durationMinutes;
 
-        await supabaseAdmin.from('usage_ledger').insert({
+        // Record against voice_minutes. The dashboard balance and 85% alerts
+        // read that id. The rate still comes from the vapi_voice_minutes feature.
+        const { error: meterError } = await supabaseAdmin.from('usage_ledger').insert({
           tenant_id: tenantId,
-          feature_id: 'vapi_voice_minutes',
+          feature_id: VOICE_USAGE_FEATURE_ID,
           quantity: durationMinutes,
           actual_cost: actualCost,
+          usage_type: 'consumption',
           sector_tag: `Vapi Call ID: ${call.id}`,
+          recorded_at: new Date().toISOString(),
         });
-        console.log(`[Vapi Webhook] Successfully metered ${durationMinutes} minutes for tenant ${tenantId}`);
+        if (meterError) {
+          console.error('[Vapi Webhook] usage_ledger insert failed:', meterError.message);
+        } else {
+          console.log(`[Vapi Webhook] Successfully metered ${durationMinutes} minutes for tenant ${tenantId}`);
+        }
       } catch (meterErr) {
         console.error('[Vapi Webhook] Metering insert error:', meterErr);
       }

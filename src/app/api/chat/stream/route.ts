@@ -1,5 +1,5 @@
 import { verifyChatSessionToken, checkRateLimit, type ChatSessionPayload } from '@/lib/chat-session';
-import { logMeteredUsage, checkFeatureEntitlement } from '@/lib/entitlements';
+import { logMeteredUsage, checkFeatureEntitlement, CHAT_MESSAGE_FEATURE_ID } from '@/lib/entitlements';
 
 import { NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
@@ -524,7 +524,7 @@ Help them specify:
 
     // Metered usage tracking
     if (tenantId && tenantId !== '00000000-0000-0000-0000-000000000000') {
-      logMeteredUsage(supabaseAdmin, tenantId, 'chat_messages', 1, 'Inbound web chat message').catch((err) => {
+      logMeteredUsage(supabaseAdmin, tenantId, CHAT_MESSAGE_FEATURE_ID, 1, 'Inbound web chat message').catch((err) => {
         console.warn(`[Chat Stream][${requestId}] Metered usage logging failure:`, err?.message);
       });
     }

@@ -4,7 +4,7 @@ import { createClient } from '@supabase/supabase-js';
 import { cookies } from 'next/headers';
 import DashboardClient from '@/components/DashboardClient';
 import { redirect } from 'next/navigation';
-import { getTenantChannelFlags } from '@/lib/entitlements';
+import { getTenantChannelFlags, isVoiceConsumptionFeature, sumVoiceConsumption, VOICE_CONSUMPTION_FEATURE_IDS } from '@/lib/entitlements';
 import { applyPublicAddonFilter } from '@/lib/addons/public-catalogue';
 import { buildAccountOwnership } from '@/lib/billing/account-ownership';
 import { knowledgeItemsTotal } from '@/lib/billing/bolt-on';
@@ -560,16 +560,17 @@ export default async function DashboardPage(props: { searchParams?: Promise<{ [k
         .select('feature_id, quantity')
         .eq('tenant_id', tenantId)
         .eq('usage_type', 'consumption')
-        .in('feature_id', ['voice_minutes', 'sms_messages'])
+        .in('feature_id', [...VOICE_CONSUMPTION_FEATURE_IDS, 'sms_messages'])
         .gte('recorded_at', threeMonthsAgo.toISOString());
 
       const sumFeature = (rows: any[] | null, fid: string) =>
         (rows || []).filter(r => r.feature_id === fid).reduce((s, r) => s + (r.quantity || 0), 0);
 
+      const voiceConsumed = sumVoiceConsumption(consumptions);
       billingData.rolloverUsage = {
         voice_minutes_allocated: sumFeature(allocations, 'voice_minutes'),
-        voice_minutes_consumed: sumFeature(consumptions, 'voice_minutes'),
-        voice_minutes_remaining: Math.max(0, sumFeature(allocations, 'voice_minutes') - sumFeature(consumptions, 'voice_minutes')),
+        voice_minutes_consumed: voiceConsumed,
+        voice_minutes_remaining: Math.max(0, sumFeature(allocations, 'voice_minutes') - voiceConsumed),
         sms_allocated: sumFeature(allocations, 'sms_messages'),
         sms_consumed: sumFeature(consumptions, 'sms_messages'),
         sms_remaining: Math.max(0, sumFeature(allocations, 'sms_messages') - sumFeature(consumptions, 'sms_messages')),
@@ -663,14 +664,14 @@ export default async function DashboardPage(props: { searchParams?: Promise<{ [k
           allTimeVoiceUsageRes
         ] = await Promise.all([
           adminSupabase.from('tenants').select('id, company_name, plan_tier, slug').order('created_at', { ascending: false }),
-          adminSupabase.from('usage_ledger').select('quantity, feature_id, tenant_id, actual_cost').gte('recorded_at', firstDay.toISOString()).limit(2000),
+          adminSupabase.from('usage_ledger').select('quantity, feature_id, tenant_id, actual_cost, usage_type').gte('recorded_at', firstDay.toISOString()).limit(2000),
           adminSupabase.from('messages').select('*', { count: 'estimated', head: true }),
           adminSupabase.from('messages').select('*', { count: 'estimated', head: true }).gte('created_at', firstDay.toISOString()),
           adminSupabase.from('conversations').select('*', { count: 'estimated', head: true }).eq('is_voice_call', false),
           adminSupabase.from('conversations').select('*', { count: 'estimated', head: true }).eq('is_voice_call', false).gte('created_at', firstDay.toISOString()),
           adminSupabase.from('conversations').select('*', { count: 'estimated', head: true }).eq('is_voice_call', true),
           adminSupabase.from('conversations').select('*', { count: 'estimated', head: true }).eq('is_voice_call', true).gte('created_at', firstDay.toISOString()),
-          adminSupabase.from('usage_ledger').select('quantity').eq('feature_id', 'vapi_voice_minutes').limit(1000)
+          adminSupabase.from('usage_ledger').select('quantity').eq('usage_type', 'consumption').in('feature_id', [...VOICE_CONSUMPTION_FEATURE_IDS]).limit(1000)
         ]);
 
         allTenantsList = tenantsRes.data || [];
@@ -683,7 +684,7 @@ export default async function DashboardPage(props: { searchParams?: Promise<{ [k
         monthlyVoiceCalls = monthlyVoiceRes.count || 0;
         totalVoiceMinutes = (allTimeVoiceUsageRes.data || []).reduce((sum: number, u: any) => sum + (u.quantity || 0), 0);
         monthlyVoiceMinutes = allUsage
-          .filter((u: any) => u.feature_id === 'vapi_voice_minutes')
+          .filter((u: any) => isVoiceConsumptionFeature(u.feature_id) && u.usage_type !== 'allocation')
           .reduce((sum: number, u: any) => sum + (u.quantity || 0), 0);
       } catch (err) {
         console.error('[Dashboard] Superadmin metrics query error:', err);

@@ -209,7 +209,7 @@ export const GET = withSuperAdmin(async (_req: NextRequest) => {
         const firstDayOfMonth = new Date(now.getFullYear(), now.getMonth(), 1).toISOString();
 
         const [usageRes, msgsRes] = await Promise.all([
-          adminClient.from('usage_ledger').select('quantity').gte('created_at', firstDayOfMonth),
+          adminClient.from('usage_ledger').select('quantity').gte('recorded_at', firstDayOfMonth),
           adminClient.from('messages').select('id', { count: 'exact', head: true }).gte('created_at', firstDayOfMonth),
         ]);
 

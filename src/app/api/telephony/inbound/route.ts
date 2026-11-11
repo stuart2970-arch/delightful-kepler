@@ -2,6 +2,11 @@ import { NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import twilio from 'twilio';
 import { evaluateVoiceGate, getVapiMasterAssistantId } from '@/lib/env/vapi-config';
+import {
+  catalogLimitFromRow,
+  decideVoiceMinuteGate,
+  INBOUND_MINUTES_EXHAUSTED_MESSAGE,
+} from '@/lib/telephony/voice-minute-gate';
 
 export const dynamic = 'force-dynamic';
 
@@ -47,22 +52,9 @@ export async function POST(request: Request) {
       });
     }
 
-    // 2. Check tenant voice minutes entitlement from usage_ledger (purchased numbers & bolt-ons)
-    const { data: voiceUsage } = await supabase
-      .from('usage_ledger')
-      .select('quantity, usage_type')
-      .eq('tenant_id', tenant.id)
-      .in('feature_id', ['voice_minutes', 'vapi_voice_minutes', 'voice_agent_minutes_web']);
-
-    const allocatedMinutes = (voiceUsage || [])
-      .filter(u => u.usage_type === 'allocation')
-      .reduce((s, u) => s + (u.quantity || 0), 0);
-    const consumedMinutes = (voiceUsage || [])
-      .filter(u => u.usage_type === 'consumption')
-      .reduce((s, u) => s + (u.quantity || 0), 0);
-    const remainingMinutes = Math.max(0, allocatedMinutes - consumedMinutes);
-
-    // Also check plan tier included voice
+    // 2. Voice minutes. No entitlement or usage row falls back to the plan
+    // catalogue and does not block. At or over a known allowance, the Terms
+    // message is played and the block is logged.
     const { data: tenantData } = await supabase
       .from('tenants')
       .select('plan_tier')
@@ -70,7 +62,31 @@ export async function POST(request: Request) {
       .single();
 
     const planTier = tenantData?.plan_tier || 'foundation';
-    const tierHasVoice = ['base_tier', 'foundation', 'starter', 'premium', 'ultimate', 'trial'].includes(planTier);
+
+    const { data: voiceUsage, error: usageError } = await supabase
+      .from('usage_ledger')
+      .select('quantity, usage_type')
+      .eq('tenant_id', tenant.id)
+      .in('feature_id', ['voice_minutes', 'vapi_voice_minutes', 'voice_agent_minutes_web']);
+
+    const { data: entitlement, error: entitlementError } = await supabase
+      .from('tier_entitlements')
+      .select('limit_value')
+      .eq('tier_id', planTier)
+      .eq('feature_id', 'voice_minutes')
+      .maybeSingle();
+
+    if (usageError) {
+      console.error(`[Telephony Inbound] usage_ledger read failed for tenant ${tenant.id}; allowing the call.`, usageError.message);
+    }
+    if (entitlementError) {
+      console.error(`[Telephony Inbound] voice allowance read failed for tenant ${tenant.id}; allowing the call.`, entitlementError.message);
+    }
+
+    const minuteGate = decideVoiceMinuteGate({
+      usageRows: usageError ? null : (voiceUsage || []),
+      catalogLimit: catalogLimitFromRow(entitlement ?? null, Boolean(entitlementError)),
+    });
 
     const VoiceResponse = twilio.twiml.VoiceResponse;
     const twiml = new VoiceResponse();
@@ -84,13 +100,21 @@ export async function POST(request: Request) {
       });
     }
 
-    if (remainingMinutes <= 0 && !tierHasVoice) {
-      console.warn(`[Telephony Inbound] Tenant ${tenant.id} has exhausted voice minutes.`);
-      twiml.say({ voice: 'Polly.Amy' }, 'Thank you for calling. This business line has run out of voice minutes. Please reach out by text message or online.');
+    if (!minuteGate.allowed) {
+      console.warn(
+        `[Telephony Inbound] BLOCK tenant=${tenant.id} plan=${planTier} allowance=${minuteGate.allowanceMinutes} consumed=${minuteGate.consumedMinutes} reason=${minuteGate.reason}`,
+      );
+      twiml.say({ voice: 'Polly.Amy' }, INBOUND_MINUTES_EXHAUSTED_MESSAGE);
       return new NextResponse(twiml.toString(), {
         status: 200,
         headers: { 'Content-Type': 'text/xml' },
       });
+    }
+
+    if (minuteGate.reason === 'fail_open') {
+      console.warn(
+        `[Telephony Inbound] No voice allowance on file for tenant ${tenant.id}; allowing the call (plan ${planTier}).`,
+      );
     }
 
     // 3. Resolve the Vapi assistant ID for this tenant's chatbot
@@ -117,7 +141,7 @@ export async function POST(request: Request) {
       });
     }
 
-    console.log(`[Telephony Inbound] Forwarding call for tenant ${tenant.id} to Vapi handler (remaining mins: ${remainingMinutes}, plan: ${planTier})`);
+    console.log(`[Telephony Inbound] Forwarding call for tenant ${tenant.id} to Vapi handler (allowance: ${minuteGate.allowanceMinutes ?? 'open'}, consumed: ${minuteGate.consumedMinutes}, plan: ${planTier}, reason: ${minuteGate.reason})`);
     twiml.redirect('https://api.vapi.ai/twilio/inbound_call');
 
     return new NextResponse(twiml.toString(), {
