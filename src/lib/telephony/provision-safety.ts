@@ -106,6 +106,7 @@ export function buildVapiPhoneImportPayload(input: {
     server: {
       url: `${input.appUrl.replace(/\/+$/, '')}/api/webhooks/vapi/assistant`,
       secret: input.webhookSecret,
+      headers: { 'X-Vapi-Secret': input.webhookSecret },
     },
     name: `StyleFlo Tenant ${input.tenantId}`,
   };

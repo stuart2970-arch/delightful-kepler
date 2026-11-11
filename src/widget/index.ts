@@ -1648,7 +1648,7 @@ const CONNECTING_TIMEOUT_MS = 20000;
             return;
           }
 
-          await (vapiInstance!.start as any)({
+          const assistant = {
             name: `${agentName} Assistant`,
             transcriber: {
               provider: "deepgram",
@@ -1661,9 +1661,8 @@ const CONNECTING_TIMEOUT_MS = 20000;
             artifactPlan: {
               recordingEnabled: false,
             },
-            // No client `server` object: a transient server.url would drop the
-            // org credential, and server.secret/headers would leak in the browser.
-            // Org-level Vapi Server URL + X-Vapi-Secret must be set in the dashboard.
+            // The server creates the call and attaches the webhook header.
+            // Do not put a server URL or secret on this browser payload.
             model: {
               provider: "custom-llm",
               url: `${targetVoiceHost}/api/voice/${chatbotId}/chat/completions`,
@@ -1690,7 +1689,22 @@ const CONNECTING_TIMEOUT_MS = 20000;
               call_type: 'web_voice',
               ...(firstName ? { client_name: firstName } : {}),
             }
+          };
+
+          const createRes = await fetch(`${targetVoiceHost}/api/voice/web-call`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              chatbotId,
+              sessionId: session.sessionId || sessionId,
+              assistant,
+            }),
           });
+          const createBody = await createRes.json().catch(() => ({}));
+          if (!createRes.ok || !createBody?.id || !createBody?.webCallUrl) {
+            throw new Error(createBody?.error || 'Could not start the voice call.');
+          }
+          await (vapiInstance as any).reconnect({ id: createBody.id, webCallUrl: createBody.webCallUrl });
         } catch (e: any) {
           console.error('[StyleFlo Widget] Vapi start error:', e);
           hideConnecting();

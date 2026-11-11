@@ -84,6 +84,7 @@ test.describe('STYL-226: safer telephony provision', () => {
     expect(payload.server).toEqual({
       url: 'https://staging.styleflo.ai/api/webhooks/vapi/assistant',
       secret: 'hook-secret',
+      headers: { 'X-Vapi-Secret': 'hook-secret' },
     });
 
     const keyOk = await verifyVapiPrivateKeyWorks(
