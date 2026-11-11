@@ -23,7 +23,7 @@ export async function PATCH(req: NextRequest) {
     // that is not this user's tenant (superadmins may name one). Never pick
     // the first tenant when the body omits an id.
     const tenantId = auth.tenantId;
-    const { 
+    let { 
       domain,
       business_address,
       postcode,
