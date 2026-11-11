@@ -1,17 +1,26 @@
 import { NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
+import { secretsEqual } from '@/lib/security/secrets-equal';
 
-// Verify the request signature or secret to ensure it's actually from WPMUDEV
-const WEBHOOK_SECRET = process.env.WPMUDEV_WEBHOOK_SECRET;
+function bearerToken(req: Request): string {
+  const header = req.headers.get('authorization') || '';
+  const match = /^Bearer\s+(\S+)/i.exec(header.trim());
+  return match?.[1] ?? '';
+}
 
 export async function POST(req: Request) {
-  try {
-    // 1. Authenticate the Webhook (if WEBHOOK_SECRET is set)
-    const authHeader = req.headers.get('authorization');
-    if (WEBHOOK_SECRET && authHeader !== `Bearer ${WEBHOOK_SECRET}`) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
+  const expected = (process.env.WPMUDEV_WEBHOOK_SECRET || '').trim();
+  if (!expected) {
+    console.error(
+      '[WPMUDEV Webhook] WPMUDEV_WEBHOOK_SECRET is missing or whitespace-only; rejecting webhook'
+    );
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  }
+  if (!secretsEqual(bearerToken(req), expected)) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  }
 
+  try {
     const rawBody = await req.json().catch(() => ({}));
     console.log('[WPMUDEV Webhook] Received payload:', rawBody);
 
