@@ -120,6 +120,83 @@ test.describe('Vapi end-of-call reports are stored once and metered', () => {
     expect(convsAfter).toHaveLength(1);
   });
 
+  test('the same end-of-call report delivered twice stores one transcript and one usage row', async ({ request }) => {
+    const callId = `eoc-retry-${Date.now()}`;
+    const transcript = `Retry transcript ${callId}.`;
+    const payload = {
+      message: {
+        type: 'end-of-call-report',
+        startedAt: '2026-11-01T18:00:00.000Z',
+        endedAt: '2026-11-01T18:01:00.000Z',
+        phoneNumber: { number: BUSINESS_NUMBER },
+        artifact: {
+          transcript,
+          recordingUrl: RECORDING_URL,
+        },
+        call: {
+          id: callId,
+          type: 'inboundPhoneCall',
+          customer: { number: CALLER_NUMBER },
+        },
+      },
+    };
+
+    const { count: ledgerBefore, error: beforeError } = await admin
+      .from('usage_ledger')
+      .select('id', { count: 'exact', head: true })
+      .eq('tenant_id', TENANT_ID)
+      .eq('feature_id', 'vapi_voice_minutes')
+      .eq('usage_type', 'consumption');
+    expect(beforeError).toBeNull();
+
+    const first = await request.post('/api/webhooks/vapi', {
+      headers: vapiWebhookHeaders,
+      data: payload,
+    });
+    expect(first.status()).toBe(200);
+
+    const retry = await request.post('/api/webhooks/vapi/assistant', {
+      headers: vapiWebhookHeaders,
+      data: payload,
+    });
+    expect(retry.status()).toBe(200);
+
+    const { data: convs, error: convError } = await admin
+      .from('conversations')
+      .select('transcript, recording_url')
+      .eq('user_session_id', callId);
+    expect(convError).toBeNull();
+    expect(convs).toHaveLength(1);
+    expect(convs?.[0]?.transcript).toBe(transcript);
+    expect(convs?.[0]?.recording_url).toBeNull();
+
+    const { data: logs, error: logError } = await admin
+      .from('usage_logs')
+      .select('amount, feature_id')
+      .eq('tenant_id', TENANT_ID)
+      .eq('description', `Vapi call ${callId}`);
+    expect(logError).toBeNull();
+    expect(logs).toHaveLength(1);
+    expect(logs?.[0]?.feature_id).toBe('vapi_voice_minutes');
+    expect(Number(logs?.[0]?.amount)).toBe(1);
+
+    const { count: ledgerAfter, error: afterError } = await admin
+      .from('usage_ledger')
+      .select('id', { count: 'exact', head: true })
+      .eq('tenant_id', TENANT_ID)
+      .eq('feature_id', 'vapi_voice_minutes')
+      .eq('usage_type', 'consumption');
+    expect(afterError).toBeNull();
+    expect((ledgerAfter ?? 0) - (ledgerBefore ?? 0)).toBe(1);
+
+    const { data: claims, error: claimError } = await admin
+      .from('vapi_call_ingest')
+      .select('vapi_call_id')
+      .eq('vapi_call_id', callId);
+    expect(claimError).toBeNull();
+    expect(claims).toHaveLength(1);
+  });
+
   test('web call transcript is taken from the artifact when call.transcript is absent', async ({ request }) => {
     const callId = `eoc-web-${Date.now()}`;
     const res = await request.post('/api/webhooks/vapi/assistant', {
