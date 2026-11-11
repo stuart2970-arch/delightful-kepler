@@ -5,6 +5,13 @@ import ServiceEditor from '../ServiceEditor';
 import AddOnUpsellModal from '../AddOnUpsellModal';
 import { resolveCalendarAddonFlags } from '@/lib/billing/bolt-on';
 import { getMondayDate, formatMondayTabLabel, formatMondayFull, generateRollingSchedule, addDaysToDate } from '../../lib/dateUtils';
+import { workingDaysForStaffSave } from '@/lib/staff-rota';
+import {
+  normaliseOpeningHours,
+  openingHoursForSave,
+  rotaExtendsOutsideOpening,
+  type WeekDay,
+} from '@/lib/opening-hours';
 
 
 export default function SchedulingView() {
@@ -21,12 +28,15 @@ export default function SchedulingView() {
     setBookingUrl,
     isGoogleConnected,
     setIsGoogleConnected,
+    googleConnectedEmail,
     hasGoogleCalendarAddon: storeHasGoogleCalendarAddon,
     hasMicrosoftCalendarAddon: storeHasMicrosoftCalendarAddon,
     maxAdvanceWeeks,
     setMaxAdvanceWeeks,
     generalOperatingHours,
     setGeneralOperatingHours,
+    holidaySettings,
+    setHolidaySettings,
     flexibleBreaks,
     setFlexibleBreaks,
     is247,
@@ -227,6 +237,16 @@ export default function SchedulingView() {
     const rolling = generateRollingSchedule([], maxAdvanceWeeks || 4, createEmptySchedule);
     return { weeks: rolling.weeks };
   });
+  const [originalWorkingDays, setOriginalWorkingDays] = useState<unknown>(null);
+  const [rotaDirty, setRotaDirty] = useState(false);
+  const [addedWeekDates, setAddedWeekDates] = useState<string[]>([]);
+  const [acceptStaffOutside, setAcceptStaffOutside] = useState(
+    Boolean(holidaySettings?.staff_hours_outside_opening_accepted),
+  );
+
+  useEffect(() => {
+    setAcceptStaffOutside(Boolean(holidaySettings?.staff_hours_outside_opening_accepted));
+  }, [holidaySettings]);
 
   const handleSaveService = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -294,6 +314,7 @@ export default function SchedulingView() {
   };
 
   const handleScheduleChange = (day: keyof Omit<WeeklySchedule, 'weekCommencingDate'>, shift: 'am' | 'pm', field: 'start' | 'end', value: string) => {
+    setRotaDirty(true);
     setNewStaffSchedule(prev => {
       const newWeeks = [...prev.weeks];
       const activeWeek = { ...newWeeks[activeWeekIndex] };
@@ -318,6 +339,7 @@ export default function SchedulingView() {
   };
 
   const handleUnavailableChange = (day: keyof Omit<WeeklySchedule, 'weekCommencingDate'>, checked: boolean) => {
+    setRotaDirty(true);
     setNewStaffSchedule(prev => {
       const newWeeks = [...prev.weeks];
       const activeWeek = { ...newWeeks[activeWeekIndex] };
@@ -337,6 +359,7 @@ export default function SchedulingView() {
 
   const handleDateChange = (dateStr: string) => {
     const mondayStr = getMondayDate(dateStr);
+    setRotaDirty(true);
     
     setNewStaffSchedule(prev => {
       const newWeeks = [...prev.weeks];
@@ -346,8 +369,22 @@ export default function SchedulingView() {
   };
 
   const copyToNextWeek = () => {
+    setRotaDirty(true);
     if (activeWeekIndex >= newStaffSchedule.weeks.length - 1) {
-      alert(`You have reached the end of the ${maxAdvanceWeeks || 4}-week booking window.`);
+      const currentWeek = newStaffSchedule.weeks[activeWeekIndex];
+      if (!currentWeek?.weekCommencingDate) return;
+      const nextWeekDate = addDaysToDate(currentWeek.weekCommencingDate, 7);
+      setAddedWeekDates((dates) => dates.includes(nextWeekDate) ? dates : [...dates, nextWeekDate]);
+      setNewStaffSchedule((prev) => ({
+        weeks: [
+          ...prev.weeks,
+          {
+            ...JSON.parse(JSON.stringify(currentWeek)),
+            weekCommencingDate: nextWeekDate,
+          },
+        ],
+      }));
+      setActiveWeekIndex(newStaffSchedule.weeks.length);
       return;
     }
     setNewStaffSchedule(prev => {
@@ -379,6 +416,9 @@ export default function SchedulingView() {
 
     const rolling = generateRollingSchedule([], maxAdvanceWeeks || 4, createEmptySchedule);
     setNewStaffSchedule({ weeks: rolling.weeks });
+    setOriginalWorkingDays(null);
+    setRotaDirty(false);
+    setAddedWeekDates([]);
     setActiveWeekIndex(rolling.currentWeekIndex);
     setShowStaffModal(true);
   };
@@ -393,12 +433,12 @@ export default function SchedulingView() {
     setNewStaffSpecialistProduct(staffMember.specialist_product || '');
     setNewStaffBio(staffMember.bio || '');
     
-    // Load existing weeks using rolling schedule calculation
     const existingWeeks = staffMember.working_days?.weeks || [];
-    const rolling = generateRollingSchedule(existingWeeks, maxAdvanceWeeks || 4, createEmptySchedule);
-    
-    setNewStaffSchedule({ weeks: rolling.weeks });
-    setActiveWeekIndex(rolling.currentWeekIndex);
+    setOriginalWorkingDays(staffMember.working_days ?? { weeks: existingWeeks });
+    setRotaDirty(false);
+    setAddedWeekDates([]);
+    setNewStaffSchedule({ weeks: JSON.parse(JSON.stringify(existingWeeks)) });
+    setActiveWeekIndex(0);
     setShowStaffModal(true);
   };
 
@@ -414,7 +454,13 @@ export default function SchedulingView() {
         role: newStaffRole || null,
         email: newStaffEmail,
         google_calendar_id: newStaffCalId || 'primary',
-        working_days: newStaffSchedule,
+        working_days: workingDaysForStaffSave({
+          isUpdate,
+          rotaDirty,
+          original: originalWorkingDays,
+          edited: newStaffSchedule,
+          explicitlyAddedDates: addedWeekDates,
+        }),
         image_url: newStaffImageUrl || null,
         specialist_product: newStaffSpecialistProduct || null,
         bio: newStaffBio || null
@@ -496,8 +542,8 @@ export default function SchedulingView() {
   const timeOptions = generateTimeOptions();
 
   const handleDayOperatingHoursChange = (day: string, field: 'closed' | 'open' | 'close', value: any) => {
-    const existingDayObj = generalOperatingHours[day] || { closed: false, open: '09:00', close: '17:00' };
-    const updatedDayObj = { ...existingDayObj };
+    const updatedHours = openingHoursForSave(generalOperatingHours);
+    const updatedDayObj = { ...updatedHours[day as WeekDay] };
 
     if (field === 'closed') {
       updatedDayObj.closed = Boolean(value);
@@ -507,12 +553,10 @@ export default function SchedulingView() {
       updatedDayObj.close = value;
     }
 
-    const updatedHours = {
-      ...generalOperatingHours,
-      [day]: updatedDayObj
-    };
-
-    setGeneralOperatingHours(updatedHours);
+    setGeneralOperatingHours({
+      ...updatedHours,
+      [day]: updatedDayObj,
+    });
   };
 
   const handleSaveCalendarPolicies = async () => {
@@ -525,7 +569,14 @@ export default function SchedulingView() {
           tenantId,
           bookingMode,
           bookingUrl,
-          general_operating_hours: generalOperatingHours,
+          general_operating_hours: openingHoursForSave(generalOperatingHours),
+          holiday_settings: {
+            ...(holidaySettings || {}),
+            staff_hours_outside_opening_accepted: acceptStaffOutside,
+            staff_hours_outside_opening_accepted_at: acceptStaffOutside
+              ? (holidaySettings?.staff_hours_outside_opening_accepted_at || new Date().toISOString())
+              : null,
+          },
           flexible_breaks: flexibleBreaks,
           is_24_7: is247,
           open_public_holidays: openPublicHolidays,
@@ -533,6 +584,16 @@ export default function SchedulingView() {
         })
       });
       if (res.ok) {
+        const savedHours = openingHoursForSave(generalOperatingHours);
+        const savedHoliday = {
+          ...(holidaySettings || {}),
+          staff_hours_outside_opening_accepted: acceptStaffOutside,
+          staff_hours_outside_opening_accepted_at: acceptStaffOutside
+            ? (holidaySettings?.staff_hours_outside_opening_accepted_at || new Date().toISOString())
+            : null,
+        };
+        setGeneralOperatingHours(savedHours);
+        setHolidaySettings(savedHoliday);
         alert('Calendar settings and operating hours saved successfully!');
       } else {
         const errData = await res.json().catch(() => ({}));
@@ -621,9 +682,9 @@ export default function SchedulingView() {
               </p>
               {hasGoogleCalendarAddon ? (
                 isGoogleConnected ? (
-                  <div className="mt-2 inline-flex items-center gap-2 px-3 py-1 bg-emerald-500/20 text-emerald-300 rounded-full text-xs font-semibold border border-emerald-500/30">
+                  <div className="mt-2 inline-flex items-center gap-2 px-3 py-1 bg-emerald-500/20 text-emerald-300 rounded-full text-xs font-semibold border border-emerald-500/30" data-testid="scheduling-google-connected-email">
                     <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
-                    Connected to Google Calendar
+                    {googleConnectedEmail ? `Connected as ${googleConnectedEmail}` : 'Connected to Google Calendar'}
                   </div>
                 ) : (
                   <div className="mt-2 inline-flex items-center gap-2 px-3 py-1 bg-amber-500/20 text-amber-300 rounded-full text-xs font-semibold border border-amber-500/30">
@@ -933,9 +994,36 @@ export default function SchedulingView() {
             <p className="text-xs text-[var(--awb-color6)] mt-0.5">Define your regular salon opening and closing times for appointment booking and enquiry responses.</p>
           </div>
 
+          {(() => {
+            const hoursView = normaliseOpeningHours(generalOperatingHours);
+            const staffOutside = staff.some((member) => rotaExtendsOutsideOpening(member.working_days, hoursView));
+            return (
+              <>
+                {hoursView.weekdaysMissing && (
+                  <div className="bg-amber-50 border border-amber-300 text-amber-950 text-xs rounded-xl p-3" data-testid="weekday-hours-warning">
+                    Monday to Friday are not saved yet. They are shown as 09:00–17:00 so booking and the receptionist have a safe fallback. Saving opening hours stores all seven days. Existing salon records are not changed until you save.
+                  </div>
+                )}
+                {staffOutside && (
+                  <div className="bg-amber-50 border border-amber-300 text-amber-950 text-xs rounded-xl p-3 space-y-2" data-testid="staff-hours-warning">
+                    <p>Some staff rota times fall outside these opening hours. Bookings follow opening hours unless you allow staff hours.</p>
+                    <label className="flex items-center gap-2 font-semibold cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={acceptStaffOutside}
+                        onChange={(e) => setAcceptStaffOutside(e.target.checked)}
+                      />
+                      Allow staff hours outside opening hours
+                    </label>
+                  </div>
+                )}
+              </>
+            );
+          })()}
+
           <div className="bg-white border border-[#f2f3f5] p-4 rounded-xl divide-y divide-gray-100">
             {daysOfWeek.map(day => {
-              const dayData = generalOperatingHours[day] || { closed: false, open: '09:00', close: '17:00' };
+              const dayData = normaliseOpeningHours(generalOperatingHours).days[day as WeekDay];
               return (
                 <div key={day} className="py-3 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
                   <div className="w-32 flex items-center gap-2">

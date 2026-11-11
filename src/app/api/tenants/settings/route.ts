@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
+import { openingHoursForSave } from '@/lib/opening-hours';
 
 export async function PATCH(req: NextRequest) {
   try {
@@ -54,6 +55,10 @@ export async function PATCH(req: NextRequest) {
 
     if (!tenantId) {
       return NextResponse.json({ error: 'tenantId is required' }, { status: 400 });
+    }
+
+    if (general_operating_hours !== undefined) {
+      general_operating_hours = openingHoursForSave(general_operating_hours);
     }
 
     // Tier 1: Core Base Fields (Guaranteed in all Supabase schemas)

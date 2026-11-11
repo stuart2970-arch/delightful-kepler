@@ -2,6 +2,26 @@ import { NextRequest, NextResponse } from 'next/server';
 import { google } from 'googleapis';
 import { createAdminClient } from '@/utils/supabase-admin';
 import { publicAppPath } from '@/lib/env/public-app-url';
+import {
+  emailInMockCode,
+  resolveGoogleAccountEmail,
+  unsignedIdTokenForEmail,
+} from '@/lib/google-account-email';
+
+async function connectedAccountEmail(oauth2Client: InstanceType<typeof google.auth.OAuth2>, tokens: { id_token?: string | null }): Promise<string | null> {
+  const fromToken = resolveGoogleAccountEmail({ idToken: tokens.id_token });
+  if (fromToken) return fromToken;
+
+  try {
+    oauth2Client.setCredentials(tokens);
+    const calendar = google.calendar({ version: 'v3', auth: oauth2Client });
+    const primary = await calendar.calendarList.get({ calendarId: 'primary' });
+    return resolveGoogleAccountEmail({ calendarId: primary.data.id });
+  } catch (error) {
+    console.error('Failed to read connected Google account email:', error);
+    return null;
+  }
+}
 
 export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url);
@@ -37,10 +57,12 @@ export async function GET(request: NextRequest) {
 
     let tokens: any = {};
     if (code.startsWith('mock_')) {
+      const mockEmail = emailInMockCode(code);
       tokens = {
         access_token: 'mock_access_token',
         refresh_token: 'mock_refresh_token',
         expiry_date: Date.now() + 3600000,
+        id_token: mockEmail ? unsignedIdTokenForEmail(mockEmail) : undefined,
       };
     } else {
       const result = await oauth2Client.getToken(code);
@@ -71,27 +93,20 @@ export async function GET(request: NextRequest) {
         .single();
 
       if (profile) {
-        let accountEmail = null;
-        try {
-          oauth2Client.setCredentials(tokens);
-          const oauth2 = google.oauth2({ version: 'v2', auth: oauth2Client });
-          const userInfo = await oauth2.userinfo.get();
-          accountEmail = userInfo.data.email;
-        } catch (e) {
-          console.error('Failed to fetch user email:', e);
-        }
+        const accountEmail = await connectedAccountEmail(oauth2Client, tokens);
+        const integrationRow: Record<string, unknown> = {
+          tenant_id: profile.tenant_id,
+          provider: 'google_calendar',
+          access_token: tokens.access_token,
+          refresh_token: tokens.refresh_token,
+          expiry_date: tokens.expiry_date ? new Date(tokens.expiry_date).toISOString() : null,
+          updated_at: new Date().toISOString(),
+        };
+        if (accountEmail) integrationRow.account_email = accountEmail;
 
         const { error } = await supabaseAdmin
           .from('tenant_integrations')
-          .upsert({
-            tenant_id: profile.tenant_id,
-            provider: 'google_calendar',
-            access_token: tokens.access_token,
-            refresh_token: tokens.refresh_token,
-            expiry_date: tokens.expiry_date ? new Date(tokens.expiry_date).toISOString() : null,
-            account_email: accountEmail,
-            updated_at: new Date().toISOString()
-          }, {
+          .upsert(integrationRow, {
             onConflict: 'tenant_id,provider'
           });
 
@@ -100,16 +115,19 @@ export async function GET(request: NextRequest) {
     } else {
       // Legacy fallback if state was tenantId
       const tenantId = state64;
+      const accountEmail = await connectedAccountEmail(oauth2Client, tokens);
+      const integrationRow: Record<string, unknown> = {
+        tenant_id: tenantId,
+        provider: 'google_calendar',
+        access_token: tokens.access_token,
+        refresh_token: tokens.refresh_token,
+        expiry_date: tokens.expiry_date ? new Date(tokens.expiry_date).toISOString() : null,
+        updated_at: new Date().toISOString(),
+      };
+      if (accountEmail) integrationRow.account_email = accountEmail;
       const { error } = await supabaseAdmin
         .from('tenant_integrations')
-        .upsert({
-          tenant_id: tenantId,
-          provider: 'google_calendar',
-          access_token: tokens.access_token,
-          refresh_token: tokens.refresh_token,
-          expiry_date: tokens.expiry_date ? new Date(tokens.expiry_date).toISOString() : null,
-          updated_at: new Date().toISOString()
-        }, {
+        .upsert(integrationRow, {
           onConflict: 'tenant_id,provider'
         });
 

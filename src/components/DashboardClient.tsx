@@ -948,7 +948,8 @@ const globalBotId = '00000000-0000-0000-0000-000000000000';
                     {userName[0]}
                   </div>
                   <div className="flex flex-col text-left">
-                     <span className="text-sm font-semibold text-[var(--awb-color8)] leading-tight">{userName}</span>
+                     <span data-testid="salon-name" className="text-sm font-semibold text-[var(--awb-color8)] leading-tight truncate w-36">{tenantName}</span>
+                     <span className="text-[11px] text-[var(--awb-color7)] leading-tight">{userName}</span>
                      <span className="text-[10px] text-[var(--awb-color6)] truncate w-28">{userEmail}</span>
                   </div>
                </div>
@@ -1437,6 +1438,18 @@ const globalBotId = '00000000-0000-0000-0000-000000000000';
                         <h4 className="text-base font-extrabold text-[#260475] tracking-tight">General Information</h4>
                         <p className="text-[11px] text-gray-500 font-medium">Configure primary domain & public branding options</p>
                       </div>
+                    </div>
+                    <div>
+                      <label className="block text-xs font-semibold text-[#212326] mb-1.5" htmlFor="account-salon-name">Salon name</label>
+                      <input
+                        id="account-salon-name"
+                        data-testid="account-salon-name"
+                        type="text"
+                        value={tenantName}
+                        readOnly
+                        className="w-full h-[50px] bg-white border border-[#f2f3f5] rounded-[6px] px-3.5 py-2 text-sm text-[#212326] font-semibold"
+                      />
+                      <p className="text-[10px] text-[#434549] mt-1">This is the salon name from sign-up. It is stored on your account.</p>
                     </div>
                     <div>
                       <label className="block text-xs font-semibold text-[#212326] mb-1.5">Custom Domain</label>

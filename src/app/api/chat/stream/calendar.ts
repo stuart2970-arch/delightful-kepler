@@ -20,6 +20,7 @@ import {
   QualifiedStaff,
   ServiceConfig,
 } from '@/lib/calendar/availability';
+import { normaliseOpeningHours, staffHoursOverrideAccepted } from '@/lib/opening-hours';
 
 // Helper to lazily initialize Supabase Admin
 function getSupabaseAdmin() {
@@ -68,6 +69,9 @@ export interface AvailabilityFixture {
   staffServices?: Array<{ staff_id: string; custom_duration?: number | null }> | null;
   maxWeeks?: number;
   bookingUrl?: string | null;
+  /** Omit to leave slot generation on staff hours only (existing callers). */
+  openingHours?: unknown;
+  staffHoursOverrideAccepted?: boolean;
 }
 
 export interface AvailabilityDeps {
@@ -158,18 +162,24 @@ export async function getAvailabilityData(
 
     // 1. Enforce max advance booking window limit
     let maxWeeks = 12;
+    let openingHoursRaw: unknown = undefined;
+    let hoursOverrideAccepted = false;
     if (deps?.fixture) {
       maxWeeks = deps.fixture.maxWeeks || 12;
       bookingUrl = deps.fixture.bookingUrl ?? null;
+      if (deps.fixture.openingHours !== undefined) openingHoursRaw = deps.fixture.openingHours;
+      hoursOverrideAccepted = deps.fixture.staffHoursOverrideAccepted === true;
     } else {
       const { data: tenantData } = await getSupabaseAdmin()
         .from('tenants')
-        .select('max_advance_weeks, booking_url')
+        .select('max_advance_weeks, booking_url, general_operating_hours, holiday_settings')
         .eq('id', tenantId)
         .maybeSingle();
 
       maxWeeks = tenantData?.max_advance_weeks || 12;
       bookingUrl = tenantData?.booking_url ?? null;
+      openingHoursRaw = tenantData?.general_operating_hours ?? {};
+      hoursOverrideAccepted = staffHoursOverrideAccepted(tenantData?.holiday_settings);
     }
     const now = deps?.now ?? new Date();
     const maxAdvanceDate = new Date(now.getTime() + maxWeeks * 7 * 24 * 60 * 60 * 1000);
@@ -294,6 +304,10 @@ export async function getAvailabilityData(
       maxAdvanceWeeks: maxWeeks,
       nowUtc: now,
       timeZone: timezone,
+      ...(openingHoursRaw !== undefined
+        ? { openingHours: normaliseOpeningHours(openingHoursRaw) }
+        : {}),
+      staffHoursOverrideAccepted: hoursOverrideAccepted,
     });
 
     if (slots.length === 0) {

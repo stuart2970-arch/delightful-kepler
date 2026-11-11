@@ -10,6 +10,7 @@ import { CUSTOMER_UNFINISHED_REPLY, sanitiseForTranscript } from '@/lib/chat/cus
 import { getActiveGeminiModel } from '@/lib/gemini-config';
 import { voiceLogError } from '@/lib/voice/log-error';
 import { generateEmbedding } from '@/lib/embeddings';
+import { formatOpeningHoursForPrompt, normaliseOpeningHours } from '@/lib/opening-hours';
 
 export const maxDuration = 300;
 
@@ -93,7 +94,7 @@ export async function POST(req: Request) {
 
     const { data: tenantRes } = await supabaseAdmin
       .from('tenants')
-      .select('id, company_name, rwg_business_name, booking_mode, booking_url, currency, timezone')
+      .select('id, company_name, rwg_business_name, booking_mode, booking_url, currency, timezone, general_operating_hours')
       .eq('id', tenantId)
       .single();
 
@@ -246,6 +247,7 @@ Write in a natural, warm, spoken conversational tone. Speak clearly and concisel
 DO NOT use markdown formatting, asterisks, bullet points, or special characters. Speak naturally in plain text.${voiceRulesSection}
 
 The current date and time is: ${new Date().toISOString()}. Use this to resolve relative dates like "tomorrow" or "next Sunday".
+Opening hours: ${formatOpeningHoursForPrompt(normaliseOpeningHours(tenantRes?.general_operating_hours), { spoken: true })}
 
 ${bookingMode === 'walk_in_only' ? 'We DO NOT accept appointments. We are walk-ins only. If the caller asks to book, politely inform them they can walk in at any time.' : ''}
 ${bookingMode === 'external_platform' ? `We use an external booking platform. If the caller asks to book, direct them to ${bookingUrl}` : ''}
