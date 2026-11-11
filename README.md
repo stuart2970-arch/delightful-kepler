@@ -4353,4 +4353,4 @@ Highlighted adjustments in the modal:
 * **Changes**:
   - Both status routes use `requireTenantRole`. A query `tenantId` for another salon is 403.
   - Scheduling loads Microsoft status with the dashboard Bearer header. Integrations sends it on Google disconnect.
-  - Playwright `tests/styl-289-integration-status-auth.spec.ts`. The scheduling status spec now signs in.
+  - Playwright `tests/styl-289-integration-status-auth.spec.ts` plus `scheduling-verification`: 10 passed. Local Supabase CLI and mock keys only. The Google status select still includes `account_email` so PR 48 can drop it.
