@@ -63,16 +63,124 @@ test.describe('STYL-226: App Hosting staging secrets and public URL', () => {
     expect(staging).toMatch(/variable: VOICE_ENABLED\n\s+value: ["']?false["']?/);
     expect(staging).not.toContain('secret: VOICE_ENABLED');
     expect(staging).not.toContain('STYLEFLO_WP_API_SECRET');
-    expect(staging).not.toContain('STYLEFLO_WP_CREATE_BUSINESS_TOKEN');
     expect(staging).not.toContain('WPMUDEV_WEBHOOK_SECRET');
-    expect(staging).not.toContain('TENANT_CREATED_WEBHOOK_SECRET');
-    const base = readFileSync(join(root, 'apphosting.yaml'), 'utf8');
-    expect(base).not.toContain('TENANT_CREATED_WEBHOOK_SECRET');
+    expect(staging).not.toContain('https://styleflo.ai');
+    expect(staging).not.toContain('projects/styleflo-ai');
+    expect(staging).not.toContain('NEXT_PUBLIC_META_APP_ID');
+    expect(staging).not.toContain('NEXT_PUBLIC_META_ES_CONFIG_ID');
+    expect(staging).not.toContain('NEXT_PUBLIC_META_GRAPH_VERSION');
 
-    const envBody = staging
+    // Production App Hosting (styleflo-ai / delightful-kepler-1) reads the base
+    // file only. Those bindings stay. The staging file replaces the ones
+    // styleflo-staging cannot resolve; omission would keep the base secret.
+    const base = readFileSync(join(root, 'apphosting.yaml'), 'utf8');
+    const nonComment = (text: string) =>
+      text
+        .split('\n')
+        .filter((line) => !/^\s*#/.test(line))
+        .join('\n');
+    const envBlockFrom = (text: string, variable: string) => {
+      const body = nonComment(text);
+      const marker = `- variable: ${variable}`;
+      const start = body.indexOf(marker);
+      expect(start, variable).toBeGreaterThanOrEqual(0);
+      const next = body.indexOf('\n  - variable:', start + marker.length);
+      return body.slice(start, next === -1 ? undefined : next).trim();
+    };
+    const envBlock = (variable: string) => envBlockFrom(base, variable);
+    const secretBinding = (variable: string) =>
+      [
+        `- variable: ${variable}`,
+        `    secret: ${variable}`,
+        '    availability:',
+        '      - RUNTIME',
+      ].join('\n');
+
+    expect(envBlock('TENANT_CREATED_WEBHOOK_SECRET')).toBe(
+      secretBinding('TENANT_CREATED_WEBHOOK_SECRET'),
+    );
+    expect(envBlock('WORDPRESS_SITE_URL')).toBe(
+      [
+        '- variable: WORDPRESS_SITE_URL',
+        '    value: "https://styleflo.ai"',
+        '    availability:',
+        '      - RUNTIME',
+      ].join('\n'),
+    );
+    expect(envBlock('STYLEFLO_WP_CREATE_BUSINESS_TOKEN')).toBe(
+      secretBinding('STYLEFLO_WP_CREATE_BUSINESS_TOKEN'),
+    );
+    expect(envBlock('STYLEFLO_WP_CREATE_BUSINESS_TOKEN')).not.toContain('STYLEFLO_WP_API_SECRET');
+    expect(envBlock('META_APP_SECRET')).toBe(secretBinding('META_APP_SECRET'));
+    expect(envBlock('TOKEN_ENC_KEY')).toBe(secretBinding('TOKEN_ENC_KEY'));
+
+    const blankOverride = (variable: string) =>
+      [
+        `- variable: ${variable}`,
+        '    value: "   "',
+        '    availability:',
+        '      - RUNTIME',
+      ].join('\n');
+    expect(envBlockFrom(staging, 'TENANT_CREATED_WEBHOOK_SECRET')).toBe(
+      blankOverride('TENANT_CREATED_WEBHOOK_SECRET'),
+    );
+    expect(envBlockFrom(staging, 'STYLEFLO_WP_CREATE_BUSINESS_TOKEN')).toBe(
+      blankOverride('STYLEFLO_WP_CREATE_BUSINESS_TOKEN'),
+    );
+    expect(envBlockFrom(staging, 'META_APP_SECRET')).toBe(blankOverride('META_APP_SECRET'));
+    expect(envBlockFrom(staging, 'WORDPRESS_SITE_URL')).toBe(
+      [
+        '- variable: WORDPRESS_SITE_URL',
+        '    value: "https://wordpress.invalid"',
+        '    availability:',
+        '      - RUNTIME',
+      ].join('\n'),
+    );
+    expect(envBlockFrom(staging, 'TOKEN_ENC_KEY')).toBe(secretBinding('TOKEN_ENC_KEY'));
+
+    const secretNames = nonComment(staging)
       .split('\n')
-      .filter((line) => !/^\s*#/.test(line))
-      .join('\n');
+      .map((line) => line.trim())
+      .filter((line) => line.startsWith('secret:'))
+      .map((line) => line.replace(/^secret:\s*/, '').trim());
+    for (const forbidden of [
+      'TENANT_CREATED_WEBHOOK_SECRET',
+      'STYLEFLO_WP_CREATE_BUSINESS_TOKEN',
+      'META_APP_SECRET',
+      'STYLEFLO_WP_API_SECRET',
+      'WPMUDEV_WEBHOOK_SECRET',
+    ]) {
+      expect(secretNames, forbidden).not.toContain(forbidden);
+    }
+
+    // Documented merge: environment file wins per variable; other base entries stay.
+    const namesIn = (text: string) => {
+      const names: string[] = [];
+      for (const match of nonComment(text).matchAll(/- variable: ([A-Z0-9_]+)/g)) {
+        names.push(match[1]);
+      }
+      return names;
+    };
+    const effective = new Map<string, string>();
+    for (const name of namesIn(base)) effective.set(name, envBlockFrom(base, name));
+    for (const name of namesIn(staging)) effective.set(name, envBlockFrom(staging, name));
+    for (const name of [
+      'TENANT_CREATED_WEBHOOK_SECRET',
+      'STYLEFLO_WP_CREATE_BUSINESS_TOKEN',
+      'META_APP_SECRET',
+    ]) {
+      expect(effective.get(name), name).toBe(blankOverride(name));
+      expect(effective.get(name), name).not.toContain('secret:');
+    }
+    expect(effective.get('WORDPRESS_SITE_URL')).toBe(
+      envBlockFrom(staging, 'WORDPRESS_SITE_URL'),
+    );
+    expect(effective.get('WORDPRESS_SITE_URL')).not.toContain('https://styleflo.ai');
+    expect(effective.get('TOKEN_ENC_KEY')).toBe(secretBinding('TOKEN_ENC_KEY'));
+    expect(effective.get('NEXT_PUBLIC_META_APP_ID')).toContain('value:');
+    expect(effective.get('NEXT_PUBLIC_META_APP_ID')).not.toContain('secret:');
+
+    const envBody = nonComment(staging);
     expect(envBody).not.toMatch(/^\s*value:\s*["']{2}\s*$/m);
   });
 
