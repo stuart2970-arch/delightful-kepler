@@ -5,10 +5,11 @@ import ServiceEditor from '../ServiceEditor';
 import AddOnUpsellModal from '../AddOnUpsellModal';
 import { resolveCalendarAddonFlags } from '@/lib/billing/bolt-on';
 import { getMondayDate, formatMondayTabLabel, formatMondayFull, generateRollingSchedule, addDaysToDate } from '../../lib/dateUtils';
-import { workingDaysForStaffSave } from '@/lib/staff-rota';
+import { rotaWeeksForEditor, workingDaysForStaffSave } from '@/lib/staff-rota';
 import {
   normaliseOpeningHours,
   openingHoursForSave,
+  recordStaffHoursAcceptance,
   rotaExtendsOutsideOpening,
   type WeekDay,
 } from '@/lib/opening-hours';
@@ -37,6 +38,7 @@ export default function SchedulingView() {
     setGeneralOperatingHours,
     holidaySettings,
     setHolidaySettings,
+    userEmail,
     flexibleBreaks,
     setFlexibleBreaks,
     is247,
@@ -240,6 +242,7 @@ export default function SchedulingView() {
   const [originalWorkingDays, setOriginalWorkingDays] = useState<unknown>(null);
   const [rotaDirty, setRotaDirty] = useState(false);
   const [addedWeekDates, setAddedWeekDates] = useState<string[]>([]);
+  const [seededWeekDate, setSeededWeekDate] = useState<string | null>(null);
   const [acceptStaffOutside, setAcceptStaffOutside] = useState(
     Boolean(holidaySettings?.staff_hours_outside_opening_accepted),
   );
@@ -313,8 +316,16 @@ export default function SchedulingView() {
     }
   };
 
-  const handleScheduleChange = (day: keyof Omit<WeeklySchedule, 'weekCommencingDate'>, shift: 'am' | 'pm', field: 'start' | 'end', value: string) => {
+  const noteRotaEdit = () => {
     setRotaDirty(true);
+    const activeDate = newStaffSchedule.weeks[activeWeekIndex]?.weekCommencingDate;
+    if (seededWeekDate && activeDate === seededWeekDate) {
+      setAddedWeekDates((dates) => dates.includes(seededWeekDate) ? dates : [...dates, seededWeekDate]);
+    }
+  };
+
+  const handleScheduleChange = (day: keyof Omit<WeeklySchedule, 'weekCommencingDate'>, shift: 'am' | 'pm', field: 'start' | 'end', value: string) => {
+    noteRotaEdit();
     setNewStaffSchedule(prev => {
       const newWeeks = [...prev.weeks];
       const activeWeek = { ...newWeeks[activeWeekIndex] };
@@ -339,7 +350,7 @@ export default function SchedulingView() {
   };
 
   const handleUnavailableChange = (day: keyof Omit<WeeklySchedule, 'weekCommencingDate'>, checked: boolean) => {
-    setRotaDirty(true);
+    noteRotaEdit();
     setNewStaffSchedule(prev => {
       const newWeeks = [...prev.weeks];
       const activeWeek = { ...newWeeks[activeWeekIndex] };
@@ -359,7 +370,7 @@ export default function SchedulingView() {
 
   const handleDateChange = (dateStr: string) => {
     const mondayStr = getMondayDate(dateStr);
-    setRotaDirty(true);
+    noteRotaEdit();
     
     setNewStaffSchedule(prev => {
       const newWeeks = [...prev.weeks];
@@ -369,7 +380,7 @@ export default function SchedulingView() {
   };
 
   const copyToNextWeek = () => {
-    setRotaDirty(true);
+    noteRotaEdit();
     if (activeWeekIndex >= newStaffSchedule.weeks.length - 1) {
       const currentWeek = newStaffSchedule.weeks[activeWeekIndex];
       if (!currentWeek?.weekCommencingDate) return;
@@ -419,6 +430,7 @@ export default function SchedulingView() {
     setOriginalWorkingDays(null);
     setRotaDirty(false);
     setAddedWeekDates([]);
+    setSeededWeekDate(null);
     setActiveWeekIndex(rolling.currentWeekIndex);
     setShowStaffModal(true);
   };
@@ -433,12 +445,13 @@ export default function SchedulingView() {
     setNewStaffSpecialistProduct(staffMember.specialist_product || '');
     setNewStaffBio(staffMember.bio || '');
     
-    const existingWeeks = staffMember.working_days?.weeks || [];
-    setOriginalWorkingDays(staffMember.working_days ?? { weeks: existingWeeks });
+    const editor = rotaWeeksForEditor(staffMember.working_days, getMondayDate(), createEmptySchedule);
+    setOriginalWorkingDays(staffMember.working_days ?? { weeks: [] });
     setRotaDirty(false);
     setAddedWeekDates([]);
-    setNewStaffSchedule({ weeks: JSON.parse(JSON.stringify(existingWeeks)) });
-    setActiveWeekIndex(0);
+    setSeededWeekDate(editor.seededDate);
+    setNewStaffSchedule({ weeks: editor.weeks as WeeklySchedule[] });
+    setActiveWeekIndex(editor.activeIndex);
     setShowStaffModal(true);
   };
 
@@ -570,13 +583,12 @@ export default function SchedulingView() {
           bookingMode,
           bookingUrl,
           general_operating_hours: openingHoursForSave(generalOperatingHours),
-          holiday_settings: {
-            ...(holidaySettings || {}),
-            staff_hours_outside_opening_accepted: acceptStaffOutside,
-            staff_hours_outside_opening_accepted_at: acceptStaffOutside
-              ? (holidaySettings?.staff_hours_outside_opening_accepted_at || new Date().toISOString())
-              : null,
-          },
+          holiday_settings: recordStaffHoursAcceptance(
+            holidaySettings,
+            acceptStaffOutside,
+            userEmail || null,
+            new Date().toISOString(),
+          ),
           flexible_breaks: flexibleBreaks,
           is_24_7: is247,
           open_public_holidays: openPublicHolidays,
@@ -585,13 +597,12 @@ export default function SchedulingView() {
       });
       if (res.ok) {
         const savedHours = openingHoursForSave(generalOperatingHours);
-        const savedHoliday = {
-          ...(holidaySettings || {}),
-          staff_hours_outside_opening_accepted: acceptStaffOutside,
-          staff_hours_outside_opening_accepted_at: acceptStaffOutside
-            ? (holidaySettings?.staff_hours_outside_opening_accepted_at || new Date().toISOString())
-            : null,
-        };
+        const savedHoliday = recordStaffHoursAcceptance(
+          holidaySettings,
+          acceptStaffOutside,
+          userEmail || null,
+          new Date().toISOString(),
+        );
         setGeneralOperatingHours(savedHours);
         setHolidaySettings(savedHoliday);
         alert('Calendar settings and operating hours saved successfully!');
@@ -1001,7 +1012,7 @@ export default function SchedulingView() {
               <>
                 {hoursView.weekdaysMissing && (
                   <div className="bg-amber-50 border border-amber-300 text-amber-950 text-xs rounded-xl p-3" data-testid="weekday-hours-warning">
-                    Monday to Friday are not saved yet. They are shown as 09:00–17:00 so booking and the receptionist have a safe fallback. Saving opening hours stores all seven days. Existing salon records are not changed until you save.
+                    Monday to Friday are not saved. Bookings follow the staff rota on those days until you save opening hours. Saving stores all seven days. Existing salon records are not changed until you save.
                   </div>
                 )}
                 {staffOutside && (

@@ -3,6 +3,49 @@ export interface RotaWeek {
   [key: string]: unknown;
 }
 
+const ROTA_DAYS = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'] as const;
+
+/**
+ * Editor grid for Edit Rota. Saved weeks are kept. If the current week is
+ * missing, or the rota is only the old per-day map, the current week is
+ * shown so the grid is not empty. seededDate is set when that week was not
+ * already stored, so an unchanged save can still drop it.
+ */
+export function rotaWeeksForEditor(
+  workingDays: unknown,
+  currentMonday: string,
+  createWeek: (date: string) => RotaWeek,
+): { weeks: RotaWeek[]; activeIndex: number; seededDate: string | null } {
+  const saved = weeksFromWorkingDays(workingDays).map((week) => JSON.parse(JSON.stringify(week)) as RotaWeek);
+
+  const currentFromFlat = (): RotaWeek => {
+    const week = createWeek(currentMonday);
+    if (workingDays && typeof workingDays === 'object' && !Array.isArray(workingDays)) {
+      const source = workingDays as Record<string, unknown>;
+      for (const day of ROTA_DAYS) {
+        if (source[day] && typeof source[day] === 'object') {
+          week[day] = JSON.parse(JSON.stringify(source[day]));
+        }
+      }
+    }
+    return week;
+  };
+
+  if (saved.length === 0) {
+    return { weeks: [currentFromFlat()], activeIndex: 0, seededDate: currentMonday };
+  }
+
+  let activeIndex = saved.findIndex((week) => week.weekCommencingDate === currentMonday);
+  if (activeIndex >= 0) {
+    return { weeks: saved, activeIndex, seededDate: null };
+  }
+
+  saved.push(createWeek(currentMonday));
+  saved.sort((a, b) => (a.weekCommencingDate || '').localeCompare(b.weekCommencingDate || ''));
+  activeIndex = saved.findIndex((week) => week.weekCommencingDate === currentMonday);
+  return { weeks: saved, activeIndex: Math.max(activeIndex, 0), seededDate: currentMonday };
+}
+
 export function weeksFromWorkingDays(workingDays: unknown): RotaWeek[] {
   if (!workingDays || typeof workingDays !== 'object' || Array.isArray(workingDays)) return [];
   const weeks = (workingDays as { weeks?: unknown }).weeks;

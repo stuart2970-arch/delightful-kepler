@@ -623,7 +623,7 @@ Help them specify:
     const [servicesRes, staffRes, tenantRes, integrationsRes] = await Promise.all([
       supabaseAdmin.from('services').select('id, name, duration_minutes, buffer_minutes, price, staff_services(staff_id, custom_price, custom_duration)').eq('tenant_id', tenantId).or(`chatbot_id.eq.${targetBotUuid},chatbot_id.is.null`),
       supabaseAdmin.from('staff').select('id, name, google_calendar_id, working_days').eq('tenant_id', tenantId).or(`chatbot_id.eq.${targetBotUuid},chatbot_id.is.null`),
-      supabaseAdmin.from('tenants').select('company_name, rwg_business_name, domain, booking_mode, booking_url, max_advance_weeks, general_operating_hours').eq('id', tenantId).maybeSingle(),
+      supabaseAdmin.from('tenants').select('company_name, rwg_business_name, domain, booking_mode, booking_url, max_advance_weeks, general_operating_hours, is_24_7').eq('id', tenantId).maybeSingle(),
       supabaseAdmin.from('tenant_integrations').select('provider, refresh_token').eq('tenant_id', tenantId),
     ]);
 
@@ -943,7 +943,7 @@ Help them specify:
 
     // 8. Build prompt and historical message messages array
     const openingHoursView = normaliseOpeningHours(tenantRes.data?.general_operating_hours);
-    const openingHoursPrompt = formatOpeningHoursForPrompt(openingHoursView);
+    const openingHoursPrompt = formatOpeningHoursForPrompt(openingHoursView, { is24_7: tenantRes.data?.is_24_7 === true });
     const previewRules = isPreview
       ? `\nOWNER PREVIEW: This is a test conversation for the salon owner, not a customer. It is labelled as a preview. Booking is turned off. Never emit [BOOK_MEETING], [LEAD_CAPTURED], or any instruction that would email, text, or WhatsApp the visitor. If they ask to book, say that booking is turned off in this preview and no appointment will be created. You may still answer from the knowledge base and describe opening hours.\n`
       : '';

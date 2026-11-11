@@ -20,7 +20,7 @@ export async function GET(request: Request) {
     const supabaseAdmin = getSupabaseAdmin();
     const { data, error } = await supabaseAdmin
       .from('tenant_integrations')
-      .select('id, provider, updated_at, account_email')
+      .select('id, provider, updated_at')
       .eq('tenant_id', tenantId)
       .eq('provider', 'google_calendar')
       .single();
@@ -31,7 +31,9 @@ export async function GET(request: Request) {
 
     return NextResponse.json({
       connected: !!data,
-      integration: data || null
+      integration: data
+        ? { id: data.id, provider: data.provider, updated_at: data.updated_at }
+        : null
     });
   } catch (err: any) {
     console.error('Error fetching integration status:', err);

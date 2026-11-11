@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { workingDaysForStaffSave, weeksFromWorkingDays } from '../src/lib/staff-rota';
+import { rotaWeeksForEditor, workingDaysForStaffSave, weeksFromWorkingDays } from '../src/lib/staff-rota';
 
 /**
  * STYL-244: opening Edit Rota and saving must not append a week.
@@ -99,5 +99,43 @@ test.describe('STYL-244 rota round-trip', () => {
       edited,
     });
     expect(created).toBe(edited);
+  });
+
+  test('a rota with no weeks, or only the old per-day map, opens on the current week', () => {
+    const empty = (date: string) => ({
+      weekCommencingDate: date,
+      monday: { unavailable: false, am: { start: '09:00', end: '13:00' } },
+      saturday: { unavailable: true },
+    });
+    const blank = rotaWeeksForEditor(null, '2026-11-09', empty);
+    expect(blank.weeks).toHaveLength(1);
+    expect(blank.weeks[0].weekCommencingDate).toBe('2026-11-09');
+    expect(blank.activeIndex).toBe(0);
+    expect(blank.seededDate).toBe('2026-11-09');
+
+    const flat = rotaWeeksForEditor({
+      monday: { unavailable: false, am: { start: '10:00', end: '14:00' }, pm: null },
+      sunday: { unavailable: true, am: null, pm: null },
+    }, '2026-11-09', empty);
+    expect(flat.weeks).toHaveLength(1);
+    expect(flat.activeIndex).toBe(0);
+    expect((flat.weeks[0].monday as { am: { start: string } }).am.start).toBe('10:00');
+
+    const pastAndFuture = rotaWeeksForEditor({
+      weeks: [week('2026-11-02'), week('2026-11-16')],
+    }, '2026-11-09', empty);
+    expect(pastAndFuture.weeks.map((entry) => entry.weekCommencingDate)).toEqual([
+      '2026-11-02',
+      '2026-11-09',
+      '2026-11-16',
+    ]);
+    expect(pastAndFuture.activeIndex).toBe(1);
+    expect(pastAndFuture.seededDate).toBe('2026-11-09');
+
+    const alreadyCurrent = rotaWeeksForEditor({
+      weeks: [week('2026-11-02'), week('2026-11-09')],
+    }, '2026-11-09', empty);
+    expect(alreadyCurrent.activeIndex).toBe(1);
+    expect(alreadyCurrent.seededDate).toBeNull();
   });
 });

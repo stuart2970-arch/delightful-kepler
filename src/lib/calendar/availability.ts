@@ -263,9 +263,10 @@ export interface CalculateSlotsParams {
   maxAdvanceWeeks?: number;
   nowUtc?: Date;
   timeZone?: string;
-  /** When set, staff shifts are clipped to these hours unless the owner has accepted staff hours. */
+  /** When set, staff shifts are clipped only on days that were actually saved, unless the owner accepted staff hours or the salon is 24/7. */
   openingHours?: OpeningHoursView;
   staffHoursOverrideAccepted?: boolean;
+  is24_7?: boolean;
 }
 
 /**
@@ -283,6 +284,7 @@ export function calculateAvailableSlots(params: CalculateSlotsParams): Calculate
     timeZone = 'Europe/London',
     openingHours,
     staffHoursOverrideAccepted = false,
+    is24_7 = false,
   } = params;
 
   const maxAdvanceDateUtc = new Date(nowUtc.getTime() + maxAdvanceWeeks * 7 * 24 * 60 * 60 * 1000);
@@ -312,9 +314,9 @@ export function calculateAvailableSlots(params: CalculateSlotsParams): Calculate
       const busyIntervals = busyMap.get(staff.id) || [];
 
       let shifts = resolveDayShifts(staff.schedule, iterDateStr, dayName);
-      if (openingHours && !staffHoursOverrideAccepted) {
+      if (openingHours && !staffHoursOverrideAccepted && !is24_7) {
         const dayHours = openingHours.days[dayName];
-        if (dayHours) {
+        if (dayHours && !dayHours.missing) {
           shifts = shifts
             .map((shift) => clipShiftToOpening(shift, dayHours))
             .filter((shift): shift is Shift => shift !== null);

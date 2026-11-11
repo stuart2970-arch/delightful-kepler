@@ -5,6 +5,7 @@ import {
   formatOpeningHoursForPrompt,
   normaliseOpeningHours,
   openingHoursForSave,
+  recordStaffHoursAcceptance,
   rotaExtendsOutsideOpening,
   staffHoursOverrideAccepted,
 } from '../src/lib/opening-hours';
@@ -52,9 +53,12 @@ test.describe('STYL-245 opening hours', () => {
       expect(text).toContain(`${day}:`);
     }
     expect(text).toContain('Saturday: Closed');
-    expect(text).toContain('Monday to Friday were missing');
+    expect(text).toContain('Monday: not saved');
+    expect(text).toContain('Monday to Friday were not saved');
+    expect(text).not.toContain('Monday: 09:00');
     const spoken = formatOpeningHoursForPrompt(normaliseOpeningHours(weekendOnly), { spoken: true });
-    expect(spoken).toContain('Monday: 09:00 to 17:00');
+    expect(spoken).toContain('Monday: not saved');
+    expect(spoken).not.toContain('09:00 to 17:00');
   });
 
   test('slots stay inside opening hours until the owner accepts staff hours', () => {
@@ -121,5 +125,89 @@ test.describe('STYL-245 opening hours', () => {
     expect(view.days.wednesday.missing).toBe(true);
     expect(view.days.wednesday.open).toBe('09:00');
     expect(weekendOnly).not.toHaveProperty('monday');
+  });
+
+  test('unsaved days and a 24 hour salon are not clipped to 09:00–17:00', () => {
+    const staffDay = {
+      unavailable: false,
+      am: { start: '09:00', end: '13:00' },
+      pm: { start: '14:00', end: '18:00' },
+    };
+    const schedule = {
+      weeks: [{
+        weekCommencingDate: '2026-11-16',
+        monday: staffDay,
+        tuesday: staffDay,
+      }],
+    };
+    const base = {
+      staffList: [{ id: 'stylist', name: 'Sam', schedule }],
+      busyMap: new Map<string, never[]>(),
+      service: { id: 'cut', name: 'Cut', durationMinutes: 30 },
+      startDateUtc: new Date('2026-11-16T00:00:00.000Z'),
+      endDateUtc: new Date('2026-11-18T00:00:00.000Z'),
+      nowUtc: new Date('2026-11-16T08:00:00.000Z'),
+      timeZone: 'Europe/London',
+      maxAdvanceWeeks: 4,
+    };
+    const weekendSaved = normaliseOpeningHours(weekendOnly);
+    const unclipped = calculateAvailableSlots({ ...base, openingHours: weekendSaved });
+    const monday = unclipped.filter((slot) => slot.date === '2026-11-16');
+    expect(monday.some((slot) => slot.time >= '17:00')).toBe(true);
+
+    const savedMonday = normaliseOpeningHours({
+      monday: { closed: false, open: '09:00', close: '17:00' },
+    });
+    const clipped = calculateAvailableSlots({ ...base, openingHours: savedMonday });
+    expect(clipped.filter((slot) => slot.date === '2026-11-16').every((slot) => slot.time < '17:00')).toBe(true);
+    expect(clipped.filter((slot) => slot.date === '2026-11-17').some((slot) => slot.time >= '17:00')).toBe(true);
+
+    const allDay = calculateAvailableSlots({ ...base, openingHours: savedMonday, is24_7: true });
+    expect(allDay.filter((slot) => slot.date === '2026-11-16').some((slot) => slot.time >= '17:00')).toBe(true);
+  });
+
+  test('saved hours still clip the Monday after the UK clock change', () => {
+    const hours = normaliseOpeningHours({
+      monday: { closed: false, open: '09:00', close: '17:00' },
+    });
+    const slots = calculateAvailableSlots({
+      staffList: [{
+        id: 'stylist',
+        name: 'Sam',
+        schedule: {
+          weeks: [{
+            weekCommencingDate: '2026-10-26',
+            monday: {
+              unavailable: false,
+              am: { start: '09:00', end: '13:00' },
+              pm: { start: '14:00', end: '18:00' },
+            },
+          }],
+        },
+      }],
+      busyMap: new Map(),
+      service: { id: 'cut', name: 'Cut', durationMinutes: 30 },
+      startDateUtc: new Date('2026-10-26T00:00:00.000Z'),
+      endDateUtc: new Date('2026-10-27T00:00:00.000Z'),
+      nowUtc: new Date('2026-10-26T07:00:00.000Z'),
+      timeZone: 'Europe/London',
+      maxAdvanceWeeks: 4,
+      openingHours: hours,
+    });
+    expect(slots.length).toBeGreaterThan(0);
+    expect(slots.every((slot) => slot.date === '2026-10-26')).toBe(true);
+    expect(slots.every((slot) => slot.time < '17:00')).toBe(true);
+    expect(slots[0].start.endsWith('+00:00')).toBe(true);
+  });
+
+  test('records who accepted staff hours as well as when', () => {
+    const saved = recordStaffHoursAcceptance({}, true, 'owner@salon.test', '2026-11-11T09:00:00.000Z');
+    expect(saved.staff_hours_outside_opening_accepted).toBe(true);
+    expect(saved.staff_hours_outside_opening_accepted_at).toBe('2026-11-11T09:00:00.000Z');
+    expect(saved.staff_hours_outside_opening_accepted_by).toBe('owner@salon.test');
+    const again = recordStaffHoursAcceptance(saved, true, 'other@salon.test', '2026-12-01T09:00:00.000Z');
+    expect(again.staff_hours_outside_opening_accepted_by).toBe('owner@salon.test');
+    const cleared = recordStaffHoursAcceptance(again, false, 'owner@salon.test', '2026-12-02T09:00:00.000Z');
+    expect(cleared.staff_hours_outside_opening_accepted_by).toBeNull();
   });
 });

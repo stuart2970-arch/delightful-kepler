@@ -1,44 +1,74 @@
 import { test, expect } from '@playwright/test';
-import { readFileSync } from 'node:fs';
-import { join } from 'node:path';
+import { createClient } from '@supabase/supabase-js';
 import { TENANT_PROFILE_SELECT, salonNameFromTenant } from '../src/lib/tenant-profile';
 
 /**
- * STYL-217: the salon name entered at sign-up is stored on tenants.company_name.
- * The dashboard was selecting dropped business_address/postcode columns, so PostgREST
- * rejected the whole tenant row and the name never appeared.
+ * STYL-217: a new sign-up's salon name is stored on the tenant and shown
+ * on the dashboard, Account Settings, and Integrations.
  */
 
-const root = process.cwd();
+const admin = createClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL || 'http://127.0.0.1:54321',
+  process.env.SUPABASE_SERVICE_ROLE_KEY!,
+  { auth: { persistSession: false, autoRefreshToken: false } },
+);
 
 test.describe('STYL-217 salon name', () => {
-  test('dashboard tenant select reads company_name and not the dropped address columns', () => {
-    const columns = TENANT_PROFILE_SELECT.split(',').map((column) => column.trim());
-    expect(columns).toContain('company_name');
-    expect(columns).not.toContain('business_address');
-    expect(columns).not.toContain('postcode');
-
-    const page = readFileSync(join(root, 'src/app/dashboard/page.tsx'), 'utf8');
-    expect(page).toContain('TENANT_PROFILE_SELECT');
-    expect(page).toContain('salonNameFromTenant');
-    expect(page).not.toMatch(/select\(\s*['"`][^'"`]*\bbusiness_address\b/);
-    expect(page).not.toMatch(/\.select\(\s*['"`][^'"`]*\bpostcode\b/);
+  test('the dashboard tenant select succeeds against the local schema', async () => {
+    const { data, error } = await admin.from('tenants').select(TENANT_PROFILE_SELECT).limit(1);
+    expect(error).toBeNull();
+    expect(Array.isArray(data)).toBe(true);
+    expect(salonNameFromTenant(data?.[0]?.company_name).length).toBeGreaterThan(0);
   });
 
-  test('salon display name is the saved company name', () => {
-    expect(salonNameFromTenant('Willow & Thread Hair Studio')).toBe('Willow & Thread Hair Studio');
-    expect(salonNameFromTenant('  Willow & Thread Hair Studio  ')).toBe('Willow & Thread Hair Studio');
-    expect(salonNameFromTenant('')).toBe('');
-    expect(salonNameFromTenant(null)).toBe('');
-  });
+  test('sign-up stores the salon name and the first dashboard shows it in all three places', async ({ page }) => {
+    const stamp = Date.now();
+    const salon = `Willow Thread ${stamp}`;
+    const email = `styl217-${stamp}@example.test`;
+    const password = 'password123';
+    const { data, error } = await admin.auth.admin.createUser({
+      email,
+      password,
+      email_confirm: true,
+      user_metadata: {
+        full_name: 'Sam Test',
+        company_name: salon,
+        slug: `willow-thread-${stamp}`,
+      },
+    });
+    expect(error).toBeNull();
+    const userId = data.user?.id;
+    expect(userId).toBeTruthy();
 
-  test('sidebar, account settings, and integrations show the salon name', () => {
-    const dashboard = readFileSync(join(root, 'src/components/DashboardClient.tsx'), 'utf8');
-    const integrations = readFileSync(join(root, 'src/components/dashboard-views/IntegrationsView.tsx'), 'utf8');
-    expect(dashboard).toContain('data-testid="salon-name"');
-    expect(dashboard).toContain('{tenantName}');
-    expect(dashboard).toContain('data-testid="account-salon-name"');
-    expect(integrations).toContain('data-testid="official-business-name"');
-    expect(integrations).toContain('value={businessNameInput}');
+    try {
+      const { data: profile, error: profileError } = await admin
+        .from('profiles')
+        .select('tenant_id')
+        .eq('id', userId!)
+        .single();
+      expect(profileError).toBeNull();
+      const { data: tenant, error: tenantError } = await admin
+        .from('tenants')
+        .select('company_name')
+        .eq('id', profile!.tenant_id)
+        .single();
+      expect(tenantError).toBeNull();
+      expect(tenant?.company_name).toBe(salon);
+
+      await page.goto('/login');
+      await page.locator('input[type="email"]').fill(email);
+      await page.locator('input[type="password"]').fill(password);
+      await page.locator('form button[type="submit"]').click();
+      await expect(page).toHaveURL(/\/dashboard/, { timeout: 20000 });
+      await expect(page.getByTestId('salon-name')).toHaveText(salon);
+
+      await page.getByRole('button', { name: 'Account Settings' }).click();
+      await expect(page.getByTestId('account-salon-name')).toHaveValue(salon);
+
+      await page.getByRole('button', { name: 'Integrations' }).click();
+      await expect(page.getByTestId('official-business-name')).toHaveValue(salon);
+    } finally {
+      if (userId) await admin.auth.admin.deleteUser(userId);
+    }
   });
 });

@@ -72,6 +72,7 @@ export interface AvailabilityFixture {
   /** Omit to leave slot generation on staff hours only (existing callers). */
   openingHours?: unknown;
   staffHoursOverrideAccepted?: boolean;
+  is24_7?: boolean;
 }
 
 export interface AvailabilityDeps {
@@ -164,22 +165,25 @@ export async function getAvailabilityData(
     let maxWeeks = 12;
     let openingHoursRaw: unknown = undefined;
     let hoursOverrideAccepted = false;
+    let is24_7 = false;
     if (deps?.fixture) {
       maxWeeks = deps.fixture.maxWeeks || 12;
       bookingUrl = deps.fixture.bookingUrl ?? null;
       if (deps.fixture.openingHours !== undefined) openingHoursRaw = deps.fixture.openingHours;
       hoursOverrideAccepted = deps.fixture.staffHoursOverrideAccepted === true;
+      is24_7 = deps.fixture.is24_7 === true;
     } else {
       const { data: tenantData } = await getSupabaseAdmin()
         .from('tenants')
-        .select('max_advance_weeks, booking_url, general_operating_hours, holiday_settings')
+        .select('max_advance_weeks, booking_url, general_operating_hours, holiday_settings, is_24_7')
         .eq('id', tenantId)
         .maybeSingle();
 
       maxWeeks = tenantData?.max_advance_weeks || 12;
       bookingUrl = tenantData?.booking_url ?? null;
-      openingHoursRaw = tenantData?.general_operating_hours ?? {};
+      openingHoursRaw = tenantData?.general_operating_hours ?? null;
       hoursOverrideAccepted = staffHoursOverrideAccepted(tenantData?.holiday_settings);
+      is24_7 = tenantData?.is_24_7 === true;
     }
     const now = deps?.now ?? new Date();
     const maxAdvanceDate = new Date(now.getTime() + maxWeeks * 7 * 24 * 60 * 60 * 1000);
@@ -304,10 +308,11 @@ export async function getAvailabilityData(
       maxAdvanceWeeks: maxWeeks,
       nowUtc: now,
       timeZone: timezone,
-      ...(openingHoursRaw !== undefined
+      ...(openingHoursRaw !== undefined && openingHoursRaw !== null
         ? { openingHours: normaliseOpeningHours(openingHoursRaw) }
         : {}),
       staffHoursOverrideAccepted: hoursOverrideAccepted,
+      is24_7,
     });
 
     if (slots.length === 0) {

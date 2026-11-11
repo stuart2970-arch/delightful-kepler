@@ -105,21 +105,53 @@ export function openingHoursForSave(raw: unknown): Record<WeekDay, StoredDayHour
   return storedOpeningHours(normaliseOpeningHours(raw));
 }
 
-export function formatOpeningHoursForPrompt(view: OpeningHoursView, options?: { spoken?: boolean }): string {
+export function formatOpeningHoursForPrompt(view: OpeningHoursView, options?: { spoken?: boolean; is24_7?: boolean }): string {
+  if (options?.is24_7) {
+    return 'The salon is open 24 hours. Do not limit visits to a 09:00–17:00 day.';
+  }
   const lines = WEEK_DAYS.map((day) => {
     const entry = view.days[day];
     const label = day.charAt(0).toUpperCase() + day.slice(1);
+    if (entry.missing) return `${label}: not saved`;
     if (entry.closed) return `${label}: Closed`;
     const range = options?.spoken ? `${entry.open} to ${entry.close}` : `${entry.open}–${entry.close}`;
-    const note = entry.missing ? ' (not saved yet; using 09:00–17:00 until opening hours are saved)' : '';
-    return `${label}: ${range}${note}`;
+    return `${label}: ${range}`;
   });
   if (view.weekdaysMissing) {
     lines.push(
-      'Warning: Monday to Friday were missing from saved opening hours. Those days use 09:00–17:00 until the owner saves opening hours.',
+      'Warning: Monday to Friday were not saved. Do not invent 09:00–17:00. Until the owner saves those days, bookings follow the staff rota.',
     );
   }
   return options?.spoken ? lines.join('. ') : lines.join('\n');
+}
+
+export function recordStaffHoursAcceptance(
+  settings: unknown,
+  accepted: boolean,
+  acceptedBy: string | null,
+  nowIso: string,
+): Record<string, unknown> {
+  const base = isRecord(settings) ? { ...settings } : {};
+  if (!accepted) {
+    return {
+      ...base,
+      staff_hours_outside_opening_accepted: false,
+      staff_hours_outside_opening_accepted_at: null,
+      staff_hours_outside_opening_accepted_by: null,
+    };
+  }
+  const previousAt = typeof base.staff_hours_outside_opening_accepted_at === 'string'
+    ? base.staff_hours_outside_opening_accepted_at
+    : '';
+  const previousBy = typeof base.staff_hours_outside_opening_accepted_by === 'string'
+    ? base.staff_hours_outside_opening_accepted_by
+    : '';
+  return {
+    ...base,
+    staff_hours_outside_opening_accepted: true,
+    staff_hours_outside_opening_accepted_at: previousAt || nowIso,
+    staff_hours_outside_opening_accepted_by: previousBy || acceptedBy,
+  };
 }
 
 /** Clip a staff shift to the salon's opening window. Null when the day is closed or the overlap is empty. */
@@ -160,6 +192,7 @@ export function rotaExtendsOutsideOpening(workingDays: unknown, hours: OpeningHo
     if (!isRecord(source)) continue;
     for (const day of WEEK_DAYS) {
       const opening = hours.days[day];
+      if (!opening || opening.missing) continue;
       for (const shift of shiftsOnDay(source[day])) {
         if (shiftWasClipped(shift, clipShiftToOpening(shift, opening))) return true;
       }
