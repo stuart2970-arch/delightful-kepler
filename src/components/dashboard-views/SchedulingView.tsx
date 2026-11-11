@@ -71,10 +71,12 @@ export default function SchedulingView() {
   useEffect(() => {
     setMounted(true);
     if (tenantId) {
-      fetch(`/api/integrations/microsoft/status?tenantId=${tenantId}`)
-        .then(res => res.json())
-        .then(data => setIsMicrosoftConnected(!!data?.connected))
-        .catch(err => console.error('Microsoft status error:', err));
+      browserAuthHeaders().then((headers) =>
+        fetch(`/api/integrations/microsoft/status?tenantId=${tenantId}`, { headers })
+          .then(res => res.json())
+          .then(data => setIsMicrosoftConnected(!!data?.connected))
+          .catch(err => console.error('Microsoft status error:', err))
+      );
     }
   }, [tenantId]);
 

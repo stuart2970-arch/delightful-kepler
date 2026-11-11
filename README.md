@@ -4348,3 +4348,9 @@ Highlighted adjustments in the modal:
 * **User**: Product Owner review. Rebase onto current `origin/staging` after PR 48. `GET /api/messages` uses the same membership. A conversation from another salon is 404. The response is `id`, `sender_type`, `text_content`, and `created_at`. The inbox sends the session. Keep the preview-session filter. Never `--no-verify`. Force-with-lease only.
 * **Changes**: Rebased onto `c289593`. The conversation query still excludes `preview-%` sessions. Messages load the conversation first and filter `messages.tenant_id`.
 * **Tests**: The conversations spec now also covers unsigned messages, a cross-tenant 404, and the column list. The pre-push hook runs `tsc --noEmit` and the full Playwright suite.
+### Session (STYL-289 integration status auth - 11 Nov 2026)
+* **User**: Close the unauthenticated Google and Microsoft calendar status routes. Anyone could disconnect a salon's calendar. Require a signed-in member for GET and an owner or admin for DELETE. Leave the Google status select as it is so a separate change can drop `account_email`.
+* **Changes**:
+  - Both status routes use `requireTenantRole`. A query `tenantId` for another salon is 403.
+  - Scheduling loads Microsoft status with the dashboard Bearer header. Integrations sends it on Google disconnect.
+  - Playwright `tests/styl-289-integration-status-auth.spec.ts`. The scheduling status spec now signs in.

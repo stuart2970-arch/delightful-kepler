@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
+import { requireTenantRole, type TenantRole } from '@/lib/auth/require-tenant-role';
 
 function getSupabaseAdmin() {
   return createClient(
@@ -8,14 +9,31 @@ function getSupabaseAdmin() {
   );
 }
 
+async function resolveTenant(request: Request, roles: TenantRole[]) {
+  const auth = await requireTenantRole(request, roles);
+  if (!auth.ok) return auth;
+  const requested = new URL(request.url).searchParams.get('tenantId');
+  if (requested && requested !== auth.tenantId && !auth.isSuperAdmin) {
+    return {
+      ok: false as const,
+      response: NextResponse.json({ error: 'Forbidden' }, { status: 403 }),
+    };
+  }
+  const tenantId = auth.isSuperAdmin && requested ? requested : auth.tenantId;
+  if (!tenantId) {
+    return {
+      ok: false as const,
+      response: NextResponse.json({ error: 'Missing tenantId' }, { status: 400 }),
+    };
+  }
+  return { ok: true as const, tenantId };
+}
+
 export async function GET(request: Request) {
   try {
-    const { searchParams } = new URL(request.url);
-    const tenantId = searchParams.get('tenantId');
-
-    if (!tenantId) {
-      return NextResponse.json({ error: 'Missing tenantId' }, { status: 400 });
-    }
+    const auth = await resolveTenant(request, ['owner', 'admin', 'member']);
+    if (!auth.ok) return auth.response;
+    const tenantId = auth.tenantId;
 
     const supabaseAdmin = getSupabaseAdmin();
     const { data, error } = await supabaseAdmin
@@ -43,12 +61,9 @@ export async function GET(request: Request) {
 
 export async function DELETE(request: Request) {
   try {
-    const { searchParams } = new URL(request.url);
-    const tenantId = searchParams.get('tenantId');
-
-    if (!tenantId) {
-      return NextResponse.json({ error: 'Missing tenantId' }, { status: 400 });
-    }
+    const auth = await resolveTenant(request, ['owner', 'admin']);
+    if (!auth.ok) return auth.response;
+    const tenantId = auth.tenantId;
 
     const supabaseAdmin = getSupabaseAdmin();
     const { error } = await supabaseAdmin
