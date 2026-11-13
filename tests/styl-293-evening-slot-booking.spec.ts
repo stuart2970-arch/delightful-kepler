@@ -56,9 +56,21 @@ test.describe('STYL-293 evening widget booking', () => {
   const saturday = nextSaturday();
   const slotStart = formatSlotIsoWithOffset(localTimeToUtc(saturday, '18:00', TZ), TZ);
 
+  let previousHolidaySettings: unknown = null;
+
   test.beforeAll(async () => {
     expect(serviceRoleKey).not.toEqual('');
     expect(supabaseUrl).not.toContain('tkoasyjvrgaglofpzduq');
+
+    const { data: tenant } = await supabaseAdmin.from('tenants').select('holiday_settings').eq('id', TENANT).single();
+    previousHolidaySettings = tenant?.holiday_settings ?? null;
+    const { error: hoursError } = await supabaseAdmin.from('tenants').update({
+      holiday_settings: {
+        ...(tenant?.holiday_settings && typeof tenant.holiday_settings === 'object' ? tenant.holiday_settings : {}),
+        staff_hours_outside_opening_accepted: true,
+      },
+    }).eq('id', TENANT);
+    expect(hoursError).toBeNull();
 
     const staffRow = {
       tenant_id: TENANT,
@@ -92,6 +104,7 @@ test.describe('STYL-293 evening widget booking', () => {
   });
 
   test.afterAll(async () => {
+    await supabaseAdmin.from('tenants').update({ holiday_settings: previousHolidaySettings }).eq('id', TENANT);
     await supabaseAdmin.from('appointments').delete().in('staff_id', [staffA, staffB]);
     await supabaseAdmin.from('services').delete().eq('id', serviceId);
     await supabaseAdmin.from('staff').delete().in('id', [staffA, staffB]);
