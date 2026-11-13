@@ -17,6 +17,19 @@ const corsHeaders = {
 };
 
 export async function proxy(request: NextRequest) {
+  // Widget config (GET /api/chatbots/:id) is public and loaded on other sites.
+  // Those reads must not wait on Auth or receive a Set-Cookie. POST, PATCH,
+  // PUT, and DELETE are dashboard saves. They stay in this proxy so getUser()
+  // below rotates an expired access-token cookie before the route reads it.
+  // The matcher used to skip every /api/chatbots path, so a welcome-message
+  // PATCH kept the stale cookie and then rejected the expired Bearer as well.
+  if (
+    request.nextUrl.pathname.startsWith('/api/chatbots') &&
+    (request.method === 'GET' || request.method === 'HEAD')
+  ) {
+    return NextResponse.next();
+  }
+
   // 0. CORS preflight. Auth routes stay same-origin: no wildcard header.
   if (request.method === 'OPTIONS') {
     const preflightPath = request.nextUrl.pathname;
@@ -310,6 +323,6 @@ export async function proxy(request: NextRequest) {
 
 export const config = {
   matcher: [
-    '/((?!_next/static|_next/image|favicon.ico|api/chatbots|api/track|widget.js|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)',
+    '/((?!_next/static|_next/image|favicon.ico|api/track|widget.js|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)',
   ],
 };
