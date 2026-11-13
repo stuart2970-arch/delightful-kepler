@@ -4343,3 +4343,8 @@ Highlighted adjustments in the modal:
   - The route uses `requireTenantRole` for owner, admin, and member. A query `tenantId` for another salon is 403. Results use the session tenant.
   - The inbox list and the sync button send the dashboard Bearer session header.
   - Playwright `tests/styl-288-conversations-auth.spec.ts`: 3 passed. Local Supabase CLI and mock keys only.
+
+### Session (STYL-288 review - messages and rebase - 13 Nov 2026)
+* **User**: Product Owner review. Rebase onto current `origin/staging` after PR 48. `GET /api/messages` uses the same membership. A conversation from another salon is 404. The response is `id`, `sender_type`, `text_content`, and `created_at`. The inbox sends the session. Keep the preview-session filter. Never `--no-verify`. Force-with-lease only.
+* **Changes**: Rebased onto `c289593`. The conversation query still excludes `preview-%` sessions. Messages load the conversation first and filter `messages.tenant_id`.
+* **Tests**: The conversations spec now also covers unsigned messages, a cross-tenant 404, and the column list. The pre-push hook runs `tsc --noEmit` and the full Playwright suite.

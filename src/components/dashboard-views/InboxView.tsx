@@ -116,7 +116,8 @@ export default function InboxView() {
     async function fetchMessages() {
       try {
         const response = await fetch(
-          `/api/messages?conversationId=${encodeURIComponent(convoId)}&tenantId=${encodeURIComponent(tenantId)}`
+          `/api/messages?conversationId=${encodeURIComponent(convoId)}&tenantId=${encodeURIComponent(tenantId)}`,
+          { headers: await browserAuthHeaders() },
         );
         if (response.ok) {
           const resData = await response.json();

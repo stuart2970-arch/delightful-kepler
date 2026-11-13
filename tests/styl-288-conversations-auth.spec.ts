@@ -23,12 +23,13 @@ function admin() {
 test.describe('STYL-288 conversations auth', () => {
   let acmeMember: TestUserSession;
   let globexMember: TestUserSession;
+  let acmeConversationId = '';
 
   test.beforeAll(async () => {
     acmeMember = await createTestUser({ tenantId: ACME, role: 'member' });
     globexMember = await createTestUser({ tenantId: GLOBEX, role: 'member' });
     const db = admin();
-    const { error } = await db.from('conversations').insert([
+    const { data, error } = await db.from('conversations').insert([
       {
         tenant_id: ACME,
         chatbot_id: ACME_BOT,
@@ -45,8 +46,16 @@ test.describe('STYL-288 conversations auth', () => {
         caller_number: globexCaller,
         transcript: 'Globex customer left a private callback number',
       },
-    ]);
+    ]).select('id, tenant_id');
     if (error) throw new Error(error.message);
+    acmeConversationId = data.find((row) => row.tenant_id === ACME)?.id || '';
+    const { error: messageError } = await db.from('messages').insert({
+      tenant_id: ACME,
+      conversation_id: acmeConversationId,
+      sender_type: 'user',
+      text_content: 'Please keep this Acme message private',
+    });
+    if (messageError) throw new Error(messageError.message);
   });
 
   test.afterAll(async () => {
@@ -84,5 +93,27 @@ test.describe('STYL-288 conversations auth', () => {
     const acmeRow = body.conversations.find((row: { user_session_id?: string }) => row.user_session_id === acmeSession);
     expect(acmeRow.caller_number).toBe(acmeCaller);
     expect(JSON.stringify(body)).not.toContain(globexCaller);
+  });
+
+  test('messages are 401 signed out, 404 for another salon, and limited columns for a member', async ({ request }) => {
+    const unsigned = await request.get(`/api/messages?conversationId=${acmeConversationId}`);
+    expect(unsigned.status()).toBe(401);
+
+    const otherSalon = await request.get(`/api/messages?conversationId=${acmeConversationId}`, {
+      headers: { Authorization: `Bearer ${globexMember.token}` },
+    });
+    expect(otherSalon.status()).toBe(404);
+    expect(JSON.stringify(await otherSalon.json())).not.toContain('Please keep this Acme message private');
+
+    const sameSalon = await request.get(`/api/messages?conversationId=${acmeConversationId}&tenantId=${ACME}`, {
+      headers: { Authorization: `Bearer ${acmeMember.token}` },
+    });
+    expect(sameSalon.status()).toBe(200);
+    const body = await sameSalon.json();
+    expect(body.messages).toHaveLength(1);
+    expect(body.messages[0].text_content).toBe('Please keep this Acme message private');
+    expect(body.messages[0].sender_type).toBe('user');
+    expect(body.messages[0].tenant_id).toBeUndefined();
+    expect(Object.keys(body.messages[0]).sort()).toEqual(['created_at', 'id', 'sender_type', 'text_content']);
   });
 });
