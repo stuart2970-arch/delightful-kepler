@@ -487,7 +487,7 @@ export default function SchedulingView() {
 
       const res = await fetch('/api/staff', {
         method,
-        headers: { 'Content-Type': 'application/json' },
+        headers: await browserAuthHeaders({ 'Content-Type': 'application/json' }),
         body: JSON.stringify(bodyPayload)
       });
       if (res.ok) {
@@ -522,7 +522,10 @@ export default function SchedulingView() {
   const handleDeleteStaff = async (id: string) => {
     if (!confirm('Are you sure you want to delete this staff member?')) return;
     try {
-      const res = await fetch(`/api/staff?id=${id}&tenantId=${tenantId}`, { method: 'DELETE' });
+      const res = await fetch(`/api/staff?id=${id}&tenantId=${tenantId}`, {
+        method: 'DELETE',
+        headers: await browserAuthHeaders(),
+      });
       if (res.ok) {
         setStaff(staff.filter(s => s.id !== id));
       }
@@ -640,7 +643,7 @@ export default function SchedulingView() {
       const staffMember = staff.find(s => s.id === editApptStaffId);
       const res = await fetch(`/api/appointments/${selectedApptForInspection.id}`, {
         method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
+        headers: await browserAuthHeaders({ 'Content-Type': 'application/json' }),
         body: JSON.stringify({
           tenantId,
           start_time: editApptStartTime,

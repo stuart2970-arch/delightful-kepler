@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
+import { requireTenantMember, requireTenantRole } from '@/lib/auth/require-tenant-role';
 
 function getSupabaseAdmin() {
   return createClient(
@@ -8,14 +9,37 @@ function getSupabaseAdmin() {
   );
 }
 
+async function chatbotInTenant(
+  supabaseAdmin: ReturnType<typeof getSupabaseAdmin>,
+  chatbotId: string | null | undefined,
+  tenantId: string | null,
+): Promise<boolean> {
+  if (!chatbotId) return true;
+  if (!tenantId) return false;
+  const { data } = await supabaseAdmin
+    .from('chatbots')
+    .select('id, tenant_id')
+    .eq('id', chatbotId)
+    .maybeSingle();
+  return data != null && String(data.tenant_id) === tenantId;
+}
+
+function requestedTenant(raw: string | null | undefined): string | undefined {
+  if (!raw || raw === 'undefined') return undefined;
+  const trimmed = raw.trim();
+  return trimmed || undefined;
+}
+
 export async function GET(request: Request) {
   try {
-    const { searchParams } = new URL(request.url);
-    const tenantId = searchParams.get('tenantId');
+    const auth = await requireTenantMember(request);
+    if (!auth.ok) return auth.response;
 
-    if (!tenantId) {
-      return NextResponse.json({ error: 'Missing tenantId' }, { status: 400 });
+    const requested = requestedTenant(new URL(request.url).searchParams.get('tenantId'));
+    if (requested && requested !== auth.tenantId && !auth.isSuperAdmin) {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
+    const tenantId = auth.isSuperAdmin && requested ? requested : auth.tenantId;
 
     const supabaseAdmin = getSupabaseAdmin();
     const { data, error } = await supabaseAdmin
@@ -35,18 +59,28 @@ export async function GET(request: Request) {
 
 export async function POST(request: Request) {
   try {
-    const body = await request.json();
-    const { tenant_id, chatbot_id, name, role, email, google_calendar_id, working_days, image_url, specialist_product, bio } = body;
+    const auth = await requireTenantRole(request, ['owner', 'admin']);
+    if (!auth.ok) return auth.response;
 
-    if (!tenant_id || !name || !email) {
+    const body = await request.json();
+    const { chatbot_id, name, role, email, google_calendar_id, working_days, image_url, specialist_product, bio, tenant_id } = body;
+
+    if (!name || !email) {
       return NextResponse.json({ error: 'Missing required fields' }, { status: 400 });
+    }
+    const requested = requestedTenant(typeof tenant_id === 'string' ? tenant_id : undefined);
+    if (requested && requested !== auth.tenantId && !auth.isSuperAdmin) {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
 
     const supabaseAdmin = getSupabaseAdmin();
+    if (!(await chatbotInTenant(supabaseAdmin, chatbot_id, auth.tenantId))) {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+    }
     const { data, error } = await supabaseAdmin
       .from('staff')
       .insert({
-        tenant_id,
+        tenant_id: auth.tenantId,
         chatbot_id: chatbot_id || null,
         name,
         role: role || null,
@@ -71,14 +105,33 @@ export async function POST(request: Request) {
 
 export async function PUT(request: Request) {
   try {
-    const body = await request.json();
-    const { id, tenant_id, chatbot_id, name, role, email, google_calendar_id, working_days, image_url, specialist_product, bio } = body;
+    const auth = await requireTenantRole(request, ['owner', 'admin']);
+    if (!auth.ok) return auth.response;
 
-    if (!id || !tenant_id || !name || !email) {
+    const body = await request.json();
+    const { id, chatbot_id, name, role, email, google_calendar_id, working_days, image_url, specialist_product, bio } = body;
+
+    if (!id || !name || !email) {
       return NextResponse.json({ error: 'Missing required fields' }, { status: 400 });
     }
 
     const supabaseAdmin = getSupabaseAdmin();
+    const { data: existing } = await supabaseAdmin
+      .from('staff')
+      .select('id, tenant_id')
+      .eq('id', id)
+      .maybeSingle();
+    if (!existing) {
+      return NextResponse.json({ error: 'Not found' }, { status: 404 });
+    }
+    if (!auth.isSuperAdmin && String(existing.tenant_id) !== auth.tenantId) {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+    }
+    const staffTenantId = auth.isSuperAdmin ? String(existing.tenant_id) : auth.tenantId;
+    if (!(await chatbotInTenant(supabaseAdmin, chatbot_id, staffTenantId))) {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+    }
+
     const { data, error } = await supabaseAdmin
       .from('staff')
       .update({
@@ -93,7 +146,7 @@ export async function PUT(request: Request) {
         bio,
       })
       .eq('id', id)
-      .eq('tenant_id', tenant_id)
+      .eq('tenant_id', auth.isSuperAdmin ? existing.tenant_id : auth.tenantId)
       .select()
       .single();
 
@@ -108,20 +161,37 @@ export async function PUT(request: Request) {
 
 export async function DELETE(request: Request) {
   try {
+    const auth = await requireTenantRole(request, ['owner', 'admin']);
+    if (!auth.ok) return auth.response;
+
     const { searchParams } = new URL(request.url);
     const id = searchParams.get('id');
-    const tenantId = searchParams.get('tenantId');
-
-    if (!id || !tenantId) {
-      return NextResponse.json({ error: 'Missing id or tenantId' }, { status: 400 });
+    const requested = requestedTenant(searchParams.get('tenantId'));
+    if (requested && requested !== auth.tenantId && !auth.isSuperAdmin) {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+    }
+    if (!id) {
+      return NextResponse.json({ error: 'Missing id' }, { status: 400 });
     }
 
     const supabaseAdmin = getSupabaseAdmin();
+    const { data: existing } = await supabaseAdmin
+      .from('staff')
+      .select('id, tenant_id')
+      .eq('id', id)
+      .maybeSingle();
+    if (!existing) {
+      return NextResponse.json({ error: 'Not found' }, { status: 404 });
+    }
+    if (!auth.isSuperAdmin && String(existing.tenant_id) !== auth.tenantId) {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+    }
+
     const { error } = await supabaseAdmin
       .from('staff')
       .delete()
       .eq('id', id)
-      .eq('tenant_id', tenantId);
+      .eq('tenant_id', existing.tenant_id);
 
     if (error) throw error;
 

@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import { generateICSContent } from '@/lib/ical';
+import { requireTenantMember } from '@/lib/auth/require-tenant-role';
 
 export async function PATCH(
   request: Request,
@@ -13,6 +14,9 @@ export async function PATCH(
     if (!appointmentId) {
       return NextResponse.json({ error: 'Appointment ID is required' }, { status: 400 });
     }
+
+    const auth = await requireTenantMember(request);
+    if (!auth.ok) return auth.response;
 
     const body = await request.json();
     const {
@@ -37,6 +41,31 @@ export async function PATCH(
 
     const supabaseAdmin = createClient(supabaseUrl, serviceRoleKey);
 
+    const { data: existing, error: existingError } = await supabaseAdmin
+      .from('appointments')
+      .select('id, tenant_id')
+      .eq('id', appointmentId)
+      .maybeSingle();
+    if (existingError) {
+      return NextResponse.json({ error: existingError.message }, { status: 500 });
+    }
+    if (!existing) {
+      return NextResponse.json({ error: 'Not found' }, { status: 404 });
+    }
+    if (!auth.isSuperAdmin && String(existing.tenant_id) !== auth.tenantId) {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+    }
+    if (staff_id) {
+      const { data: staff } = await supabaseAdmin
+        .from('staff')
+        .select('id, tenant_id')
+        .eq('id', staff_id)
+        .maybeSingle();
+      if (!staff || String(staff.tenant_id) !== String(existing.tenant_id)) {
+        return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+      }
+    }
+
     const updates: Record<string, any> = {};
     if (start_time) updates.start_time = start_time;
     if (end_time) updates.end_time = end_time;
@@ -50,6 +79,7 @@ export async function PATCH(
       .from('appointments')
       .update(updates)
       .eq('id', appointmentId)
+      .eq('tenant_id', existing.tenant_id)
       .select()
       .single();
 

@@ -1,6 +1,6 @@
 import { test, expect } from '@playwright/test';
 import { createClient } from '@supabase/supabase-js';
-import { createTestUser } from './test-auth-helper';
+import { createTestSuperadminUser, createTestUser } from './test-auth-helper';
 
 const vapiWebhookHeaders = {
   'x-vapi-secret': process.env.VAPI_WEBHOOK_SECRET || 'test-vapi-webhook-secret',
@@ -121,19 +121,25 @@ test.describe('Vapi, ElevenLabs & Telephony Integrations', () => {
   });
 
   test('Meta Test Journey API simulates conversational flow and generates AI response', async ({ request }) => {
-    const response = await request.post('/api/integrations/meta/test-journey', {
-      data: {
-        tenantId: '7b0f485d-49b8-416e-8c6f-1effea14a57b',
-        channel: 'whatsapp',
-        messageText: 'Hello! What services are available and how can I book?'
-      }
-    });
+    const superadmin = await createTestSuperadminUser();
+    try {
+      const response = await request.post('/api/integrations/meta/test-journey', {
+        headers: { Authorization: `Bearer ${superadmin.token}` },
+        data: {
+          tenantId: '10000000-0000-0000-0000-000000000001',
+          channel: 'whatsapp',
+          messageText: 'Hello! What services are available and how can I book?'
+        }
+      });
 
-    expect(response.status()).toBe(200);
-    const data = await response.json();
-    expect(data.success).toBe(true);
-    expect(data.replyText).toBeTruthy();
-    expect(data.channel).toBe('whatsapp');
+      expect(response.status()).toBe(200);
+      const data = await response.json();
+      expect(data.success).toBe(true);
+      expect(data.replyText).toBeTruthy();
+      expect(data.channel).toBe('whatsapp');
+    } finally {
+      await superadmin.cleanup();
+    }
   });
 
   test('Meta Settings API returns configured webhook and token details', async ({ request }) => {

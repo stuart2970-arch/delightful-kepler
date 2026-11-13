@@ -58,13 +58,22 @@ test.describe('Scheduling & Staff Section Verification', () => {
   });
 
   test('Staff API endpoint returns list of colleagues', async ({ request }) => {
-    const response = await request.get(`/api/staff?tenantId=${testTenantId}`);
-    expect(response.status()).toBeLessThan(500);
+    const owner = await createTestUser({ tenantId: testTenantId, role: 'owner' });
+    try {
+      const response = await request.get(`/api/staff?tenantId=${testTenantId}`, {
+        headers: { Authorization: `Bearer ${owner.token}` },
+      });
+      expect(response.status()).toBeLessThan(500);
+    } finally {
+      await owner.cleanup();
+    }
   });
 
   test('Staff Member Creation & Update API validates avatar image, specialist services, bio, and 4-week shift rotas', async ({ request }) => {
     // 1. Test POST staff creation payload with all extended profile fields
+    const owner = await createTestUser({ tenantId: testTenantId, role: 'owner' });
     const createRes = await request.post('/api/staff', {
+      headers: { Authorization: `Bearer ${owner.token}` },
       data: {
         tenant_id: testTenantId,
         name: 'Jessica Taylor (Playwright Test)',
@@ -91,5 +100,6 @@ test.describe('Scheduling & Staff Section Verification', () => {
     });
 
     expect(createRes.status()).toBeLessThan(500);
+    await owner.cleanup();
   });
 });

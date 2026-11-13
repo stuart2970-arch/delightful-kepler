@@ -425,7 +425,7 @@ export default function IntegrationsView() {
                               }
                               try {
                                 setIsSavingRwg(true);
-                                const res = await fetch('/api/integrations/google/places', {
+                                const res = await dashboardFetch('/api/integrations/google/places', {
                                   method: 'POST',
                                   headers: { 'Content-Type': 'application/json' },
                                   body: JSON.stringify({ url: rwgGoogleUrl })
