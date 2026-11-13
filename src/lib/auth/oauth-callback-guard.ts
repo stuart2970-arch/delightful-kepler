@@ -117,8 +117,13 @@ export async function calendarConnectAllowed(
   }
   const { data: staff } = await supabase
     .from('staff')
-    .select('id, tenant_id, user_id')
+    .select('id, tenant_id, user_id, email')
     .eq('id', staffId)
     .maybeSingle();
-  return !!staff && String(staff.tenant_id) === tenantId && staff.user_id === userId;
+  if (!staff || String(staff.tenant_id) !== tenantId) return false;
+  if (staff.user_id === userId) return true;
+  if (staff.user_id) return false;
+  const { data: account } = await supabase.auth.admin.getUserById(userId);
+  const email = account?.user?.email?.trim().toLowerCase();
+  return !!email && String(staff.email || '').trim().toLowerCase() === email;
 }

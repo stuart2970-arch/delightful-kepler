@@ -235,7 +235,7 @@ test.describe.serial('Multi-Colleague Dashboard & RBAC Rota Systems', () => {
         
         // Intercept OAuth redirection URL
         const requestPromise = page.waitForRequest(req => req.url().includes('accounts.google.com'));
-        await page.click('a:has-text("Connect Google Calendar")'); // Triggers Route 1 (OAuth authorize URL)
+        await page.locator('a[href*="/api/integrations/google/authorize?staffId="]').click();
         const request = await requestPromise;
 
         // Verify redirect URL points to Google accounts page and contains base64 context state passing staffId
