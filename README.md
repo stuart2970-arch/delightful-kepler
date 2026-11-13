@@ -4376,3 +4376,7 @@ Highlighted adjustments in the modal:
 ### Session (STYL-290 OpenClaw - staff Microsoft tokens - 13 Nov 2026)
 * **User**: OpenClaw review on the rebased head. A staff Microsoft connect was also writing the salon refresh token.
 * **Changes**: Staff connects update that staff row only. Salon connects still write the tenant token.
+### Session (signed-out API gaps - 13 Nov 2026)
+* **User**: One pull request into `staging` for the remaining signed-out routes. Staff reads are for members and writes are owner or admin, with the tenant taken from the session. Appointment edits stay inside the booking's salon. The Meta test journey is superadmin only. Sitemap discovery and Google Places require a signed-in member, refuse private and metadata addresses on every redirect hop, and rate-limit each tenant. A Playwright sweep expects 401 or 403 from every other API route unless it is on the documented allow-list.
+* **Changes**: `requireTenantMember`, staff, appointments, test-journey, sitemap, places, and the dashboard callers that use those routes now send the session. Shopify catalogue import checks the session before it checks query parameters, so a signed-out call is 401. Plan signup checkout stays unsigned and is named on the allow-list.
+* **Tests**: `tests/signed-out-api-gaps.spec.ts`, `tests/signed-out-api-allowlist.spec.ts`, `tests/scheduling-verification.spec.ts`, and `tests/integrations.spec.ts`: 23 passed. The pre-push hook then runs `tsc --noEmit` and the full Playwright suite.

@@ -1,7 +1,15 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { requireTenantMember } from '@/lib/auth/require-tenant-role';
+import { consumeTenantOutboundLimit, fetchPublic, OutboundUrlError } from '@/lib/security/safe-outbound';
 
 export async function POST(req: NextRequest) {
   try {
+    const auth = await requireTenantMember(req);
+    if (!auth.ok) return auth.response;
+    if (!consumeTenantOutboundLimit(auth.tenantId, req)) {
+      return NextResponse.json({ error: 'Too many requests' }, { status: 429 });
+    }
+
     const { url } = await req.json();
     if (!url) {
       return NextResponse.json({ error: 'URL is required' }, { status: 400 });
@@ -21,14 +29,19 @@ export async function POST(req: NextRequest) {
 
     // Follow redirects for short links (maps.app.goo.gl, g.page, etc.)
     let finalUrl = trimmedInput;
-    try {
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 5000);
-      const res = await fetch(trimmedInput, { method: 'HEAD', redirect: 'follow', signal: controller.signal });
-      clearTimeout(timeoutId);
-      finalUrl = res.url;
-    } catch (e) {
-      console.warn("Could not follow redirect, using original URL", e);
+    if (/^https?:\/\//i.test(trimmedInput)) {
+      try {
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 5000);
+        const res = await fetchPublic(trimmedInput, { method: 'HEAD', signal: controller.signal });
+        clearTimeout(timeoutId);
+        finalUrl = res.url || trimmedInput;
+      } catch (e) {
+        if (e instanceof OutboundUrlError) {
+          return NextResponse.json({ error: e.message }, { status: 400 });
+        }
+        console.warn("Could not follow redirect, using original URL", e);
+      }
     }
 
     // Check 2: Direct Place ID in URL parameters (place_id=...)

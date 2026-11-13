@@ -1,9 +1,17 @@
 import { NextResponse } from 'next/server';
+import { requireTenantMember } from '@/lib/auth/require-tenant-role';
+import { consumeTenantOutboundLimit, fetchPublic, OutboundUrlError } from '@/lib/security/safe-outbound';
 
 export const dynamic = 'force-dynamic';
 
 export async function POST(request: Request) {
   try {
+    const auth = await requireTenantMember(request);
+    if (!auth.ok) return auth.response;
+    if (!consumeTenantOutboundLimit(auth.tenantId, request)) {
+      return NextResponse.json({ error: 'Too many requests' }, { status: 429 });
+    }
+
     const { websiteUrl } = await request.json();
 
     if (!websiteUrl) {
@@ -21,7 +29,7 @@ export async function POST(request: Request) {
     const sitemapUrl = `${baseUrl}/sitemap.xml`;
     console.log(`Checking sitemap at: ${sitemapUrl}`);
 
-    const response = await fetch(sitemapUrl, {
+    const response = await fetchPublic(sitemapUrl, {
       headers: {
         'User-Agent': 'Mozilla/5.0 (compatible; Googlebot/2.1; +http://www.google.com/bot.html)',
       },
@@ -54,7 +62,7 @@ export async function POST(request: Request) {
       
       await Promise.all(sitemapsToFetch.map(async (subUrl) => {
         try {
-          const subRes = await fetch(subUrl, {
+          const subRes = await fetchPublic(subUrl, {
             headers: { 'User-Agent': 'Mozilla/5.0 (compatible; Googlebot/2.1; +http://www.google.com/bot.html)' }
           });
           if (subRes.ok) {
@@ -84,6 +92,9 @@ export async function POST(request: Request) {
     return NextResponse.json({ urls: validUrls, message: `Found ${validUrls.length} pages in sitemap.` });
 
   } catch (error: any) {
+    if (error instanceof OutboundUrlError) {
+      return NextResponse.json({ error: error.message }, { status: 400 });
+    }
     console.error('Sitemap discovery error:', error);
     return NextResponse.json(
       { error: error.message || 'Failed to discover sitemap' },

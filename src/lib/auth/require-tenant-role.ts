@@ -124,3 +124,8 @@ export async function requireTenantRole(
     isSuperAdmin: false,
   };
 }
+
+/** Any signed-in salon member: owner, admin, or member. Tenant comes from the session. */
+export function requireTenantMember(req: NextRequest | Request): Promise<TenantRoleResult> {
+  return requireTenantRole(req, ['owner', 'admin', 'member']);
+}
