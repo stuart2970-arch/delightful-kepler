@@ -41,7 +41,7 @@ export async function GET(request: Request) {
     const [{ data: integration }, { data: tenant }] = await Promise.all([
       supabaseAdmin
         .from('tenant_integrations')
-        .select('id, provider, updated_at, account_email')
+        .select('id, provider, updated_at')
         .eq('tenant_id', tenantId)
         .eq('provider', 'microsoft_calendar')
         .maybeSingle(),
@@ -56,7 +56,9 @@ export async function GET(request: Request) {
 
     return NextResponse.json({
       connected: isConnected,
-      integration: integration || (tenant?.microsoft_refresh_token ? { provider: 'microsoft_calendar' } : null)
+      integration: integration
+        ? { id: integration.id, provider: integration.provider, updated_at: integration.updated_at }
+        : (tenant?.microsoft_refresh_token ? { provider: 'microsoft_calendar' } : null),
     });
   } catch (err: any) {
     console.error('Error fetching Microsoft integration status:', err);

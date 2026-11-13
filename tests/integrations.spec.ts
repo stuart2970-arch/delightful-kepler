@@ -137,11 +137,22 @@ test.describe('Vapi, ElevenLabs & Telephony Integrations', () => {
   });
 
   test('Meta Settings API returns configured webhook and token details', async ({ request }) => {
-    const response = await request.get('/api/integrations/meta/settings?tenantId=7b0f485d-49b8-416e-8c6f-1effea14a57b');
-    expect(response.status()).toBe(200);
-    const data = await response.json();
-    expect(data.webhookUrl).toContain('/api/webhooks/meta');
-    expect(data.verifyToken).toBeTruthy();
+    const owner = await createTestUser({
+      tenantId: '10000000-0000-0000-0000-000000000001',
+      role: 'owner',
+    });
+    try {
+      const response = await request.get('/api/integrations/meta/settings?tenantId=10000000-0000-0000-0000-000000000001', {
+        headers: { Authorization: `Bearer ${owner.token}` },
+      });
+      expect(response.status()).toBe(200);
+      const data = await response.json();
+      expect(data.webhookUrl).toContain('/api/webhooks/meta');
+      expect(data.verifyToken).toBeUndefined();
+      expect(data.metaAccessTokenMasked).toBeUndefined();
+    } finally {
+      await owner.cleanup();
+    }
   });
 
   test('Meta Data Deletion compliance callback returns valid tracking URL and confirmation code', async ({ request }) => {

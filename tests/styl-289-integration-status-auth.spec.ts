@@ -89,11 +89,14 @@ test.describe('STYL-289 integration status auth', () => {
     expect(google.status()).toBe(200);
     const googleBody = await google.json();
     expect(googleBody.connected).toBe(true);
+    expect(googleBody.integration).not.toHaveProperty('account_email');
 
     const microsoft = await request.get(`/api/integrations/microsoft/status?tenantId=${ACME}`, { headers });
     expect(microsoft.status()).toBe(200);
     const msBody = await microsoft.json();
     expect(msBody.connected).toBe(true);
+    expect(JSON.stringify(msBody)).not.toContain('account_email');
+    expect(JSON.stringify(msBody)).not.toContain('microsoft_refresh_token');
 
     const googleDel = await request.delete(`/api/integrations/google/status?tenantId=${ACME}`, { headers });
     const msDel = await request.delete(`/api/integrations/microsoft/status?tenantId=${ACME}`, { headers });
@@ -122,5 +125,40 @@ test.describe('STYL-289 integration status auth', () => {
 
     const { data } = await admin().from('tenants').select('microsoft_refresh_token').eq('id', ACME).single();
     expect(data?.microsoft_refresh_token).toBeNull();
+  });
+
+  test('meta settings are owner or admin, hide tokens, and refuse another salon chatbot', async ({ request }) => {
+    const unsigned = await request.get(`/api/integrations/meta/settings?tenantId=${ACME}`);
+    expect(unsigned.status()).toBe(401);
+
+    const member = await request.get(`/api/integrations/meta/settings?tenantId=${ACME}`, {
+      headers: { Authorization: `Bearer ${acmeMember.token}` },
+    });
+    expect(member.status()).toBe(403);
+
+    const other = await request.get(`/api/integrations/meta/settings?tenantId=${ACME}`, {
+      headers: { Authorization: `Bearer ${globexMember.token}` },
+    });
+    expect(other.status()).toBe(403);
+
+    const adminHeaders = { Authorization: `Bearer ${acmeAdmin.token}` };
+    const allowed = await request.get(`/api/integrations/meta/settings?tenantId=${ACME}`, { headers: adminHeaders });
+    expect(allowed.status()).toBe(200);
+    const body = await allowed.json();
+    expect(body.webhookUrl).toContain('/api/webhooks/meta');
+    expect(body.verifyToken).toBeUndefined();
+    expect(body.metaAccessTokenMasked).toBeUndefined();
+    expect(JSON.stringify(body)).not.toContain('META_VERIFY_TOKEN');
+
+    const foreign = await request.patch('/api/integrations/meta/settings', {
+      headers: adminHeaders,
+      data: { tenantId: ACME, chatbotId: 'e0000000-0000-0000-0000-000000000002', whatsappEnabled: true },
+    });
+    expect(foreign.status()).toBe(403);
+
+    const unsignedPatch = await request.patch('/api/integrations/meta/settings', {
+      data: { tenantId: ACME, whatsappEnabled: false },
+    });
+    expect(unsignedPatch.status()).toBe(401);
   });
 });

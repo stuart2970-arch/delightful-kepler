@@ -4354,3 +4354,7 @@ Highlighted adjustments in the modal:
   - Both status routes use `requireTenantRole`. A query `tenantId` for another salon is 403.
   - Scheduling loads Microsoft status with the dashboard Bearer header. Integrations sends it on Google disconnect.
   - Playwright `tests/styl-289-integration-status-auth.spec.ts` plus `scheduling-verification`: 10 passed. Local Supabase CLI and mock keys only. The Google status select still includes `account_email` so PR 48 can drop it.
+
+### Session (STYL-289 review - meta settings, emails, rebase - 13 Nov 2026)
+* **User**: Product Owner review. Rebase onto current `origin/staging`. Microsoft status returns `id`, `provider`, and `updated_at` only. Meta settings GET and PATCH are owner or admin, take the tenant from the session, refuse a chatbot from another salon, and do not return verify tokens or token fragments. The status email spec signs in. Never `--no-verify`. Force-with-lease only.
+* **Tests**: Calendar status, meta settings, and the rewritten email spec. The pre-push hook runs `tsc --noEmit` and the full Playwright suite.
