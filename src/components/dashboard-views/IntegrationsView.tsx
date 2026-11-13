@@ -1,6 +1,7 @@
 // @ts-nocheck
 import React, { useState, useEffect } from 'react';
 import { useDashboardStore } from '../../lib/store';
+import { dashboardFetch } from '../../lib/auth/dashboard-auth-headers';
 
 export default function IntegrationsView() {
   const { 
@@ -198,7 +199,7 @@ export default function IntegrationsView() {
       setCrawlLogs((prev) => [...prev, `[System] [${i+1}/${urls.length}] Crawling ${currentUrl}...`]);
 
       try {
-        const response = await fetch('/api/ingest/crawl', {
+        const response = await dashboardFetch('/api/ingest/crawl', {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
