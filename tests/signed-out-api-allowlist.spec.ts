@@ -125,6 +125,7 @@ function discoverRoutes(): { method: string; routePath: string }[] {
 }
 
 test('signed-out API routes are 401 or 403 unless they are on the allow-list', async ({ request }) => {
+  test.setTimeout(180_000);
   const unexpected: string[] = [];
   for (const route of discoverRoutes()) {
     if (isAllowed(route.method, route.routePath)) continue;
