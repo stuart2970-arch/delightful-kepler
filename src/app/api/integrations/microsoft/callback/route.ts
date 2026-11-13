@@ -3,6 +3,65 @@ import { createAdminClient } from '@/utils/supabase-admin';
 import { publicAppPath } from '@/lib/env/public-app-url';
 import { requireOAuthCallback } from '@/lib/auth/oauth-callback-guard';
 
+type MicrosoftTokens = {
+  access_token?: string;
+  refresh_token?: string;
+  expires_in?: number;
+  account_email?: string;
+};
+
+/** Staff connects update that staff row. Salon connects update the tenant token. */
+export async function saveMicrosoftCalendarConnection(
+  supabaseAdmin: { from: (table: string) => any },
+  input: { staffId: string | null; tenantId: string; tokens: MicrosoftTokens },
+): Promise<void> {
+  const { staffId, tenantId, tokens } = input;
+  if (staffId) {
+    const { data: staff } = await supabaseAdmin
+      .from('staff')
+      .select('id, tenant_id')
+      .eq('id', staffId)
+      .maybeSingle();
+
+    if (staff && String(staff.tenant_id) === tenantId) {
+      const { error } = await supabaseAdmin
+        .from('staff')
+        .update({
+          calendar_provider: 'microsoft',
+          microsoft_calendar_id: tokens.account_email || 'primary',
+        })
+        .eq('id', staffId)
+        .eq('tenant_id', tenantId);
+
+      if (error) {
+        console.error('[Microsoft OAuth] Staff update note:', error.message);
+      }
+    }
+    return;
+  }
+
+  if (tokens.refresh_token) {
+    await supabaseAdmin
+      .from('tenants')
+      .update({ microsoft_refresh_token: tokens.refresh_token })
+      .eq('id', tenantId);
+  }
+
+  await supabaseAdmin
+    .from('tenant_integrations')
+    .upsert({
+      tenant_id: tenantId,
+      provider: 'microsoft_calendar',
+      access_token: tokens.access_token,
+      refresh_token: tokens.refresh_token,
+      expiry_date: tokens.expires_in ? new Date(Date.now() + tokens.expires_in * 1000).toISOString() : null,
+      account_email: tokens.account_email || null,
+      updated_at: new Date().toISOString(),
+    }, {
+      onConflict: 'tenant_id,provider',
+    });
+}
+
 export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url);
   const code = searchParams.get('code');
@@ -67,51 +126,11 @@ export async function GET(request: NextRequest) {
       }
     }
 
-    const supabaseAdmin = createAdminClient();
-
-    if (gate.staffId) {
-      const { data: staff } = await supabaseAdmin
-        .from('staff')
-        .select('id, tenant_id')
-        .eq('id', gate.staffId)
-        .maybeSingle();
-
-      if (staff && String(staff.tenant_id) === gate.tenantId) {
-        const { error } = await supabaseAdmin
-          .from('staff')
-          .update({
-            calendar_provider: 'microsoft',
-            microsoft_calendar_id: tokens.account_email || 'primary',
-          })
-          .eq('id', gate.staffId)
-          .eq('tenant_id', gate.tenantId);
-
-        if (error) {
-          console.error('[Microsoft OAuth] Staff update note:', error.message);
-        }
-      }
-    }
-
-    if (tokens.refresh_token) {
-      await supabaseAdmin
-        .from('tenants')
-        .update({ microsoft_refresh_token: tokens.refresh_token })
-        .eq('id', gate.tenantId);
-    }
-
-    await supabaseAdmin
-      .from('tenant_integrations')
-      .upsert({
-        tenant_id: gate.tenantId,
-        provider: 'microsoft_calendar',
-        access_token: tokens.access_token,
-        refresh_token: tokens.refresh_token,
-        expiry_date: tokens.expires_in ? new Date(Date.now() + tokens.expires_in * 1000).toISOString() : null,
-        account_email: tokens.account_email || null,
-        updated_at: new Date().toISOString(),
-      }, {
-        onConflict: 'tenant_id,provider',
-      });
+    await saveMicrosoftCalendarConnection(createAdminClient(), {
+      staffId: gate.staffId,
+      tenantId: gate.tenantId,
+      tokens,
+    });
 
     return NextResponse.redirect(`${appUrl}/dashboard?tab=scheduling&success=microsoft_calendar`);
   } catch (err: any) {

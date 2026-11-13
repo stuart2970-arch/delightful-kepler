@@ -4,6 +4,7 @@ import { createTestUser, TestUserSession } from './test-auth-helper';
 import { signOAuthState, verifyOAuthState } from '../src/lib/auth/oauth-state';
 import { isMockOAuthCodeAllowed } from '../src/lib/env/allow-mock-oauth';
 import { resolveChatSessionSigningSecret } from '../src/lib/chat-session';
+import { saveMicrosoftCalendarConnection } from '../src/app/api/integrations/microsoft/callback/route';
 
 const ACME = '10000000-0000-0000-0000-000000000001';
 const GLOBEX = '10000000-0000-0000-0000-000000000002';
@@ -189,6 +190,40 @@ test.describe('STYL-290 OAuth callback state', () => {
     } finally {
       await db.from('staff').update({ user_id: previous?.user_id ?? null }).eq('id', staffId);
       await member.cleanup();
+    }
+  });
+
+  test('a staff Microsoft connect does not replace the salon refresh token', async () => {
+    const staffId = '30000000-0000-0000-0000-000000000003';
+    const db = admin();
+    const { data: tenantBefore } = await db.from('tenants').select('microsoft_refresh_token').eq('id', ACME).single();
+    const { data: staffBefore } = await db.from('staff').select('calendar_provider, microsoft_calendar_id').eq('id', staffId).single();
+    const salonToken = tenantBefore?.microsoft_refresh_token ?? 'salon-ms-token';
+    await db.from('tenants').update({ microsoft_refresh_token: salonToken }).eq('id', ACME);
+
+    try {
+      await saveMicrosoftCalendarConnection(db, {
+        staffId,
+        tenantId: ACME,
+        tokens: {
+          access_token: 'staff-access',
+          refresh_token: 'staff-personal-token',
+          expires_in: 3600,
+          account_email: 'colleague@acme.com',
+        },
+      });
+
+      const { data: tenant } = await db.from('tenants').select('microsoft_refresh_token').eq('id', ACME).single();
+      expect(tenant?.microsoft_refresh_token).toBe(salonToken);
+      const { data: staff } = await db.from('staff').select('calendar_provider, microsoft_calendar_id').eq('id', staffId).single();
+      expect(staff?.calendar_provider).toBe('microsoft');
+      expect(staff?.microsoft_calendar_id).toBe('colleague@acme.com');
+    } finally {
+      await db.from('tenants').update({ microsoft_refresh_token: tenantBefore?.microsoft_refresh_token ?? null }).eq('id', ACME);
+      await db.from('staff').update({
+        calendar_provider: staffBefore?.calendar_provider ?? null,
+        microsoft_calendar_id: staffBefore?.microsoft_calendar_id ?? null,
+      }).eq('id', staffId);
     }
   });
 });

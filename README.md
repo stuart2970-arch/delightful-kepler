@@ -4372,3 +4372,7 @@ Highlighted adjustments in the modal:
 ### Session (STYL-290 review - roles, live project, rebase - 13 Nov 2026)
 * **User**: Product Owner review. Rebase onto current `origin/staging`. Refuse `mock_` codes when the Supabase URL is the live project. Salon calendar connect is owner or admin. A staff connect is also allowed when `staff.user_id` is the signed-in user, checked again on the callback. Keep the Google account email lookup inside the signed-state flow and delete the legacy tenant id branch. The mock id token stays behind the mock check. Remove the hard-coded chat-session salt. Never `--no-verify`. Force-with-lease only.
 * **Tests**: The OAuth spec covers the live URL, the member role, and the signing secret. The pre-push hook runs `tsc --noEmit` and the full Playwright suite.
+
+### Session (STYL-290 OpenClaw - staff Microsoft tokens - 13 Nov 2026)
+* **User**: OpenClaw review on the rebased head. A staff Microsoft connect was also writing the salon refresh token.
+* **Changes**: Staff connects update that staff row only. Salon connects still write the tenant token.
