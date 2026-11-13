@@ -92,14 +92,13 @@ export async function POST(request: NextRequest) {
     const rawBody = await request.text();
     const signature = request.headers.get('x-hub-signature-256');
 
-    // Strict HMAC signature check if signature header is provided
-    const appSecret = process.env.META_APP_SECRET || 'test_meta_app_secret_123';
-    if (signature) {
-      const isValid = validateMetaSignature(rawBody, signature, appSecret);
-      if (!isValid) {
-        console.warn('[Meta Webhook] Signature validation failed');
-        return NextResponse.json({ error: 'Invalid webhook signature' }, { status: 401 });
-      }
+    // Always require a valid X-Hub-Signature-256 over this raw body.
+    // A missing header is rejected. A missing or whitespace-only META_APP_SECRET
+    // fails closed inside validateMetaSignature.
+    const isValid = validateMetaSignature(rawBody, signature, process.env.META_APP_SECRET);
+    if (!isValid) {
+      console.warn('[Meta Webhook] Signature validation failed');
+      return NextResponse.json({ error: 'Invalid webhook signature' }, { status: 401 });
     }
 
     let payload: any;
