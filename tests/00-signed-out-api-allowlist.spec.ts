@@ -128,6 +128,7 @@ function discoverRoutes(): { method: string; routePath: string }[] {
 }
 
 test('signed-out API routes are 401 or 403 unless they are on the allow-list', async ({ request }) => {
+  test.skip(process.env.SKIP_SIGNED_OUT_SWEEP === '1', 'The pre-push hook already ran this sweep in its own server.');
   test.setTimeout(300_000);
   const unexpected: string[] = [];
   for (const route of discoverRoutes()) {
