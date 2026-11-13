@@ -1,9 +1,10 @@
 import { test, expect } from '@playwright/test';
 import { createClient } from '@supabase/supabase-js';
+import { createTestUser } from './test-auth-helper';
 
 /**
  * STYL-247: the inbox poll must not bring preview chats back.
- * Auth on this route is intentionally unchanged.
+ * The conversation list now requires a salon member.
  */
 
 const admin = createClient(
@@ -35,15 +36,19 @@ test.describe('STYL-247 preview conversations stay out of the inbox', () => {
       { tenant_id: tenantId, chatbot_id: botId, user_session_id: `preview-owner-${stamp}` },
     ]);
     expect(insertError).toBeNull();
+    const member = await createTestUser({ tenantId, role: 'member' });
 
     try {
-      const response = await request.get(`/api/conversations?tenantId=${tenantId}`);
+      const response = await request.get(`/api/conversations?tenantId=${tenantId}`, {
+        headers: { Authorization: `Bearer ${member.token}` },
+      });
       expect(response.status()).toBe(200);
       const body = await response.json();
       const sessions = (body.conversations || []).map((row: { user_session_id: string }) => row.user_session_id);
       expect(sessions).toContain(`customer-${stamp}`);
       expect(sessions.some((session: string) => session.startsWith('preview-'))).toBe(false);
     } finally {
+      await member.cleanup();
       await admin.from('tenants').delete().eq('id', tenantId);
     }
   });
