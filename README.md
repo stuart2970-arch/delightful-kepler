@@ -4416,3 +4416,12 @@ Highlighted adjustments in the modal:
 * **User**: Same PR 51. `exchangeCodeForToken` must use the same trimmed `META_APP_SECRET` helper and return a clear error, without calling Graph, when the secret is missing or whitespace-only. Add a test. Put STYL-281 in the PR title. Leave the other findings; they are being ticketed.
 * **Changes**: `readMetaAppSecret` trims the explicit argument or `META_APP_SECRET`. Webhook signature checks and `exchangeCodeForToken` both use it. A blank secret returns `META_APP_SECRET is missing or whitespace-only` and does not call Graph. A padded secret is trimmed before the token request.
 * **Tests**: The new case failed first (generic “Missing appId, appSecret, or authorization code”). After the fix, `tests/meta-webhook-signature.spec.ts`: 8 passed, including unset, empty, and whitespace secrets with zero fetch calls, and a padded secret sent trimmed.
+
+### Session (STYL-298 WPMU DEV webhook fail closed - 11 Nov 2026)
+* **User**: Separate PR into `staging`, titled with STYL-298. `POST /api/webhooks/wpmudev` must return 401, process nothing, and log an error when `WPMUDEV_WEBHOOK_SECRET` is missing or whitespace-only, and compare the secret in constant time. Add tests. Do not edit `apphosting*.yaml`.
+* **Changes**: The route reads and trims the secret on each request. A blank secret logs an error and returns 401 before the body is parsed. Otherwise the bearer token is compared with `secretsEqual`. The tenant-created comment no longer says this route falls open.
+* **Tests**: The new spec failed first (3 failed, 1 passed: source had no `secretsEqual`, a blank secret returned 400, a wrong bearer reached the database and returned 500). After the fix, that spec plus tenant-created auth: 13 passed. Local Supabase CLI and mock keys only.
+
+### Session (STYL-298 delete the WPMU DEV webhook - 13 Nov 2026)
+* **User**: Rework PR 52. Delete `POST /api/webhooks/wpmudev` instead of requiring a secret. Site Editor confirmed Forminator has no forms and the webhook integration is not connected. Rebase onto current staging. Leave `WPMUDEV_WEBHOOK_SECRET` out of the yaml. No migrations. Never `--no-verify`.
+* **Changes**: The route file is removed. `tests/styl-298-wpmudev-webhook-auth.spec.ts` now expects POST to return 404 or 405. App Hosting yaml is unchanged.
