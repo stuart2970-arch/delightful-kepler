@@ -13,7 +13,6 @@ export {
   publicWhatsAppAccount,
 };
 
-export const DEFAULT_META_VERIFY_TOKEN = process.env.META_VERIFY_TOKEN || 'styleflo_meta_verify_2026';
 export const META_GRAPH_VERSION = process.env.META_GRAPH_VERSION || 'v21.0';
 export const META_GRAPH_BASE_URL = process.env.META_GRAPH_BASE_URL || `https://graph.facebook.com/${META_GRAPH_VERSION}`;
 

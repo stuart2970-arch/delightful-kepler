@@ -3,7 +3,6 @@ import { createClient } from '@supabase/supabase-js';
 import { generateText, embed } from 'ai';
 import { google } from '@ai-sdk/google';
 import {
-  DEFAULT_META_VERIFY_TOKEN,
   sendWhatsAppMessage,
   sendWhatsAppTemplateMessage,
   markWhatsAppMessageAsRead,
@@ -12,6 +11,7 @@ import {
   validateMetaSignature,
 } from '@/lib/meta';
 import { decryptToken } from '@/lib/crypto';
+import { secretsEqual } from '@/lib/security/secrets-equal';
 
 export const dynamic = 'force-dynamic';
 
@@ -43,10 +43,8 @@ export async function GET(request: NextRequest) {
   console.log(`[Meta Webhook Handshake] mode: "${mode}"`);
 
   if (mode === 'subscribe') {
-    // Check against global env or default verify token
-    const expectedToken = process.env.META_VERIFY_TOKEN || DEFAULT_META_VERIFY_TOKEN;
-
-    if (verifyToken === expectedToken) {
+    const expectedToken = (process.env.META_VERIFY_TOKEN || '').trim();
+    if (expectedToken && secretsEqual(verifyToken || '', expectedToken)) {
       console.log('[Meta Webhook Handshake] Verification successful!');
       return new NextResponse(challenge || 'challenge_accepted', {
         status: 200,
