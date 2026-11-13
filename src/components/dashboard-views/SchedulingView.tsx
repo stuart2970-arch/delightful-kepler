@@ -4,6 +4,7 @@ import { useDashboardStore, DailySchedule, WeeklySchedule } from '../../lib/stor
 import ServiceEditor from '../ServiceEditor';
 import AddOnUpsellModal from '../AddOnUpsellModal';
 import { resolveCalendarAddonFlags } from '@/lib/billing/bolt-on';
+import { browserAuthHeaders } from '@/lib/auth/client-auth-headers';
 import { getMondayDate, formatMondayTabLabel, formatMondayFull, generateRollingSchedule, addDaysToDate } from '../../lib/dateUtils';
 import { rotaWeeksForEditor, workingDaysForStaffSave } from '@/lib/staff-rota';
 import {
@@ -103,7 +104,7 @@ export default function SchedulingView() {
     try {
       const res = await fetch('/api/tenants/settings', {
         method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
+        headers: await browserAuthHeaders({ 'Content-Type': 'application/json' }),
         body: JSON.stringify({ tenantId, bookingMode, bookingUrl })
       });
       if (res.ok) {
@@ -577,7 +578,7 @@ export default function SchedulingView() {
     try {
       const res = await fetch('/api/tenants/settings', {
         method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
+        headers: await browserAuthHeaders({ 'Content-Type': 'application/json' }),
         body: JSON.stringify({
           tenantId,
           bookingMode,
@@ -596,8 +597,9 @@ export default function SchedulingView() {
         })
       });
       if (res.ok) {
+        const payload = await res.json().catch(() => ({}));
         const savedHours = openingHoursForSave(generalOperatingHours);
-        const savedHoliday = recordStaffHoursAcceptance(
+        const savedHoliday = payload?.tenant?.holiday_settings ?? recordStaffHoursAcceptance(
           holidaySettings,
           acceptStaffOutside,
           userEmail || null,

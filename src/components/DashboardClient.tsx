@@ -466,7 +466,7 @@ export default function DashboardClient({
 
       const response = await fetch('/api/tenants/settings', {
         method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
+        headers: await getAuthHeaders({ 'Content-Type': 'application/json' }),
         body: JSON.stringify({
           tenantId,
           domain: domain,

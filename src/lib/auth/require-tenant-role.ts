@@ -9,6 +9,7 @@ export interface TenantRoleSuccess {
   ok: true;
   userId: string;
   tenantId: string;
+  email: string | null;
   role: TenantRole;
   isSuperAdmin: boolean;
 }
@@ -77,6 +78,9 @@ export async function requireTenantRole(
   const role = profile.role as TenantRole;
   const isSuperAdmin = profile.is_super_admin === true;
   const claimedTenantId = await peekClaimedTenantId(req);
+  const email = typeof userAuth.user?.email === 'string' && userAuth.user.email.trim()
+    ? userAuth.user.email.trim()
+    : null;
 
   if (isSuperAdmin) {
     const tenantId = claimedTenantId || sessionTenantId;
@@ -91,6 +95,7 @@ export async function requireTenantRole(
       ok: true,
       userId: userAuth.userId,
       tenantId,
+      email,
       role: allowedRoles.includes(role) ? role : 'owner',
       isSuperAdmin: true,
     };
@@ -114,6 +119,7 @@ export async function requireTenantRole(
     ok: true,
     userId: userAuth.userId,
     tenantId: sessionTenantId,
+    email,
     role,
     isSuperAdmin: false,
   };

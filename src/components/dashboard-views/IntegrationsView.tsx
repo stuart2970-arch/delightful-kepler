@@ -2,6 +2,7 @@
 import React, { useState, useEffect } from 'react';
 import { useDashboardStore } from '../../lib/store';
 import { dashboardFetch } from '../../lib/auth/dashboard-auth-headers';
+import { browserAuthHeaders } from '@/lib/auth/client-auth-headers';
 
 export default function IntegrationsView() {
   const { 
@@ -107,7 +108,7 @@ export default function IntegrationsView() {
       
       const res = await fetch('/api/tenants/settings', {
         method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
+        headers: await browserAuthHeaders({ 'Content-Type': 'application/json' }),
         body: JSON.stringify({
           tenantId,
           rwgConfig: newConfig
@@ -131,7 +132,7 @@ export default function IntegrationsView() {
     try {
       const res = await fetch('/api/tenants/settings', {
         method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
+        headers: await browserAuthHeaders({ 'Content-Type': 'application/json' }),
         body: JSON.stringify({
           tenantId,
           bookingMode,
@@ -482,7 +483,7 @@ export default function IntegrationsView() {
                               try {
                                 await fetch('/api/tenants/settings', {
                                   method: 'PATCH',
-                                  headers: { 'Content-Type': 'application/json' },
+                                  headers: await browserAuthHeaders({ 'Content-Type': 'application/json' }),
                                   body: JSON.stringify({
                                     tenantId,
                                     rwgAddressSameAsTrading: e.target.checked
