@@ -58,10 +58,11 @@ test.describe('STYL-299: Meta data-deletion signed_request', () => {
     const res = await withEnv('META_APP_SECRET', `  ${SECRET}\n`, () => postDeletion(signed));
     expect(res.status).toBe(200);
     const data = await res.json();
-    expect(data.confirmation_code).toContain('218471');
-    expect(data.url).toContain('https://styleflo.ai/data-deletion');
-    expect(data.url).toContain('218471');
-    expect(data.confirmation_code).not.toContain('spoofed-user');
+    expect(data.confirmation_code).toMatch(/^del_[0-9a-f]+$/);
+    expect(data.confirmation_code).not.toContain('218471');
+    expect(data.url).toContain('/api/data-deletion?code=');
+    expect(data.url).toContain(data.confirmation_code);
+    expect(data.url).not.toContain('218471');
   });
 
   test('a bad signature is rejected and returns no confirmation', async () => {
@@ -87,7 +88,8 @@ test.describe('STYL-299: Meta data-deletion signed_request', () => {
     const res = await withEnv('META_APP_SECRET', SECRET, () => postDeletion(signed));
     expect(res.status).toBe(200);
     const data = await res.json();
-    expect(data.confirmation_code).toContain('218471');
+    expect(data.confirmation_code).toMatch(/^del_[0-9a-f]+$/);
+    expect(data.confirmation_code).not.toContain('218471');
   });
 
   test('a malformed signed_request is rejected and returns no confirmation', async () => {
