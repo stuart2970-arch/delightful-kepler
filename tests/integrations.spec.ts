@@ -187,8 +187,10 @@ test.describe('Vapi, ElevenLabs & Telephony Integrations', () => {
     });
     expect(response.status()).toBe(200);
     const data = await response.json();
-    expect(data.confirmation_code).toContain('218471');
-    expect(data.url).toContain('https://styleflo.ai/data-deletion');
+    expect(data.confirmation_code).toMatch(/^del_[0-9a-f]+$/);
+    expect(data.confirmation_code).not.toContain('218471');
+    expect(data.url).toContain('/api/data-deletion?code=');
+    expect(data.url).not.toContain('218471');
   });
 
   test('Tenant Settings API preserves landline phone number without destructive wiping', async ({ request }) => {

@@ -403,6 +403,12 @@ Do not apply `20261024130000_styl202_addon_unique_and_helpers.sql` to production
 
 Apply that named file on staging first. On production promote, apply this named file only — not a plain `supabase db push`, which would also pick up `20261024130000`. If `knowledge_sources` or `referral_clicks` exist, the file only enables RLS. It does not create those tables and it does not add JWT policies. Local and staging do not have them; that branch is a no-op.
 
+## Meta data-deletion status (release 10006)
+
+`20261113153132_meta_data_deletion_requests.sql` creates `meta_data_deletion_requests` for the opaque confirmation code and status returned to Meta. It does not store the Meta user id. RLS is enabled and grants are limited to `service_role`.
+
+Apply that named file on staging first. Do not use `supabase db push` for it. Production promote, when this ships, uses the same named file.
+
 ## Empty historical migration
 
 `20260712182829_add_chatbot_to_services_staff.sql` is intentionally empty; the real `chatbot_id` columns are added in `20260712183000_add_chatbot_id_to_services_staff.sql`. Do not edit the empty file (checksum already recorded on staging).
