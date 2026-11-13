@@ -234,6 +234,24 @@ test.describe('STYL-266: CreateBooking requires Vapi secret or widget session', 
     expect(audit.some((row) => row.source === 'vapi' && row.outcome === 'accepted' && row.tenant_id === ACME_TENANT && row.ignored_body_tenant === true)).toBe(true);
   });
 
+  test('numeric slot times book the same way as strings', async ({ request }) => {
+    const email = `styl266-numeric-${Date.now()}@example.test`;
+    const start = startSec(16);
+    const body = payload(email, start);
+    body.slot.start_time_sec = start as unknown as string;
+    body.slot.duration_sec = 1800 as unknown as string;
+    const res = await request.post('/api/v3/CreateBooking', {
+      headers: {
+        'x-forwarded-for': '203.0.113.16',
+        'x-vapi-secret': vapiSecret,
+        'x-vapi-assistant-id': ASSISTANT_ID,
+      },
+      data: body,
+    });
+    expect(res.status()).toBe(200);
+    expect(await appointmentsFor(email)).toHaveLength(1);
+  });
+
   test('rate limit triggers per IP and per tenant', async ({ request }) => {
     const ipEmail = `styl266-rate-ip-${Date.now()}@example.test`;
     const ip = '203.0.113.21';

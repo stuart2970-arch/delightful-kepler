@@ -89,8 +89,8 @@ async function writeAudit(admin: SupabaseClient, entry: AuditInput): Promise<voi
     reason: entry.reason,
     http_status: entry.httpStatus,
     ip_address: entry.ip,
-    staff_id: entry.staffId,
-    service_id: entry.serviceId,
+    staff_id: uuidOrNull(entry.staffId),
+    service_id: uuidOrNull(entry.serviceId),
     slot_start: entry.slotStart,
     slot_end: entry.slotEnd,
     customer_email: entry.customerEmail,
@@ -108,6 +108,20 @@ function asRecord(value: unknown): Record<string, unknown> | null {
 
 function text(value: unknown): string {
   return typeof value === 'string' ? value.trim() : '';
+}
+
+function finiteNumber(value: unknown): number | null {
+  if (typeof value === 'number' && Number.isFinite(value)) return value;
+  if (typeof value === 'string' && value.trim()) {
+    const parsed = Number.parseInt(value.trim(), 10);
+    return Number.isFinite(parsed) ? parsed : null;
+  }
+  return null;
+}
+
+function uuidOrNull(value: string | null): string | null {
+  if (!value) return null;
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(value) ? value : null;
 }
 
 function assistantIdFrom(request: Request, body: Record<string, unknown>): string {
@@ -139,9 +153,9 @@ function slotFields(body: Record<string, unknown>): {
   const user = asRecord(body.user_information);
   if (!slot || !user) return null;
   const resources = asRecord(slot.resources);
-  const startSec = Number.parseInt(text(slot.start_time_sec), 10);
-  const durationRaw = text(slot.duration_sec);
-  const durationSec = durationRaw ? Number.parseInt(durationRaw, 10) : 3600;
+  const startSec = finiteNumber(slot.start_time_sec);
+  const durationParsed = finiteNumber(slot.duration_sec);
+  const durationSec = durationParsed ?? 3600;
   const serviceId = text(slot.service_id);
   const staffId = text(resources?.staff_id);
   if (!serviceId || !staffId || !Number.isFinite(startSec) || startSec <= 0) return null;

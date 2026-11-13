@@ -511,6 +511,7 @@ export async function bookMeeting(
         .from('services')
         .select(serviceSelect)
         .eq('id', serviceId)
+        .eq('tenant_id', tenantId)
         .maybeSingle();
       service = byId.data;
     }
@@ -526,7 +527,7 @@ export async function bookMeeting(
     const serviceName = service ? service.name : 'Appointment';
     const durationMins = service?.duration_minutes || 30;
     const resolvedStaffId = staff.id as string;
-    const resolvedServiceId = service?.id || serviceId;
+    const resolvedServiceId = service?.id ?? null;
 
     if (isNaN(endUtc.getTime()) || endUtc <= startUtc) {
       endUtc = new Date(startUtc.getTime() + durationMins * 60 * 1000);
