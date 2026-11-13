@@ -24,6 +24,20 @@ async function ownerOfTelephonyTenant(tenantId: string) {
   return createTestUser({ tenantId, role: 'owner' });
 }
 
+async function setTenantPhones(tenantId: string, shadow: string, mobile: string) {
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.SUPABASE_URL;
+  const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  if (!supabaseUrl || !serviceRoleKey) throw new Error('Local Supabase env is missing');
+  const admin = createClient(supabaseUrl, serviceRoleKey, {
+    auth: { persistSession: false, autoRefreshToken: false },
+  });
+  const { error } = await admin.from('tenants').update({
+    twilio_shadow_number: shadow,
+    twilio_mobile_number: mobile,
+  }).eq('id', tenantId);
+  if (error) throw new Error(error.message);
+}
+
 test.describe('Vapi, ElevenLabs & Telephony Integrations', () => {
   const testChatbotId = 'e0000000-0000-0000-0000-000000000001'; // Acme Support Bot (seeded locally)
 
@@ -145,23 +159,15 @@ test.describe('Vapi, ElevenLabs & Telephony Integrations', () => {
     const owner = await ownerOfTelephonyTenant(testTenantId);
 
     try {
-    // 1. Update tenant settings with dedicated phone numbers
-    const patchRes = await request.patch('/api/tenants/settings', {
-      headers: {
-        Authorization: `Bearer ${owner.token}`,
-      },
+    await setTenantPhones(testTenantId, testLandline, testMobile);
+    const refused = await request.patch('/api/tenants/settings', {
+      headers: { Authorization: `Bearer ${owner.token}` },
       data: {
         tenantId: testTenantId,
-        twilioShadowNumber: testLandline,
-        twilioMobileNumber: testMobile
-      }
+        twilioShadowNumber: '+441619460999',
+      },
     });
-
-    expect(patchRes.status()).toBe(200);
-    const patchData = await patchRes.json();
-    expect(patchData.success).toBe(true);
-    expect(patchData.tenant.twilio_shadow_number).toBe(testLandline);
-    expect(patchData.tenant.twilio_mobile_number).toBe(testMobile);
+    expect(refused.status()).toBe(403);
 
     // 2. Verify inbound call webhook matches tenant for the landline number
     const inboundRes = await request.post('/api/telephony/inbound', {
@@ -200,16 +206,7 @@ test.describe('Vapi, ElevenLabs & Telephony Integrations', () => {
     // 1. Ensure tenant has both landline and mobile numbers mapped in DB
     const owner = await ownerOfTelephonyTenant(testTenantId);
     try {
-    await request.patch('/api/tenants/settings', {
-      headers: {
-        Authorization: `Bearer ${owner.token}`,
-      },
-      data: {
-        tenantId: testTenantId,
-        twilioShadowNumber: landlineNumber,
-        twilioMobileNumber: mobileNumber
-      }
-    });
+    await setTenantPhones(testTenantId, landlineNumber, mobileNumber);
 
     // 2. Test inbound call dialed to Landline (+441514538001)
     const landlineVapiRes = await request.post('/api/webhooks/vapi/assistant', {

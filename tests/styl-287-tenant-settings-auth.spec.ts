@@ -144,4 +144,83 @@ test.describe('STYL-287 tenant settings auth', () => {
       saved.staff_hours_outside_opening_accepted_at,
     );
   });
+
+  test('saving hours keeps an existing acceptance and does not re-stamp it', async ({ request }) => {
+    const keptBy = 'kept-owner@salon.test';
+    const keptAt = '2026-11-01T12:00:00.000Z';
+    const { error } = await admin().from('tenants').update({
+      holiday_settings: {
+        behavior: 'follow_general',
+        staff_hours_outside_opening_accepted: true,
+        staff_hours_outside_opening_accepted_by: keptBy,
+        staff_hours_outside_opening_accepted_at: keptAt,
+      },
+    }).eq('id', ACME);
+    expect(error).toBeNull();
+
+    const hours = await request.patch('/api/tenants/settings', {
+      headers: { Authorization: `Bearer ${acmeOwner.token}` },
+      data: { tenantId: ACME, holiday_settings: { behavior: 'closed' } },
+    });
+    expect(hours.status()).toBe(200);
+    const saved = (await hours.json()).tenant.holiday_settings;
+    expect(saved.behavior).toBe('closed');
+    expect(saved.staff_hours_outside_opening_accepted).toBe(true);
+    expect(saved.staff_hours_outside_opening_accepted_by).toBe(keptBy);
+    expect(saved.staff_hours_outside_opening_accepted_at).toBe(keptAt);
+
+    const again = await request.patch('/api/tenants/settings', {
+      headers: { Authorization: `Bearer ${acmeOwner.token}` },
+      data: {
+        tenantId: ACME,
+        holiday_settings: {
+          behavior: 'closed',
+          staff_hours_outside_opening_accepted: true,
+          staff_hours_outside_opening_accepted_by: 'someone-else@salon.test',
+          staff_hours_outside_opening_accepted_at: '2020-01-01T00:00:00.000Z',
+        },
+      },
+    });
+    expect(again.status()).toBe(200);
+    const kept = (await again.json()).tenant.holiday_settings;
+    expect(kept.staff_hours_outside_opening_accepted_by).toBe(keptBy);
+    expect(kept.staff_hours_outside_opening_accepted_at).toBe(keptAt);
+  });
+
+  test('an owner cannot set Twilio numbers or auto top-up prices', async ({ request }) => {
+    const { error } = await admin().from('tenants').update({
+      voice_auto_topup_amount: 7,
+      voice_auto_topup_price_pence: 900,
+    }).eq('id', ACME);
+    expect(error).toBeNull();
+
+    const numbers = await request.patch('/api/tenants/settings', {
+      headers: { Authorization: `Bearer ${acmeOwner.token}` },
+      data: { tenantId: ACME, twilioShadowNumber: '+441619460000', twilioMobileNumber: '+447700900111' },
+    });
+    expect(numbers.status()).toBe(403);
+
+    const disconnect = await request.patch('/api/tenants/settings', {
+      headers: { Authorization: `Bearer ${acmeOwner.token}` },
+      data: { tenantId: ACME, twilio_shadow_number: null, twilio_mobile_number: null },
+    });
+    expect(disconnect.status()).toBe(200);
+
+    const topup = await request.patch('/api/tenants/settings', {
+      headers: { Authorization: `Bearer ${acmeOwner.token}` },
+      data: {
+        tenantId: ACME,
+        voice_auto_topup: true,
+        voice_auto_topup_threshold: 15,
+        voice_auto_topup_amount: 50,
+        voice_auto_topup_price_pence: 3000,
+      },
+    });
+    expect(topup.status()).toBe(200);
+    const body = await topup.json();
+    expect(body.tenant.voice_auto_topup).toBe(true);
+    expect(body.tenant.voice_auto_topup_threshold).toBe(15);
+    expect(body.tenant.voice_auto_topup_amount).toBe(7);
+    expect(body.tenant.voice_auto_topup_price_pence).toBe(900);
+  });
 });

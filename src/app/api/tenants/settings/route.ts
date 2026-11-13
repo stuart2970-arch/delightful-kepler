@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import { requireTenantRole } from '@/lib/auth/require-tenant-role';
-import { openingHoursForSave, stampStaffHoursAcceptance } from '@/lib/opening-hours';
+import { openingHoursForSave, mergeHolidaySettings } from '@/lib/opening-hours';
 
 export async function PATCH(req: NextRequest) {
   try {
@@ -60,11 +60,39 @@ export async function PATCH(req: NextRequest) {
       general_operating_hours = openingHoursForSave(general_operating_hours);
     }
 
-    // Acceptance identity comes from the session and the server clock.
-    // A browser-supplied email or timestamp is never stored.
-    const stampedHolidaySettings = holiday_settings === undefined
-      ? undefined
-      : stampStaffHoursAcceptance(holiday_settings, auth.email, new Date().toISOString());
+    const claimedPhone = (...keys: string[]) => {
+      for (const key of keys) {
+        if (body[key] !== undefined) return body[key];
+      }
+      return undefined;
+    };
+    if (!auth.isSuperAdmin) {
+      for (const value of [
+        claimedPhone('twilio_shadow_number', 'twilioShadowNumber'),
+        claimedPhone('twilio_mobile_number', 'twilioMobileNumber'),
+      ]) {
+        if (value !== undefined && value !== null) {
+          return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+        }
+      }
+    }
+
+    // Merge onto the stored holiday JSON. Stamp accepted-by and accepted-at
+    // only when acceptance changes from false or missing to true.
+    let stampedHolidaySettings: Record<string, unknown> | undefined;
+    if (holiday_settings !== undefined) {
+      const { data: storedTenant } = await supabase
+        .from('tenants')
+        .select('holiday_settings')
+        .eq('id', tenantId)
+        .maybeSingle();
+      stampedHolidaySettings = mergeHolidaySettings(
+        storedTenant?.holiday_settings,
+        holiday_settings,
+        auth.email,
+        new Date().toISOString(),
+      );
+    }
 
     // Tier 1: Core Base Fields (Guaranteed in all Supabase schemas)
     const baselineUpdate: Record<string, any> = {
@@ -99,8 +127,6 @@ export async function PATCH(req: NextRequest) {
       ...(body.voiceAutoTopup !== undefined && { voice_auto_topup: body.voiceAutoTopup }),
       ...(body.voice_auto_topup_threshold !== undefined && { voice_auto_topup_threshold: body.voice_auto_topup_threshold }),
       ...(body.voiceAutoTopupThreshold !== undefined && { voice_auto_topup_threshold: body.voiceAutoTopupThreshold }),
-      ...(body.voice_auto_topup_amount !== undefined && { voice_auto_topup_amount: body.voice_auto_topup_amount }),
-      ...(body.voice_auto_topup_price_pence !== undefined && { voice_auto_topup_price_pence: body.voice_auto_topup_price_pence }),
     };
 
     // Tier 3: Extended Address Profile Fields

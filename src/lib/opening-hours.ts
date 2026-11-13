@@ -185,6 +185,38 @@ export function stampStaffHoursAcceptance(
   return base;
 }
 
+/**
+ * Merge an incoming holiday object onto the stored one. Browser accepted-by
+ * and accepted-at values are ignored. The session email and server time are
+ * written only when acceptance changes from false or missing to true.
+ */
+export function mergeHolidaySettings(
+  stored: unknown,
+  incoming: unknown,
+  acceptedBy: string | null,
+  nowIso: string,
+): Record<string, unknown> {
+  const previous = isRecord(stored) ? { ...stored } : {};
+  const next = isRecord(incoming) ? { ...incoming } : {};
+  delete next.staff_hours_outside_opening_accepted_at;
+  delete next.staff_hours_outside_opening_accepted_by;
+  const merged: Record<string, unknown> = { ...previous, ...next };
+  const wasAccepted = previous.staff_hours_outside_opening_accepted === true;
+  const setsAcceptance = Object.prototype.hasOwnProperty.call(next, 'staff_hours_outside_opening_accepted');
+  if (!setsAcceptance) {
+    merged.staff_hours_outside_opening_accepted = previous.staff_hours_outside_opening_accepted ?? false;
+    merged.staff_hours_outside_opening_accepted_at = previous.staff_hours_outside_opening_accepted_at ?? null;
+    merged.staff_hours_outside_opening_accepted_by = previous.staff_hours_outside_opening_accepted_by ?? null;
+    return merged;
+  }
+  if (merged.staff_hours_outside_opening_accepted === true && wasAccepted) {
+    merged.staff_hours_outside_opening_accepted_at = previous.staff_hours_outside_opening_accepted_at ?? null;
+    merged.staff_hours_outside_opening_accepted_by = previous.staff_hours_outside_opening_accepted_by ?? null;
+    return merged;
+  }
+  return stampStaffHoursAcceptance(merged, acceptedBy, nowIso);
+}
+
 /** Clip a staff shift to the salon's opening window. Null when the day is closed or the overlap is empty. */
 export function clipShiftToOpening(shift: ShiftWindow, day: Pick<DayHours, 'closed' | 'open' | 'close'>): ShiftWindow | null {
   if (day.closed) return null;

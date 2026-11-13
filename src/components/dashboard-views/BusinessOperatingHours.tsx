@@ -70,9 +70,13 @@ export default function BusinessOperatingHours() {
         })
       });
       if (res.ok) {
+        const saved = await res.json().catch(() => null);
         setGeneralOperatingHours(localGeneral);
         setOperatingHoursOverrides(localOverrides.weeks);
-        setHolidaySettings({ behavior: localHolidaySetting });
+        setHolidaySettings(saved?.tenant?.holiday_settings || {
+          ...(holidaySettings || {}),
+          behavior: localHolidaySetting,
+        });
         alert('Business hours saved successfully!');
       } else {
         alert('Failed to save business hours.');

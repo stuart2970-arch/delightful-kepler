@@ -4320,8 +4320,6 @@ Highlighted adjustments in the modal:
 * **User**: Product Owner blocked `6ec0d2ea`. Rebase onto current `origin/staging` (`b53f79fe`). A missing Vault environment row must not post (`IF (...) IS NOT TRUE`). The production allow-list check must not send a request to `app.styleflo.ai`. Keep every README and `docs/staging.md` note. Hooks on, force-with-lease only.
 * **Changes**: The allow-list uses `IS NOT TRUE`, so a NULL environment returns without posting. Tests cover a missing environment row for both exact URLs, and `https://user@staging.styleflo.ai/...`. The production pair is checked inside `BEGIN` … `ROLLBACK`, so pg_net never sends it. Test tenants are deleted afterwards. The migration header no longer calls the environment optional or says role UPDATE is granted back. The rebase onto `b53f79fe` was already on the remote at `2e67e37`.
 
-## Session Chat History Log
-
 ### Session (STYL-354 dashboard save 401s - 13 Nov 2026)
 * **User / Jira**: STYL-354, release 10006. A signed-in salon owner got 401 on adding knowledge text (`POST /api/ingest/text`, `Authentication required`) and on saving the chatbot welcome message (`PATCH /api/chatbots/[id]`, `Unauthorized`). Branch from `staging`. Pull request into `staging`, never `main`. Do not weaken server auth. No migration. Never `--no-verify`.
 * **Cause**: `KnowledgeBaseView` posted every `/api/ingest/*` call with cookies only, and `requireUser` rejected the request when that cookie session was missing. `ChatbotManagerView.getAuthHeaders` attached `supabase.auth.getSession()`, which can still be an expired access token. `src/proxy.ts` excluded `api/chatbots`, so those saves never ran the session refresh that writes a new access-token cookie.
@@ -4335,3 +4333,8 @@ Highlighted adjustments in the modal:
   - `stampStaffHoursAcceptance` replaces any browser email or timestamp. A declined acceptance stores nulls. Other holiday keys are left as sent.
   - Dashboard callers send the existing Bearer session header. Scheduling keeps the server's `holiday_settings` from the response.
   - Playwright `tests/styl-287-tenant-settings-auth.spec.ts`, including a spoofed email and timestamp.
+
+### Session (STYL-287 review - holiday merge, phones, top-up - 13 Nov 2026)
+* **User**: Product Owner review. Rebase onto current `origin/staging` after PR 48. Merge `holiday_settings` on the server and stamp accepted-by and accepted-at only when acceptance changes to true. Non-superadmins may only set Twilio numbers to null. The browser cannot set the auto top-up amount or price. Never `--no-verify`. Force-with-lease only.
+* **Changes**: `mergeHolidaySettings` keeps a stored acceptance when a hours save sends only `behavior`. Business hours keeps those fields in the dashboard store. Twilio non-null writes are 403. Amount and price are left for the Stripe webhook.
+* **Tests**: The settings spec covers the kept acceptance, a refused phone number, and an unchanged top-up price. The pre-push hook runs `tsc --noEmit` and the full Playwright suite.
