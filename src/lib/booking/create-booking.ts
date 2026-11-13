@@ -158,7 +158,7 @@ function slotFields(body: Record<string, unknown>): {
   const durationSec = durationParsed ?? 3600;
   const serviceId = text(slot.service_id);
   const staffId = text(resources?.staff_id);
-  if (!serviceId || !staffId || !Number.isFinite(startSec) || startSec <= 0) return null;
+  if (!serviceId || !staffId || startSec == null || startSec <= 0) return null;
   if (!Number.isFinite(durationSec) || durationSec <= 0) return null;
   return {
     merchantId: text(slot.merchant_id),
