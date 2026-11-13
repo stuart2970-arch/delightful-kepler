@@ -7,7 +7,6 @@ import { resolveCalendarAddonFlags } from '@/lib/billing/bolt-on';
 import { browserAuthHeaders } from '@/lib/auth/client-auth-headers';
 import { getMondayDate, formatMondayTabLabel, formatMondayFull, generateRollingSchedule, addDaysToDate } from '../../lib/dateUtils';
 import { rotaWeeksForEditor, workingDaysForStaffSave } from '@/lib/staff-rota';
-import { browserAuthHeaders } from '@/lib/auth/client-auth-headers';
 import {
   normaliseOpeningHours,
   openingHoursForSave,

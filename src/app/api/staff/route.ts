@@ -21,7 +21,7 @@ async function chatbotInTenant(
     .select('id, tenant_id')
     .eq('id', chatbotId)
     .maybeSingle();
-  return Boolean(data) && String(data.tenant_id) === tenantId;
+  return data != null && String(data.tenant_id) === tenantId;
 }
 
 function requestedTenant(raw: string | null | undefined): string | undefined {

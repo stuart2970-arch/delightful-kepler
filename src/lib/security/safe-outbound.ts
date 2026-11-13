@@ -109,8 +109,9 @@ function bareHostname(hostname: string): string {
 }
 
 type PinnedAddress = { address: string; family: 4 | 6 };
+type PinnedDispatcher = { close: () => Promise<void> };
 
-function pinDispatcher(pin: PinnedAddress): Agent {
+function pinDispatcher(pin: PinnedAddress): PinnedDispatcher {
   return new Agent().compose(interceptors.dns({
     dualStack: false,
     affinity: pin.family,
@@ -120,12 +121,12 @@ function pinDispatcher(pin: PinnedAddress): Agent {
   }));
 }
 
-async function closeAgent(agent: Agent | null): Promise<void> {
+async function closeAgent(agent: PinnedDispatcher | null): Promise<void> {
   if (!agent) return;
   await agent.close();
 }
 
-function releaseAgentWithBody(response: Response, agent: Agent): Response {
+function releaseAgentWithBody(response: Response, agent: PinnedDispatcher): Response {
   const body = response.body;
   if (!body) {
     void closeAgent(agent);
