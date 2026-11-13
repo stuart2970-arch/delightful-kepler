@@ -44,12 +44,7 @@ export async function GET(request: NextRequest) {
 
   if (mode === 'subscribe') {
     const expectedToken = (process.env.META_VERIFY_TOKEN || '').trim();
-    if (!expectedToken) {
-      console.error('[Meta Webhook Handshake] META_VERIFY_TOKEN is unset; rejecting verification');
-      return new NextResponse('Verification token is not configured', { status: 403 });
-    }
-
-    if (secretsEqual(verifyToken || '', expectedToken)) {
+    if (expectedToken && secretsEqual(verifyToken || '', expectedToken)) {
       console.log('[Meta Webhook Handshake] Verification successful!');
       return new NextResponse(challenge || 'challenge_accepted', {
         status: 200,

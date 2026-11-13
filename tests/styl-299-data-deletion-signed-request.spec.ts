@@ -150,6 +150,34 @@ test.describe('STYL-300: Meta verify handshake requires META_VERIFY_TOKEN', () =
     }
   });
 
+  test('a stored chatbot verify token works when META_VERIFY_TOKEN is unset', async () => {
+    const { createClient } = await import('@supabase/supabase-js');
+    const admin = createClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.SUPABASE_URL!,
+      process.env.SUPABASE_SERVICE_ROLE_KEY!,
+      { auth: { persistSession: false, autoRefreshToken: false } },
+    );
+    const botId = 'e0000000-0000-0000-0000-000000000001';
+    const { data: before } = await admin.from('chatbots').select('meta_verify_token').eq('id', botId).maybeSingle();
+    const token = `salon-only-${Date.now()}`;
+    const { error } = await admin.from('chatbots').update({ meta_verify_token: token }).eq('id', botId);
+    if (error) throw new Error(error.message);
+    try {
+      const challenge = 'chatbot_token_challenge';
+      const res = await withEnv('META_VERIFY_TOKEN', undefined, () =>
+        metaHandshake(
+          new NextRequest(
+            `http://localhost:3001/api/webhooks/meta?hub.mode=subscribe&hub.verify_token=${token}&hub.challenge=${challenge}`,
+          ),
+        ),
+      );
+      expect(res.status).toBe(200);
+      expect(await res.text()).toBe(challenge);
+    } finally {
+      await admin.from('chatbots').update({ meta_verify_token: before?.meta_verify_token ?? null }).eq('id', botId);
+    }
+  });
+
   test('a configured META_VERIFY_TOKEN still completes the handshake', async () => {
     const challenge = 'challenge_configured_token';
     const res = await withEnv('META_VERIFY_TOKEN', 'salon_verify_token', () =>
