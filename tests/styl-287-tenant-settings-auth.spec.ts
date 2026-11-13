@@ -200,6 +200,12 @@ test.describe('STYL-287 tenant settings auth', () => {
     });
     expect(numbers.status()).toBe(403);
 
+    const bothKeys = await request.patch('/api/tenants/settings', {
+      headers: { Authorization: `Bearer ${acmeOwner.token}` },
+      data: { tenantId: ACME, twilio_shadow_number: null, twilioShadowNumber: '+441619460000' },
+    });
+    expect(bothKeys.status()).toBe(403);
+
     const disconnect = await request.patch('/api/tenants/settings', {
       headers: { Authorization: `Bearer ${acmeOwner.token}` },
       data: { tenantId: ACME, twilio_shadow_number: null, twilio_mobile_number: null },

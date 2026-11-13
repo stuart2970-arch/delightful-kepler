@@ -469,11 +469,15 @@ export default function OpenClawMonitorView() {
                           ? { tenantId, twilioMobileNumber: newPhone }
                           : { tenantId, twilioShadowNumber: newPhone };
 
-                        await fetch('/api/tenants/settings', {
+                        const phoneRes = await fetch('/api/tenants/settings', {
                           method: 'PATCH',
                           headers: await browserAuthHeaders({ 'Content-Type': 'application/json' }),
                           body: JSON.stringify(payload)
                         });
+                        if (!phoneRes.ok) {
+                          alert('A new number is set by provisioning. You can only clear a number here.');
+                          return;
+                        }
 
                         if (isMob) {
                           useDashboardStore.setState({ twilioMobileNumber: newPhone });

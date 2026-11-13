@@ -60,21 +60,14 @@ export async function PATCH(req: NextRequest) {
       general_operating_hours = openingHoursForSave(general_operating_hours);
     }
 
-    const claimedPhone = (...keys: string[]) => {
-      for (const key of keys) {
-        if (body[key] !== undefined) return body[key];
-      }
-      return undefined;
-    };
-    if (!auth.isSuperAdmin) {
-      for (const value of [
-        claimedPhone('twilio_shadow_number', 'twilioShadowNumber'),
-        claimedPhone('twilio_mobile_number', 'twilioMobileNumber'),
-      ]) {
-        if (value !== undefined && value !== null) {
-          return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
-        }
-      }
+    const phoneKeys = [
+      'twilio_shadow_number',
+      'twilioShadowNumber',
+      'twilio_mobile_number',
+      'twilioMobileNumber',
+    ];
+    if (!auth.isSuperAdmin && phoneKeys.some((key) => body[key] !== undefined && body[key] !== null)) {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
 
     // Merge onto the stored holiday JSON. Stamp accepted-by and accepted-at
