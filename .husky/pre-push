@@ -1,2 +1,1 @@
-export NODE_OPTIONS="${NODE_OPTIONS:---max-old-space-size=8192}"
-npm run typecheck && npm run test:e2e
+NODE_OPTIONS="${NODE_OPTIONS:---max-old-space-size=8192}" npm run typecheck && NODE_OPTIONS=--max-old-space-size=3072 npm run test:e2e

@@ -2,6 +2,9 @@ import fs from 'fs';
 import path from 'path';
 import { test, expect } from '@playwright/test';
 
+// Named 00- so this sweep runs first and compiles every API route while the
+// Next server still has room.
+
 /**
  * Signed-out callers must get 401 or 403 from every API route unless it is
  * listed here. Add a route only when it is meant to answer without a
@@ -125,7 +128,7 @@ function discoverRoutes(): { method: string; routePath: string }[] {
 }
 
 test('signed-out API routes are 401 or 403 unless they are on the allow-list', async ({ request }) => {
-  test.setTimeout(180_000);
+  test.setTimeout(300_000);
   const unexpected: string[] = [];
   for (const route of discoverRoutes()) {
     if (isAllowed(route.method, route.routePath)) continue;
@@ -133,7 +136,7 @@ test('signed-out API routes are 401 or 403 unless they are on the allow-list', a
       method: route.method,
       headers: { 'Content-Type': 'application/json' },
       data: route.method === 'GET' ? undefined : {},
-      timeout: 20_000,
+      timeout: 60_000,
     });
     if (response.status() !== 401 && response.status() !== 403) {
       unexpected.push(`${route.method} ${route.routePath} -> ${response.status()}`);
