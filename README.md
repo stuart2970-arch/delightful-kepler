@@ -4421,3 +4421,7 @@ Highlighted adjustments in the modal:
 * **User**: Separate PR into `staging`, titled with STYL-298. `POST /api/webhooks/wpmudev` must return 401, process nothing, and log an error when `WPMUDEV_WEBHOOK_SECRET` is missing or whitespace-only, and compare the secret in constant time. Add tests. Do not edit `apphosting*.yaml`.
 * **Changes**: The route reads and trims the secret on each request. A blank secret logs an error and returns 401 before the body is parsed. Otherwise the bearer token is compared with `secretsEqual`. The tenant-created comment no longer says this route falls open.
 * **Tests**: The new spec failed first (3 failed, 1 passed: source had no `secretsEqual`, a blank secret returned 400, a wrong bearer reached the database and returned 500). After the fix, that spec plus tenant-created auth: 13 passed. Local Supabase CLI and mock keys only.
+
+### Session (STYL-298 delete the WPMU DEV webhook - 13 Nov 2026)
+* **User**: Rework PR 52. Delete `POST /api/webhooks/wpmudev` instead of requiring a secret. Site Editor confirmed Forminator has no forms and the webhook integration is not connected. Rebase onto current staging. Leave `WPMUDEV_WEBHOOK_SECRET` out of the yaml. No migrations. Never `--no-verify`.
+* **Changes**: The route file is removed. `tests/styl-298-wpmudev-webhook-auth.spec.ts` now expects POST to return 404 or 405. App Hosting yaml is unchanged.
