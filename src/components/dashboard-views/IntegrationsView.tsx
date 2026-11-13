@@ -251,7 +251,10 @@ export default function IntegrationsView() {
   const handleDisconnectCalendar = async () => {
     if (!confirm("Are you sure you want to disconnect Google Calendar? This will remove the chatbot's ability to check availability and book appointments, but no Google Calendar data will be lost.")) return;
     try {
-      const res = await fetch(`/api/integrations/google/status?tenantId=${tenantId}`, { method: 'DELETE' });
+      const res = await fetch(`/api/integrations/google/status?tenantId=${tenantId}`, {
+        method: 'DELETE',
+        headers: await browserAuthHeaders(),
+      });
       if (res.ok) {
         setIsGoogleConnected(false);
         setGoogleConnectedEmail(null);

@@ -1,0 +1,193 @@
+import { test, expect } from '@playwright/test';
+import { createClient, SupabaseClient } from '@supabase/supabase-js';
+import { createTestUser, TestUserSession } from './test-auth-helper';
+
+const ACME = '10000000-0000-0000-0000-000000000001';
+const GLOBEX = '10000000-0000-0000-0000-000000000002';
+
+function admin(): SupabaseClient {
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.SUPABASE_URL!;
+  const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
+  return createClient(supabaseUrl, serviceRoleKey, {
+    auth: { persistSession: false, autoRefreshToken: false },
+  });
+}
+
+test.describe('STYL-289 integration status auth', () => {
+  let acmeMember: TestUserSession;
+  let acmeAdmin: TestUserSession;
+  let globexMember: TestUserSession;
+  let superadmin: TestUserSession;
+  let originalMicrosoftToken: string | null;
+
+  test.beforeAll(async () => {
+    acmeMember = await createTestUser({ tenantId: ACME, role: 'member' });
+    acmeAdmin = await createTestUser({ tenantId: ACME, role: 'admin' });
+    globexMember = await createTestUser({ tenantId: GLOBEX, role: 'member' });
+    superadmin = await createTestUser({ tenantId: ACME, role: 'owner', isSuperAdmin: true });
+
+    const db = admin();
+    const { data: tenant } = await db
+      .from('tenants')
+      .select('microsoft_refresh_token')
+      .eq('id', ACME)
+      .single();
+    originalMicrosoftToken = tenant?.microsoft_refresh_token ?? null;
+
+    const { error: googleError } = await db.from('tenant_integrations').upsert({
+      tenant_id: ACME,
+      provider: 'google_calendar',
+      refresh_token: 'styl289-google-refresh',
+      updated_at: new Date().toISOString(),
+    }, { onConflict: 'tenant_id,provider' });
+    if (googleError) throw new Error(googleError.message);
+
+    const { error: msError } = await db
+      .from('tenants')
+      .update({ microsoft_refresh_token: 'styl289-ms-refresh' })
+      .eq('id', ACME);
+    if (msError) throw new Error(msError.message);
+  });
+
+  test.afterAll(async () => {
+    const db = admin();
+    await db.from('tenant_integrations').delete().eq('tenant_id', ACME).eq('provider', 'google_calendar');
+    await db.from('tenants').update({ microsoft_refresh_token: originalMicrosoftToken }).eq('id', ACME);
+    await acmeMember?.cleanup();
+    await acmeAdmin?.cleanup();
+    await globexMember?.cleanup();
+    await superadmin?.cleanup();
+  });
+
+  test('unauthenticated Google and Microsoft status reads are 401', async ({ request }) => {
+    const google = await request.get(`/api/integrations/google/status?tenantId=${ACME}`);
+    const microsoft = await request.get(`/api/integrations/microsoft/status?tenantId=${ACME}`);
+    expect(google.status()).toBe(401);
+    expect(microsoft.status()).toBe(401);
+  });
+
+  test('a member of another tenant is 403 on GET and DELETE', async ({ request }) => {
+    const headers = { Authorization: `Bearer ${globexMember.token}` };
+    const googleGet = await request.get(`/api/integrations/google/status?tenantId=${ACME}`, { headers });
+    const msGet = await request.get(`/api/integrations/microsoft/status?tenantId=${ACME}`, { headers });
+    const googleDel = await request.delete(`/api/integrations/google/status?tenantId=${ACME}`, { headers });
+    const msDel = await request.delete(`/api/integrations/microsoft/status?tenantId=${ACME}`, { headers });
+    expect(googleGet.status()).toBe(403);
+    expect(msGet.status()).toBe(403);
+    expect(googleDel.status()).toBe(403);
+    expect(msDel.status()).toBe(403);
+
+    const { data } = await admin()
+      .from('tenant_integrations')
+      .select('refresh_token')
+      .eq('tenant_id', ACME)
+      .eq('provider', 'google_calendar')
+      .maybeSingle();
+    expect(data?.refresh_token).toBe('styl289-google-refresh');
+  });
+
+  test('a member can read status and cannot disconnect', async ({ request }) => {
+    const headers = { Authorization: `Bearer ${acmeMember.token}` };
+    const google = await request.get(`/api/integrations/google/status?tenantId=${ACME}`, { headers });
+    expect(google.status()).toBe(200);
+    const googleBody = await google.json();
+    expect(googleBody.connected).toBe(true);
+    expect(googleBody.integration).not.toHaveProperty('account_email');
+
+    const microsoft = await request.get(`/api/integrations/microsoft/status?tenantId=${ACME}`, { headers });
+    expect(microsoft.status()).toBe(200);
+    const msBody = await microsoft.json();
+    expect(msBody.connected).toBe(true);
+    expect(JSON.stringify(msBody)).not.toContain('account_email');
+    expect(JSON.stringify(msBody)).not.toContain('microsoft_refresh_token');
+
+    const googleDel = await request.delete(`/api/integrations/google/status?tenantId=${ACME}`, { headers });
+    const msDel = await request.delete(`/api/integrations/microsoft/status?tenantId=${ACME}`, { headers });
+    expect(googleDel.status()).toBe(403);
+    expect(msDel.status()).toBe(403);
+  });
+
+  test('unauthenticated DELETE is 401', async ({ request }) => {
+    const google = await request.delete(`/api/integrations/google/status?tenantId=${ACME}`);
+    const microsoft = await request.delete(`/api/integrations/microsoft/status?tenantId=${ACME}`);
+    expect(google.status()).toBe(401);
+    expect(microsoft.status()).toBe(401);
+  });
+
+  test('an admin can disconnect their own salon calendars', async ({ request }) => {
+    const headers = { Authorization: `Bearer ${acmeAdmin.token}` };
+    const google = await request.delete(`/api/integrations/google/status?tenantId=${ACME}`, { headers });
+    const microsoft = await request.delete(`/api/integrations/microsoft/status?tenantId=${ACME}`, { headers });
+    expect(google.status()).toBe(200);
+    expect(microsoft.status()).toBe(200);
+
+    const status = await request.get(`/api/integrations/google/status?tenantId=${ACME}`, { headers });
+    expect(status.status()).toBe(200);
+    const body = await status.json();
+    expect(body.connected).toBe(false);
+
+    const { data } = await admin().from('tenants').select('microsoft_refresh_token').eq('id', ACME).single();
+    expect(data?.microsoft_refresh_token).toBeNull();
+  });
+
+  test('meta settings are owner or admin, hide tokens, and refuse another salon chatbot', async ({ request }) => {
+    const unsigned = await request.get(`/api/integrations/meta/settings?tenantId=${ACME}`);
+    expect(unsigned.status()).toBe(401);
+
+    const member = await request.get(`/api/integrations/meta/settings?tenantId=${ACME}`, {
+      headers: { Authorization: `Bearer ${acmeMember.token}` },
+    });
+    expect(member.status()).toBe(403);
+
+    const other = await request.get(`/api/integrations/meta/settings?tenantId=${ACME}`, {
+      headers: { Authorization: `Bearer ${globexMember.token}` },
+    });
+    expect(other.status()).toBe(403);
+
+    const adminHeaders = { Authorization: `Bearer ${acmeAdmin.token}` };
+    const allowed = await request.get(`/api/integrations/meta/settings?tenantId=${ACME}`, { headers: adminHeaders });
+    expect(allowed.status()).toBe(200);
+    const body = await allowed.json();
+    expect(body.webhookUrl).toContain('/api/webhooks/meta');
+    expect(body.verifyToken).toBeUndefined();
+    expect(body.metaAccessTokenMasked).toBeUndefined();
+    expect(JSON.stringify(body)).not.toContain('META_VERIFY_TOKEN');
+
+    const foreign = await request.patch('/api/integrations/meta/settings', {
+      headers: adminHeaders,
+      data: { tenantId: ACME, chatbotId: 'e0000000-0000-0000-0000-000000000002', whatsappEnabled: true },
+    });
+    expect(foreign.status()).toBe(403);
+
+    const unsignedPatch = await request.patch('/api/integrations/meta/settings', {
+      data: { tenantId: ACME, whatsappEnabled: false },
+    });
+    expect(unsignedPatch.status()).toBe(401);
+  });
+
+  test('a superadmin meta patch writes the named tenant and refuses a chatbot from another salon', async ({ request }) => {
+    const db = admin();
+    const { data: acmeBefore } = await db.from('tenants').select('whatsapp_phone_number_id').eq('id', ACME).single();
+    const { data: globexBefore } = await db.from('tenants').select('whatsapp_phone_number_id').eq('id', GLOBEX).single();
+    const marker = `styl289-${Date.now()}`;
+
+    const patched = await request.patch('/api/integrations/meta/settings', {
+      headers: { Authorization: `Bearer ${superadmin.token}` },
+      data: { tenantId: GLOBEX, whatsappPhoneNumberId: marker },
+    });
+    expect(patched.status()).toBe(200);
+
+    const { data: globex } = await db.from('tenants').select('whatsapp_phone_number_id').eq('id', GLOBEX).single();
+    const { data: acme } = await db.from('tenants').select('whatsapp_phone_number_id').eq('id', ACME).single();
+    expect(globex?.whatsapp_phone_number_id).toBe(marker);
+    expect(acme?.whatsapp_phone_number_id).toBe(acmeBefore?.whatsapp_phone_number_id ?? null);
+
+    const mixed = await request.patch('/api/integrations/meta/settings', {
+      headers: { Authorization: `Bearer ${superadmin.token}` },
+      data: { tenantId: GLOBEX, chatbotId: 'e0000000-0000-0000-0000-000000000001', whatsappEnabled: true },
+    });
+    expect(mixed.status()).toBe(403);
+
+    await db.from('tenants').update({ whatsapp_phone_number_id: globexBefore?.whatsapp_phone_number_id ?? null }).eq('id', GLOBEX);
+  });
+});

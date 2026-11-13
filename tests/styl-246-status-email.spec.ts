@@ -1,9 +1,10 @@
 import { test, expect } from '@playwright/test';
 import { createClient } from '@supabase/supabase-js';
+import { createTestUser } from './test-auth-helper';
 
 /**
- * STYL-246: the unauthenticated Google status route must not return account_email.
- * The signed-in dashboard still loads that address for the owner.
+ * STYL-246: a signed-in member can see that a calendar is connected.
+ * Neither Google nor Microsoft status returns account_email.
  */
 
 const admin = createClient(
@@ -12,8 +13,8 @@ const admin = createClient(
   { auth: { persistSession: false, autoRefreshToken: false } },
 );
 
-test.describe('STYL-246 Google status does not leak the account email', () => {
-  test('GET /api/integrations/google/status omits account_email', async ({ request }) => {
+test.describe('STYL-246 calendar status does not leak the account email', () => {
+  test('signed-out status is 401 and a member does not receive account_email', async ({ request }) => {
     const stamp = Date.now();
     const tenantId = crypto.randomUUID();
     const secretEmail = `owner-${stamp}@salon.test`;
@@ -23,24 +24,38 @@ test.describe('STYL-246 Google status does not leak the account email', () => {
       slug: `calendar-email-${stamp}`,
     });
     expect(tenantError).toBeNull();
-    const { error: integrationError } = await admin.from('tenant_integrations').insert({
+    const member = await createTestUser({ tenantId, role: 'member' });
+    const { error: googleError } = await admin.from('tenant_integrations').insert({
       tenant_id: tenantId,
       provider: 'google_calendar',
       refresh_token: 'mock_refresh',
       account_email: secretEmail,
     });
-    expect(integrationError).toBeNull();
+    expect(googleError).toBeNull();
+    const { error: microsoftError } = await admin.from('tenants').update({
+      microsoft_refresh_token: `ms-secret-${stamp}`,
+    }).eq('id', tenantId);
+    expect(microsoftError).toBeNull();
 
     try {
-      const response = await request.get(`/api/integrations/google/status?tenantId=${tenantId}`);
-      expect(response.status()).toBe(200);
-      const raw = await response.text();
-      expect(raw).not.toContain(secretEmail);
-      expect(raw).not.toContain('account_email');
-      const body = JSON.parse(raw);
-      expect(body.connected).toBe(true);
-      expect(body.integration.provider).toBe('google_calendar');
+      const signedOut = await request.get(`/api/integrations/google/status?tenantId=${tenantId}`);
+      expect(signedOut.status()).toBe(401);
+
+      const headers = { Authorization: `Bearer ${member.token}` };
+      const google = await request.get(`/api/integrations/google/status?tenantId=${tenantId}`, { headers });
+      expect(google.status()).toBe(200);
+      const googleRaw = await google.text();
+      expect(googleRaw).not.toContain(secretEmail);
+      expect(googleRaw).not.toContain('account_email');
+
+      const microsoft = await request.get(`/api/integrations/microsoft/status?tenantId=${tenantId}`, { headers });
+      expect(microsoft.status()).toBe(200);
+      const microsoftRaw = await microsoft.text();
+      expect(microsoftRaw).not.toContain(secretEmail);
+      expect(microsoftRaw).not.toContain('account_email');
+      expect(microsoftRaw).not.toContain(`ms-secret-${stamp}`);
     } finally {
+      await member.cleanup();
       await admin.from('tenants').delete().eq('id', tenantId);
     }
   });

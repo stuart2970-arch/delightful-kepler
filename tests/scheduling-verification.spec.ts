@@ -39,10 +39,17 @@ test.describe('Scheduling & Staff Section Verification', () => {
   });
 
   test('Google Calendar Integration status endpoint returns status structure', async ({ request }) => {
-    const response = await request.get(`/api/integrations/google/status?tenantId=${testTenantId}`);
-    expect(response.status()).toBe(200);
-    const body = await response.json();
-    expect(body).toHaveProperty('connected');
+    const owner = await createTestUser({ tenantId: testTenantId, role: 'owner' });
+    try {
+      const response = await request.get(`/api/integrations/google/status?tenantId=${testTenantId}`, {
+        headers: { Authorization: `Bearer ${owner.token}` },
+      });
+      expect(response.status()).toBe(200);
+      const body = await response.json();
+      expect(body).toHaveProperty('connected');
+    } finally {
+      await owner.cleanup();
+    }
   });
 
   test('Services API endpoint returns list of services', async ({ request }) => {

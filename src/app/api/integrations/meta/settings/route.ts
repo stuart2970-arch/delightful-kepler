@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
-import { DEFAULT_META_VERIFY_TOKEN } from '@/lib/meta';
+import { requireTenantRole } from '@/lib/auth/require-tenant-role';
 
 export const dynamic = 'force-dynamic';
 
@@ -24,9 +24,15 @@ function getSupabaseAdmin() {
  */
 export async function GET(request: NextRequest) {
   try {
-    const tenantId = request.nextUrl.searchParams.get('tenantId');
+    const auth = await requireTenantRole(request, ['owner', 'admin']);
+    if (!auth.ok) return auth.response;
+    const requested = request.nextUrl.searchParams.get('tenantId');
+    if (requested && requested !== auth.tenantId && !auth.isSuperAdmin) {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+    }
+    const tenantId = auth.isSuperAdmin && requested ? requested : auth.tenantId;
     if (!tenantId) {
-      return NextResponse.json({ error: 'tenantId is required' }, { status: 400 });
+      return NextResponse.json({ error: 'Missing tenantId' }, { status: 400 });
     }
 
     const supabaseAdmin = getSupabaseAdmin();
@@ -47,17 +53,14 @@ export async function GET(request: NextRequest) {
       .maybeSingle();
 
     const webhookUrl = `${request.nextUrl.origin || 'https://app.styleflo.ai'}/api/webhooks/meta`;
-    const verifyToken =
-      chatbot?.meta_verify_token ||
-      tenant?.meta_verify_token ||
-      process.env.META_VERIFY_TOKEN ||
-      DEFAULT_META_VERIFY_TOKEN;
+    const storedAccessToken = chatbot?.meta_access_token
+      || chatbot?.configuration_json?.meta_access_token
+      || tenant?.meta_access_token;
 
     const config = {
       tenantId,
       chatbotId: chatbot?.id,
       webhookUrl,
-      verifyToken,
       // WhatsApp
       whatsappEnabled: Boolean(chatbot?.whatsapp_enabled ?? chatbot?.configuration_json?.whatsapp_enabled ?? chatbot?.whatsapp_phone_number_id ?? tenant?.whatsapp_phone_number_id),
       whatsappPhoneNumber: chatbot?.whatsapp_phone_number || chatbot?.configuration_json?.whatsapp_phone_number || tenant?.twilio_mobile_number || '',
@@ -70,11 +73,7 @@ export async function GET(request: NextRequest) {
       // Messenger
       messengerEnabled: Boolean(chatbot?.messenger_enabled ?? chatbot?.configuration_json?.messenger_enabled ?? chatbot?.messenger_page_id ?? chatbot?.configuration_json?.messenger_page_id),
       messengerPageId: chatbot?.messenger_page_id || chatbot?.configuration_json?.messenger_page_id || tenant?.messenger_page_id || '',
-      // Shared Meta Token (masked for security if present)
-      hasAccessToken: Boolean(chatbot?.meta_access_token || chatbot?.configuration_json?.meta_access_token || tenant?.meta_access_token || process.env.META_ACCESS_TOKEN),
-      metaAccessTokenMasked: (chatbot?.meta_access_token || chatbot?.configuration_json?.meta_access_token || tenant?.meta_access_token)
-        ? '••••••••' + (chatbot?.meta_access_token || chatbot?.configuration_json?.meta_access_token || tenant?.meta_access_token).slice(-6)
-        : '',
+      hasAccessToken: Boolean(storedAccessToken),
       metaAppId: chatbot?.meta_app_id || chatbot?.configuration_json?.meta_app_id || '',
     };
 
@@ -90,6 +89,9 @@ export async function GET(request: NextRequest) {
  */
 export async function PATCH(request: NextRequest) {
   try {
+    const auth = await requireTenantRole(request, ['owner', 'admin']);
+    if (!auth.ok) return auth.response;
+
     const body = await request.json();
     const {
       tenantId,
@@ -109,8 +111,13 @@ export async function PATCH(request: NextRequest) {
       metaAppSecret,
     } = body;
 
-    if (!tenantId) {
-      return NextResponse.json({ error: 'tenantId is required' }, { status: 400 });
+    const sessionTenantId = auth.tenantId;
+    if (tenantId && tenantId !== sessionTenantId && !auth.isSuperAdmin) {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+    }
+    const effectiveTenantId = auth.isSuperAdmin && tenantId ? tenantId : sessionTenantId;
+    if (!effectiveTenantId) {
+      return NextResponse.json({ error: 'Missing tenantId' }, { status: 400 });
     }
 
     const supabaseAdmin = getSupabaseAdmin();
@@ -125,6 +132,9 @@ export async function PATCH(request: NextRequest) {
         .select('*')
         .eq('id', targetBotId)
         .maybeSingle();
+      if (!bot || String(bot.tenant_id) !== effectiveTenantId) {
+        return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+      }
       targetBot = bot;
     }
 
@@ -132,7 +142,7 @@ export async function PATCH(request: NextRequest) {
       const { data: bot } = await supabaseAdmin
         .from('chatbots')
         .select('*')
-        .eq('tenant_id', tenantId)
+        .eq('tenant_id', effectiveTenantId)
         .neq('id', '00000000-0000-0000-0000-000000000000')
         .order('created_at', { ascending: false })
         .limit(1)
@@ -231,7 +241,7 @@ export async function PATCH(request: NextRequest) {
         const { error: tenantErr } = await supabaseAdmin
           .from('tenants')
           .update(tenantUpdates)
-          .eq('id', tenantId);
+          .eq('id', effectiveTenantId);
 
         if (tenantErr) {
           console.warn('[Meta Settings API] Tenant update warning:', tenantErr.message);
