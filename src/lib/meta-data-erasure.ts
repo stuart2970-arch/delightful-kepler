@@ -45,7 +45,7 @@ export async function eraseMetaUserAcrossSalons(
 ): Promise<{ conversations: number; messages: number; whatsappMessages: number; contacts: number }> {
   const sessionIds = metaUserSessionIds(userId);
   const conversationIds = await collectIds((from, to) =>
-    supabase.from('conversations').select('id').in('user_session_id', sessionIds).range(from, to),
+    supabase.from('conversations').select('id').in('user_session_id', sessionIds).order('id', { ascending: true }).range(from, to),
   );
 
   let messages = 0;
@@ -63,7 +63,7 @@ export async function eraseMetaUserAcrossSalons(
   }
 
   const contactIds = await collectIds((from, to) =>
-    supabase.from('whatsapp_contacts').select('id').eq('wa_id', userId).range(from, to),
+    supabase.from('whatsapp_contacts').select('id').eq('wa_id', userId).order('id', { ascending: true }).range(from, to),
   );
 
   let whatsappMessages = 0;
