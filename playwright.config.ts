@@ -29,6 +29,11 @@ export default defineConfig({
     timeout: 120 * 1000,
     env: {
       ...process.env,
+      // The pre-push hook and CI give the Playwright process an 8GB heap.
+      // Do not hand that same ceiling to the Next server. The signed-out
+      // sweep compiles every API route, and two 8GB heaps get the machine
+      // killed before the suite finishes.
+      NODE_OPTIONS: '--max-old-space-size=4096',
       PLAYWRIGHT_TEST: 'true',
       // STYL-199: existing suites inject mockModelReply. Never set this on production.
       ALLOW_MOCK_REPLY: 'true',

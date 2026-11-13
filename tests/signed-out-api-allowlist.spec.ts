@@ -133,6 +133,7 @@ test('signed-out API routes are 401 or 403 unless they are on the allow-list', a
       method: route.method,
       headers: { 'Content-Type': 'application/json' },
       data: route.method === 'GET' ? undefined : {},
+      timeout: 20_000,
     });
     if (response.status() !== 401 && response.status() !== 403) {
       unexpected.push(`${route.method} ${route.routePath} -> ${response.status()}`);
