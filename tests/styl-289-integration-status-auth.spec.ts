@@ -17,12 +17,14 @@ test.describe('STYL-289 integration status auth', () => {
   let acmeMember: TestUserSession;
   let acmeAdmin: TestUserSession;
   let globexMember: TestUserSession;
+  let superadmin: TestUserSession;
   let originalMicrosoftToken: string | null;
 
   test.beforeAll(async () => {
     acmeMember = await createTestUser({ tenantId: ACME, role: 'member' });
     acmeAdmin = await createTestUser({ tenantId: ACME, role: 'admin' });
     globexMember = await createTestUser({ tenantId: GLOBEX, role: 'member' });
+    superadmin = await createTestUser({ tenantId: ACME, role: 'owner', isSuperAdmin: true });
 
     const db = admin();
     const { data: tenant } = await db
@@ -54,6 +56,7 @@ test.describe('STYL-289 integration status auth', () => {
     await acmeMember?.cleanup();
     await acmeAdmin?.cleanup();
     await globexMember?.cleanup();
+    await superadmin?.cleanup();
   });
 
   test('unauthenticated Google and Microsoft status reads are 401', async ({ request }) => {
@@ -160,5 +163,31 @@ test.describe('STYL-289 integration status auth', () => {
       data: { tenantId: ACME, whatsappEnabled: false },
     });
     expect(unsignedPatch.status()).toBe(401);
+  });
+
+  test('a superadmin meta patch writes the named tenant and refuses a chatbot from another salon', async ({ request }) => {
+    const db = admin();
+    const { data: acmeBefore } = await db.from('tenants').select('whatsapp_phone_number_id').eq('id', ACME).single();
+    const { data: globexBefore } = await db.from('tenants').select('whatsapp_phone_number_id').eq('id', GLOBEX).single();
+    const marker = `styl289-${Date.now()}`;
+
+    const patched = await request.patch('/api/integrations/meta/settings', {
+      headers: { Authorization: `Bearer ${superadmin.token}` },
+      data: { tenantId: GLOBEX, whatsappPhoneNumberId: marker },
+    });
+    expect(patched.status()).toBe(200);
+
+    const { data: globex } = await db.from('tenants').select('whatsapp_phone_number_id').eq('id', GLOBEX).single();
+    const { data: acme } = await db.from('tenants').select('whatsapp_phone_number_id').eq('id', ACME).single();
+    expect(globex?.whatsapp_phone_number_id).toBe(marker);
+    expect(acme?.whatsapp_phone_number_id).toBe(acmeBefore?.whatsapp_phone_number_id ?? null);
+
+    const mixed = await request.patch('/api/integrations/meta/settings', {
+      headers: { Authorization: `Bearer ${superadmin.token}` },
+      data: { tenantId: GLOBEX, chatbotId: 'e0000000-0000-0000-0000-000000000001', whatsappEnabled: true },
+    });
+    expect(mixed.status()).toBe(403);
+
+    await db.from('tenants').update({ whatsapp_phone_number_id: globexBefore?.whatsapp_phone_number_id ?? null }).eq('id', GLOBEX);
   });
 });

@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import { useDashboardStore } from '../../lib/store';
-import { createBrowserClient } from '@supabase/ssr';
+import { browserAuthHeaders } from '@/lib/auth/client-auth-headers';
 import AddOnUpsellModal from '../AddOnUpsellModal';
 import { STARTER_TEMPLATES_EN_GB } from '../../lib/whatsapp-starter-templates';
 
@@ -90,24 +90,8 @@ export default function WhatsAppMetaView() {
   // Copy feedback
   const [copiedField, setCopiedField] = useState<string | null>(null);
 
-  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
-  const supabase = supabaseUrl && supabaseAnonKey ? createBrowserClient(supabaseUrl, supabaseAnonKey) : null;
-
-  const getAuthHeaders = async (baseHeaders: Record<string, string> = {}) => {
-    const headers: Record<string, string> = { ...baseHeaders };
-    if (supabase) {
-      try {
-        const { data: { session } } = await supabase.auth.getSession();
-        if (session?.access_token) {
-          headers['Authorization'] = `Bearer ${session.access_token}`;
-        }
-      } catch (e) {
-        console.warn('Could not get session for auth header:', e);
-      }
-    }
-    return headers;
-  };
+  const getAuthHeaders = (baseHeaders: Record<string, string> = {}) =>
+    browserAuthHeaders(baseHeaders);
 
   const copyToClipboard = (text: string, fieldName: string) => {
     navigator.clipboard.writeText(text);

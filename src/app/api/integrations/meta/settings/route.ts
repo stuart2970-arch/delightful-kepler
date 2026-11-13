@@ -31,6 +31,9 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
     const tenantId = auth.isSuperAdmin && requested ? requested : auth.tenantId;
+    if (!tenantId) {
+      return NextResponse.json({ error: 'Missing tenantId' }, { status: 400 });
+    }
 
     const supabaseAdmin = getSupabaseAdmin();
 
@@ -112,6 +115,10 @@ export async function PATCH(request: NextRequest) {
     if (tenantId && tenantId !== sessionTenantId && !auth.isSuperAdmin) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
+    const effectiveTenantId = auth.isSuperAdmin && tenantId ? tenantId : sessionTenantId;
+    if (!effectiveTenantId) {
+      return NextResponse.json({ error: 'Missing tenantId' }, { status: 400 });
+    }
 
     const supabaseAdmin = getSupabaseAdmin();
 
@@ -125,7 +132,7 @@ export async function PATCH(request: NextRequest) {
         .select('*')
         .eq('id', targetBotId)
         .maybeSingle();
-      if (!bot || (!auth.isSuperAdmin && String(bot.tenant_id) !== sessionTenantId)) {
+      if (!bot || String(bot.tenant_id) !== effectiveTenantId) {
         return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
       }
       targetBot = bot;
@@ -135,7 +142,7 @@ export async function PATCH(request: NextRequest) {
       const { data: bot } = await supabaseAdmin
         .from('chatbots')
         .select('*')
-        .eq('tenant_id', sessionTenantId)
+        .eq('tenant_id', effectiveTenantId)
         .neq('id', '00000000-0000-0000-0000-000000000000')
         .order('created_at', { ascending: false })
         .limit(1)
@@ -234,7 +241,7 @@ export async function PATCH(request: NextRequest) {
         const { error: tenantErr } = await supabaseAdmin
           .from('tenants')
           .update(tenantUpdates)
-          .eq('id', sessionTenantId);
+          .eq('id', effectiveTenantId);
 
         if (tenantErr) {
           console.warn('[Meta Settings API] Tenant update warning:', tenantErr.message);

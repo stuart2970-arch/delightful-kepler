@@ -4358,3 +4358,7 @@ Highlighted adjustments in the modal:
 ### Session (STYL-289 review - meta settings, emails, rebase - 13 Nov 2026)
 * **User**: Product Owner review. Rebase onto current `origin/staging`. Microsoft status returns `id`, `provider`, and `updated_at` only. Meta settings GET and PATCH are owner or admin, take the tenant from the session, refuse a chatbot from another salon, and do not return verify tokens or token fragments. The status email spec signs in. Never `--no-verify`. Force-with-lease only.
 * **Tests**: Calendar status, meta settings, and the rewritten email spec. The pre-push hook runs `tsc --noEmit` and the full Playwright suite.
+
+### Session (STYL-289 OpenClaw - meta tenant target - 13 Nov 2026)
+* **User**: OpenClaw review on the rebased head. Fix genuine bugs. Ignore style nits.
+* **Changes**: Meta settings PATCH writes the session tenant, or the named tenant when the caller is a superadmin. A chatbot from another salon is 403 for every role. WhatsApp settings sends a refreshed dashboard access token.
