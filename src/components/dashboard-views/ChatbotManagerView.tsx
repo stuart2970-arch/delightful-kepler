@@ -2,6 +2,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { useDashboardStore, Chatbot } from '../../lib/store';
 import { createBrowserClient } from '@supabase/ssr';
+import ReceptionistPreview from './ReceptionistPreview';
 
 
 
@@ -800,6 +801,8 @@ export default function ChatbotManagerView() {
                   </form>
                 </div>
               )}
+
+              <ReceptionistPreview />
 
               {/* Chatbot Display Card & Embed Code Snippet (Displayed adjacent when chatbot exists) */}
               {!editingBotId && chatbots.filter(b => b.id !== globalBotId).length > 0 && (

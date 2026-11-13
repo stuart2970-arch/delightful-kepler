@@ -31,6 +31,7 @@ export async function GET(request: NextRequest) {
       .from('conversations')
       .select('*')
       .eq('tenant_id', tenantId)
+      .or('user_session_id.is.null,user_session_id.not.like.preview-%')
       .order('created_at', { ascending: false });
 
     if (error) {

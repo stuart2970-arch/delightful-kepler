@@ -1,4 +1,5 @@
 import { BusyInterval } from './provider';
+import { clipShiftToOpening, type OpeningHoursView } from '@/lib/opening-hours';
 
 export interface Shift {
   start: string; // '09:00'
@@ -262,6 +263,10 @@ export interface CalculateSlotsParams {
   maxAdvanceWeeks?: number;
   nowUtc?: Date;
   timeZone?: string;
+  /** When set, staff shifts are clipped only on days that were actually saved, unless the owner accepted staff hours or the salon is 24/7. */
+  openingHours?: OpeningHoursView;
+  staffHoursOverrideAccepted?: boolean;
+  is24_7?: boolean;
 }
 
 /**
@@ -277,6 +282,9 @@ export function calculateAvailableSlots(params: CalculateSlotsParams): Calculate
     maxAdvanceWeeks = 6,
     nowUtc = new Date(),
     timeZone = 'Europe/London',
+    openingHours,
+    staffHoursOverrideAccepted = false,
+    is24_7 = false,
   } = params;
 
   const maxAdvanceDateUtc = new Date(nowUtc.getTime() + maxAdvanceWeeks * 7 * 24 * 60 * 60 * 1000);
@@ -305,7 +313,15 @@ export function calculateAvailableSlots(params: CalculateSlotsParams): Calculate
       const durationMs = durationMinutes * 60 * 1000;
       const busyIntervals = busyMap.get(staff.id) || [];
 
-      const shifts = resolveDayShifts(staff.schedule, iterDateStr, dayName);
+      let shifts = resolveDayShifts(staff.schedule, iterDateStr, dayName);
+      if (openingHours && !staffHoursOverrideAccepted && !is24_7) {
+        const dayHours = openingHours.days[dayName];
+        if (dayHours && !dayHours.missing) {
+          shifts = shifts
+            .map((shift) => clipShiftToOpening(shift, dayHours))
+            .filter((shift): shift is Shift => shift !== null);
+        }
+      }
 
       for (const shift of shifts) {
         const shiftStartUtc = localTimeToUtc(iterDateStr, shift.start, timeZone);

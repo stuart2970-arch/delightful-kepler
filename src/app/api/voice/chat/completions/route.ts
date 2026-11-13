@@ -10,6 +10,8 @@ import { CUSTOMER_UNFINISHED_REPLY, sanitiseForTranscript } from '@/lib/chat/cus
 import { getActiveGeminiModel } from '@/lib/gemini-config';
 import { voiceLogError } from '@/lib/voice/log-error';
 import { generateEmbedding } from '@/lib/embeddings';
+import { formatOpeningHoursForPrompt, normaliseOpeningHours } from '@/lib/opening-hours';
+import { loadVoiceSalon } from '@/lib/voice-salon';
 
 export const maxDuration = 300;
 
@@ -91,16 +93,15 @@ export async function POST(req: Request) {
     const targetBotUuid = chatbot.id;
     const configData = (chatbot.configuration_json || {}) as Record<string, any>;
 
-    const { data: tenantRes } = await supabaseAdmin
-      .from('tenants')
-      .select('id, company_name, rwg_business_name, booking_mode, booking_url, currency, timezone')
-      .eq('id', tenantId)
-      .single();
+    const salon = await loadVoiceSalon(supabaseAdmin, tenantId, targetBotUuid);
+    const tenantRes = salon.tenant;
+    if (salon.tenantError) console.warn('[Vapi Custom LLM] Tenant hours query failed:', salon.tenantError);
+    if (salon.servicesError) console.warn('[Vapi Custom LLM] Services query failed:', salon.servicesError);
 
     const bookingMode = tenantRes?.booking_mode || 'single_calendar';
     const bookingUrl = tenantRes?.booking_url || '';
-    const timezone = tenantRes?.timezone || 'Europe/London';
-    const currency = tenantRes?.currency || '£';
+    const timezone = (configData.timezone as string) || 'Europe/London';
+    const currency = (configData.currency as string) || '£';
     const tenantCompany = (tenantRes?.company_name || tenantRes?.rwg_business_name || '').trim();
     const chatbotName = ((chatbot?.name as string) || '').trim();
 
@@ -143,11 +144,7 @@ export async function POST(req: Request) {
     const agentName = ((configData.agent_name as string) || chatbotName || 'AI Assistant').trim();
     const businessName = (configData.businessName as string)?.trim() || tenantCompany || chatbotName || agentName || 'our business';
 
-    const { data: servicesRes } = await supabaseAdmin
-      .from('services')
-      .select('id, name, base_price, duration_minutes, buffer_minutes, description')
-      .eq('tenant_id', tenantId)
-      .eq('chatbot_id', targetBotUuid);
+    const servicesRes = salon.services;
 
     const { data: staffRes } = await supabaseAdmin
       .from('staff')
@@ -246,6 +243,7 @@ Write in a natural, warm, spoken conversational tone. Speak clearly and concisel
 DO NOT use markdown formatting, asterisks, bullet points, or special characters. Speak naturally in plain text.${voiceRulesSection}
 
 The current date and time is: ${new Date().toISOString()}. Use this to resolve relative dates like "tomorrow" or "next Sunday".
+Opening hours: ${formatOpeningHoursForPrompt(normaliseOpeningHours(tenantRes?.general_operating_hours), { spoken: true, is24_7: tenantRes?.is_24_7 === true })}
 
 ${bookingMode === 'walk_in_only' ? 'We DO NOT accept appointments. We are walk-ins only. If the caller asks to book, politely inform them they can walk in at any time.' : ''}
 ${bookingMode === 'external_platform' ? `We use an external booking platform. If the caller asks to book, direct them to ${bookingUrl}` : ''}
