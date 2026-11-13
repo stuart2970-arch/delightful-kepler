@@ -16,7 +16,10 @@ function chunks<T>(items: T[], size: number): T[][] {
 }
 
 async function collectIds(
-  load: (from: number, to: number) => Promise<{ data: { id: string }[] | null; error: { message: string } | null }>,
+  load: (
+    from: number,
+    to: number,
+  ) => PromiseLike<{ data: { id: string }[] | null; error: { message: string } | null }>,
 ): Promise<string[]> {
   const ids: string[] = [];
   const pageSize = 500;
