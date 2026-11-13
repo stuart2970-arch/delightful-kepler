@@ -18,8 +18,11 @@
 --    Vault at call time:
 --      tenant_created_webhook_url
 --      tenant_created_webhook_secret          (must match TENANT_CREATED_WEBHOOK_SECRET)
---      tenant_created_webhook_environment     (optional: staging | production)
---    If the URL or secret is missing, the trigger does nothing.
+--      tenant_created_webhook_environment     (required: exactly staging or production)
+--    If the URL, the secret, or the environment row is missing, the trigger
+--    does nothing. A NULL environment must not post.
+--    Apply this file only after 20261024120200. That migration creates
+--    protect_super_admin_flag(), which production does not have until then.
 --    The POST target is the vault URL, and only these two exact pairs are sent:
 --      environment = staging    AND url = https://staging.styleflo.ai/api/webhooks/tenant-created
 --      environment = production AND url = https://app.styleflo.ai/api/webhooks/tenant-created
@@ -32,13 +35,13 @@
 --    protect_super_admin_flag() is supplied by 20261024120200. Re-attach it
 --    BEFORE INSERT OR UPDATE (UPDATE is the privilege-escalation path; INSERT
 --    stays so a user cannot create a superadmin profile).
---    Revoke authenticated/anon UPDATE on is_super_admin and tenant_id.
---    Table-level UPDATE implies every column in Postgres, so revoke table
---    UPDATE as well and grant UPDATE (role) back to authenticated.
+--    Revoke INSERT, UPDATE, and DELETE from PUBLIC, anon, and authenticated.
+--    There is no column grant that lets authenticated change role. Sign-up
+--    and invitations insert through handle_new_user(), which is SECURITY DEFINER.
 --    A BEFORE UPDATE trigger blocks tenant_id changes unless auth.role() is
 --    service_role (seed_mode still bypasses, same as 20261024120200).
---    update_profile WITH CHECK plus a restrictive policy keep a user's new
---    tenant_id on their current tenant and reject an is_super_admin change.
+--    update_profile and the restrictive policy stay in place. Without INSERT,
+--    UPDATE, or DELETE grants they do not let anon or authenticated write.
 -- =========================================================================
 
 CREATE EXTENSION IF NOT EXISTS pg_net;
@@ -106,16 +109,18 @@ BEGIN
   webhook_secret := pg_catalog.btrim(webhook_secret);
   webhook_environment := pg_catalog.btrim(webhook_environment);
 
-  -- Exact allow-list only. A missing secret, a wrong environment, or any URL
-  -- that is not character-for-character the environment's endpoint does nothing.
+  -- Exact allow-list only. A missing secret, a missing or NULL environment,
+  -- or any URL that is not character-for-character the environment's endpoint
+  -- does nothing. IS NOT TRUE treats the NULL comparison (no environment row)
+  -- as a refusal. A plain IF NOT would skip that branch and still post.
   IF webhook_secret IS NULL OR webhook_secret = ''::text THEN
     RETURN NEW;
   END IF;
 
-  IF NOT (
+  IF (
     (webhook_environment = 'staging' AND webhook_url = staging_url)
     OR (webhook_environment = 'production' AND webhook_url = production_url)
-  ) THEN
+  ) IS NOT TRUE THEN
     RETURN NEW;
   END IF;
 

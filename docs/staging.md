@@ -290,7 +290,7 @@ Do **not** run `secrets:set` / `grantaccess` for `WPMUDEV_WEBHOOK_SECRET`, `STYL
 
 `TENANT_CREATED_WEBHOOK_SECRET` is overridden the same way (three spaces). The route trims it and `/api/webhooks/tenant-created` stays 401. Do not replace that override with a `secret:` line until Ops provisions a staging-only value. Callers that should succeed must send `Authorization: Bearer` with that secret.
 
-STYL-252 restored `trigger_sync_tenant_to_wordpress`. The migration does not store a bearer. On each new tenant it reads Vault. It posts only when `tenant_created_webhook_environment` is exactly `staging` or `production` and `tenant_created_webhook_url` is exactly that environment's endpoint below. Any other URL (userinfo, trailing dot, query string, `http`, a different host) or any other environment value does nothing. A missing secret does nothing.
+STYL-252 restored `trigger_sync_tenant_to_wordpress`. The migration does not store a bearer. On each new tenant it reads Vault. It posts only when `tenant_created_webhook_environment` is exactly `staging` or `production` and `tenant_created_webhook_url` is exactly that environment's endpoint below. Any other URL (userinfo, trailing dot, query string, `http`, a different host), any other environment value, or a missing environment row does nothing. A missing secret does nothing.
 
 Set these in the **staging** Supabase SQL editor (`styleflo-staging` / `lriugykhrfnnouexqqhm` only — never the live project) after choosing a staging-only bearer. Use the same bearer as `TENANT_CREATED_WEBHOOK_SECRET` once that app secret exists. Do not copy the production bearer.
 

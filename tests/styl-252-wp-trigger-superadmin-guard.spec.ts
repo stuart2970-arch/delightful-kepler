@@ -50,12 +50,59 @@ function clearVault(): void {
   sql(`DELETE FROM vault.secrets WHERE name IN (${names});`);
 }
 
-function setVault(url: string, environment: string): void {
+const createdTenantIds: string[] = [];
+
+function setVaultUrlAndSecret(url: string): void {
   clearVault();
   sql(`SELECT vault.create_secret(${sqlLiteral(url)}, 'tenant_created_webhook_url', 'STYL-252 local test');`);
   sql(`SELECT vault.create_secret(${sqlLiteral(TEST_BEARER)}, 'tenant_created_webhook_secret', 'STYL-252 local test');`);
+}
+
+function setVault(url: string, environment: string): void {
+  setVaultUrlAndSecret(url);
   sql(
     `SELECT vault.create_secret(${sqlLiteral(environment)}, 'tenant_created_webhook_environment', 'STYL-252 local test');`,
+  );
+}
+
+function sqlStdin(script: string): string {
+  const result = spawnSync('psql', [dbUrl, '-v', 'ON_ERROR_STOP=1', '-tA'], {
+    input: script,
+    encoding: 'utf8',
+  });
+  if (result.status !== 0) {
+    throw new Error((result.stderr || result.stdout || `psql exited ${result.status}`).trim());
+  }
+  return (result.stdout || '').trim();
+}
+
+function productionPairQueuedInsideRollback(): string {
+  const slug = `styl252-prod-rollback-${Date.now()}`;
+  const script = `
+BEGIN;
+DELETE FROM vault.secrets WHERE name IN (${VAULT_NAMES.map((name) => sqlLiteral(name)).join(', ')});
+SELECT vault.create_secret(${sqlLiteral(PRODUCTION_WEBHOOK_URL)}, 'tenant_created_webhook_url', 'STYL-252 local test');
+SELECT vault.create_secret(${sqlLiteral(TEST_BEARER)}, 'tenant_created_webhook_secret', 'STYL-252 local test');
+SELECT vault.create_secret('production', 'tenant_created_webhook_environment', 'STYL-252 local test');
+CREATE TEMP TABLE styl252_probe (id uuid) ON COMMIT DROP;
+WITH created AS (
+  INSERT INTO public.tenants (company_name, slug)
+  VALUES (${sqlLiteral(slug)}, ${sqlLiteral(slug)})
+  RETURNING id
+)
+INSERT INTO styl252_probe SELECT id FROM created;
+SELECT coalesce(d.url, '') || '|' || coalesce(q.url, '')
+FROM styl252_probe n
+LEFT JOIN private.tenant_created_webhook_dispatch d ON d.tenant_id = n.id
+LEFT JOIN net.http_request_queue q ON q.id = d.request_id;
+ROLLBACK;
+`;
+  const output = sqlStdin(script);
+  return (
+    output
+      .split('\n')
+      .map((row) => row.trim())
+      .find((row) => row.includes(PRODUCTION_WEBHOOK_URL)) ?? ''
   );
 }
 
@@ -78,6 +125,10 @@ test.describe('STYL-252: WordPress tenant-created trigger and STYL-178 column gu
     for (const userId of createdUserIds) {
       await admin.auth.admin.deleteUser(userId).catch(() => undefined);
     }
+    if (createdTenantIds.length > 0) {
+      const ids = createdTenantIds.map((id) => `${sqlLiteral(id)}::uuid`).join(', ');
+      sql(`DELETE FROM public.tenants WHERE id IN (${ids});`);
+    }
   });
 
   test('migration allow-lists the two webhook URLs and does not embed a bearer', () => {
@@ -97,7 +148,8 @@ test.describe('STYL-252: WordPress tenant-created trigger and STYL-178 column gu
     expect(migration).toContain('DROP POLICY IF EXISTS insert_profiles');
     expect(migration).toContain('DROP POLICY IF EXISTS delete_profiles');
     expect(migration).toContain('DROP POLICY IF EXISTS update_profiles');
-    expect(migration).not.toContain('GRANT UPDATE (role)');
+    expect(migration.split('\n').some((line) => line.trim().startsWith('GRANT UPDATE (role)'))).toBe(false);
+    expect(migration).toContain('IS NOT TRUE');
   });
 
   test('authenticated and anon lack UPDATE on is_super_admin and tenant_id', () => {
@@ -272,6 +324,7 @@ test.describe('STYL-252: WordPress tenant-created trigger and STYL-178 column gu
       ['https://staging.styleflo.ai/api/webhooks/tenant-created?a=b@evil.com', 'staging'],
       ['https://evil.example/@staging.styleflo.ai', 'staging'],
       ['https://app.styleflo.ai/@staging.styleflo.ai/api/webhooks/tenant-created', 'staging'],
+      ['https://user@staging.styleflo.ai/api/webhooks/tenant-created', 'staging'],
       [PRODUCTION_WEBHOOK_URL, 'staging'],
       [STAGING_WEBHOOK_URL, 'production'],
     ];
@@ -283,13 +336,21 @@ test.describe('STYL-252: WordPress tenant-created trigger and STYL-178 column gu
       expect(dispatchCount(tenantId), `${environment} ${url}`).toBe('0');
     }
 
-    setVault(PRODUCTION_WEBHOOK_URL, 'production');
-    const productionTenant = insertTenant(`styl252-prod-${Date.now()}`);
-    const productionUrl = sql(
-      `SELECT url FROM private.tenant_created_webhook_dispatch WHERE tenant_id = ${sqlLiteral(productionTenant)}::uuid;`,
-    );
-    expect(productionUrl).toBe(PRODUCTION_WEBHOOK_URL);
-    expect(queueCountForHost('evil.example')).toBe('0');
+    for (const url of [STAGING_WEBHOOK_URL, PRODUCTION_WEBHOOK_URL]) {
+      const slug = `styl252-noenv-${Date.now()}-${Math.floor(Math.random() * 10000)}`;
+      setVaultUrlAndSecret(url);
+      const tenantId = insertTenant(slug);
+      expect(dispatchCount(tenantId), `missing environment ${url}`).toBe('0');
+    }
+
+    const queued = productionPairQueuedInsideRollback();
+    expect(queued).toBe(`${PRODUCTION_WEBHOOK_URL}|${PRODUCTION_WEBHOOK_URL}`);
+    expect(sql(`SELECT count(*) FROM public.tenants WHERE slug LIKE 'styl252-prod-rollback-%';`)).toBe('0');
+    expect(
+      sql(
+        `SELECT count(*) FROM net.http_request_queue WHERE url = ${sqlLiteral(PRODUCTION_WEBHOOK_URL)} AND body::text LIKE '%styl252-prod-rollback-%';`,
+      ),
+    ).toBe('0');
   });
 });
 
@@ -311,6 +372,7 @@ function insertTenant(slug: string): string {
     .map((line) => line.trim())
     .find((line) => /^[0-9a-f-]{36}$/i.test(line));
   if (!tenantId) throw new Error(`Tenant insert failed for ${slug}`);
+  createdTenantIds.push(tenantId);
   return tenantId;
 }
 
@@ -332,5 +394,6 @@ async function signUpTenant(slug: string): Promise<{ userId: string; tenantId: s
   if (!tenantId) {
     throw new Error(`Sign-up did not create a tenant for slug ${slug}`);
   }
+  createdTenantIds.push(tenantId);
   return { userId: data.user.id, tenantId };
 }
