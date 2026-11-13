@@ -114,6 +114,16 @@ test.describe('signed-out API gaps', () => {
     createdStaffId = hiredBody.staff.id;
     expect(hiredBody.staff.tenant_id).toBe(ACME);
 
+    const foreignBot = await request.post('/api/staff', {
+      headers: ownerHeaders,
+      data: {
+        name: 'Foreign bot',
+        email: `foreign-bot-${Date.now()}@example.test`,
+        chatbot_id: 'e0000000-0000-0000-0000-000000000002',
+      },
+    });
+    expect(foreignBot.status()).toBe(403);
+
     const amended = await request.patch(`/api/appointments/${appointmentId}`, {
       headers: memberHeaders,
       data: { customer_phone: '07700900777' },
@@ -146,6 +156,16 @@ test.describe('signed-out API gaps', () => {
     expect(isBlockedAddress('172.16.0.1')).toBe(true);
     expect(isBlockedAddress('100.64.0.1')).toBe(true);
     expect(isBlockedAddress('fe80::1')).toBe(true);
+    expect(isBlockedAddress('::ffff:7f00:1')).toBe(true);
+    expect(isBlockedAddress('[::1]')).toBe(true);
+    expect(isBlockedAddress('0:0:0:0:0:0:0:1')).toBe(true);
+    expect(isBlockedAddress('64:ff9b::7f00:1')).toBe(true);
+    expect(isBlockedAddress('2002:7f00:1::')).toBe(true);
+    expect(isBlockedAddress('fc00::1')).toBe(true);
+    expect(isBlockedAddress('ff02::1')).toBe(true);
+    expect(isBlockedAddress('2606:4700:4700::1111')).toBe(false);
+    await expect(assertPublicHttpUrl('http://[::ffff:127.0.0.1]/')).rejects.toBeInstanceOf(OutboundUrlError);
+    await expect(assertPublicHttpUrl('http://[::1]/')).rejects.toBeInstanceOf(OutboundUrlError);
     await expect(assertPublicHttpUrl('http://127.0.0.1/latest/meta-data')).rejects.toBeInstanceOf(OutboundUrlError);
     await expect(assertPublicHttpUrl('http://metadata.google.internal/')).rejects.toBeInstanceOf(OutboundUrlError);
     await expect(fetchPublic('http://1.1.1.1/start', {}, 3, async () => new Response(null, {

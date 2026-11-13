@@ -9,6 +9,21 @@ function getSupabaseAdmin() {
   );
 }
 
+async function chatbotInTenant(
+  supabaseAdmin: ReturnType<typeof getSupabaseAdmin>,
+  chatbotId: string | null | undefined,
+  tenantId: string | null,
+): Promise<boolean> {
+  if (!chatbotId) return true;
+  if (!tenantId) return false;
+  const { data } = await supabaseAdmin
+    .from('chatbots')
+    .select('id, tenant_id')
+    .eq('id', chatbotId)
+    .maybeSingle();
+  return Boolean(data) && String(data.tenant_id) === tenantId;
+}
+
 function requestedTenant(raw: string | null | undefined): string | undefined {
   if (!raw || raw === 'undefined') return undefined;
   const trimmed = raw.trim();
@@ -55,6 +70,9 @@ export async function POST(request: Request) {
     }
 
     const supabaseAdmin = getSupabaseAdmin();
+    if (!(await chatbotInTenant(supabaseAdmin, chatbot_id, auth.tenantId))) {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+    }
     const { data, error } = await supabaseAdmin
       .from('staff')
       .insert({
@@ -103,6 +121,10 @@ export async function PUT(request: Request) {
       return NextResponse.json({ error: 'Not found' }, { status: 404 });
     }
     if (!auth.isSuperAdmin && String(existing.tenant_id) !== auth.tenantId) {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+    }
+    const staffTenantId = auth.isSuperAdmin ? String(existing.tenant_id) : auth.tenantId;
+    if (!(await chatbotInTenant(supabaseAdmin, chatbot_id, staffTenantId))) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
 
