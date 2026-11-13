@@ -105,7 +105,7 @@ Optional: enable the Custom Access Token hook `public.custom_access_token_hook` 
 | Core + feature secrets | Secret Manager | Listed below — referenced **by name** in `apphosting.staging.yaml` |
 | Twilio bundle / address SIDs | Plain values | Staging SIDs from Jira STYL-226 comment 10163 (not secrets) |
 | WordPress publish | **Unwired on staging** | Base `apphosting.yaml` binds `STYLEFLO_WP_CREATE_BUSINESS_TOKEN` and `WORDPRESS_SITE_URL` (`https://styleflo.ai`) for production App Hosting. `apphosting.staging.yaml` replaces both with plain values (no Secret Manager ref; site URL `https://wordpress.invalid`). `STYLEFLO_WP_API_SECRET` and `WPMUDEV_WEBHOOK_SECRET` stay absent. Publishing is disabled when `APP_ENV=staging`. |
-| Tenant-created webhook | **Unwired on staging** | Base file binds `TENANT_CREATED_WEBHOOK_SECRET` for production. Staging replaces that variable with a three-space plain value. App Hosting rejects `value: ""` and does not drop a base variable that the environment file omits. The route trims the value and returns 401. Do not reuse a production secret. |
+| Tenant-created webhook | Vault + staging app override | The database trigger reads Supabase Vault (`tenant_created_webhook_url`, `tenant_created_webhook_secret`, `tenant_created_webhook_environment`). It posts only when the environment is exactly `staging` or `production` and the URL is exactly that environment's tenant-created endpoint. Anything else, including a missing secret, does nothing. Base `apphosting.yaml` binds `TENANT_CREATED_WEBHOOK_SECRET` for production. Staging replaces that variable with a three-space plain value (App Hosting rejects `value: ""` and does not drop a base variable the environment file omits). The route trims it and returns 401 until Ops provisions a staging-only bearer that matches the vault secret. Do not reuse a production secret. |
 | `META_APP_SECRET` | **Unwired on staging** | Base file binds it for production WhatsApp onboarding. Staging replaces it with a three-space plain value, so styleflo-staging does not fetch the secret. Token exchange and real Meta webhook signatures do not succeed. |
 | `TOKEN_ENC_KEY` | Staging secret | Already referenced in `apphosting.staging.yaml`. That entry replaces the base binding. It resolves `TOKEN_ENC_KEY` in project **styleflo-staging**, not a `projects/styleflo-ai/...` path. |
 | `NEXT_PUBLIC_META_*` | Public ids, not overridden | `NEXT_PUBLIC_META_APP_ID`, `NEXT_PUBLIC_META_ES_CONFIG_ID`, and `NEXT_PUBLIC_META_GRAPH_VERSION` stay in the base file (STYL-254). They are public client ids, not secrets. The dashboard hardcodes the same app id as a fallback, so a staging override would not keep it out of the bundle. Server-side Meta stays off without `META_APP_SECRET`. |
@@ -288,7 +288,55 @@ Web-call webhook auth: Vapi has no safe server-headers mechanism for a **transie
 
 Do **not** run `secrets:set` / `grantaccess` for `WPMUDEV_WEBHOOK_SECRET`, `STYLEFLO_WP_API_SECRET`, or `STYLEFLO_WP_CREATE_BUSINESS_TOKEN`. Publishing is refused when `APP_ENV=staging` or when the token is missing. The staging override of `STYLEFLO_WP_CREATE_BUSINESS_TOKEN` is three spaces (trims to empty) and `WORDPRESS_SITE_URL` is `https://wordpress.invalid`, not `https://styleflo.ai`. Production still reads `STYLEFLO_WP_CREATE_BUSINESS_TOKEN` (not `STYLEFLO_WP_API_SECRET`) through `getWordpressPublishConfig` from the base file. Ops rotates that live value separately.
 
-`TENANT_CREATED_WEBHOOK_SECRET` is overridden the same way (three spaces). The route trims it and `/api/webhooks/tenant-created` stays 401. Do not replace that override with a `secret:` line until Ops provisions a staging-only value. The in-repo database trigger remains the STYL-202 no-op; a future webhook definition must take the secret from Secret Manager, not from SQL.
+`TENANT_CREATED_WEBHOOK_SECRET` is overridden the same way (three spaces). The route trims it and `/api/webhooks/tenant-created` stays 401. Do not replace that override with a `secret:` line until Ops provisions a staging-only value. Callers that should succeed must send `Authorization: Bearer` with that secret.
+
+STYL-252 restored `trigger_sync_tenant_to_wordpress`. The migration does not store a bearer. On each new tenant it reads Vault. It posts only when `tenant_created_webhook_environment` is exactly `staging` or `production` and `tenant_created_webhook_url` is exactly that environment's endpoint below. Any other URL (userinfo, trailing dot, query string, `http`, a different host), any other environment value, or a missing environment row does nothing. A missing secret does nothing.
+
+Set these in the **staging** Supabase SQL editor (`styleflo-staging` / `lriugykhrfnnouexqqhm` only — never the live project) after choosing a staging-only bearer. Use the same bearer as `TENANT_CREATED_WEBHOOK_SECRET` once that app secret exists. Do not copy the production bearer.
+
+```sql
+select vault.create_secret(
+  'https://staging.styleflo.ai/api/webhooks/tenant-created',
+  'tenant_created_webhook_url',
+  'STYL-252 staging tenant-created URL'
+);
+select vault.create_secret(
+  '<staging-only TENANT_CREATED_WEBHOOK_SECRET>',
+  'tenant_created_webhook_secret',
+  'STYL-252 staging bearer'
+);
+select vault.create_secret(
+  'staging',
+  'tenant_created_webhook_environment',
+  'STYL-252 staging host lock'
+);
+```
+
+Vault names are unique. If a name already exists, update that row with `vault.update_secret(id, new_value, name, description)` instead of inserting a second secret.
+
+Production (only when this migration is promoted, and only in the live SQL editor) needs the same three names: URL exactly `https://app.styleflo.ai/api/webhooks/tenant-created`, the existing production `TENANT_CREATED_WEBHOOK_SECRET`, and environment exactly `production`. Until those vault rows exist, sign-up does not call WordPress. Any other URL or environment value does nothing.
+
+Local checks (this repo does not apply the migration to a hosted project):
+
+```bash
+npx supabase start
+npm run env:local
+npx playwright test tests/styl-252-wp-trigger-superadmin-guard.spec.ts
+```
+
+Staging checks after Ops applies the migration there (SQL editor, not this repo's CLI against live):
+
+```sql
+select has_column_privilege('authenticated', 'public.profiles', 'is_super_admin', 'UPDATE'); -- f
+select has_column_privilege('authenticated', 'public.profiles', 'tenant_id', 'UPDATE');       -- f
+select has_column_privilege('anon', 'public.profiles', 'is_super_admin', 'UPDATE');           -- f
+select has_column_privilege('anon', 'public.profiles', 'tenant_id', 'UPDATE');                 -- f
+-- A normal user's JWT update of is_super_admin or tenant_id must error.
+-- service_role may still update both columns.
+-- After the vault rows above, a test sign-up should show only the staging URL:
+select url from private.tenant_created_webhook_dispatch order by id desc limit 5;
+select url from net.http_request_queue order by id desc limit 5;
+```
 
 #### OpenClaw (optional, still unwired)
 
