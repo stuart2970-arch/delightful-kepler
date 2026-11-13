@@ -55,6 +55,16 @@ export async function PATCH(
     if (!auth.isSuperAdmin && String(existing.tenant_id) !== auth.tenantId) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
+    if (staff_id) {
+      const { data: staff } = await supabaseAdmin
+        .from('staff')
+        .select('id, tenant_id')
+        .eq('id', staff_id)
+        .maybeSingle();
+      if (!staff || String(staff.tenant_id) !== String(existing.tenant_id)) {
+        return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+      }
+    }
 
     const updates: Record<string, any> = {};
     if (start_time) updates.start_time = start_time;

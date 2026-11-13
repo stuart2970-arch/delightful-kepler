@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { requireTenantMember } from '@/lib/auth/require-tenant-role';
-import { consumeTenantOutboundLimit, fetchPublic, OutboundUrlError } from '@/lib/security/safe-outbound';
+import { consumeTenantOutboundLimit, fetchPublic, OUTBOUND_FINAL_URL, OutboundUrlError } from '@/lib/security/safe-outbound';
 
 export async function POST(req: NextRequest) {
   try {
@@ -35,7 +35,7 @@ export async function POST(req: NextRequest) {
         const timeoutId = setTimeout(() => controller.abort(), 5000);
         const res = await fetchPublic(trimmedInput, { method: 'HEAD', signal: controller.signal });
         clearTimeout(timeoutId);
-        finalUrl = res.url || trimmedInput;
+        finalUrl = res.headers.get(OUTBOUND_FINAL_URL) || trimmedInput;
       } catch (e) {
         if (e instanceof OutboundUrlError) {
           return NextResponse.json({ error: e.message }, { status: 400 });

@@ -10,6 +10,8 @@ const BLOCKED_HOSTS = new Set([
   'metadata',
 ]);
 
+export const OUTBOUND_FINAL_URL = 'x-outbound-final-url';
+
 export class OutboundUrlError extends Error {
   constructor(message: string) {
     super(message);
@@ -24,6 +26,8 @@ function ipv4Blocked(parts: number[]): boolean {
   if (a === 172 && b >= 16 && b <= 31) return true;
   if (a === 192 && b === 168) return true;
   if (a === 100 && b >= 64 && b <= 127) return true;
+  if (a >= 224) return true;
+  if (a === 198 && (b === 18 || b === 19)) return true;
   return false;
 }
 
@@ -126,11 +130,17 @@ async function closeAgent(agent: PinnedDispatcher | null): Promise<void> {
   await agent.close();
 }
 
-function releaseAgentWithBody(response: Response, agent: PinnedDispatcher): Response {
+function releaseAgentWithBody(response: Response, finalUrl: string, agent: PinnedDispatcher | null): Response {
+  const headers = new Headers(response.headers);
+  headers.set(OUTBOUND_FINAL_URL, finalUrl);
   const body = response.body;
-  if (!body) {
-    void closeAgent(agent);
-    return response;
+  if (!agent || !body) {
+    if (agent) void closeAgent(agent);
+    return new Response(body, {
+      status: response.status,
+      statusText: response.statusText,
+      headers,
+    });
   }
   const wrapped = new ReadableStream<Uint8Array>({
     async start(controller) {
@@ -156,7 +166,7 @@ function releaseAgentWithBody(response: Response, agent: PinnedDispatcher): Resp
   return new Response(wrapped, {
     status: response.status,
     statusText: response.statusText,
-    headers: response.headers,
+    headers,
   });
 }
 
@@ -224,7 +234,7 @@ export async function fetchPublic(
         ...(agent ? { dispatcher: agent } : {}),
       } as RequestInit);
       if (response.status < 300 || response.status >= 400) {
-        return agent ? releaseAgentWithBody(response, agent) : response;
+        return releaseAgentWithBody(response, checked.toString(), agent);
       }
       const location = response.headers.get('location');
       await response.body?.cancel().catch(() => undefined);

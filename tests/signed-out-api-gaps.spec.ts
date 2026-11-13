@@ -130,6 +130,12 @@ test.describe('signed-out API gaps', () => {
     });
     expect(amended.status()).toBe(200);
     expect((await amended.json()).appointment.customer_phone).toBe('07700900777');
+
+    const foreignStaff = await request.patch(`/api/appointments/${appointmentId}`, {
+      headers: memberHeaders,
+      data: { staff_id: '31111111-1111-1111-1111-111111111111' },
+    });
+    expect(foreignStaff.status()).toBe(403);
   });
 
   test('the test journey is superadmin only', async ({ request }) => {
@@ -164,6 +170,21 @@ test.describe('signed-out API gaps', () => {
     expect(isBlockedAddress('fc00::1')).toBe(true);
     expect(isBlockedAddress('ff02::1')).toBe(true);
     expect(isBlockedAddress('2606:4700:4700::1111')).toBe(false);
+    expect(isBlockedAddress('224.0.0.1')).toBe(true);
+    expect(isBlockedAddress('255.255.255.255')).toBe(true);
+    expect(isBlockedAddress('198.18.0.1')).toBe(true);
+    let hops = 0;
+    const followed = await fetchPublic('http://1.1.1.1/start', {}, 3, async () => {
+      hops += 1;
+      if (hops === 1) {
+        return new Response(null, {
+          status: 302,
+          headers: { location: 'http://1.1.1.1/place/Salon/@51.5,-0.1' },
+        });
+      }
+      return new Response('ok', { status: 200 });
+    });
+    expect(followed.headers.get('x-outbound-final-url')).toBe('http://1.1.1.1/place/Salon/@51.5,-0.1');
     await expect(assertPublicHttpUrl('http://[::ffff:127.0.0.1]/')).rejects.toBeInstanceOf(OutboundUrlError);
     await expect(assertPublicHttpUrl('http://[::1]/')).rejects.toBeInstanceOf(OutboundUrlError);
     await expect(assertPublicHttpUrl('http://127.0.0.1/latest/meta-data')).rejects.toBeInstanceOf(OutboundUrlError);

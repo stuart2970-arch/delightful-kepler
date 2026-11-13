@@ -63,10 +63,14 @@ export async function POST(request: Request) {
     if (!auth.ok) return auth.response;
 
     const body = await request.json();
-    const { chatbot_id, name, role, email, google_calendar_id, working_days, image_url, specialist_product, bio } = body;
+    const { chatbot_id, name, role, email, google_calendar_id, working_days, image_url, specialist_product, bio, tenant_id } = body;
 
     if (!name || !email) {
       return NextResponse.json({ error: 'Missing required fields' }, { status: 400 });
+    }
+    const requested = requestedTenant(typeof tenant_id === 'string' ? tenant_id : undefined);
+    if (requested && requested !== auth.tenantId && !auth.isSuperAdmin) {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
 
     const supabaseAdmin = getSupabaseAdmin();
