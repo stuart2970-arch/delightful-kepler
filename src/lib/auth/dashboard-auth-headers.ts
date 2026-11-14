@@ -34,7 +34,9 @@ const SESSION_WAIT_MS = 5000;
 /**
  * getSession() is empty until the browser client finishes reading storage.
  * Right after login that race sends dashboard GETs with no Bearer token.
- * INITIAL_SESSION fires once storage has been read.
+ * INITIAL_SESSION fires once storage has been read. GoTrue emits that event
+ * for every new subscriber, including a null session, so a logged-out call
+ * returns on the event instead of sitting on the timeout.
  */
 export async function waitForAuthSession(client: DashboardAuthClient): Promise<void> {
   const listen = client.auth.onAuthStateChange;

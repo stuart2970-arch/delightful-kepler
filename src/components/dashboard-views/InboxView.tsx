@@ -108,15 +108,18 @@ export default function InboxView() {
 
     const convoId = selectedConversation;
     let cancelled = false;
-    const controller = new AbortController();
+    let active = new AbortController();
 
     async function fetchMessages() {
+      active.abort();
+      active = new AbortController();
+      const signal = active.signal;
       try {
         const response = await dashboardFetch(
           `/api/messages?conversationId=${encodeURIComponent(convoId)}&tenantId=${encodeURIComponent(tenantId)}`,
-          { signal: controller.signal },
+          { signal },
         );
-        if (cancelled) return;
+        if (cancelled || signal.aborted) return;
         if (!response.ok) {
           throw new Error(`Could not load this conversation (${response.status}).`);
         }
@@ -125,11 +128,11 @@ export default function InboxView() {
         setConversationMessages(sortedMessages);
         setMessagesError(null);
       } catch (err) {
-        if (cancelled || controller.signal.aborted) return;
+        if (cancelled || signal.aborted) return;
         console.error('Failed to fetch messages via API:', err);
         setMessagesError(err instanceof Error ? err.message : 'Could not load this conversation.');
       }
-      if (!cancelled) setIsFetchingMessages(false);
+      if (!cancelled && !signal.aborted) setIsFetchingMessages(false);
     }
 
     setIsFetchingMessages(true);
@@ -138,7 +141,7 @@ export default function InboxView() {
     const messageInterval = setInterval(fetchMessages, 5000);
     return () => {
       cancelled = true;
-      controller.abort();
+      active.abort();
       clearInterval(messageInterval);
     };
   }, [selectedConversation, tenantId, messagesRetry]);

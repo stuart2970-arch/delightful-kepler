@@ -213,6 +213,17 @@ test.describe('STYL-354 fresh dashboard bearer', () => {
 });
 
 test.describe('STYL-354 dashboard callers and chatbot cookie refresh', () => {
+  test('an inbox poll aborts the previous request before the next one starts', () => {
+    const root = path.resolve(__dirname, '..');
+    const inbox = fs.readFileSync(path.join(root, 'src/components/dashboard-views/InboxView.tsx'), 'utf8');
+    const fetchStart = inbox.indexOf('async function fetchMessages');
+    const fetchBody = inbox.slice(fetchStart);
+    expect(fetchStart).toBeGreaterThan(0);
+    expect(fetchBody.indexOf('active.abort()')).toBeGreaterThan(-1);
+    expect(fetchBody.indexOf('active.abort()')).toBeLessThan(fetchBody.indexOf('dashboardFetch'));
+    expect(fetchBody).toContain('signal.aborted');
+  });
+
   test('knowledge, agent, and ingest crawl callers use the shared helper', () => {
     const root = path.resolve(__dirname, '..');
     const knowledge = fs.readFileSync(path.join(root, 'src/components/dashboard-views/KnowledgeBaseView.tsx'), 'utf8');
