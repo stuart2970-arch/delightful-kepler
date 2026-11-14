@@ -256,7 +256,11 @@ export default function InboxView() {
                   return (
                     <button
                       key={conv.id}
-                      onClick={() => setSelectedConversation(conv.id)}
+                      onClick={() => {
+                        setConversationMessages([]);
+                        setMessagesError(null);
+                        setSelectedConversation(conv.id);
+                      }}
                       className={`w-full text-left p-3.5 rounded-xl border text-xs transition-all flex flex-col gap-2 ${
                         selectedConversation === conv.id
                           ? 'bg-blue-50/80 border-indigo-500 text-[var(--awb-color8)] shadow-md ring-1 ring-indigo-500/20'
