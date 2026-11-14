@@ -107,12 +107,16 @@ export default function InboxView() {
     }
 
     const convoId = selectedConversation;
+    let cancelled = false;
+    const controller = new AbortController();
 
     async function fetchMessages() {
       try {
         const response = await dashboardFetch(
           `/api/messages?conversationId=${encodeURIComponent(convoId)}&tenantId=${encodeURIComponent(tenantId)}`,
+          { signal: controller.signal },
         );
+        if (cancelled) return;
         if (!response.ok) {
           throw new Error(`Could not load this conversation (${response.status}).`);
         }
@@ -121,17 +125,22 @@ export default function InboxView() {
         setConversationMessages(sortedMessages);
         setMessagesError(null);
       } catch (err) {
+        if (cancelled || controller.signal.aborted) return;
         console.error('Failed to fetch messages via API:', err);
         setMessagesError(err instanceof Error ? err.message : 'Could not load this conversation.');
       }
-      setIsFetchingMessages(false);
+      if (!cancelled) setIsFetchingMessages(false);
     }
 
     setIsFetchingMessages(true);
     setMessagesError(null);
     fetchMessages();
     const messageInterval = setInterval(fetchMessages, 5000);
-    return () => clearInterval(messageInterval);
+    return () => {
+      cancelled = true;
+      controller.abort();
+      clearInterval(messageInterval);
+    };
   }, [selectedConversation, tenantId, messagesRetry]);
 
   const selectedConvObj = (conversations || []).find(c => c && c.id === selectedConversation);
@@ -300,7 +309,7 @@ export default function InboxView() {
                     </div>
                   )}
 
-                  {messagesError ? (
+                  {messagesError && conversationMessages.length === 0 ? (
                     <div className="h-full flex flex-col items-center justify-center gap-3 text-xs text-gray-600">
                       <p>{messagesError}</p>
                       <button
@@ -313,6 +322,18 @@ export default function InboxView() {
                     </div>
                   ) : conversationMessages.length > 0 ? (
                     <div className="space-y-3 pt-2 border-t border-gray-100">
+                      {messagesError ? (
+                        <div className="flex items-center justify-between gap-2 text-xs text-gray-600">
+                          <p>Couldn't refresh this conversation. The last transcript is still shown.</p>
+                          <button
+                            type="button"
+                            onClick={() => setMessagesRetry((count) => count + 1)}
+                            className="px-3 py-1.5 rounded-lg bg-[#260475] text-white font-semibold shrink-0"
+                          >
+                            Retry
+                          </button>
+                        </div>
+                      ) : null}
                       <h5 className="text-xs font-bold text-gray-700 mb-2">Turn-by-Turn Log</h5>
                       {conversationMessages.map((msg, i) => (
                         <div key={msg.id || i} className={`flex ${msg.sender_type === 'user' ? 'justify-end' : 'justify-start'}`}>

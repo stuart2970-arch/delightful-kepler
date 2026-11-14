@@ -129,6 +129,33 @@ test.describe('STYL-354 fresh dashboard bearer', () => {
     expect(headers['Content-Type']).toBe('application/json');
   });
 
+  test('a synchronous INITIAL_SESSION does not throw before the timer exists', async () => {
+    const token = jwtWithExp(futureExp());
+    let restored = false;
+    const client: DashboardAuthClient = {
+      auth: {
+        async getSession() {
+          return {
+            data: {
+              session: restored ? { access_token: token, expires_at: futureExp() } : null,
+            },
+            error: null,
+          };
+        },
+        async refreshSession() {
+          return { data: { session: null }, error: { message: 'no refresh' } };
+        },
+        onAuthStateChange(callback) {
+          restored = true;
+          callback('INITIAL_SESSION', { access_token: token, expires_at: futureExp() });
+          return { data: { subscription: { unsubscribe() {} } } };
+        },
+      },
+    };
+    const headers = await getDashboardAuthHeaders({}, client);
+    expect(headers.Authorization).toBe(`Bearer ${token}`);
+  });
+
   test('dashboardFetch waits until the browser session is restored before sending the bearer', async () => {
     const token = jwtWithExp(futureExp());
     let restored = false;

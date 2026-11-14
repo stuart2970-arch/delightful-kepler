@@ -47,17 +47,21 @@ export async function waitForAuthSession(client: DashboardAuthClient): Promise<v
   }
   await new Promise<void>((resolve) => {
     let settled = false;
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    let subscription: { unsubscribe: () => void } | undefined;
     const finish = () => {
       if (settled) return;
       settled = true;
-      clearTimeout(timer);
-      subscription.unsubscribe();
+      if (timer !== undefined) clearTimeout(timer);
+      subscription?.unsubscribe();
       resolve();
     };
-    const { data: { subscription } } = listen((event, session) => {
+    const { data } = listen((event, session) => {
       if (session?.access_token || event === 'INITIAL_SESSION') finish();
     });
-    const timer = setTimeout(finish, SESSION_WAIT_MS);
+    subscription = data.subscription;
+    if (settled) subscription?.unsubscribe();
+    else timer = setTimeout(finish, SESSION_WAIT_MS);
   });
 }
 
