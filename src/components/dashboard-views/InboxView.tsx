@@ -324,7 +324,7 @@ export default function InboxView() {
                     <div className="space-y-3 pt-2 border-t border-gray-100">
                       {messagesError ? (
                         <div className="flex items-center justify-between gap-2 text-xs text-gray-600">
-                          <p>Couldn't refresh this conversation. The last transcript is still shown.</p>
+                          <p>Could not refresh this conversation. The last transcript is still shown.</p>
                           <button
                             type="button"
                             onClick={() => setMessagesRetry((count) => count + 1)}
