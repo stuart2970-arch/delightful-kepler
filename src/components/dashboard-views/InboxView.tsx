@@ -1,7 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useDashboardStore, Message } from '../../lib/store';
-import { createBrowserClient } from '@supabase/ssr';
-import { browserAuthHeaders } from '@/lib/auth/client-auth-headers';
+import { dashboardFetch } from '@/lib/auth/dashboard-auth-headers';
 
 export type ChannelFilterOption = 'all' | 'chat' | 'sms' | 'web_voice' | 'instagram' | 'whatsapp';
 
@@ -10,12 +9,10 @@ export default function InboxView() {
   const [selectedConversation, setSelectedConversation] = useState<string | null>(null);
   const [conversationMessages, setConversationMessages] = useState<Message[]>([]);
   const [isFetchingMessages, setIsFetchingMessages] = useState(false);
+  const [messagesError, setMessagesError] = useState<string | null>(null);
+  const [messagesRetry, setMessagesRetry] = useState(0);
   const [convPage, setConvPage] = useState(0);
   const [channelFilter, setChannelFilter] = useState<ChannelFilterOption>('all');
-
-  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
-  const supabase = supabaseUrl && supabaseAnonKey ? createBrowserClient(supabaseUrl, supabaseAnonKey) : null;
 
   // Helper to categorize conversation channel
   const getConversationChannel = (conv: any): ChannelFilterOption => {
@@ -85,9 +82,7 @@ export default function InboxView() {
 
     const syncConvs = async () => {
       try {
-        const res = await fetch(`/api/conversations?tenantId=${encodeURIComponent(tenantId)}`, {
-          headers: await browserAuthHeaders(),
-        });
+        const res = await dashboardFetch(`/api/conversations?tenantId=${encodeURIComponent(tenantId)}`);
         if (res.ok) {
           const data = await res.json();
           if (data.conversations && Array.isArray(data.conversations)) {
@@ -115,45 +110,29 @@ export default function InboxView() {
 
     async function fetchMessages() {
       try {
-        const response = await fetch(
+        const response = await dashboardFetch(
           `/api/messages?conversationId=${encodeURIComponent(convoId)}&tenantId=${encodeURIComponent(tenantId)}`,
-          { headers: await browserAuthHeaders() },
         );
-        if (response.ok) {
-          const resData = await response.json();
-          const sortedMessages = (resData.messages || []).sort((a: any, b: any) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime());
-          setConversationMessages(sortedMessages);
-        } else {
-          throw new Error(response.statusText);
+        if (!response.ok) {
+          throw new Error(`Could not load this conversation (${response.status}).`);
         }
+        const resData = await response.json();
+        const sortedMessages = (resData.messages || []).sort((a: any, b: any) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime());
+        setConversationMessages(sortedMessages);
+        setMessagesError(null);
       } catch (err) {
         console.error('Failed to fetch messages via API:', err);
-        if (supabase) {
-          try {
-            const { data } = await supabase
-              .from('messages')
-              .select('*')
-              .eq('conversation_id', convoId)
-              .eq('tenant_id', tenantId)
-              .order('created_at', { ascending: true });
-
-            if (data) {
-              const sortedMessages = data.sort((a: any, b: any) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime());
-              setConversationMessages(sortedMessages);
-            }
-          } catch (clientErr) {
-            console.error('Client-side messages fetch failed:', clientErr);
-          }
-        }
+        setMessagesError(err instanceof Error ? err.message : 'Could not load this conversation.');
       }
       setIsFetchingMessages(false);
     }
 
     setIsFetchingMessages(true);
+    setMessagesError(null);
     fetchMessages();
     const messageInterval = setInterval(fetchMessages, 5000);
     return () => clearInterval(messageInterval);
-  }, [selectedConversation, supabase, tenantId]);
+  }, [selectedConversation, tenantId, messagesRetry]);
 
   const selectedConvObj = (conversations || []).find(c => c && c.id === selectedConversation);
 
@@ -214,9 +193,7 @@ export default function InboxView() {
                     onClick={async () => {
                       if (!tenantId) return;
                       try {
-                        const res = await fetch(`/api/conversations?tenantId=${encodeURIComponent(tenantId)}`, {
-                          headers: await browserAuthHeaders(),
-                        });
+                        const res = await dashboardFetch(`/api/conversations?tenantId=${encodeURIComponent(tenantId)}`);
                         if (res.ok) {
                           const data = await res.json();
                           if (data.conversations && Array.isArray(data.conversations)) {
@@ -323,8 +300,18 @@ export default function InboxView() {
                     </div>
                   )}
 
-                  {/* Turn-by-Turn Chat / Voice Messages */}
-                  {conversationMessages.length > 0 ? (
+                  {messagesError ? (
+                    <div className="h-full flex flex-col items-center justify-center gap-3 text-xs text-gray-600">
+                      <p>{messagesError}</p>
+                      <button
+                        type="button"
+                        onClick={() => setMessagesRetry((count) => count + 1)}
+                        className="px-3 py-1.5 rounded-lg bg-[#260475] text-white font-semibold"
+                      >
+                        Retry
+                      </button>
+                    </div>
+                  ) : conversationMessages.length > 0 ? (
                     <div className="space-y-3 pt-2 border-t border-gray-100">
                       <h5 className="text-xs font-bold text-gray-700 mb-2">Turn-by-Turn Log</h5>
                       {conversationMessages.map((msg, i) => (

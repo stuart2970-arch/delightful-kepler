@@ -129,6 +129,35 @@ test.describe('STYL-354 fresh dashboard bearer', () => {
     expect(headers['Content-Type']).toBe('application/json');
   });
 
+  test('dashboardFetch waits until the browser session is restored before sending the bearer', async () => {
+    const token = jwtWithExp(futureExp());
+    let restored = false;
+    const client: DashboardAuthClient = {
+      auth: {
+        async getSession() {
+          return {
+            data: {
+              session: restored ? { access_token: token, expires_at: futureExp() } : null,
+            },
+            error: null,
+          };
+        },
+        async refreshSession() {
+          return { data: { session: null }, error: { message: 'no refresh' } };
+        },
+        onAuthStateChange(callback) {
+          setTimeout(() => {
+            restored = true;
+            callback('INITIAL_SESSION', { access_token: token, expires_at: futureExp() });
+          }, 30);
+          return { data: { subscription: { unsubscribe() {} } } };
+        },
+      },
+    };
+    const headers = await getDashboardAuthHeaders({}, client);
+    expect(headers.Authorization).toBe(`Bearer ${token}`);
+  });
+
   test('dashboardFetch sends that bearer on the knowledge text request', async () => {
     const fresh = jwtWithExp(futureExp());
     const { client } = authClient({

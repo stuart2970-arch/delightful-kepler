@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
+import { dashboardFetch } from '@/lib/auth/dashboard-auth-headers';
 
 type FloBotConfig = {
   name?: string;
@@ -58,7 +59,7 @@ export default function FloBotProfileSettingsView({
     async function loadPersonas() {
       setIsLoadingPersonas(true);
       try {
-        const res = await fetch('/api/voice-personas');
+        const res = await dashboardFetch('/api/voice-personas');
         if (res.ok) {
           const data = await res.json();
           const list = Array.isArray(data) ? data : (data?.personas || data?.data || []);

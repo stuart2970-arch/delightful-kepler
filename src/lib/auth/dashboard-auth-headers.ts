@@ -23,7 +23,42 @@ export interface DashboardAuthClient {
       data: { session: DashboardAccessSession | null };
       error: { message?: string } | null;
     }>;
+    onAuthStateChange?: (
+      callback: (event: string, session: DashboardAccessSession | null) => void,
+    ) => { data: { subscription: { unsubscribe: () => void } } };
   };
+}
+
+const SESSION_WAIT_MS = 5000;
+
+/**
+ * getSession() is empty until the browser client finishes reading storage.
+ * Right after login that race sends dashboard GETs with no Bearer token.
+ * INITIAL_SESSION fires once storage has been read.
+ */
+export async function waitForAuthSession(client: DashboardAuthClient): Promise<void> {
+  const listen = client.auth.onAuthStateChange;
+  if (!listen) return;
+  try {
+    const first = await client.auth.getSession();
+    if (first.data?.session?.access_token) return;
+  } catch {
+    // The initial event below is the source of truth.
+  }
+  await new Promise<void>((resolve) => {
+    let settled = false;
+    const finish = () => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timer);
+      subscription.unsubscribe();
+      resolve();
+    };
+    const { data: { subscription } } = listen((event, session) => {
+      if (session?.access_token || event === 'INITIAL_SESSION') finish();
+    });
+    const timer = setTimeout(finish, SESSION_WAIT_MS);
+  });
 }
 
 export function readJwtExp(accessToken: string): number | null {
@@ -112,6 +147,7 @@ export async function getDashboardAuthHeaders(
   const auth = resolveDashboardAuthClient(client);
   if (!auth) return headers;
   try {
+    await waitForAuthSession(auth);
     const token = await getFreshAccessToken(auth);
     if (token) headers.Authorization = `Bearer ${token}`;
   } catch (err) {
