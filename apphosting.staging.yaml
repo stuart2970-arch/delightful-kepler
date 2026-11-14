@@ -53,6 +53,19 @@ env:
       - BUILD
       - RUNTIME
 
+  # STYL-361: Cloudflare's always-pass sitekey (public). embed.js inlines this
+  # into /turnstile.html at BUILD. The shared apphosting.yaml value stays as
+  # it is: production App Hosting (styleflo-ai / delightful-kepler-1, no
+  # environment name) reads that file and does not merge this one. This entry
+  # replaces the variable only when the backend Environment name is staging.
+  # Do not set this to the Turnstile secret, and do not change
+  # CLOUDFLARE_TURNSTILE_SECRET_KEY.
+  - variable: NEXT_PUBLIC_TURNSTILE_SITE_KEY
+    value: "1x00000000000000000000AA"
+    availability:
+      - BUILD
+      - RUNTIME
+
   # ---------------------------------------------------------------------------
   # Core secrets (Secret Manager) — BUILD where NEXT_PUBLIC_* need inlining
   # ---------------------------------------------------------------------------

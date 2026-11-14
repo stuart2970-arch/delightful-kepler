@@ -104,6 +104,12 @@ This runbook documents the key fixes and architecture enhancements implemented d
 
 ### Session Chat History Log
 
+### Session (STYL-361 follow-up - staging Turnstile site key - 14 Nov 2026)
+* **User / Jira**: STYL-361 follow-up — staging App Hosting (`delightful-kepler` on `styleflo-staging`) had `NEXT_PUBLIC_TURNSTILE_SITE_KEY` set to Cloudflare's always-pass test secret. `embed.js` inlines that value into `/turnstile.html`, so the embedded widget errors and the client throws "Security verification failed" before `public-init`. The dashboard test area still works because `turnstile-client` short-circuits any `1x` key.
+* **Config**: The staging backend merges `apphosting.staging.yaml` over `apphosting.yaml` when its Environment name is `staging`. Production App Hosting (`styleflo-ai` / `delightful-kepler-1`, no environment name) reads only `apphosting.yaml`. Production Cloud Run takes the site key from `.github/workflows/deploy.yml`.
+* **Fix**: Staging-only override in `apphosting.staging.yaml` sets `NEXT_PUBLIC_TURNSTILE_SITE_KEY` to Cloudflare's always-pass sitekey `1x00000000000000000000AA` at BUILD and RUNTIME. The shared `apphosting.yaml` value, `CLOUDFLARE_TURNSTILE_SECRET_KEY`, and the deploy workflow are unchanged.
+* **Test**: `tests/styl-361-staging-turnstile-sitekey.spec.ts` fails while the staging override is missing and passes after the fix.
+
 ### Session (STYL-203 follow-up - apphosting.yaml schema / empty values - 25 Oct 2026)
 * **User / Jira**: STYL-203 — PR #12 merged (`85daa48`) but rollout build `4c860af7` failed before building: `apphosting.yaml is not formatted properly`.
 * **Cause**: Empty-string env values (`value: ""` for unused analytics pixel IDs) — App Hosting rejects them.
