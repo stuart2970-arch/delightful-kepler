@@ -60,7 +60,9 @@ export async function waitForAuthSession(client: DashboardAuthClient): Promise<v
       state.unsubscribe?.();
       resolve();
     };
-    const { data } = listen((event, session) => {
+    // Keep `this` as client.auth. A bare listen() call leaves it unset, and
+    // GoTrueClient.onAuthStateChange then throws before the bearer is attached.
+    const { data } = listen.call(client.auth, (event, session) => {
       if (session?.access_token || event === 'INITIAL_SESSION') finish();
     });
     state.unsubscribe = () => data.subscription.unsubscribe();
