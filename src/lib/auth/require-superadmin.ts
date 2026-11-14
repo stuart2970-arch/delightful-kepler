@@ -31,31 +31,34 @@ export async function requireUser(req: NextRequest | Request): Promise<SuperAdmi
       };
     }
 
-    const cookieStore = await cookies();
-    const authClient = createServerClient(supabaseUrl, anonKey, {
-      cookies: {
-        getAll() { return cookieStore.getAll(); },
-        setAll() {}
-      }
-    });
-
-    // 1. Try to get user from cookie session
+    // Cookie and Bearer are independent. A cookie failure must not skip the header.
     let user: any = null;
-    const { data: userData, error: userError } = await authClient.auth.getUser();
-    if (!userError && userData?.user) {
-      user = userData.user;
+    try {
+      const cookieStore = await cookies();
+      const authClient = createServerClient(supabaseUrl, anonKey, {
+        cookies: {
+          getAll() { return cookieStore.getAll(); },
+          setAll() {}
+        }
+      });
+      const { data: userData, error: userError } = await authClient.auth.getUser();
+      if (!userError && userData?.user) {
+        user = userData.user;
+      }
+    } catch {
+      user = null;
     }
 
-    // 2. Fall back to Authorization: Bearer <jwt> if no cookie session
     if (!user) {
       const authHeader = req.headers.get('authorization') || req.headers.get('Authorization');
-      if (authHeader && authHeader.startsWith('Bearer ')) {
-        const token = authHeader.substring(7).trim();
-        if (token) {
-          const { data: jwtData, error: jwtError } = await authClient.auth.getUser(token);
-          if (!jwtError && jwtData?.user) {
-            user = jwtData.user;
-          }
+      const token = authHeader?.startsWith('Bearer ') ? authHeader.slice(7).trim() : '';
+      if (token) {
+        const bearerClient = createClient(supabaseUrl, anonKey, {
+          auth: { persistSession: false, autoRefreshToken: false },
+        });
+        const { data: jwtData, error: jwtError } = await bearerClient.auth.getUser(token);
+        if (!jwtError && jwtData?.user) {
+          user = jwtData.user;
         }
       }
     }
