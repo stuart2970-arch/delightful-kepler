@@ -45,14 +45,14 @@ lint_files=$(grep -E '\.(ts|tsx|js|jsx|mjs|cjs)$' "$files" | grep -v '^public/' 
 if [ -n "$lint_files" ]; then
   echo "Pre-push lint:"
   printf '%s\n' "$lint_files"
-  # shellcheck disable=SC2086
-  # Report issues but do not fail the push: npm run lint currently reports
-  # 1000+ pre-existing errors, including in files a small change has to touch.
-  NODE_OPTIONS="${NODE_OPTIONS:---max-old-space-size=8192}" npx eslint --no-error-on-unmatched-pattern $lint_files || echo "ESLint reported issues in the changed files. Typecheck and the related specs still have to pass."
+  # Newline-delimited xargs so App Router paths such as [id] and (dashboard)
+  # are not expanded as globs, and spaces stay inside one argument.
+  # ESLint does not fail the push: npm run lint currently reports 1000+
+  # pre-existing errors, including in files a small change has to touch.
+  printf '%s\n' "$lint_files" | NODE_OPTIONS="${NODE_OPTIONS:---max-old-space-size=8192}" xargs -d '\n' npx eslint --no-error-on-unmatched-pattern || echo "ESLint reported issues in the changed files. Typecheck and the related specs still have to pass."
 else
   echo "No changed source files to lint."
 fi
 
 NODE_OPTIONS="${NODE_OPTIONS:---max-old-space-size=8192}" npm run typecheck
-# shellcheck disable=SC2086
-NODE_OPTIONS="${NODE_OPTIONS:---max-old-space-size=3072}" npm run test:e2e -- $specs
+printf '%s\n' "$specs" | NODE_OPTIONS="${NODE_OPTIONS:---max-old-space-size=3072}" xargs -d '\n' npm run test:e2e --

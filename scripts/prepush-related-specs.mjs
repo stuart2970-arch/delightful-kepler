@@ -10,6 +10,10 @@ import { fileURLToPath } from 'node:url';
 
 const root = process.cwd();
 
+// page, route, and layout are generic on purpose. A change to
+// src/app/dashboard/page.tsx or src/app/api/foo/route.ts falls back to the
+// smoke specs. Matching the parent directory would treat "dashboard" as a
+// needle and select most of the suite.
 const GENERIC_STEMS = new Set([
   'index',
   'page',
