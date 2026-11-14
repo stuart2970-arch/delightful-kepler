@@ -1,6 +1,7 @@
 // @ts-nocheck
 import React, { useState, useEffect } from 'react';
 import { useDashboardStore } from '../../lib/store';
+import { dashboardFetch } from '../../lib/auth/dashboard-auth-headers';
 
 export default function KnowledgeBaseView() {
   const { chatbots, setChatbots, setMetrics, billingData } = useDashboardStore();
@@ -55,7 +56,7 @@ export default function KnowledgeBaseView() {
     setIsLoadingUrls(true);
     setUrlsError(null);
     try {
-      const res = await fetch(`/api/ingest/urls?chatbotId=${encodeURIComponent(botId)}`);
+      const res = await dashboardFetch(`/api/ingest/urls?chatbotId=${encodeURIComponent(botId)}`);
       if (res.ok) {
         const data = await res.json();
         setIngestedUrls(data.urls || []);
@@ -162,7 +163,7 @@ export default function KnowledgeBaseView() {
         chatbot_rules: finalRules
       };
 
-      const res = await fetch(`/api/chatbots/${crawlBotId}`, {
+      const res = await dashboardFetch(`/api/chatbots/${crawlBotId}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ configuration_json: newConfig })
@@ -204,7 +205,7 @@ export default function KnowledgeBaseView() {
       const bot = chatbots.find(b => b.id === crawlBotId);
       const newConfig = { ...(bot?.configuration_json as any || {}), crawl_schedule: schedule };
       
-      const res = await fetch(`/api/chatbots/${crawlBotId}`, {
+      const res = await dashboardFetch(`/api/chatbots/${crawlBotId}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ configuration_json: newConfig })
@@ -228,7 +229,7 @@ export default function KnowledgeBaseView() {
 
     setIsDeletingAll(true);
     try {
-      const res = await fetch(`/api/ingest/urls?chatbotId=${encodeURIComponent(crawlBotId)}&all=true`, {
+      const res = await dashboardFetch(`/api/ingest/urls?chatbotId=${encodeURIComponent(crawlBotId)}&all=true`, {
         method: 'DELETE',
       });
       const data = await res.json().catch(() => ({}));
@@ -256,7 +257,7 @@ export default function KnowledgeBaseView() {
     if (!crawlBotId || !confirm(`Are you sure you want to delete all knowledge items for ${url}?`)) return;
     
     try {
-      const res = await fetch(`/api/ingest/urls?chatbotId=${encodeURIComponent(crawlBotId)}&sourceUrl=${encodeURIComponent(url)}`, {
+      const res = await dashboardFetch(`/api/ingest/urls?chatbotId=${encodeURIComponent(crawlBotId)}&sourceUrl=${encodeURIComponent(url)}`, {
         method: 'DELETE'
       });
       const data = await res.json().catch(() => ({}));
@@ -292,7 +293,7 @@ export default function KnowledgeBaseView() {
     setSelectedSitemapUrls(new Set());
 
     try {
-      const response = await fetch('/api/sitemap/discover', {
+      const response = await dashboardFetch('/api/sitemap/discover', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ websiteUrl: crawlUrl.trim() }),
@@ -365,7 +366,7 @@ export default function KnowledgeBaseView() {
     // Shopify Preflight Check
     if (urls.length === 1 && !urls[0].includes('.html') && !urls[0].includes('.xml')) {
       try {
-        const analyzeRes = await fetch('/api/ingest/shopify/analyze', {
+        const analyzeRes = await dashboardFetch('/api/ingest/shopify/analyze', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ storeUrl: urls[0], chatbotId: crawlBotId })
@@ -387,7 +388,7 @@ export default function KnowledgeBaseView() {
     let previewCovered = 0;
     for (let i = 0; i < urls.length; i++) {
       try {
-        const previewRes = await fetch('/api/ingest/crawl', {
+        const previewRes = await dashboardFetch('/api/ingest/crawl', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
@@ -412,7 +413,7 @@ export default function KnowledgeBaseView() {
       setCrawlLogs((prev) => [...prev, `[System] [${i+1}/${urls.length}] Crawling ${currentUrl}...`]);
 
       try {
-        const response = await fetch('/api/ingest/crawl', {
+        const response = await dashboardFetch('/api/ingest/crawl', {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
@@ -478,7 +479,7 @@ export default function KnowledgeBaseView() {
     setCrawlLogs([`[System] Initializing text ingestion...`]);
 
     try {
-      const response = await fetch('/api/ingest/text', {
+      const response = await dashboardFetch('/api/ingest/text', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -525,7 +526,7 @@ export default function KnowledgeBaseView() {
       formData.append('file', selectedFile);
       formData.append('chatbotId', crawlBotId);
 
-      const response = await fetch('/api/ingest/file', {
+      const response = await dashboardFetch('/api/ingest/file', {
         method: 'POST',
         body: formData,
       });
@@ -556,49 +557,69 @@ export default function KnowledgeBaseView() {
     setIsCrawling(false);
   };
 
-  const handleExecuteShopify = () => {
+  const applyShopifyEvent = (data) => {
+    if (data.type === 'status') {
+      setCrawlLogs(prev => [...prev, `[Status] ${data.message}`]);
+    } else if (data.type === 'progress') {
+      setCrawlLogs(prev => [...prev, `[Progress] ${data.message} (${data.current}/${data.total})`]);
+    } else if (data.type === 'warning') {
+      setCrawlLogs(prev => [...prev, `[Warning] ${data.message}`]);
+    } else if (data.type === 'complete') {
+      setCrawlLogs(prev => [...prev, `[Success] ${data.message}`]);
+      setCrawlResult({ success: true, message: data.message });
+      loadIngestedUrls(crawlBotId);
+    } else if (data.type === 'error') {
+      setCrawlLogs(prev => [...prev, `[Error] ${data.message}`]);
+      setCrawlResult({ success: false, message: data.message });
+    }
+  };
+
+  const handleExecuteShopify = async () => {
     if (!shopifyAnalysis) return;
-    
+
     setIsShopifyPreflight(false);
     setIsShopifyExecuting(true);
     setCrawlLogs([`[System] Initializing Shopify Ingestion Engine for ${shopifyAnalysis.storeUrl}...`]);
     setCrawlResult(null);
 
     const sseUrl = `/api/ingest/shopify/execute?storeUrl=${encodeURIComponent(shopifyAnalysis.storeUrl)}&chatbotId=${encodeURIComponent(crawlBotId)}`;
-    const eventSource = new EventSource(sseUrl);
 
-    eventSource.onmessage = (event) => {
-      try {
-        const data = JSON.parse(event.data);
-        if (data.type === 'status') {
-          setCrawlLogs(prev => [...prev, `[Status] ${data.message}`]);
-        } else if (data.type === 'progress') {
-          setCrawlLogs(prev => [...prev, `[Progress] ${data.message} (${data.current}/${data.total})`]);
-        } else if (data.type === 'warning') {
-          setCrawlLogs(prev => [...prev, `[Warning] ${data.message}`]);
-        } else if (data.type === 'complete') {
-          setCrawlLogs(prev => [...prev, `[Success] ${data.message}`]);
-          setCrawlResult({ success: true, message: data.message });
-          setIsShopifyExecuting(false);
-          loadIngestedUrls(crawlBotId);
-          eventSource.close();
-        } else if (data.type === 'error') {
-          setCrawlLogs(prev => [...prev, `[Error] ${data.message}`]);
-          setCrawlResult({ success: false, message: data.message });
-          setIsShopifyExecuting(false);
-          eventSource.close();
-        }
-      } catch (e) {
-        // ignore JSON parse error
+    try {
+      // EventSource cannot set Authorization. fetch carries the fresh Bearer
+      // token; the route still speaks server-sent events.
+      const response = await dashboardFetch(sseUrl);
+      if (!response.ok || !response.body) {
+        const message = `Shopify ingestion failed (${response.status})`;
+        setCrawlLogs(prev => [...prev, `[Error] ${message}`]);
+        setCrawlResult({ success: false, message });
+        return;
       }
-    };
 
-    eventSource.onerror = (err) => {
-      console.error("SSE Error:", err);
+      const reader = response.body.getReader();
+      const decoder = new TextDecoder();
+      let buffer = '';
+      while (true) {
+        const { value, done } = await reader.read();
+        if (done) break;
+        buffer += decoder.decode(value, { stream: true });
+        const parts = buffer.split('\n\n');
+        buffer = parts.pop() ?? '';
+        for (const part of parts) {
+          const dataLine = part.split('\n').find((line) => line.startsWith('data:'));
+          if (!dataLine) continue;
+          try {
+            applyShopifyEvent(JSON.parse(dataLine.slice(5).trim()));
+          } catch (e) {
+            // ignore JSON parse error
+          }
+        }
+      }
+    } catch (err) {
+      console.error('SSE Error:', err);
       setCrawlLogs(prev => [...prev, `[System] Connection lost or closed unexpectedly.`]);
+    } finally {
       setIsShopifyExecuting(false);
-      eventSource.close();
-    };
+    }
   };
 
   return (

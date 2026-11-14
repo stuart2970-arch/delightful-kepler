@@ -20,6 +20,7 @@ import {
   QualifiedStaff,
   ServiceConfig,
 } from '@/lib/calendar/availability';
+import { normaliseOpeningHours, staffHoursOverrideAccepted } from '@/lib/opening-hours';
 
 // Helper to lazily initialize Supabase Admin
 function getSupabaseAdmin() {
@@ -68,6 +69,10 @@ export interface AvailabilityFixture {
   staffServices?: Array<{ staff_id: string; custom_duration?: number | null }> | null;
   maxWeeks?: number;
   bookingUrl?: string | null;
+  /** Omit to leave slot generation on staff hours only (existing callers). */
+  openingHours?: unknown;
+  staffHoursOverrideAccepted?: boolean;
+  is24_7?: boolean;
 }
 
 export interface AvailabilityDeps {
@@ -86,6 +91,32 @@ export interface AvailabilityResult {
   quickDaysTag: string;
   quickTimesTag?: string;
   timeSlotsTag: string;
+}
+
+function isUuid(value: string): boolean {
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(value.trim());
+}
+
+function withTimeout<T>(promise: Promise<T>, ms: number, timeoutMessage: string): Promise<T> {
+  return new Promise<T>((resolve, reject) => {
+    const timer = setTimeout(() => reject(new Error(timeoutMessage)), ms);
+    promise.then(
+      (value) => {
+        clearTimeout(timer);
+        resolve(value);
+      },
+      (error) => {
+        clearTimeout(timer);
+        reject(error);
+      },
+    );
+  });
+}
+
+export function bookingResultKind(result: string): 'booked' | 'taken' | 'failed' {
+  if (result.startsWith('Successfully booked')) return 'booked';
+  if (/no longer available/i.test(result)) return 'taken';
+  return 'failed';
 }
 
 function unavailable(text: string, outcome: AvailabilityOutcome): AvailabilityResult {
@@ -158,18 +189,27 @@ export async function getAvailabilityData(
 
     // 1. Enforce max advance booking window limit
     let maxWeeks = 12;
+    let openingHoursRaw: unknown = undefined;
+    let hoursOverrideAccepted = false;
+    let is24_7 = false;
     if (deps?.fixture) {
       maxWeeks = deps.fixture.maxWeeks || 12;
       bookingUrl = deps.fixture.bookingUrl ?? null;
+      if (deps.fixture.openingHours !== undefined) openingHoursRaw = deps.fixture.openingHours;
+      hoursOverrideAccepted = deps.fixture.staffHoursOverrideAccepted === true;
+      is24_7 = deps.fixture.is24_7 === true;
     } else {
       const { data: tenantData } = await getSupabaseAdmin()
         .from('tenants')
-        .select('max_advance_weeks, booking_url')
+        .select('max_advance_weeks, booking_url, general_operating_hours, holiday_settings, is_24_7')
         .eq('id', tenantId)
         .maybeSingle();
 
       maxWeeks = tenantData?.max_advance_weeks || 12;
       bookingUrl = tenantData?.booking_url ?? null;
+      openingHoursRaw = tenantData?.general_operating_hours ?? null;
+      hoursOverrideAccepted = staffHoursOverrideAccepted(tenantData?.holiday_settings);
+      is24_7 = tenantData?.is_24_7 === true;
     }
     const now = deps?.now ?? new Date();
     const maxAdvanceDate = new Date(now.getTime() + maxWeeks * 7 * 24 * 60 * 60 * 1000);
@@ -263,7 +303,25 @@ export async function getAvailabilityData(
     const reachableStaff = targetStaffList.filter((member) => succeededIds.has(member.id));
     const busyMap = new Map<string, BusyInterval[]>();
     for (const hit of calendarQuery.succeeded) {
-      busyMap.set(hit.staff.id, hit.busy);
+      busyMap.set(hit.staff.id, [...hit.busy]);
+    }
+
+    // Internal appointments are not on the external calendar until the event
+    // exists. Without this, a refused slot is offered again.
+    if (!deps?.fixture && succeededIds.size > 0) {
+      const { data: existingAppointments } = await getSupabaseAdmin()
+        .from('appointments')
+        .select('staff_id, start_time, end_time')
+        .eq('tenant_id', tenantId)
+        .in('staff_id', [...succeededIds])
+        .lt('start_time', end.toISOString())
+        .gt('end_time', start.toISOString());
+      for (const appt of existingAppointments || []) {
+        if (!appt.staff_id || !appt.start_time || !appt.end_time) continue;
+        const list = busyMap.get(appt.staff_id) || [];
+        list.push({ start: new Date(appt.start_time), end: new Date(appt.end_time) });
+        busyMap.set(appt.staff_id, list);
+      }
     }
 
     const failedRequested = isSpecificStaffRequested
@@ -294,6 +352,11 @@ export async function getAvailabilityData(
       maxAdvanceWeeks: maxWeeks,
       nowUtc: now,
       timeZone: timezone,
+      ...(openingHoursRaw !== undefined && openingHoursRaw !== null
+        ? { openingHours: normaliseOpeningHours(openingHoursRaw) }
+        : {}),
+      staffHoursOverrideAccepted: hoursOverrideAccepted,
+      is24_7,
     });
 
     if (slots.length === 0) {
@@ -412,27 +475,59 @@ export async function bookMeeting(
       return 'Error: Invalid appointment start time.';
     }
 
-    // Fetch Staff Details
-    const { data: staff, error: staffError } = await getSupabaseAdmin()
-      .from('staff')
-      .select('*')
-      .eq('id', staffId)
-      .eq('tenant_id', tenantId)
-      .maybeSingle();
+    // Fetch Staff Details. Quick-links pass a staff id. A model tool call may pass the colleague's name.
+    const admin = getSupabaseAdmin();
+    let staff: { id: string; name?: string; email?: string; calendar_provider?: string; google_calendar_id?: string; microsoft_calendar_id?: string } | null = null;
+    let staffError: { message: string } | null = null;
+    if (isUuid(staffId)) {
+      const byId = await admin
+        .from('staff')
+        .select('*')
+        .eq('id', staffId)
+        .eq('tenant_id', tenantId)
+        .maybeSingle();
+      staff = byId.data;
+      staffError = byId.error;
+    }
+    if (!staff && !staffError) {
+      const { data: staffByName } = await admin
+        .from('staff')
+        .select('*')
+        .eq('tenant_id', tenantId)
+        .ilike('name', staffId.trim())
+        .limit(2);
+      if (staffByName && staffByName.length === 1) staff = staffByName[0];
+    }
 
     if (staffError || !staff) {
       return 'Error: Staff member not found.';
     }
 
-    // Fetch Service details
-    const { data: service } = await getSupabaseAdmin()
-      .from('services')
-      .select('name, duration_minutes')
-      .eq('id', serviceId)
-      .maybeSingle();
-
+    // Fetch Service details. Id first, then a unique service name.
+    const serviceSelect = 'id, name, duration_minutes, buffer_minutes';
+    let service: { id: string; name: string; duration_minutes: number | null; buffer_minutes?: number | null } | null = null;
+    if (isUuid(serviceId)) {
+      const byId = await admin
+        .from('services')
+        .select(serviceSelect)
+        .eq('id', serviceId)
+        .eq('tenant_id', tenantId)
+        .maybeSingle();
+      service = byId.data;
+    }
+    if (!service) {
+      const byName = await admin
+        .from('services')
+        .select(serviceSelect)
+        .eq('tenant_id', tenantId)
+        .ilike('name', serviceId.trim())
+        .limit(2);
+      if (byName.data && byName.data.length === 1) service = byName.data[0];
+    }
     const serviceName = service ? service.name : 'Appointment';
     const durationMins = service?.duration_minutes || 30;
+    const resolvedStaffId = staff.id as string;
+    const resolvedServiceId = service?.id ?? null;
 
     if (isNaN(endUtc.getTime()) || endUtc <= startUtc) {
       endUtc = new Date(startUtc.getTime() + durationMins * 60 * 1000);
@@ -443,7 +538,7 @@ export async function bookMeeting(
       .from('appointments')
       .select('id, google_event_id, start_time')
       .eq('tenant_id', tenantId)
-      .eq('staff_id', staffId)
+      .eq('staff_id', resolvedStaffId)
       .eq('customer_email', customerEmail.trim().toLowerCase())
       .gte('start_time', new Date(startUtc.getTime() - 1000).toISOString())
       .lte('start_time', new Date(startUtc.getTime() + 1000).toISOString())
@@ -460,7 +555,7 @@ export async function bookMeeting(
       .from('appointments')
       .select('id')
       .eq('tenant_id', tenantId)
-      .eq('staff_id', staffId)
+      .eq('staff_id', resolvedStaffId)
       .neq('customer_email', customerEmail.trim().toLowerCase())
       .lt('start_time', endUtc.toISOString())
       .gt('end_time', startUtc.toISOString())
@@ -494,33 +589,44 @@ export async function bookMeeting(
       console.warn(`[Calendar] Free/busy verification warning:`, busyErr?.message);
     }
 
-    // 3. Create event in connected Google or Microsoft Calendar
-    const eventResult = await createEvent(tenantId, staffTarget, {
-      tenantId,
-      summary: `[StyleFlo] ${serviceName} - ${customerName}`,
-      description: `Customer Name: ${customerName}\nEmail: ${customerEmail}\nPhone: ${customerPhone}\nService: ${serviceName}\nStaff: ${staff.name}\n\nBooked via StyleFlo AI`,
-      startTime: startUtc.toISOString(),
-      endTime: endUtc.toISOString(),
-      attendeeEmail: customerEmail,
-      attendeeName: customerName,
-      attendeePhone: customerPhone,
-      calendarId: staff.google_calendar_id || staff.microsoft_calendar_id,
-    });
+    // 3. Create event in connected Google or Microsoft Calendar.
+    // A write failure must not be reported as "slot taken": the free/busy
+    // re-check above already passed, so the rota row is still saved.
+    let eventResult: { id: string; provider?: string } | null = null;
+    try {
+      eventResult = await withTimeout(
+        createEvent(tenantId, staffTarget, {
+          tenantId,
+          summary: `[StyleFlo] ${serviceName} - ${customerName}`,
+          description: `Customer Name: ${customerName}\nEmail: ${customerEmail}\nPhone: ${customerPhone}\nService: ${serviceName}\nStaff: ${staff.name}\n\nBooked via StyleFlo AI`,
+          startTime: startUtc.toISOString(),
+          endTime: endUtc.toISOString(),
+          attendeeEmail: customerEmail,
+          attendeeName: customerName,
+          attendeePhone: customerPhone,
+          calendarId: staff.google_calendar_id || staff.microsoft_calendar_id,
+        }),
+        8000,
+        'Calendar write timed out',
+      );
+    } catch (eventErr: any) {
+      console.error('[Calendar] Event create failed; saving the appointment locally:', eventErr?.message || eventErr);
+    }
 
     // 4. Record appointment in DB (gracefully handling optional columns)
     const appointmentRow: Record<string, any> = {
       tenant_id: tenantId,
-      staff_id: staffId,
-      service_id: serviceId,
+      staff_id: resolvedStaffId,
+      service_id: resolvedServiceId,
       customer_name: customerName,
       customer_email: customerEmail.trim().toLowerCase(),
       customer_phone: customerPhone,
       start_time: startUtc.toISOString(),
       end_time: endUtc.toISOString(),
-      google_event_id: eventResult.id,
+      google_event_id: eventResult?.id || null,
     };
 
-    if (eventResult.provider === 'microsoft') {
+    if (eventResult?.provider === 'microsoft') {
       appointmentRow.microsoft_event_id = eventResult.id;
     }
 
@@ -532,6 +638,7 @@ export async function bookMeeting(
 
     if (insertRes.error) {
       console.error('[Calendar] Failed to insert appointment record:', insertRes.error);
+      return 'Booking could not be saved. Please try again.';
     }
 
     // 5. Send Mailgun confirmation email if credentials exist

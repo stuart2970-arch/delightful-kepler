@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
+import { requireTenantRole } from '@/lib/auth/require-tenant-role';
 
 export const dynamic = 'force-dynamic';
 
@@ -18,8 +19,23 @@ function getSupabaseAdmin() {
 
 export async function GET(request: NextRequest) {
   try {
+    const auth = await requireTenantRole(request, ['owner', 'admin', 'member']);
+    if (!auth.ok) return auth.response;
+
     const { searchParams } = new URL(request.url);
-    const tenantId = searchParams.get('tenantId');
+    const requested = searchParams.get('tenantId');
+    if (
+      requested
+      && requested !== 'undefined'
+      && requested !== auth.tenantId
+      && !auth.isSuperAdmin
+    ) {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+    }
+
+    const tenantId = auth.isSuperAdmin && requested && requested !== 'undefined'
+      ? requested
+      : auth.tenantId;
 
     if (!tenantId || tenantId === 'undefined') {
       return NextResponse.json({ error: 'tenantId parameter is required' }, { status: 400 });
@@ -31,6 +47,7 @@ export async function GET(request: NextRequest) {
       .from('conversations')
       .select('*')
       .eq('tenant_id', tenantId)
+      .or('user_session_id.is.null,user_session_id.not.like.preview-%')
       .order('created_at', { ascending: false });
 
     if (error) {

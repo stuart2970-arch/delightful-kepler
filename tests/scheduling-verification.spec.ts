@@ -1,10 +1,14 @@
 import { test, expect } from '@playwright/test';
+import { createTestUser } from './test-auth-helper';
 
 test.describe('Scheduling & Staff Section Verification', () => {
   const testTenantId = '10000000-0000-0000-0000-000000000001';
 
   test('Tenant Settings API handles calendar policies save without error', async ({ request }) => {
+    const owner = await createTestUser({ tenantId: testTenantId, role: 'owner' });
+    try {
     const response = await request.patch('/api/tenants/settings', {
+      headers: { Authorization: `Bearer ${owner.token}` },
       data: {
         tenantId: testTenantId,
         bookingMode: 'single_calendar',
@@ -28,13 +32,24 @@ test.describe('Scheduling & Staff Section Verification', () => {
     expect(response.status()).toBe(200);
     const body = await response.json();
     expect(body.success).toBeTruthy();
+    expect(body.tenant.id).toBe(testTenantId);
+    } finally {
+      await owner.cleanup();
+    }
   });
 
   test('Google Calendar Integration status endpoint returns status structure', async ({ request }) => {
-    const response = await request.get(`/api/integrations/google/status?tenantId=${testTenantId}`);
-    expect(response.status()).toBe(200);
-    const body = await response.json();
-    expect(body).toHaveProperty('connected');
+    const owner = await createTestUser({ tenantId: testTenantId, role: 'owner' });
+    try {
+      const response = await request.get(`/api/integrations/google/status?tenantId=${testTenantId}`, {
+        headers: { Authorization: `Bearer ${owner.token}` },
+      });
+      expect(response.status()).toBe(200);
+      const body = await response.json();
+      expect(body).toHaveProperty('connected');
+    } finally {
+      await owner.cleanup();
+    }
   });
 
   test('Services API endpoint returns list of services', async ({ request }) => {
@@ -43,13 +58,22 @@ test.describe('Scheduling & Staff Section Verification', () => {
   });
 
   test('Staff API endpoint returns list of colleagues', async ({ request }) => {
-    const response = await request.get(`/api/staff?tenantId=${testTenantId}`);
-    expect(response.status()).toBeLessThan(500);
+    const owner = await createTestUser({ tenantId: testTenantId, role: 'owner' });
+    try {
+      const response = await request.get(`/api/staff?tenantId=${testTenantId}`, {
+        headers: { Authorization: `Bearer ${owner.token}` },
+      });
+      expect(response.status()).toBeLessThan(500);
+    } finally {
+      await owner.cleanup();
+    }
   });
 
   test('Staff Member Creation & Update API validates avatar image, specialist services, bio, and 4-week shift rotas', async ({ request }) => {
     // 1. Test POST staff creation payload with all extended profile fields
+    const owner = await createTestUser({ tenantId: testTenantId, role: 'owner' });
     const createRes = await request.post('/api/staff', {
+      headers: { Authorization: `Bearer ${owner.token}` },
       data: {
         tenant_id: testTenantId,
         name: 'Jessica Taylor (Playwright Test)',
@@ -76,5 +100,6 @@ test.describe('Scheduling & Staff Section Verification', () => {
     });
 
     expect(createRes.status()).toBeLessThan(500);
+    await owner.cleanup();
   });
 });

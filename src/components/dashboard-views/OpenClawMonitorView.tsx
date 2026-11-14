@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { useDashboardStore } from '../../lib/store';
+import { browserAuthHeaders } from '@/lib/auth/client-auth-headers';
 
 interface ChannelConnection {
   id: string;
@@ -216,7 +217,7 @@ export default function OpenClawMonitorView() {
                                     if (channel.name === 'SMS (Twilio)') {
                                       await fetch('/api/tenants/settings', {
                                         method: 'PATCH',
-                                        headers: { 'Content-Type': 'application/json' },
+                                        headers: await browserAuthHeaders({ 'Content-Type': 'application/json' }),
                                         body: JSON.stringify({ tenantId, twilioShadowNumber: null, twilioMobileNumber: null })
                                       });
                                       useDashboardStore.setState({ twilioShadowNumber: null, twilioMobileNumber: null });
@@ -419,14 +420,14 @@ export default function OpenClawMonitorView() {
                       if (activeConfigModal.name === 'SMS (Twilio)') {
                         await fetch('/api/tenants/settings', {
                           method: 'PATCH',
-                          headers: { 'Content-Type': 'application/json' },
+                          headers: await browserAuthHeaders({ 'Content-Type': 'application/json' }),
                           body: JSON.stringify({ tenantId, twilioShadowNumber: null, twilioMobileNumber: null })
                         });
                         useDashboardStore.setState({ twilioShadowNumber: null, twilioMobileNumber: null });
                       } else if (activeConfigModal.name === 'WhatsApp') {
                         await fetch('/api/tenants/settings', {
                           method: 'PATCH',
-                          headers: { 'Content-Type': 'application/json' },
+                          headers: await browserAuthHeaders({ 'Content-Type': 'application/json' }),
                           body: JSON.stringify({ tenantId, tradingAddressPhone: null })
                         });
                         useDashboardStore.setState({ tradingAddressPhone: undefined });
@@ -468,11 +469,15 @@ export default function OpenClawMonitorView() {
                           ? { tenantId, twilioMobileNumber: newPhone }
                           : { tenantId, twilioShadowNumber: newPhone };
 
-                        await fetch('/api/tenants/settings', {
+                        const phoneRes = await fetch('/api/tenants/settings', {
                           method: 'PATCH',
-                          headers: { 'Content-Type': 'application/json' },
+                          headers: await browserAuthHeaders({ 'Content-Type': 'application/json' }),
                           body: JSON.stringify(payload)
                         });
+                        if (!phoneRes.ok) {
+                          alert('A new number is set by provisioning. You can only clear a number here.');
+                          return;
+                        }
 
                         if (isMob) {
                           useDashboardStore.setState({ twilioMobileNumber: newPhone });
@@ -483,7 +488,7 @@ export default function OpenClawMonitorView() {
                         const newPhone = activePhoneOrHandle.trim() || null;
                         await fetch('/api/tenants/settings', {
                           method: 'PATCH',
-                          headers: { 'Content-Type': 'application/json' },
+                          headers: await browserAuthHeaders({ 'Content-Type': 'application/json' }),
                           body: JSON.stringify({
                             tenantId,
                             tradingAddressPhone: newPhone

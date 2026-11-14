@@ -115,6 +115,9 @@ export async function createMicrosoftCalendarEvent(params: CreateMicrosoftEventP
     ? `me/calendars/${params.calendarId}/events`
     : 'me/events';
 
+  // Graph rejects a Zulu timestamp when timeZone is also set. Send the UTC
+  // clock time without the suffix.
+  const graphUtc = (iso: string) => iso.replace(/\.\d+Z$/, '').replace(/Z$/, '');
   const eventPayload: any = {
     subject: params.summary,
     body: {
@@ -122,11 +125,11 @@ export async function createMicrosoftCalendarEvent(params: CreateMicrosoftEventP
       content: params.description || '',
     },
     start: {
-      dateTime: params.startTime,
+      dateTime: graphUtc(params.startTime),
       timeZone: 'UTC',
     },
     end: {
-      dateTime: params.endTime,
+      dateTime: graphUtc(params.endTime),
       timeZone: 'UTC',
     },
   };

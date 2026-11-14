@@ -1,8 +1,57 @@
 import { test, expect } from '@playwright/test';
+import { createClient } from '@supabase/supabase-js';
+import crypto from 'crypto';
+import { createTestSuperadminUser, createTestUser } from './test-auth-helper';
+
+function base64Url(input: Buffer | string): string {
+  return Buffer.from(input)
+    .toString('base64')
+    .replace(/\+/g, '-')
+    .replace(/\//g, '_')
+    .replace(/=+$/g, '');
+}
+
+function metaSignedRequest(payload: Record<string, unknown>, secret: string): string {
+  const encoded = base64Url(JSON.stringify(payload));
+  const signature = base64Url(crypto.createHmac('sha256', secret).update(encoded).digest());
+  return `${signature}.${encoded}`;
+}
 
 const vapiWebhookHeaders = {
   'x-vapi-secret': process.env.VAPI_WEBHOOK_SECRET || 'test-vapi-webhook-secret',
 };
+
+async function ownerOfTelephonyTenant(tenantId: string) {
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.SUPABASE_URL;
+  const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  if (!supabaseUrl || !serviceRoleKey) {
+    throw new Error('Local Supabase env is missing');
+  }
+  const admin = createClient(supabaseUrl, serviceRoleKey, {
+    auth: { persistSession: false, autoRefreshToken: false },
+  });
+  const { error } = await admin.from('tenants').upsert({
+    id: tenantId,
+    tenant_id: tenantId,
+    company_name: 'Playwright Telephony Tenant',
+  }, { onConflict: 'id' });
+  if (error) throw new Error(error.message);
+  return createTestUser({ tenantId, role: 'owner' });
+}
+
+async function setTenantPhones(tenantId: string, shadow: string, mobile: string) {
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.SUPABASE_URL;
+  const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  if (!supabaseUrl || !serviceRoleKey) throw new Error('Local Supabase env is missing');
+  const admin = createClient(supabaseUrl, serviceRoleKey, {
+    auth: { persistSession: false, autoRefreshToken: false },
+  });
+  const { error } = await admin.from('tenants').update({
+    twilio_shadow_number: shadow,
+    twilio_mobile_number: mobile,
+  }).eq('id', tenantId);
+  if (error) throw new Error(error.message);
+}
 
 test.describe('Vapi, ElevenLabs & Telephony Integrations', () => {
   const testChatbotId = 'e0000000-0000-0000-0000-000000000001'; // Acme Support Bot (seeded locally)
@@ -87,56 +136,79 @@ test.describe('Vapi, ElevenLabs & Telephony Integrations', () => {
   });
 
   test('Meta Test Journey API simulates conversational flow and generates AI response', async ({ request }) => {
-    const response = await request.post('/api/integrations/meta/test-journey', {
-      data: {
-        tenantId: '7b0f485d-49b8-416e-8c6f-1effea14a57b',
-        channel: 'whatsapp',
-        messageText: 'Hello! What services are available and how can I book?'
-      }
-    });
+    const superadmin = await createTestSuperadminUser();
+    try {
+      const response = await request.post('/api/integrations/meta/test-journey', {
+        headers: { Authorization: `Bearer ${superadmin.token}` },
+        data: {
+          tenantId: '10000000-0000-0000-0000-000000000001',
+          channel: 'whatsapp',
+          messageText: 'Hello! What services are available and how can I book?'
+        }
+      });
 
-    expect(response.status()).toBe(200);
-    const data = await response.json();
-    expect(data.success).toBe(true);
-    expect(data.replyText).toBeTruthy();
-    expect(data.channel).toBe('whatsapp');
+      expect(response.status()).toBe(200);
+      const data = await response.json();
+      expect(data.success).toBe(true);
+      expect(data.replyText).toBeTruthy();
+      expect(data.channel).toBe('whatsapp');
+    } finally {
+      await superadmin.cleanup();
+    }
   });
 
   test('Meta Settings API returns configured webhook and token details', async ({ request }) => {
-    const response = await request.get('/api/integrations/meta/settings?tenantId=7b0f485d-49b8-416e-8c6f-1effea14a57b');
-    expect(response.status()).toBe(200);
-    const data = await response.json();
-    expect(data.webhookUrl).toContain('/api/webhooks/meta');
-    expect(data.verifyToken).toBeTruthy();
+    const owner = await createTestUser({
+      tenantId: '10000000-0000-0000-0000-000000000001',
+      role: 'owner',
+    });
+    try {
+      const response = await request.get('/api/integrations/meta/settings?tenantId=10000000-0000-0000-0000-000000000001', {
+        headers: { Authorization: `Bearer ${owner.token}` },
+      });
+      expect(response.status()).toBe(200);
+      const data = await response.json();
+      expect(data.webhookUrl).toContain('/api/webhooks/meta');
+      expect(data.verifyToken).toBeUndefined();
+      expect(data.metaAccessTokenMasked).toBeUndefined();
+    } finally {
+      await owner.cleanup();
+    }
   });
 
   test('Meta Data Deletion compliance callback returns valid tracking URL and confirmation code', async ({ request }) => {
-    const response = await request.post('/api/data-deletion');
+    const secret = (process.env.META_APP_SECRET || '').trim();
+    const signedRequest = metaSignedRequest(
+      { algorithm: 'HMAC-SHA256', user_id: '218471' },
+      secret,
+    );
+    const response = await request.post('/api/data-deletion', {
+      data: { signed_request: signedRequest },
+    });
     expect(response.status()).toBe(200);
     const data = await response.json();
-    expect(data.confirmation_code).toBeTruthy();
-    expect(data.url).toContain('https://styleflo.ai/data-deletion');
+    expect(data.confirmation_code).toMatch(/^del_[0-9a-f]+$/);
+    expect(data.confirmation_code).not.toContain('218471');
+    expect(data.url).toContain('/api/data-deletion?code=');
+    expect(data.url).not.toContain('218471');
   });
 
   test('Tenant Settings API preserves landline phone number without destructive wiping', async ({ request }) => {
     const testTenantId = '7b0f485d-49b8-416e-8c6f-1effea14a57b';
     const testLandline = '+441619460000';
     const testMobile = '+447446900875';
+    const owner = await ownerOfTelephonyTenant(testTenantId);
 
-    // 1. Update tenant settings with dedicated phone numbers
-    const patchRes = await request.patch('/api/tenants/settings', {
+    try {
+    await setTenantPhones(testTenantId, testLandline, testMobile);
+    const refused = await request.patch('/api/tenants/settings', {
+      headers: { Authorization: `Bearer ${owner.token}` },
       data: {
         tenantId: testTenantId,
-        twilioShadowNumber: testLandline,
-        twilioMobileNumber: testMobile
-      }
+        twilioShadowNumber: '+441619460999',
+      },
     });
-
-    expect(patchRes.status()).toBe(200);
-    const patchData = await patchRes.json();
-    expect(patchData.success).toBe(true);
-    expect(patchData.tenant.twilio_shadow_number).toBe(testLandline);
-    expect(patchData.tenant.twilio_mobile_number).toBe(testMobile);
+    expect(refused.status()).toBe(403);
 
     // 2. Verify inbound call webhook matches tenant for the landline number
     const inboundRes = await request.post('/api/telephony/inbound', {
@@ -162,6 +234,9 @@ test.describe('Vapi, ElevenLabs & Telephony Integrations', () => {
     expect(inboundMobileRes.status()).toBe(200);
     const twimlMobileText = await inboundMobileRes.text();
     expect(twimlMobileText).not.toContain('Sorry, this number is not configured correctly');
+    } finally {
+      await owner.cleanup();
+    }
   });
 
   test('Inbound Vapi voice call webhook resolves assistant and provides valid trailing-slash custom LLM endpoint for both landline and mobile numbers', async ({ request }) => {
@@ -170,13 +245,9 @@ test.describe('Vapi, ElevenLabs & Telephony Integrations', () => {
     const mobileNumber = '+447446900875';
 
     // 1. Ensure tenant has both landline and mobile numbers mapped in DB
-    await request.patch('/api/tenants/settings', {
-      data: {
-        tenantId: testTenantId,
-        twilioShadowNumber: landlineNumber,
-        twilioMobileNumber: mobileNumber
-      }
-    });
+    const owner = await ownerOfTelephonyTenant(testTenantId);
+    try {
+    await setTenantPhones(testTenantId, landlineNumber, mobileNumber);
 
     // 2. Test inbound call dialed to Landline (+441514538001)
     const landlineVapiRes = await request.post('/api/webhooks/vapi/assistant', {
@@ -233,6 +304,9 @@ test.describe('Vapi, ElevenLabs & Telephony Integrations', () => {
 
     expect(completionRes.status()).toBe(200);
     expect(completionRes.headers()['content-type']).toContain('text/event-stream');
+    } finally {
+      await owner.cleanup();
+    }
   });
 });
 
