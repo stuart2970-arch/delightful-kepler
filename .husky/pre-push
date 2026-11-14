@@ -20,15 +20,19 @@ while read -r local_ref local_sha remote_ref remote_sha; do
     base=$remote_sha
   fi
   if [ -n "${base:-}" ]; then
-    git diff --name-only "$base" "$local_sha" >> "$files"
+    git diff --name-only --diff-filter=d "$base" "$local_sha" >> "$files"
   fi
 done
 
 if [ ! -s "$files" ]; then
   base=$(git merge-base origin/staging HEAD 2>/dev/null || true)
   if [ -n "${base:-}" ]; then
-    git diff --name-only "$base" HEAD >> "$files"
+    git diff --name-only --diff-filter=d "$base" HEAD >> "$files"
   fi
+fi
+
+if [ -s "$files" ]; then
+  sort -u "$files" -o "$files"
 fi
 
 specs=$(node scripts/prepush-related-specs.mjs < "$files")

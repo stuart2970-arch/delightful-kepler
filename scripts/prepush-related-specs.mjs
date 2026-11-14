@@ -27,18 +27,23 @@ export const FALLBACK_SMOKE_SPECS = [
   'tests/styl-226-release-source.spec.ts',
 ];
 
-function listSpecFiles() {
-  const dir = path.join(root, 'tests');
-  return fs
-    .readdirSync(dir)
-    .filter((name) => name.endsWith('.spec.ts'))
-    .map((name) => path.join('tests', name));
+function listSpecFiles(dir = path.join(root, 'tests'), prefix = 'tests') {
+  const found = [];
+  for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+    const rel = path.posix.join(prefix, entry.name);
+    if (entry.isDirectory()) {
+      found.push(...listSpecFiles(path.join(dir, entry.name), rel));
+    } else if (entry.name.endsWith('.spec.ts')) {
+      found.push(rel);
+    }
+  }
+  return found;
 }
 
 function needlesFor(file) {
   const normalised = file.replace(/\\/g, '/');
   const base = path.basename(normalised);
-  const stem = base.replace(/\.[^.]+$/, '').replace(/\.[^.]+$/, '');
+  const stem = base.replace(/\.(tsx?|jsx?|mjs|cjs|html|css|md|yml|yaml)$/, '');
   const needles = [];
   if (!normalised.startsWith('public/') && !GENERIC_STEMS.has(stem) && stem.length >= 8) {
     needles.push(stem);
@@ -68,7 +73,7 @@ export function selectRelatedSpecs(changedFiles, specBodies) {
       || normalised.startsWith('tests/');
     if (!considered) continue;
     if (normalised.startsWith('tests/') && normalised.endsWith('.spec.ts')) {
-      selected.add(normalised);
+      if (fs.existsSync(path.join(root, normalised))) selected.add(normalised);
       continue;
     }
     const needles = needlesFor(normalised);
@@ -77,7 +82,7 @@ export function selectRelatedSpecs(changedFiles, specBodies) {
       if (needles.some((needle) => body.includes(needle))) selected.add(spec);
     }
   }
-  const specs = [...selected].sort();
+  const specs = [...selected].filter((spec) => fs.existsSync(path.join(root, spec))).sort();
   if (specs.length > 0) return specs;
   return FALLBACK_SMOKE_SPECS.filter((spec) => fs.existsSync(path.join(root, spec)));
 }

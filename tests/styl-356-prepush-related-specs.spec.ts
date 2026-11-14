@@ -21,8 +21,8 @@ test.describe('STYL-356 pre-push selects related specs only', () => {
   });
 
   test('a changed spec is included by path', () => {
-    const specs = select('tests/styl-361-turnstile-iframe.spec.ts');
-    expect(specs).toEqual(['tests/styl-361-turnstile-iframe.spec.ts']);
+    const specs = select('tests/addon-text.spec.ts');
+    expect(specs).toEqual(['tests/addon-text.spec.ts']);
   });
 
   test('widget bundles select widget specs, not every test', () => {
@@ -30,6 +30,15 @@ test.describe('STYL-356 pre-push selects related specs only', () => {
     expect(specs).toContain('tests/styl-226-widget-turnstile.spec.ts');
     expect(specs).toContain('tests/homepage-widget.spec.ts');
     expect(specs.length).toBeLessThan(40);
+  });
+
+  test('a deleted spec path is not passed to Playwright', () => {
+    const specs = select('tests/removed-old-name.spec.ts');
+    expect(specs).not.toContain('tests/removed-old-name.spec.ts');
+    expect(specs).toEqual([
+      'tests/addon-text.spec.ts',
+      'tests/styl-226-release-source.spec.ts',
+    ]);
   });
 
   test('an unmatched change falls back to the fast smoke specs', () => {
@@ -51,6 +60,8 @@ test.describe('STYL-356 pre-push selects related specs only', () => {
     expect(hook).toContain('npx eslint');
     expect(hook).toContain('npm run typecheck');
     expect(hook).toContain('scripts/prepush-related-specs.mjs');
+    expect(hook).toContain('--diff-filter=d');
+    expect(hook).toContain('sort -u');
     expect(hook).not.toContain('SKIP_SIGNED_OUT_SWEEP=1 npm run test:e2e');
   });
 });
