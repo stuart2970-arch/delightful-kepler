@@ -129,6 +129,92 @@ test.describe('STYL-354 fresh dashboard bearer', () => {
     expect(headers['Content-Type']).toBe('application/json');
   });
 
+  test('onAuthStateChange is called on the client so this stays bound', async () => {
+    const token = jwtWithExp(futureExp());
+    let restored = false;
+    const client: DashboardAuthClient = {
+      auth: {
+        async getSession() {
+          return {
+            data: {
+              session: restored ? { access_token: token, expires_at: futureExp() } : null,
+            },
+            error: null,
+          };
+        },
+        async refreshSession() {
+          return { data: { session: null }, error: { message: 'no refresh' } };
+        },
+        onAuthStateChange(callback) {
+          if (this !== client.auth) {
+            throw new TypeError('onAuthStateChange was called without its client');
+          }
+          restored = true;
+          callback('INITIAL_SESSION', { access_token: token, expires_at: futureExp() });
+          return { data: { subscription: { unsubscribe() {} } } };
+        },
+      },
+    };
+    const headers = await getDashboardAuthHeaders({}, client);
+    expect(headers.Authorization).toBe(`Bearer ${token}`);
+  });
+
+  test('a synchronous INITIAL_SESSION does not throw before the timer exists', async () => {
+    const token = jwtWithExp(futureExp());
+    let restored = false;
+    const client: DashboardAuthClient = {
+      auth: {
+        async getSession() {
+          return {
+            data: {
+              session: restored ? { access_token: token, expires_at: futureExp() } : null,
+            },
+            error: null,
+          };
+        },
+        async refreshSession() {
+          return { data: { session: null }, error: { message: 'no refresh' } };
+        },
+        onAuthStateChange(callback) {
+          restored = true;
+          callback('INITIAL_SESSION', { access_token: token, expires_at: futureExp() });
+          return { data: { subscription: { unsubscribe() {} } } };
+        },
+      },
+    };
+    const headers = await getDashboardAuthHeaders({}, client);
+    expect(headers.Authorization).toBe(`Bearer ${token}`);
+  });
+
+  test('dashboardFetch waits until the browser session is restored before sending the bearer', async () => {
+    const token = jwtWithExp(futureExp());
+    let restored = false;
+    const client: DashboardAuthClient = {
+      auth: {
+        async getSession() {
+          return {
+            data: {
+              session: restored ? { access_token: token, expires_at: futureExp() } : null,
+            },
+            error: null,
+          };
+        },
+        async refreshSession() {
+          return { data: { session: null }, error: { message: 'no refresh' } };
+        },
+        onAuthStateChange(callback) {
+          setTimeout(() => {
+            restored = true;
+            callback('INITIAL_SESSION', { access_token: token, expires_at: futureExp() });
+          }, 30);
+          return { data: { subscription: { unsubscribe() {} } } };
+        },
+      },
+    };
+    const headers = await getDashboardAuthHeaders({}, client);
+    expect(headers.Authorization).toBe(`Bearer ${token}`);
+  });
+
   test('dashboardFetch sends that bearer on the knowledge text request', async () => {
     const fresh = jwtWithExp(futureExp());
     const { client } = authClient({
@@ -157,6 +243,21 @@ test.describe('STYL-354 fresh dashboard bearer', () => {
 });
 
 test.describe('STYL-354 dashboard callers and chatbot cookie refresh', () => {
+  test('an inbox poll aborts the previous request before the next one starts', () => {
+    const root = path.resolve(__dirname, '..');
+    const inbox = fs.readFileSync(path.join(root, 'src/components/dashboard-views/InboxView.tsx'), 'utf8');
+    const fetchStart = inbox.indexOf('async function fetchMessages');
+    const fetchBody = inbox.slice(fetchStart);
+    expect(fetchStart).toBeGreaterThan(0);
+    expect(fetchBody.indexOf('active.abort()')).toBeGreaterThan(-1);
+    expect(fetchBody.indexOf('active.abort()')).toBeLessThan(fetchBody.indexOf('dashboardFetch'));
+    expect(fetchBody).toContain('signal.aborted');
+    const click = inbox.indexOf('setSelectedConversation(conv.id)');
+    const clickHandler = inbox.slice(Math.max(0, click - 280), click);
+    expect(clickHandler).toContain('setConversationMessages([])');
+    expect(clickHandler).toContain('if (selectedConversation === conv.id) return;');
+  });
+
   test('knowledge, agent, and ingest crawl callers use the shared helper', () => {
     const root = path.resolve(__dirname, '..');
     const knowledge = fs.readFileSync(path.join(root, 'src/components/dashboard-views/KnowledgeBaseView.tsx'), 'utf8');

@@ -23,7 +23,52 @@ export interface DashboardAuthClient {
       data: { session: DashboardAccessSession | null };
       error: { message?: string } | null;
     }>;
+    onAuthStateChange?: (
+      callback: (event: string, session: DashboardAccessSession | null) => void,
+    ) => { data: { subscription: { unsubscribe: () => void } } };
   };
+}
+
+const SESSION_WAIT_MS = 5000;
+
+/**
+ * getSession() is empty until the browser client finishes reading storage.
+ * Right after login that race sends dashboard GETs with no Bearer token.
+ * INITIAL_SESSION fires once storage has been read. GoTrue emits that event
+ * for every new subscriber, including a null session, so a logged-out call
+ * returns on the event instead of sitting on the timeout.
+ */
+export async function waitForAuthSession(client: DashboardAuthClient): Promise<void> {
+  const listen = client.auth.onAuthStateChange;
+  if (!listen) return;
+  try {
+    const first = await client.auth.getSession();
+    if (first.data?.session?.access_token) return;
+  } catch {
+    // The initial event below is the source of truth.
+  }
+  await new Promise<void>((resolve) => {
+    const state: {
+      settled: boolean;
+      timer?: ReturnType<typeof setTimeout>;
+      unsubscribe?: () => void;
+    } = { settled: false };
+    const finish = () => {
+      if (state.settled) return;
+      state.settled = true;
+      if (state.timer !== undefined) clearTimeout(state.timer);
+      state.unsubscribe?.();
+      resolve();
+    };
+    // Keep `this` as client.auth. A bare listen() call leaves it unset, and
+    // GoTrueClient.onAuthStateChange then throws before the bearer is attached.
+    const { data } = listen.call(client.auth, (event, session) => {
+      if (session?.access_token || event === 'INITIAL_SESSION') finish();
+    });
+    state.unsubscribe = () => data.subscription.unsubscribe();
+    if (state.settled) state.unsubscribe();
+    else state.timer = setTimeout(finish, SESSION_WAIT_MS);
+  });
 }
 
 export function readJwtExp(accessToken: string): number | null {
@@ -112,6 +157,7 @@ export async function getDashboardAuthHeaders(
   const auth = resolveDashboardAuthClient(client);
   if (!auth) return headers;
   try {
+    await waitForAuthSession(auth);
     const token = await getFreshAccessToken(auth);
     if (token) headers.Authorization = `Bearer ${token}`;
   } catch (err) {
