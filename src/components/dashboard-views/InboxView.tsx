@@ -257,6 +257,7 @@ export default function InboxView() {
                     <button
                       key={conv.id}
                       onClick={() => {
+                        if (selectedConversation === conv.id) return;
                         setConversationMessages([]);
                         setMessagesError(null);
                         setSelectedConversation(conv.id);

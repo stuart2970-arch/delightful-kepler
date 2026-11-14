@@ -253,7 +253,9 @@ test.describe('STYL-354 dashboard callers and chatbot cookie refresh', () => {
     expect(fetchBody.indexOf('active.abort()')).toBeLessThan(fetchBody.indexOf('dashboardFetch'));
     expect(fetchBody).toContain('signal.aborted');
     const click = inbox.indexOf('setSelectedConversation(conv.id)');
-    expect(inbox.slice(Math.max(0, click - 180), click)).toContain('setConversationMessages([])');
+    const clickHandler = inbox.slice(Math.max(0, click - 280), click);
+    expect(clickHandler).toContain('setConversationMessages([])');
+    expect(clickHandler).toContain('if (selectedConversation === conv.id) return;');
   });
 
   test('knowledge, agent, and ingest crawl callers use the shared helper', () => {
