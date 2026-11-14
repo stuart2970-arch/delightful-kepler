@@ -4,8 +4,8 @@
   <meta charset="UTF-8">
   <title>StyleFlo Security Verification</title>
   <style>
-    body, html { margin: 0; padding: 0; overflow: hidden; }
-    #cf-container { display: flex; justify-content: center; align-items: center; }
+    html, body { margin: 0; padding: 0; height: 100%; background: #fff; }
+    #cf-container { min-height: 65px; display: flex; align-items: center; justify-content: center; }
   </style>
   <script src="https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit" async defer></script>
 </head>
@@ -17,10 +17,21 @@
       var sitekey = urlParams.get('sitekey') || '0x4AAAAAAEcGPat6Ll-AhKbf';
       var widgetId = null;
 
+      // The parent is the customer website, not the app. postMessage must
+      // target that parent origin (from the referrer). Using the app origin
+      // as the target would drop the token on every third-party embed.
+      // The widget checks event.origin is this app page before accepting it.
+      function parentTargetOrigin() {
+        try {
+          if (document.referrer) return new URL(document.referrer).origin;
+        } catch (e) {}
+        return '*';
+      }
+
       function notifyParent(payload) {
         try {
           if (window.parent && window.parent !== window) {
-            window.parent.postMessage(payload, '*');
+            window.parent.postMessage(payload, parentTargetOrigin());
           }
         } catch (e) {
           console.error('[StyleFlo Turnstile Bridge] postMessage failed:', e);
@@ -39,6 +50,10 @@
             sitekey: sitekey,
             action: 'chat_init',
             size: 'normal',
+            appearance: 'interaction-only',
+            'before-interactive-callback': function() {
+              notifyParent({ type: 'STYLEFLO_TURNSTILE_INTERACTIVE' });
+            },
             callback: function(token) {
               notifyParent({
                 type: 'STYLEFLO_TURNSTILE_TOKEN',
@@ -46,6 +61,7 @@
               });
             },
             'error-callback': function(code) {
+              console.error('[StyleFlo Turnstile Bridge] error:', code);
               notifyParent({
                 type: 'STYLEFLO_TURNSTILE_ERROR',
                 code: code
@@ -61,6 +77,7 @@
             }
           });
         } catch (err) {
+          console.error('[StyleFlo Turnstile Bridge] error:', err && err.message ? err.message : 'render-failed');
           notifyParent({
             type: 'STYLEFLO_TURNSTILE_ERROR',
             error: err ? err.message : 'Render failed'
@@ -69,10 +86,10 @@
       }
 
       window.addEventListener('message', function(event) {
-        if (event.data && event.data.type === 'STYLEFLO_RESET_TURNSTILE') {
-          if (widgetId !== null && window.turnstile) {
-            window.turnstile.reset(widgetId);
-          }
+        if (event.source !== window.parent) return;
+        if (!event.data || event.data.type !== 'STYLEFLO_RESET_TURNSTILE') return;
+        if (widgetId !== null && window.turnstile) {
+          window.turnstile.reset(widgetId);
         }
       });
 
