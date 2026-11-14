@@ -62,7 +62,10 @@ test.describe('STYL-356 pre-push selects related specs only', () => {
     expect(hook).toContain('scripts/prepush-related-specs.mjs');
     expect(hook).toContain('--diff-filter=d');
     expect(hook).toContain('sort -u');
-    expect(hook).toContain("xargs -d '\\n'");
+    expect(hook).toContain('xargs -0');
+    expect(hook).toContain("tr '\\n' '\\0'");
+    expect(hook).not.toContain("xargs -d");
+    expect(hook).toContain('Refusing to run the full suite.');
     expect(hook).not.toContain('SKIP_SIGNED_OUT_SWEEP=1 npm run test:e2e');
   });
 });
