@@ -35,6 +35,10 @@ Local development uses the **local Supabase CLI stack** and mock third-party key
    npm run build
    ```
 
+6. **What runs before a push, and what CI runs**:
+   The Husky pre-push hook (`.husky/pre-push`, STYL-356) lints the changed TypeScript and JavaScript files, runs `npm run typecheck`, and runs only the Playwright specs related to the commits being pushed. `scripts/prepush-related-specs.mjs` picks those specs. If none match, it runs a small smoke set: `tests/addon-text.spec.ts` and `tests/styl-226-release-source.spec.ts`. It does not run the full suite. A full `npm run lint` still reports more than a thousand existing errors, including in files a small change has to touch, so ESLint is printed and does not by itself fail the push. Typecheck and the related specs do.
+   Every pull request to `main` or `staging` still runs the **full** Playwright suite in `.github/workflows/playwright.yml` (`npm run test:e2e`, no file filter), plus the typecheck. Do not narrow that workflow to the related-spec list.
+
 ---
 
 ## Project Resources
@@ -99,6 +103,12 @@ This runbook documents the key fixes and architecture enhancements implemented d
 ---
 
 ### Session Chat History Log
+
+### Session (STYL-361 follow-up - staging Turnstile site key - 14 Nov 2026)
+* **User / Jira**: STYL-361 follow-up — staging App Hosting (`delightful-kepler` on `styleflo-staging`) had `NEXT_PUBLIC_TURNSTILE_SITE_KEY` set to Cloudflare's always-pass test secret. `embed.js` inlines that value into `/turnstile.html`, so the embedded widget errors and the client throws "Security verification failed" before `public-init`. The dashboard test area still works because `turnstile-client` short-circuits any `1x` key.
+* **Config**: The staging backend merges `apphosting.staging.yaml` over `apphosting.yaml` when its Environment name is `staging`. Production App Hosting (`styleflo-ai` / `delightful-kepler-1`, no environment name) reads only `apphosting.yaml`. Production Cloud Run takes the site key from `.github/workflows/deploy.yml`.
+* **Fix**: Staging-only override in `apphosting.staging.yaml` sets `NEXT_PUBLIC_TURNSTILE_SITE_KEY` to Cloudflare's always-pass sitekey `1x00000000000000000000AA` at BUILD and RUNTIME. The shared `apphosting.yaml` value, `CLOUDFLARE_TURNSTILE_SECRET_KEY`, and the deploy workflow are unchanged.
+* **Test**: `tests/styl-361-staging-turnstile-sitekey.spec.ts` fails while the staging override is missing and passes after the fix.
 
 ### Session (STYL-203 follow-up - apphosting.yaml schema / empty values - 25 Oct 2026)
 * **User / Jira**: STYL-203 — PR #12 merged (`85daa48`) but rollout build `4c860af7` failed before building: `apphosting.yaml is not formatted properly`.
@@ -4425,3 +4435,21 @@ Highlighted adjustments in the modal:
 ### Session (STYL-298 delete the WPMU DEV webhook - 13 Nov 2026)
 * **User**: Rework PR 52. Delete `POST /api/webhooks/wpmudev` instead of requiring a secret. Site Editor confirmed Forminator has no forms and the webhook integration is not connected. Rebase onto current staging. Leave `WPMUDEV_WEBHOOK_SECRET` out of the yaml. No migrations. Never `--no-verify`.
 * **Changes**: The route file is removed. `tests/styl-298-wpmudev-webhook-auth.spec.ts` now expects POST to return 404 or 405. App Hosting yaml is unchanged.
+
+### Session (STYL-356 lean pre-push - 14 Nov 2026)
+* **User**: One authorised `--no-verify` push, only for this branch. The pre-push hook should run lint, typecheck, and Playwright specs related to the changed files, with a fast smoke fallback. CI must still run the full suite on every PR.
+* **Changes**: `.husky/pre-push` lints the changed source files, typechecks, and calls `scripts/prepush-related-specs.mjs`. A full `npm run lint` still has more than a thousand existing errors, so ESLint output does not by itself fail the push. Typecheck and the related specs do. `.github/workflows/playwright.yml` still runs `npm run test:e2e` with no file filter on pull requests to `main` and `staging`. README documents both.
+* **Review**: Deleted and duplicate spec paths are dropped (`--diff-filter=d`, `existsSync`, `sort -u`). ESLint and Playwright receive the file list through `tr` and `xargs -0` so `[id]` and `(dashboard)` paths are not expanded as globs, including on macOS where `xargs -d` is missing. An empty spec list refuses to run the full suite. `page.tsx` and `route.ts` still use the smoke fallback: a parent-directory needle such as `dashboard` would select most of the suite.
+
+### Session (STYL-368 / STYL-369 dashboard session - 14 Nov 2026)
+* **User**: Dashboard GETs (`/api/ingest/urls`, `/api/messages`, `/api/conversations`, `/api/voice-personas`) return 401 right after login on mobile Chrome. `dashboardFetch` must wait for the Supabase session and send a Bearer token. `requireUser` must accept the cookie session or the Bearer token. Inbox must show an error and retry instead of "Empty session log".
+* **Changes**: `waitForAuthSession` waits for `INITIAL_SESSION` before attaching the bearer. Bearer verification uses a stateless client and still runs if the cookie read throws. Inbox message loads go through `dashboardFetch` and show the error plus Retry.
+* **Tests**: The session-wait unit test passed. Rebased onto the STYL-356 hook.
+* **Review**: A synchronous `INITIAL_SESSION` no longer throws. `onAuthStateChange` is called on the auth client so `this` stays bound. Switching conversations clears the previous transcript and cancels the in-flight load. Clicking the conversation that is already open does not clear it. A later poll failure keeps the transcript on screen. Each 5s poll aborts the previous request so a slow response cannot overwrite the newer one. GoTrue already emits `INITIAL_SESSION` for every subscriber, including a null session, so a logged-out call does not wait out the 5s timer.
+* **CI**: One GitHub run timed out before Playwright started. Next could not resolve the Google font in `src/app/layout.tsx` (`next/font/google` queries have exactly one entry). That file is unchanged on this branch. Docker Hub also returned `toomanyrequests` while Supabase booted, then Supabase did start.
+
+### Session (STYL-361 Turnstile iframe on the app origin - 14 Nov 2026)
+* **User**: P1. The chat widget showed "Security verification failed" on the first message because it never got a Turnstile token. The WordPress embed has no site key, and the built fallback was behind `typeof process`, which is always false in the browser. The hidden 0×0 iframe could not complete an interactive challenge. The challenge must run inside an app-origin iframe in the shadow-DOM chat panel, on any customer website. Do not render Turnstile on the host page. Do not read a site key from the embed snippet.
+* **Changes**: `src/widget/index.ts` and `embed.ts` inline `NEXT_PUBLIC_TURNSTILE_SITE_KEY` with no `typeof process` guard (public production key only if the build omits the env var). The token always comes from `turnstile.html` on the app origin, mounted in the chat panel. `appearance: 'interaction-only'` plus `before-interactive-callback` shows that iframe when a click is required. Timeout is 30s. Error codes go to the browser console. There is no client error endpoint. The widget accepts `postMessage` only from that app-origin iframe.
+* **Tests**: `tests/styl-361-turnstile-iframe.spec.ts` and `tests/styl-226-widget-turnstile.spec.ts`: 6 passed. Rebased onto the STYL-356 hook.
+* **Merge**: `origin/staging` (PRs 67 and 68) merged in. The only conflict was this session log. Both the STYL-368 dashboard session notes and the STYL-361 Turnstile notes are kept.

@@ -1,1 +1,62 @@
-NODE_OPTIONS="${NODE_OPTIONS:---max-old-space-size=8192}" npm run typecheck && NODE_OPTIONS=--max-old-space-size=3072 npm run test:e2e -- tests/00-signed-out-api-allowlist.spec.ts && SKIP_SIGNED_OUT_SWEEP=1 NODE_OPTIONS=--max-old-space-size=3072 npm run test:e2e
+#!/bin/sh
+# STYL-356: lint, typecheck, and only the Playwright specs related to the
+# commits being pushed. CI (.github/workflows/playwright.yml) still runs the
+# full suite on every pull request. Do not add --no-verify to skip this.
+set -eu
+
+files=$(mktemp)
+trap 'rm -f "$files"' EXIT
+
+while read -r local_ref local_sha remote_ref remote_sha; do
+  if [ -z "${local_sha:-}" ]; then
+    continue
+  fi
+  if [ "$local_sha" = "0000000000000000000000000000000000000000" ]; then
+    continue
+  fi
+  if [ "$remote_sha" = "0000000000000000000000000000000000000000" ]; then
+    base=$(git merge-base origin/staging "$local_sha" 2>/dev/null || true)
+  else
+    base=$remote_sha
+  fi
+  if [ -n "${base:-}" ]; then
+    git diff --name-only --diff-filter=d "$base" "$local_sha" >> "$files"
+  fi
+done
+
+if [ ! -s "$files" ]; then
+  base=$(git merge-base origin/staging HEAD 2>/dev/null || true)
+  if [ -n "${base:-}" ]; then
+    git diff --name-only --diff-filter=d "$base" HEAD >> "$files"
+  fi
+fi
+
+if [ -s "$files" ]; then
+  sort -u "$files" -o "$files"
+fi
+
+specs=$(node scripts/prepush-related-specs.mjs < "$files")
+echo "Pre-push Playwright specs:"
+printf '%s\n' "$specs"
+
+# Lint the changed source files. `npm run lint` still fails on a large
+# pre-existing backlog, so a full-tree lint would block every push.
+lint_files=$(grep -E '\.(ts|tsx|js|jsx|mjs|cjs)$' "$files" | grep -v '^public/' || true)
+if [ -n "$lint_files" ]; then
+  echo "Pre-push lint:"
+  printf '%s\n' "$lint_files"
+  # NUL-delimited xargs (-0 is on both GNU and macOS). App Router paths
+  # such as [id] and (dashboard) must not expand as globs.
+  # ESLint does not fail the push: npm run lint currently reports 1000+
+  # pre-existing errors, including in files a small change has to touch.
+  printf '%s\n' "$lint_files" | tr '\n' '\0' | NODE_OPTIONS="${NODE_OPTIONS:---max-old-space-size=8192}" xargs -0 npx eslint --no-error-on-unmatched-pattern || echo "ESLint reported issues in the changed files. Typecheck and the related specs still have to pass."
+else
+  echo "No changed source files to lint."
+fi
+
+NODE_OPTIONS="${NODE_OPTIONS:---max-old-space-size=8192}" npm run typecheck
+if [ -z "$specs" ]; then
+  echo "Pre-push selected no Playwright specs. Refusing to run the full suite."
+  exit 1
+fi
+printf '%s\n' "$specs" | tr '\n' '\0' | NODE_OPTIONS="${NODE_OPTIONS:---max-old-space-size=3072}" xargs -0 npm run test:e2e --

@@ -1,7 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useDashboardStore, Message } from '../../lib/store';
-import { createBrowserClient } from '@supabase/ssr';
-import { browserAuthHeaders } from '@/lib/auth/client-auth-headers';
+import { dashboardFetch } from '@/lib/auth/dashboard-auth-headers';
 
 export type ChannelFilterOption = 'all' | 'chat' | 'sms' | 'web_voice' | 'instagram' | 'whatsapp';
 
@@ -10,12 +9,10 @@ export default function InboxView() {
   const [selectedConversation, setSelectedConversation] = useState<string | null>(null);
   const [conversationMessages, setConversationMessages] = useState<Message[]>([]);
   const [isFetchingMessages, setIsFetchingMessages] = useState(false);
+  const [messagesError, setMessagesError] = useState<string | null>(null);
+  const [messagesRetry, setMessagesRetry] = useState(0);
   const [convPage, setConvPage] = useState(0);
   const [channelFilter, setChannelFilter] = useState<ChannelFilterOption>('all');
-
-  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
-  const supabase = supabaseUrl && supabaseAnonKey ? createBrowserClient(supabaseUrl, supabaseAnonKey) : null;
 
   // Helper to categorize conversation channel
   const getConversationChannel = (conv: any): ChannelFilterOption => {
@@ -85,9 +82,7 @@ export default function InboxView() {
 
     const syncConvs = async () => {
       try {
-        const res = await fetch(`/api/conversations?tenantId=${encodeURIComponent(tenantId)}`, {
-          headers: await browserAuthHeaders(),
-        });
+        const res = await dashboardFetch(`/api/conversations?tenantId=${encodeURIComponent(tenantId)}`);
         if (res.ok) {
           const data = await res.json();
           if (data.conversations && Array.isArray(data.conversations)) {
@@ -112,48 +107,44 @@ export default function InboxView() {
     }
 
     const convoId = selectedConversation;
+    let cancelled = false;
+    let active = new AbortController();
 
     async function fetchMessages() {
+      active.abort();
+      active = new AbortController();
+      const signal = active.signal;
       try {
-        const response = await fetch(
+        const response = await dashboardFetch(
           `/api/messages?conversationId=${encodeURIComponent(convoId)}&tenantId=${encodeURIComponent(tenantId)}`,
-          { headers: await browserAuthHeaders() },
+          { signal },
         );
-        if (response.ok) {
-          const resData = await response.json();
-          const sortedMessages = (resData.messages || []).sort((a: any, b: any) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime());
-          setConversationMessages(sortedMessages);
-        } else {
-          throw new Error(response.statusText);
+        if (cancelled || signal.aborted) return;
+        if (!response.ok) {
+          throw new Error(`Could not load this conversation (${response.status}).`);
         }
+        const resData = await response.json();
+        const sortedMessages = (resData.messages || []).sort((a: any, b: any) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime());
+        setConversationMessages(sortedMessages);
+        setMessagesError(null);
       } catch (err) {
+        if (cancelled || signal.aborted) return;
         console.error('Failed to fetch messages via API:', err);
-        if (supabase) {
-          try {
-            const { data } = await supabase
-              .from('messages')
-              .select('*')
-              .eq('conversation_id', convoId)
-              .eq('tenant_id', tenantId)
-              .order('created_at', { ascending: true });
-
-            if (data) {
-              const sortedMessages = data.sort((a: any, b: any) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime());
-              setConversationMessages(sortedMessages);
-            }
-          } catch (clientErr) {
-            console.error('Client-side messages fetch failed:', clientErr);
-          }
-        }
+        setMessagesError(err instanceof Error ? err.message : 'Could not load this conversation.');
       }
-      setIsFetchingMessages(false);
+      if (!cancelled && !signal.aborted) setIsFetchingMessages(false);
     }
 
     setIsFetchingMessages(true);
+    setMessagesError(null);
     fetchMessages();
     const messageInterval = setInterval(fetchMessages, 5000);
-    return () => clearInterval(messageInterval);
-  }, [selectedConversation, supabase, tenantId]);
+    return () => {
+      cancelled = true;
+      active.abort();
+      clearInterval(messageInterval);
+    };
+  }, [selectedConversation, tenantId, messagesRetry]);
 
   const selectedConvObj = (conversations || []).find(c => c && c.id === selectedConversation);
 
@@ -214,9 +205,7 @@ export default function InboxView() {
                     onClick={async () => {
                       if (!tenantId) return;
                       try {
-                        const res = await fetch(`/api/conversations?tenantId=${encodeURIComponent(tenantId)}`, {
-                          headers: await browserAuthHeaders(),
-                        });
+                        const res = await dashboardFetch(`/api/conversations?tenantId=${encodeURIComponent(tenantId)}`);
                         if (res.ok) {
                           const data = await res.json();
                           if (data.conversations && Array.isArray(data.conversations)) {
@@ -267,7 +256,12 @@ export default function InboxView() {
                   return (
                     <button
                       key={conv.id}
-                      onClick={() => setSelectedConversation(conv.id)}
+                      onClick={() => {
+                        if (selectedConversation === conv.id) return;
+                        setConversationMessages([]);
+                        setMessagesError(null);
+                        setSelectedConversation(conv.id);
+                      }}
                       className={`w-full text-left p-3.5 rounded-xl border text-xs transition-all flex flex-col gap-2 ${
                         selectedConversation === conv.id
                           ? 'bg-blue-50/80 border-indigo-500 text-[var(--awb-color8)] shadow-md ring-1 ring-indigo-500/20'
@@ -323,9 +317,31 @@ export default function InboxView() {
                     </div>
                   )}
 
-                  {/* Turn-by-Turn Chat / Voice Messages */}
-                  {conversationMessages.length > 0 ? (
+                  {messagesError && conversationMessages.length === 0 ? (
+                    <div className="h-full flex flex-col items-center justify-center gap-3 text-xs text-gray-600">
+                      <p>{messagesError}</p>
+                      <button
+                        type="button"
+                        onClick={() => setMessagesRetry((count) => count + 1)}
+                        className="px-3 py-1.5 rounded-lg bg-[#260475] text-white font-semibold"
+                      >
+                        Retry
+                      </button>
+                    </div>
+                  ) : conversationMessages.length > 0 ? (
                     <div className="space-y-3 pt-2 border-t border-gray-100">
+                      {messagesError ? (
+                        <div className="flex items-center justify-between gap-2 text-xs text-gray-600">
+                          <p>Could not refresh this conversation. The last transcript is still shown.</p>
+                          <button
+                            type="button"
+                            onClick={() => setMessagesRetry((count) => count + 1)}
+                            className="px-3 py-1.5 rounded-lg bg-[#260475] text-white font-semibold shrink-0"
+                          >
+                            Retry
+                          </button>
+                        </div>
+                      ) : null}
                       <h5 className="text-xs font-bold text-gray-700 mb-2">Turn-by-Turn Log</h5>
                       {conversationMessages.map((msg, i) => (
                         <div key={msg.id || i} className={`flex ${msg.sender_type === 'user' ? 'justify-end' : 'justify-start'}`}>

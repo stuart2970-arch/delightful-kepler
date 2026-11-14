@@ -100,7 +100,7 @@ Optional: enable the Custom Access Token hook `public.custom_access_token_hook` 
 | `NEXT_PUBLIC_SUPABASE_URL` / `SUPABASE_URL` | Plain value | **`apphosting.yaml`** (base — BUILD + RUNTIME; staging-only Firebase project) |
 | `APP_ENV` / `NEXT_PUBLIC_ENV` | Plain value | **`apphosting.yaml`** → `staging` (also re-asserted in `apphosting.staging.yaml`) |
 | `NEXT_PUBLIC_APP_URL` / `NEXT_PUBLIC_SITE_URL` | Plain value | **`apphosting.yaml`** and **`apphosting.staging.yaml`** → `https://staging.styleflo.ai` |
-| `NEXT_PUBLIC_TURNSTILE_SITE_KEY` | Plain value | **`apphosting.yaml`** — Cloudflare always-pass site key (see Turnstile note below) |
+| `NEXT_PUBLIC_TURNSTILE_SITE_KEY` | Plain value | **`apphosting.staging.yaml`** — Cloudflare always-pass site key `1x00000000000000000000AA` (BUILD + RUNTIME). Overrides the base file for the staging backend only. |
 | `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Secret Manager | Base + staging yaml — **BUILD + RUNTIME** (must be grantaccess’d) |
 | Core + feature secrets | Secret Manager | Listed below — referenced **by name** in `apphosting.staging.yaml` |
 | Twilio bundle / address SIDs | Plain values | Staging SIDs from Jira STYL-226 comment 10163 (not secrets) |
@@ -127,14 +127,14 @@ Production Cloud Run continues to use production secrets. `deploy.yml` typecheck
 
 ### Cloudflare Turnstile on staging (always-pass test keys)
 
-Cloudflare’s documented **always-pass** pair works for staging QA:
+Cloudflare’s documented **always-pass** pair works for staging QA. The site key and the secret key are different strings. `embed.js` inlines the site key into `/turnstile.html`. The secret is only for server-side siteverify.
 
 | Role | Value |
 | :--- | :--- |
-| Site key (public, in yaml) | `1x0000000000000000000000000000000AA` |
+| Site key (public, staging override) | `1x00000000000000000000AA` |
 | Secret key (Secret Manager) | `1x0000000000000000000000000000000AA` |
 
-`apphosting.staging.yaml` sets `NEXT_PUBLIC_TURNSTILE_SITE_KEY` to the site key above (baked into `widget.js` at App Hosting BUILD). Set `CLOUDFLARE_TURNSTILE_SECRET_KEY` to the matching secret. Do **not** use these always-pass keys in production.
+`apphosting.staging.yaml` sets `NEXT_PUBLIC_TURNSTILE_SITE_KEY` to `1x00000000000000000000AA` (baked into `embed.js` and `widget.js` at App Hosting BUILD). The base `apphosting.yaml` value is left unchanged so production App Hosting (`styleflo-ai` / `delightful-kepler-1`) keeps its own value. Set `CLOUDFLARE_TURNSTILE_SECRET_KEY` to the matching secret. Do **not** use these always-pass keys in production.
 
 ### 1. Create the six core Secret Manager secrets
 
