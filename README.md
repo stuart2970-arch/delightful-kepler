@@ -35,6 +35,10 @@ Local development uses the **local Supabase CLI stack** and mock third-party key
    npm run build
    ```
 
+6. **What runs before a push, and what CI runs**:
+   The Husky pre-push hook (`.husky/pre-push`, STYL-356) lints the changed TypeScript and JavaScript files, runs `npm run typecheck`, and runs only the Playwright specs related to the commits being pushed. `scripts/prepush-related-specs.mjs` picks those specs. If none match, it runs a small smoke set: `tests/addon-text.spec.ts` and `tests/styl-226-release-source.spec.ts`. It does not run the full suite. A full `npm run lint` still reports more than a thousand existing errors, including in files a small change has to touch, so ESLint is printed and does not by itself fail the push. Typecheck and the related specs do.
+   Every pull request to `main` or `staging` still runs the **full** Playwright suite in `.github/workflows/playwright.yml` (`npm run test:e2e`, no file filter), plus the typecheck. Do not narrow that workflow to the related-spec list.
+
 ---
 
 ## Project Resources
@@ -4425,3 +4429,8 @@ Highlighted adjustments in the modal:
 ### Session (STYL-298 delete the WPMU DEV webhook - 13 Nov 2026)
 * **User**: Rework PR 52. Delete `POST /api/webhooks/wpmudev` instead of requiring a secret. Site Editor confirmed Forminator has no forms and the webhook integration is not connected. Rebase onto current staging. Leave `WPMUDEV_WEBHOOK_SECRET` out of the yaml. No migrations. Never `--no-verify`.
 * **Changes**: The route file is removed. `tests/styl-298-wpmudev-webhook-auth.spec.ts` now expects POST to return 404 or 405. App Hosting yaml is unchanged.
+
+### Session (STYL-356 lean pre-push - 14 Nov 2026)
+* **User**: One authorised `--no-verify` push, only for this branch. The pre-push hook should run lint, typecheck, and Playwright specs related to the changed files, with a fast smoke fallback. CI must still run the full suite on every PR.
+* **Changes**: `.husky/pre-push` lints the changed source files, typechecks, and calls `scripts/prepush-related-specs.mjs`. A full `npm run lint` still has more than a thousand existing errors, so ESLint output does not by itself fail the push. Typecheck and the related specs do. `.github/workflows/playwright.yml` still runs `npm run test:e2e` with no file filter on pull requests to `main` and `staging`. README documents both.
+* **Review**: Deleted and duplicate spec paths are dropped (`--diff-filter=d`, `existsSync`, `sort -u`). ESLint and Playwright receive the file list through `tr` and `xargs -0` so `[id]` and `(dashboard)` paths are not expanded as globs, including on macOS where `xargs -d` is missing. An empty spec list refuses to run the full suite. `page.tsx` and `route.ts` still use the smoke fallback: a parent-directory needle such as `dashboard` would select most of the suite.
