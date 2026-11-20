@@ -12,7 +12,12 @@ log() {
   printf '[agent-install] %s\n' "$*"
 }
 
-if ! docker info >/dev/null 2>&1 && id -nG | grep -qw docker; then
+in_docker_group() {
+  local user="${USER:-ubuntu}"
+  getent group docker 2>/dev/null | grep -qE "[,:]${user}([,]|$)"
+}
+
+if ! docker info >/dev/null 2>&1 && in_docker_group; then
   log 'Re-running inside docker group (sg docker)'
   exec sg docker -c "cd '$ROOT' && bash '$0'"
 fi

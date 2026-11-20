@@ -10,12 +10,17 @@ run_e2e() {
   NODE_OPTIONS="${NODE_OPTIONS:---max-old-space-size=8192}" npm run test:e2e -- "$@"
 }
 
+in_docker_group() {
+  local user="${USER:-ubuntu}"
+  getent group docker 2>/dev/null | grep -qE "[,:]${user}([,]|$)"
+}
+
 if docker info >/dev/null 2>&1; then
   run_e2e "$@"
   exit $?
 fi
 
-if id -nG | grep -qw docker; then
+if in_docker_group; then
   quoted=""
   for arg in "$@"; do
     quoted+=" $(printf '%q' "$arg")"
