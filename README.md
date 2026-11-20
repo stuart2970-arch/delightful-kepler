@@ -4498,6 +4498,10 @@ Highlighted adjustments in the modal:
 * **User**: Merge current `origin/staging` into PR 53 (`cursor/vapi-end-of-call-report-7954`). Resolve conflicts keeping Vapi end-of-call ingest intent plus staging widget/auth changes. Get CI green. Do not merge the PR.
 * **Conflicts**: `README.md` session log (kept Vapi note and every staging note), `public/embed.js` and `public/widget.js` (regenerated via `npm run build:widget` from merged `src/widget/*`, combining STYL-361 Turnstile iframe with server-side `web-call` / `reconnect`). `src/widget/*` auto-merged.
 * **Behaviour**: No intentional logic change beyond absorbing staging. Built widget bundles now include Turnstile iframe plus server-provisioned Vapi web calls.
+### Session (PR 53 stuck CI run - 20 Nov 2026)
+* **User**: Run `44827024672` on `da7a18b` stayed `in_progress` ~45m. Inspect logs; fix real hang; cancel/rerun if runner stuck.
+* **Finding**: Job `136602101536` marked Playwright step `cancelled` at 22:18 UTC (~3m after start); workflow `updated_at` never advanced — stuck GitHub Actions state, not a hung local test. `gh run cancel`/`rerun` returned 403 for this token. Empty commit to retrigger.
+
 ### Session (PR 53 OpenClaw web-call guards + ingest re-meter - 20 Nov 2026)
 * **User**: On PR 53 (`cursor/vapi-end-of-call-report-7954`), address OpenClaw review `5894566710`: harden `POST /api/voice/web-call` (rate limits, embed origin, session/Turnstile, voice entitlement) before any Vapi call; fix end-of-call ingest so a retry re-meters when `metered_at` is null after a failed claim. Amend `20261111103000_vapi_call_ingest.sql` (not on hosted staging migration list yet). Keep empty-bake widget bundles, hooks on, do not merge.
 * **Changes**: `web-call` enforces IP/chatbot rate limits, signed chat session or Turnstile, tenant domain embed check, and `resolveChatbotVoiceAccess`. Widget sends `x-session-token`. Ingest adds `metered_at`; retries resume incomplete claims and call `logMeteredUsage` when no consumption row. Playwright test server overrides safe `VOICE_ENABLED` + non-placeholder Vapi keys (`.env.test` stays off).
