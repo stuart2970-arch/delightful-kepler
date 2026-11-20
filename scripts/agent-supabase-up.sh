@@ -4,6 +4,7 @@
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+SELF="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/$(basename "${BASH_SOURCE[0]}")"
 cd "$ROOT"
 
 LIVE_REF='tkoasyjvrgaglofpzduq'
@@ -16,13 +17,13 @@ log() {
 
 # Session may not have an active `docker` group (common right after image build).
 in_docker_group() {
-  local user="${USER:-ubuntu}"
+  local user="${USER:-$(id -un)}"
   getent group docker 2>/dev/null | grep -qE "[,:]${user}([,]|$)"
 }
 
-if ! docker info >/dev/null 2>&1 && in_docker_group; then
+if ! docker info >/dev/null 2>&1 && ! id -nG | grep -qw docker && in_docker_group; then
   log 'Re-running inside docker group (sg docker)'
-  exec sg docker -c "cd '$ROOT' && bash '$0'"
+  exec sg docker -c "cd $(printf '%q' "$ROOT") && bash $(printf '%q' "$SELF")"
 fi
 
 refuse_remote_env() {
