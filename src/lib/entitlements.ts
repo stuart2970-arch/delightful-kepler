@@ -1,5 +1,5 @@
 import { createClient } from '@supabase/supabase-js';
-import { resolveVoiceAllowance } from '@/lib/telephony/voice-minute-gate';
+import { resolveVoiceAllowance } from './telephony/voice-minute-gate';
 import { usageAlertLevel, type UsageAlertLevel } from './usage-alerts';
 
 export { USAGE_ALERT_LIMIT_PERCENT, USAGE_ALERT_WARNING_PERCENT, usageAlertLevel } from './usage-alerts';

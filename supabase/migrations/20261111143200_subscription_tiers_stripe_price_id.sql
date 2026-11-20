@@ -5,6 +5,7 @@
 ALTER TABLE public.subscription_tiers
 ADD COLUMN IF NOT EXISTS stripe_price_id TEXT;
 
-CREATE UNIQUE INDEX IF NOT EXISTS subscription_tiers_stripe_price_id_key
+-- foundation and base_tier may share one Stripe base-plan price (tier aliases).
+CREATE INDEX IF NOT EXISTS subscription_tiers_stripe_price_id_idx
 ON public.subscription_tiers (stripe_price_id)
 WHERE stripe_price_id IS NOT NULL;
