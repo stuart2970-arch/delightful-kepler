@@ -8,6 +8,16 @@ This block is written and re-added by `next dev` — verify at `node_modules/nex
 
 <!-- END:nextjs-agent-rules -->
 
+## Cursor Cloud specific instructions
+
+Local Supabase is required before `npm run test:e2e` or the Husky pre-push hook. On Cursor Cloud Agent VMs:
+
+1. Ensure Docker is running (`sudo service docker start` — configured in `.cursor/environment.json` `start`).
+2. Run `bash scripts/agent-supabase-up.sh` (starts local CLI stack, `supabase db reset --yes` **local only**, writes `.env.test` via `npm run env:local`).
+3. Run `npm run test:e2e` or push to trigger `.husky/pre-push`.
+
+Never run `supabase db push`, `supabase db reset --linked`, or point env files at live (`tkoasyjvrgaglofpzduq`) or staging cloud (`lriugykhrfnnouexqqhm`). See `.agents/skills/local-testing-environment/SKILL.md`.
+
 # Project Session Logging Rule
 Always read and digest the `README.md` file each time a new session starts. After each code change or significant session milestone, append a log of the update and a summary of the conversation to the `## Session Chat History Log` section at the end of the `README.md` file.
 

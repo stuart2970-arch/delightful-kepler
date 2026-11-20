@@ -1,0 +1,10 @@
+{
+  "name": "delightful-kepler local Supabase",
+  "build": {
+    "dockerfile": "Dockerfile",
+    "context": ".."
+  },
+  "install": "bash .cursor/agent-install.sh",
+  "start": "sudo service docker start",
+  "user": "ubuntu"
+}
