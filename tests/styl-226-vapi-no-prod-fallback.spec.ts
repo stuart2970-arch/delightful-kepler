@@ -25,6 +25,8 @@ test.describe('STYL-226: Vapi has no production fallback', () => {
     const previous = {
       APP_ENV: process.env.APP_ENV,
       NEXT_PUBLIC_ENV: process.env.NEXT_PUBLIC_ENV,
+      VOICE_ENABLED: process.env.VOICE_ENABLED,
+      VAPI_API_KEY: process.env.VAPI_API_KEY,
       NEXT_PUBLIC_VAPI_PUBLIC_KEY: process.env.NEXT_PUBLIC_VAPI_PUBLIC_KEY,
       VAPI_PUBLIC_KEY: process.env.VAPI_PUBLIC_KEY,
       VAPI_MASTER_ASSISTANT_ID: process.env.VAPI_MASTER_ASSISTANT_ID,
@@ -33,6 +35,8 @@ test.describe('STYL-226: Vapi has no production fallback', () => {
     try {
       process.env.APP_ENV = 'staging';
       process.env.NEXT_PUBLIC_ENV = 'staging';
+      delete process.env.VOICE_ENABLED;
+      delete process.env.VAPI_API_KEY;
       delete process.env.NEXT_PUBLIC_VAPI_PUBLIC_KEY;
       delete process.env.VAPI_PUBLIC_KEY;
       delete process.env.VAPI_MASTER_ASSISTANT_ID;

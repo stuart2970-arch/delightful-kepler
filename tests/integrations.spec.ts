@@ -36,7 +36,7 @@ async function ownerOfTelephonyTenant(tenantId: string) {
     company_name: 'Playwright Telephony Tenant',
   }, { onConflict: 'id' });
   if (error) throw new Error(error.message);
-  const telephonyBotId = `c0${tenantId.slice(2, 9)}-4000-8000-${tenantId.slice(-12)}`;
+  const telephonyBotId = `c0000000-0000-4000-8000-${tenantId.replace(/-/g, '').slice(-12)}`;
   const { error: botError } = await admin.from('chatbots').upsert({
     id: telephonyBotId,
     tenant_id: tenantId,
