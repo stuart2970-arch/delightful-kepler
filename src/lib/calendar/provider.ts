@@ -294,16 +294,26 @@ export async function createEvent(
     }
 
     const calendarId = staff.google_calendar_id || details.calendarId || 'primary';
-    const insertRes = await calendar.events.insert({
-      calendarId,
-      requestBody: {
-        summary: details.summary,
-        description: details.description,
-        start: { dateTime: details.startTime },
-        end: { dateTime: details.endTime },
-        attendees: details.attendeeEmail ? [{ email: details.attendeeEmail }] : undefined,
-      },
-    });
+    const requestBody = {
+      summary: details.summary,
+      description: details.description,
+      start: { dateTime: details.startTime },
+      end: { dateTime: details.endTime },
+    };
+    let insertRes;
+    try {
+      insertRes = await calendar.events.insert({
+        calendarId,
+        requestBody: {
+          ...requestBody,
+          attendees: details.attendeeEmail ? [{ email: details.attendeeEmail }] : undefined,
+        },
+      });
+    } catch (withGuest) {
+      if (!details.attendeeEmail) throw withGuest;
+      console.warn('[Calendar] Google event with guest failed; retrying without a guest.');
+      insertRes = await calendar.events.insert({ calendarId, requestBody });
+    }
 
     if (!insertRes.data?.id) {
       throw new Error('Failed to create Google Calendar event');

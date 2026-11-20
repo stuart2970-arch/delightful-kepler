@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { createBrowserClient } from '@supabase/ssr';
+import { dashboardFetch } from '@/lib/auth/dashboard-auth-headers';
 
 export default function SuperAdminVoiceManagerView() {
   const [personas, setPersonas] = useState<any[]>([]);
@@ -20,14 +20,10 @@ export default function SuperAdminVoiceManagerView() {
     provider: '11labs'
   });
 
-  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || '';
-  const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || '';
-  const supabase = supabaseUrl && supabaseAnonKey ? createBrowserClient(supabaseUrl, supabaseAnonKey) : null;
-
   const fetchPersonas = async () => {
     setLoading(true);
     try {
-      const res = await fetch('/api/voice-personas');
+      const res = await dashboardFetch('/api/voice-personas');
       if (!res.ok) throw new Error('Failed to load personas');
       const data = await res.json();
       setPersonas(Array.isArray(data) ? data : (data?.personas || data?.data || []));

@@ -21,6 +21,7 @@ import AddOnUpsellModal, { AddOnCategory } from './AddOnUpsellModal';
 import { useDashboardStore, type ActiveTab } from '../lib/store';
 import { formatAllowanceRange } from '@/lib/addon-text';
 import { knowledgeItemsTotal, resolveCalendarAddonFlags, resolveCheckoutSuccessBanner } from '@/lib/billing/bolt-on';
+import { formatBoltOnCancelLabel } from '@/lib/billing/account-ownership';
 import { publicAppPath } from '@/lib/env/public-app-url';
 
 const BILLING_CATEGORIES: AddOnCategory[] = [
@@ -344,6 +345,43 @@ export default function DashboardClient({
   const [billingMessage, setBillingMessage] = useState<string | null>(null);
   const [billingUpsellCategory, setBillingUpsellCategory] = useState<AddOnCategory | null>(null);
 
+  const openBillingPortal = async () => {
+    setIsOpeningPortal(true);
+    setBillingMessage(null);
+    const timeoutId = setTimeout(() => {
+      setIsOpeningPortal(false);
+    }, 10000);
+
+    try {
+      const wpAppUrl = publicAppPath('/dashboard?tab=billing');
+      const res = await fetch('/api/billing/checkout', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'portal', returnUrl: wpAppUrl }),
+      });
+      const data = await res.json();
+      clearTimeout(timeoutId);
+      if (data.url) {
+        if (typeof window !== 'undefined' && window.top && window.top !== window) {
+          window.top.location.href = data.url;
+        } else {
+          window.location.href = data.url;
+        }
+      } else if (data.error) {
+        setBillingMessage(data.error);
+        setIsOpeningPortal(false);
+      } else {
+        setBillingMessage('Unable to connect to Stripe portal. Please try again later.');
+        setIsOpeningPortal(false);
+      }
+    } catch (err: any) {
+      clearTimeout(timeoutId);
+      console.error('Stripe portal error:', err);
+      setBillingMessage(err.message || 'Failed to open billing portal');
+      setIsOpeningPortal(false);
+    }
+  };
+
   // Sync tab from URL params (?tab=...) or initialTab prop
   useEffect(() => {
     if (typeof window !== 'undefined') {
@@ -428,7 +466,7 @@ export default function DashboardClient({
 
       const response = await fetch('/api/tenants/settings', {
         method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
+        headers: await getAuthHeaders({ 'Content-Type': 'application/json' }),
         body: JSON.stringify({
           tenantId,
           domain: domain,
@@ -910,7 +948,8 @@ const globalBotId = '00000000-0000-0000-0000-000000000000';
                     {userName[0]}
                   </div>
                   <div className="flex flex-col text-left">
-                     <span className="text-sm font-semibold text-[var(--awb-color8)] leading-tight">{userName}</span>
+                     <span data-testid="salon-name" className="text-sm font-semibold text-[var(--awb-color8)] leading-tight truncate w-36">{tenantName}</span>
+                     <span className="text-[11px] text-[var(--awb-color7)] leading-tight">{userName}</span>
                      <span className="text-[10px] text-[var(--awb-color6)] truncate w-28">{userEmail}</span>
                   </div>
                </div>
@@ -977,42 +1016,8 @@ const globalBotId = '00000000-0000-0000-0000-000000000000';
                     </p>
                   </div>
                   <button
-                    onClick={async () => {
-                      setIsOpeningPortal(true);
-                      setBillingMessage(null);
-                      const timeoutId = setTimeout(() => {
-                        setIsOpeningPortal(false);
-                      }, 10000);
-
-                      try {
-                        const wpAppUrl = publicAppPath('/dashboard?tab=billing');
-                        const res = await fetch('/api/billing/checkout', {
-                          method: 'POST',
-                          headers: { 'Content-Type': 'application/json' },
-                          body: JSON.stringify({ action: 'portal', returnUrl: wpAppUrl }),
-                        });
-                        const data = await res.json();
-                        clearTimeout(timeoutId);
-                        if (data.url) {
-                          if (typeof window !== 'undefined' && window.top && window.top !== window) {
-                            window.top.location.href = data.url;
-                          } else {
-                            window.location.href = data.url;
-                          }
-                        } else if (data.error) {
-                          setBillingMessage(data.error);
-                          setIsOpeningPortal(false);
-                        } else {
-                          setBillingMessage('Unable to connect to Stripe portal. Please try again later.');
-                          setIsOpeningPortal(false);
-                        }
-                      } catch (err: any) {
-                        clearTimeout(timeoutId);
-                        console.error('Stripe portal error:', err);
-                        setBillingMessage(err.message || 'Failed to open billing portal');
-                        setIsOpeningPortal(false);
-                      }
-                    }}
+                    type="button"
+                    onClick={() => { void openBillingPortal(); }}
                     disabled={isOpeningPortal}
                     className="w-full sm:w-auto bg-[#198fd9] hover:bg-[#157ab9] disabled:bg-[#198fd9]/60 text-white text-xs font-bold py-2.5 px-5 rounded-[4px] shadow-sm transition-colors whitespace-nowrap flex items-center justify-center gap-2 cursor-pointer"
                   >
@@ -1155,7 +1160,9 @@ const globalBotId = '00000000-0000-0000-0000-000000000000';
                       {((billingData?.ownership?.monthly_bolt_ons || []).filter((item: any) => item.already_included).length > 0
                         ? (billingData.ownership.monthly_bolt_ons as any[]).filter((item) => item.already_included)
                         : billingData.addons
-                      ).map((addon: any) => (
+                      ).map((addon: any) => {
+                        const cancelLabel = formatBoltOnCancelLabel(addon.cancel_at);
+                        return (
                         <div key={addon.id} className="bg-[var(--awb-color2)] border border-[var(--awb-color3)] rounded-xl p-4 flex items-center justify-between gap-3">
                           <div className="flex items-center gap-3 min-w-0">
                             <div className="w-8 h-8 rounded-lg bg-[#260475] text-white flex items-center justify-center text-xs font-bold shrink-0">
@@ -1167,6 +1174,11 @@ const globalBotId = '00000000-0000-0000-0000-000000000000';
                                 £{(((addon.price_paid_pence ?? addon.monthly_price_pence) || 0) / 100).toFixed(2)}
                                 {addon.category === 'voice_pack' || addon.category === 'sms_pack' ? '' : '/mo'}
                               </p>
+                              {cancelLabel ? (
+                                <p className="text-[10px] font-semibold text-amber-800">
+                                  {cancelLabel}
+                                </p>
+                              ) : null}
                             </div>
                           </div>
                           <div className="flex items-center gap-2 shrink-0">
@@ -1176,11 +1188,10 @@ const globalBotId = '00000000-0000-0000-0000-000000000000';
                               </span>
                             ) : (
                               <button
-                                onClick={() => {
-                                  const category = asBillingCategory(addon.category);
-                                  if (category) setBillingUpsellCategory(category);
-                                }}
-                                className="bg-[var(--awb-color1)] hover:bg-[var(--awb-color3)] text-[var(--awb-color8)] border border-[var(--awb-color3)] text-[11px] font-bold py-1 px-2.5 rounded-[4px] transition-colors cursor-pointer"
+                                type="button"
+                                onClick={() => { void openBillingPortal(); }}
+                                disabled={isOpeningPortal}
+                                className="bg-[var(--awb-color1)] hover:bg-[var(--awb-color3)] text-[var(--awb-color8)] border border-[var(--awb-color3)] text-[11px] font-bold py-1 px-2.5 rounded-[4px] transition-colors cursor-pointer disabled:opacity-60"
                               >
                                 Adjust
                               </button>
@@ -1188,7 +1199,8 @@ const globalBotId = '00000000-0000-0000-0000-000000000000';
                             <div className="w-2 h-2 rounded-full bg-green-500 shrink-0" title="Active"></div>
                           </div>
                         </div>
-                      ))}
+                        );
+                      })}
                     </div>
                   </div>
                 )}
@@ -1426,6 +1438,18 @@ const globalBotId = '00000000-0000-0000-0000-000000000000';
                         <h4 className="text-base font-extrabold text-[#260475] tracking-tight">General Information</h4>
                         <p className="text-[11px] text-gray-500 font-medium">Configure primary domain & public branding options</p>
                       </div>
+                    </div>
+                    <div>
+                      <label className="block text-xs font-semibold text-[#212326] mb-1.5" htmlFor="account-salon-name">Salon name</label>
+                      <input
+                        id="account-salon-name"
+                        data-testid="account-salon-name"
+                        type="text"
+                        value={tenantName}
+                        readOnly
+                        className="w-full h-[50px] bg-white border border-[#f2f3f5] rounded-[6px] px-3.5 py-2 text-sm text-[#212326] font-semibold"
+                      />
+                      <p className="text-[10px] text-[#434549] mt-1">This is the salon name from sign-up. It is stored on your account.</p>
                     </div>
                     <div>
                       <label className="block text-xs font-semibold text-[#212326] mb-1.5">Custom Domain</label>

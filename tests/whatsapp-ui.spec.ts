@@ -187,11 +187,14 @@ test.describe('Phases 4 & 5: WhatsApp Embedded Signup v4 UI & Superadmin Telemet
     await expect(page.getByText('Meta Messaging Channels')).toBeVisible();
     await expect(page.getByText('Embedded Signup v4').first()).toBeVisible();
 
-    // 4. Verify 3 pre-approved starter templates (en_GB)
-    await expect(page.getByText('Pre-Approved Starter Templates (en_GB)')).toBeVisible();
+    // 4. Verify starter templates (en_GB) render the submitted copy, with no hard-coded approval
+    await expect(page.getByText('Starter Templates (en_GB)')).toBeVisible();
     await expect(page.getByText('appointment_reminder')).toBeVisible();
     await expect(page.getByText('booking_link')).toBeVisible();
     await expect(page.getByText('missed_call_followup')).toBeVisible();
+    await expect(page.getByText(/We were unable to take your call at/)).toBeVisible();
+    await expect(page.getByText(/Please reply YES to confirm the appointment/)).toBeVisible();
+    await expect(page.getByText('Approved by Meta')).toHaveCount(0);
 
     // 5. Verify 24-Hour Free-Form Customer Service Window notice
     await expect(page.getByText('24-Hour Free-Form Customer Service Window Active')).toBeVisible();

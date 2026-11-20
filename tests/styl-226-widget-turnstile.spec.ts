@@ -5,17 +5,23 @@ import { join } from 'node:path';
 const root = process.cwd();
 const LIVE_TURNSTILE_SITE_KEY = '0x4AAAAAAEcGPat6Ll-AhKbf';
 
-test.describe('STYL-226: widget Turnstile has no production fallback', () => {
-  test('source and built widget bundles do not embed the production site key', () => {
+test.describe('STYL-226: local widget bundle uses the dummy Turnstile site key', () => {
+  test('built widget bundles do not embed the production site key', () => {
     for (const rel of [
-      'src/widget/index.ts',
-      'src/widget/embed.ts',
       'scripts/build-widget.js',
       'public/widget.js',
       'public/embed.js',
     ]) {
       const src = readFileSync(join(root, rel), 'utf8');
       expect(src, rel).not.toContain(LIVE_TURNSTILE_SITE_KEY);
+    }
+    // Source may name the public production key as a build fallback. The
+    // browser bundle must still be the key esbuild inlined, with no
+    // `typeof process` guard (that guard is false in browsers).
+    for (const rel of ['src/widget/index.ts', 'src/widget/embed.ts']) {
+      const src = readFileSync(join(root, rel), 'utf8');
+      expect(src, rel).not.toMatch(/typeof process\s*!==\s*['"]undefined['"]/);
+      expect(src, rel).toContain('process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY');
     }
   });
 

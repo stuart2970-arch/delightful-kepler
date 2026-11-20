@@ -26,6 +26,11 @@ const policyRoutes = [
 ];
 
 export async function GET(request: NextRequest) {
+  const auth = await requireUser(request);
+  if (!auth.ok) {
+    return new Response('Unauthorized', { status: 401 });
+  }
+
   const { searchParams } = new URL(request.url);
   const storeUrl = searchParams.get('storeUrl');
   const chatbotId = searchParams.get('chatbotId');
@@ -40,11 +45,6 @@ export async function GET(request: NextRequest) {
   const adminClient = createClient(supabaseUrl, serviceRoleKey, {
     auth: { persistSession: false, autoRefreshToken: false },
   });
-
-  const auth = await requireUser(request);
-  if (!auth.ok) {
-    return new Response('Unauthorized', { status: 401 });
-  }
 
   // Set up SSE Stream
   const encoder = new TextEncoder();

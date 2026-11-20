@@ -3,7 +3,6 @@ import { createClient } from '@supabase/supabase-js';
 import { generateText, embed } from 'ai';
 import { google } from '@ai-sdk/google';
 import {
-  DEFAULT_META_VERIFY_TOKEN,
   sendWhatsAppMessage,
   sendWhatsAppTemplateMessage,
   markWhatsAppMessageAsRead,
@@ -12,6 +11,7 @@ import {
   validateMetaSignature,
 } from '@/lib/meta';
 import { decryptToken } from '@/lib/crypto';
+import { secretsEqual } from '@/lib/security/secrets-equal';
 
 export const dynamic = 'force-dynamic';
 
@@ -43,10 +43,8 @@ export async function GET(request: NextRequest) {
   console.log(`[Meta Webhook Handshake] mode: "${mode}"`);
 
   if (mode === 'subscribe') {
-    // Check against global env or default verify token
-    const expectedToken = process.env.META_VERIFY_TOKEN || DEFAULT_META_VERIFY_TOKEN;
-
-    if (verifyToken === expectedToken) {
+    const expectedToken = (process.env.META_VERIFY_TOKEN || '').trim();
+    if (expectedToken && secretsEqual(verifyToken || '', expectedToken)) {
       console.log('[Meta Webhook Handshake] Verification successful!');
       return new NextResponse(challenge || 'challenge_accepted', {
         status: 200,
@@ -94,14 +92,13 @@ export async function POST(request: NextRequest) {
     const rawBody = await request.text();
     const signature = request.headers.get('x-hub-signature-256');
 
-    // Strict HMAC signature check if signature header is provided
-    const appSecret = process.env.META_APP_SECRET || 'test_meta_app_secret_123';
-    if (signature) {
-      const isValid = validateMetaSignature(rawBody, signature, appSecret);
-      if (!isValid) {
-        console.warn('[Meta Webhook] Signature validation failed');
-        return NextResponse.json({ error: 'Invalid webhook signature' }, { status: 401 });
-      }
+    // Always require a valid X-Hub-Signature-256 over this raw body.
+    // A missing header is rejected. A missing or whitespace-only META_APP_SECRET
+    // fails closed inside validateMetaSignature.
+    const isValid = validateMetaSignature(rawBody, signature, process.env.META_APP_SECRET);
+    if (!isValid) {
+      console.warn('[Meta Webhook] Signature validation failed');
+      return NextResponse.json({ error: 'Invalid webhook signature' }, { status: 401 });
     }
 
     let payload: any;
