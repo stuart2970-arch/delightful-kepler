@@ -653,7 +653,8 @@ export async function logMeteredUsage(
   tenantId: string,
   featureId: string,
   quantity: number = 1,
-  description?: string
+  description?: string,
+  options?: { sectorTag?: string },
 ): Promise<void> {
   // Write to both usage_ledger (for entitlement checks) and usage_logs (for analytics).
   // supabase-js returns insert failures as { error } and does not throw.
@@ -663,6 +664,7 @@ export async function logMeteredUsage(
     feature_id: featureId,
     quantity,
     usage_type: 'consumption',
+    sector_tag: options?.sectorTag || null,
     recorded_at: recordedAt,
   });
   if (ledgerResult?.error) {

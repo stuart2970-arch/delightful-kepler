@@ -285,7 +285,9 @@ export async function handleEndOfCallReport(body: unknown): Promise<NextResponse
     }
 
     if (minutes > 0) {
-      await logMeteredUsage(supabase, tenantId, VOICE_USAGE_FEATURE_ID, minutes, `Vapi call ${callId}`);
+      await logMeteredUsage(supabase, tenantId, VOICE_USAGE_FEATURE_ID, minutes, `Vapi call ${callId}`, {
+        sectorTag: `Vapi Call ID: ${callId}`,
+      });
     }
 
     if (targetConvId && targetChatbotId) {
