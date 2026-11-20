@@ -67,5 +67,5 @@ Unused minutes and SMS credits roll over for up to 3 months as long as an active
 
 ---
 
-## 6. Metered Usage & Capacity Thresholds (85% Rule)
-If any user account reaches **85% capacity** on metered items (Knowledge Base chunks, Voice minutes, SMS allowances), a dashboard banner must appear offering pro-rata top-ups or bolt-on upgrades via Stripe.
+## 6. Metered Usage & Capacity Thresholds (80% and 100%)
+If any user account reaches **80%** of a metered allowance (Knowledge Base chunks, Voice minutes, SMS allowances), the dashboard shows a warning banner. At **100%** the same banner becomes a limit alert. Both offer a bolt-on upgrade. Alert emails are a separate piece of work.
