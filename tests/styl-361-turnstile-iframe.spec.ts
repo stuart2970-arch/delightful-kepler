@@ -26,8 +26,10 @@ test.describe('STYL-361: Turnstile stays on the app origin', () => {
       expect(src, rel).not.toContain('data-turnstile-sitekey');
       expect(src, rel).not.toContain('turnstile.render');
       expect(src, rel).not.toContain('challenges.cloudflare.com/turnstile');
-      expect(src, rel).toContain(LIVE_SITE_KEY);
+      expect(src, rel).not.toContain(LIVE_SITE_KEY);
       expect(src, rel).toContain('process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY');
+      expect(src, rel).toContain('/api/config/public');
+      expect(src, rel).toContain('resolveTurnstileSiteKey');
       expect(src, rel).toContain('event.origin !== appOrigin');
       expect(src, rel).toContain('event.source !== iframe.contentWindow');
       expect(src, rel).toContain('STYLEFLO_TURNSTILE_INTERACTIVE');
@@ -50,17 +52,20 @@ test.describe('STYL-361: Turnstile stays on the app origin', () => {
     expect(html).not.toMatch(/postMessage\(\s*payload\s*,\s*['"]\*['"]\s*\)/);
   });
 
-  test('built bundles inline the build-time site key with no process guard', () => {
+  test('committed bundles use runtime config instead of baking a site key', () => {
     for (const rel of ['public/widget.js', 'public/embed.js']) {
       const bundle = read(rel);
       expect(bundle, rel).not.toMatch(/typeof process<"u"/);
       expect(bundle, rel).not.toContain('data-turnstile-sitekey');
       expect(bundle, rel).not.toContain('turnstile.render');
       expect(bundle, rel).not.toContain(LIVE_SITE_KEY);
-      expect(bundle, rel).toContain(DUMMY_SITE_KEY);
+      expect(bundle, rel).not.toContain(DUMMY_SITE_KEY);
+      expect(bundle, rel).toContain('/api/config/public');
       expect(bundle, rel).toContain('STYLEFLO_TURNSTILE_INTERACTIVE');
       expect(bundle, rel).toMatch(/30000|3e4/);
     }
+    const html = read('public/turnstile.html');
+    expect(html).not.toContain(LIVE_SITE_KEY);
   });
 
   test('a third-party host page only accepts a token from the app-origin iframe', async ({ page }) => {

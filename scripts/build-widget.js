@@ -2,7 +2,9 @@ const esbuild = require('esbuild');
 
 console.log('Building StyleFlo widget...');
 
-// STYL-226: bake NEXT_PUBLIC_TURNSTILE_SITE_KEY when present. No production fallback.
+// STYL-226: bake NEXT_PUBLIC_TURNSTILE_SITE_KEY at deploy build when set.
+// Committed bundles use an empty bake; the widget loads the key from
+// GET /api/config/public on the app origin at runtime.
 const turnstileSiteKey = process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY || '';
 
 esbuild.build({

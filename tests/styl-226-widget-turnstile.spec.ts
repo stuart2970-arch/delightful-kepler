@@ -15,20 +15,27 @@ test.describe('STYL-226: local widget bundle uses the dummy Turnstile site key',
       const src = readFileSync(join(root, rel), 'utf8');
       expect(src, rel).not.toContain(LIVE_TURNSTILE_SITE_KEY);
     }
-    // Source may name the public production key as a build fallback. The
-    // browser bundle must still be the key esbuild inlined, with no
-    // `typeof process` guard (that guard is false in browsers).
     for (const rel of ['src/widget/index.ts', 'src/widget/embed.ts']) {
       const src = readFileSync(join(root, rel), 'utf8');
       expect(src, rel).not.toMatch(/typeof process\s*!==\s*['"]undefined['"]/);
       expect(src, rel).toContain('process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY');
+      expect(src, rel).toContain('/api/config/public');
+      expect(src, rel).not.toContain(LIVE_TURNSTILE_SITE_KEY);
     }
+    const dockerfile = readFileSync(join(root, 'Dockerfile'), 'utf8');
+    expect(dockerfile).toContain('npm run build');
+    expect(readFileSync(join(root, 'package.json'), 'utf8')).toContain('build:widget');
   });
 
   test('local widget load sends the dummy always-pass site key to turnstile.html', async ({ page, request }) => {
+    const config = await request.get('/api/config/public');
+    expect(config.ok()).toBeTruthy();
+    const { turnstileSiteKey } = (await config.json()) as { turnstileSiteKey: string };
+    expect(turnstileSiteKey).toBe('1x0000000000000000000000000000000AA');
+
     const widget = await (await request.get('/widget.js')).text();
     expect(widget).toContain('turnstile.html');
-    expect(widget).toContain('1x0000000000000000000000000000000AA');
+    expect(widget).toContain('/api/config/public');
     expect(widget).not.toContain(LIVE_TURNSTILE_SITE_KEY);
 
     const requested: string[] = [];

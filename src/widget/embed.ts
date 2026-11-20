@@ -1,6 +1,7 @@
 import Vapi from '@vapi-ai/web';
 import { buildGreeting, getFirstName, isEchoOfGreeting } from '../lib/greeting';
 import { resolveChatFooter } from '../lib/billing/branding';
+import { resolveTurnstileSiteKey } from './turnstile-config';
 
 // STYL-241: text-chat gate copy. Voice calls keep globalVoiceDisclaimer.
 const TEXT_CHAT_NOTICE =
@@ -49,14 +50,11 @@ const CONNECTING_TIMEOUT_MS = 20000;
     sessionId = 'session_' + crypto.randomUUID();
     localStorage.setItem(sessionKey, sessionId);
   }
-  // Site key is inlined by esbuild from NEXT_PUBLIC_TURNSTILE_SITE_KEY.
-  // Do not guard it with `typeof process` (always false in browsers, so the
-  // baked key was discarded). Do not take the site key from the embed snippet:
-  // the host page must not choose it. The public production key is only the
-  // fallback when a build forgets the env var.
+  // Site key: esbuild may inline NEXT_PUBLIC_TURNSTILE_SITE_KEY at deploy build time.
+  // Empty bake (committed CI bundles) loads the key from /api/config/public on the
+  // app origin. Never read the site key from the host-page embed snippet.
   const TURNSTILE_TOKEN_TIMEOUT_MS = 30000;
-  const turnstileSiteKey =
-    process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY || '0x4AAAAAAEcGPat6Ll-AhKbf';
+  const bakedTurnstileSiteKey = process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY || '';
 
   function reportTurnstileFailure(code: string) {
     // No client error-ingest route exists; the browser console is the log.
@@ -69,6 +67,7 @@ const CONNECTING_TIMEOUT_MS = 20000;
   }
 
   async function getTurnstileViaIframe(): Promise<string> {
+    const turnstileSiteKey = await resolveTurnstileSiteKey(appOrigin, bakedTurnstileSiteKey);
     return new Promise((resolve, reject) => {
       const frameId = 'styleflo-turnstile-frame';
       const panel = shadowRoot.querySelector('.styleflo-chat-window') as HTMLElement | null;
@@ -90,9 +89,7 @@ const CONNECTING_TIMEOUT_MS = 20000;
       const iframe = document.createElement('iframe');
       iframe.id = frameId;
       iframe.title = 'Security verification';
-      const sitekeyQuery = turnstileSiteKey
-        ? `?sitekey=${encodeURIComponent(turnstileSiteKey)}`
-        : '';
+      const sitekeyQuery = `?sitekey=${encodeURIComponent(turnstileSiteKey)}`;
       iframe.src = `${appOrigin}/turnstile.html${sitekeyQuery}`;
       iframe.style.width = '300px';
       iframe.style.height = '70px';

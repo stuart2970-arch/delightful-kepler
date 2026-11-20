@@ -14,7 +14,7 @@
   <script>
     (function() {
       var urlParams = new URLSearchParams(window.location.search);
-      var sitekey = urlParams.get('sitekey') || '0x4AAAAAAEcGPat6Ll-AhKbf';
+      var sitekey = (urlParams.get('sitekey') || '').trim();
       var widgetId = null;
 
       // The parent is the customer website, not the app. postMessage must
@@ -36,6 +36,11 @@
         } catch (e) {
           console.error('[StyleFlo Turnstile Bridge] postMessage failed:', e);
         }
+      }
+
+      if (!sitekey) {
+        notifyParent({ type: 'STYLEFLO_TURNSTILE_ERROR', code: 'missing_sitekey' });
+        return;
       }
 
       function initTurnstile() {
