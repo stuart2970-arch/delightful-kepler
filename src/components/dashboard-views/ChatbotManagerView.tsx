@@ -1,7 +1,9 @@
 // @ts-nocheck
 import React, { useState, useRef, useEffect } from 'react';
 import { useDashboardStore, Chatbot } from '../../lib/store';
-import { createBrowserClient } from '@supabase/ssr';
+import ReceptionistPreview from './ReceptionistPreview';
+import { getDashboardAuthHeaders } from '../../lib/auth/dashboard-auth-headers';
+import { hasSupabaseBrowserEnv } from '../../lib/supabase-browser';
 
 
 
@@ -55,7 +57,8 @@ export default function ChatbotManagerView() {
   ];
 
   useEffect(() => {
-    fetch('/api/voice-personas')
+    getDashboardAuthHeaders()
+      .then((headers) => fetch('/api/voice-personas', { headers }))
       .then(res => res.json())
       .then(data => {
         if (Array.isArray(data)) {
@@ -65,9 +68,7 @@ export default function ChatbotManagerView() {
       .catch(err => console.error('Error fetching voice personas:', err));
   }, []);
 
-  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
-  const supabase = supabaseUrl && supabaseAnonKey ? createBrowserClient(supabaseUrl, supabaseAnonKey) : null;
+  const supabaseConfigured = hasSupabaseBrowserEnv();
   const globalBotId = '00000000-0000-0000-0000-000000000000';
 
   const [playingAudio, setPlayingAudio] = useState<string | null>(null);
@@ -89,20 +90,8 @@ export default function ChatbotManagerView() {
     }
   };
 
-  const getAuthHeaders = async (baseHeaders: Record<string, string> = {}) => {
-    const headers: Record<string, string> = { ...baseHeaders };
-    if (supabase) {
-      try {
-        const { data: { session } } = await supabase.auth.getSession();
-        if (session?.access_token) {
-          headers['Authorization'] = `Bearer ${session.access_token}`;
-        }
-      } catch (e) {
-        console.warn('Could not retrieve session for auth header:', e);
-      }
-    }
-    return headers;
-  };
+  const getAuthHeaders = (baseHeaders: Record<string, string> = {}) =>
+    getDashboardAuthHeaders(baseHeaders);
 
   const handleCustomAvatarUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -204,7 +193,7 @@ export default function ChatbotManagerView() {
       successfullySaved = true;
     } catch (err: any) {
       console.error('Failed to save chatbot to database:', err);
-      if (!supabase) {
+      if (!supabaseConfigured) {
         console.warn('Operating in visual-only mode, mockup saving locally.');
         successfullySaved = true;
       } else {
@@ -282,7 +271,7 @@ export default function ChatbotManagerView() {
       successfullySaved = true;
     } catch (err: any) {
       console.error('Failed to update chatbot in database:', err);
-      if (!supabase) {
+      if (!supabaseConfigured) {
         console.warn('Operating in visual-only mode, mockup saving locally.');
         successfullySaved = true;
       } else {
@@ -335,7 +324,7 @@ export default function ChatbotManagerView() {
       successfullyDeleted = true;
     } catch (err: any) {
       console.error('Failed to delete chatbot:', err);
-      if (!supabase) {
+      if (!supabaseConfigured) {
         console.warn('Operating in visual-only mode, mockup deleting locally.');
         successfullyDeleted = true;
       } else {
@@ -800,6 +789,8 @@ export default function ChatbotManagerView() {
                   </form>
                 </div>
               )}
+
+              <ReceptionistPreview />
 
               {/* Chatbot Display Card & Embed Code Snippet (Displayed adjacent when chatbot exists) */}
               {!editingBotId && chatbots.filter(b => b.id !== globalBotId).length > 0 && (

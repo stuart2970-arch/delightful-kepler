@@ -1,30 +1,32 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { google } from 'googleapis';
-import { createServerClient } from '@/utils/supabase-server';
 import { publicAppPath } from '@/lib/env/public-app-url';
+import { requireUser } from '@/lib/auth/require-superadmin';
+import { signOAuthState } from '@/lib/auth/oauth-state';
+import { calendarConnectAllowed } from '@/lib/auth/oauth-callback-guard';
+import { createAdminClient } from '@/utils/supabase-admin';
 
 export async function GET(request: NextRequest) {
   try {
+    const auth = await requireUser(request);
+    if (!auth.ok) return auth.response;
+
     const { searchParams } = new URL(request.url);
-    const staffId = searchParams.get('staffId'); // Optional staff mapping
-
-    const supabase = await createServerClient();
-    const { data: { user } } = await supabase.auth.getUser();
-
-    if (!user) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
-
+    const staffId = searchParams.get('staffId');
     const appUrl = publicAppPath('');
+    const supabase = createAdminClient();
 
-    // Verify tenant has active Google Calendar bolt-on or entitlement
     const { data: profile } = await supabase
       .from('profiles')
       .select('tenant_id, is_super_admin')
-      .eq('id', user.id)
+      .eq('id', auth.userId)
       .single();
 
-    if (profile?.tenant_id && !profile.is_super_admin) {
+    if (!profile?.tenant_id) {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+    }
+
+    if (!profile.is_super_admin) {
       const { getTenantEffectiveLimit, getTenantChannelFlags } = await import('@/lib/entitlements');
       const [channelFlags, effectiveLimit] = await Promise.all([
         getTenantChannelFlags(profile.tenant_id),
@@ -36,17 +38,25 @@ export async function GET(request: NextRequest) {
       }
     }
 
+    const connectAllowed = await calendarConnectAllowed(auth.userId, String(profile.tenant_id), staffId);
+    if (!connectAllowed) {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+    }
+
+    const state = signOAuthState({
+      userId: auth.userId,
+      tenantId: String(profile.tenant_id),
+      staffId: staffId || null,
+    });
+    if (!state) {
+      return NextResponse.json({ error: 'Server configuration error' }, { status: 500 });
+    }
+
     const oauth2Client = new google.auth.OAuth2(
       process.env.GOOGLE_CLIENT_ID,
       process.env.GOOGLE_CLIENT_SECRET,
       `${appUrl}/api/integrations/google/callback`
     );
-
-    // Encode contextual data into OAuth state payload to bypass environments safely
-    const statePayload = JSON.stringify({
-      userId: user.id,
-      staffId: staffId || null,
-    });
 
     const authorizeUrl = oauth2Client.generateAuthUrl({
       access_type: 'offline',
@@ -55,7 +65,7 @@ export async function GET(request: NextRequest) {
         'https://www.googleapis.com/auth/calendar.events',
         'https://www.googleapis.com/auth/calendar.readonly'
       ],
-      state: Buffer.from(statePayload).toString('base64'),
+      state,
     });
 
     return NextResponse.redirect(authorizeUrl);

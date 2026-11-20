@@ -23,12 +23,22 @@ function getSupabaseAdmin() {
   });
 }
 
+export function resolveChatSessionSigningSecret(
+  env: NodeJS.ProcessEnv = process.env,
+): string | null {
+  const dedicated = (env.CHAT_SESSION_SIGNING_SECRET || '').trim();
+  if (dedicated) return dedicated;
+  const service = (env.SUPABASE_SERVICE_ROLE_KEY || '').trim();
+  if (!service) return null;
+  return crypto.createHmac('sha256', service).update('styleflo-chat-session-signing-v1').digest('hex');
+}
+
 function getSigningSecret(): string {
-  if (process.env.CHAT_SESSION_SIGNING_SECRET) {
-    return process.env.CHAT_SESSION_SIGNING_SECRET;
+  const secret = resolveChatSessionSigningSecret();
+  if (!secret) {
+    throw new Error('Chat session signing secret is not configured');
   }
-  const fallbackSource = process.env.SUPABASE_SERVICE_ROLE_KEY || 'styleflo-internal-chat-signing-salt';
-  return crypto.createHmac('sha256', fallbackSource).update('styleflo-chat-session-signing-v1').digest('hex');
+  return secret;
 }
 
 function base64UrlEncode(str: string): string {

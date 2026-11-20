@@ -12,6 +12,7 @@ import {
   getAvailabilityData,
   bookMeeting,
   lookupAppointments,
+  bookingResultKind,
   type AvailabilityResult,
 } from './calendar';
 import { calendarFallbackMessage, directAvailabilitySpeech } from '@/lib/calendar/fallback-message';
@@ -26,9 +27,19 @@ import {
   formatQuickServicesTag,
   getSlotsForDay,
   utcToLocalParts,
+  localTimeToUtc,
+  excludeBookedSlot,
   stripCalendarTags,
 } from '@/lib/calendar/availability';
 import { sendConsolidatedLeadEmail } from '@/lib/lead-notifier';
+import { formatOpeningHoursForPrompt, normaliseOpeningHours } from '@/lib/opening-hours';
+import {
+  PREVIEW_BOOKING_DISABLED_MESSAGE,
+  canUseReceptionistPreview,
+  previewBlocksBooking,
+  previewBlocksCustomerNotifications,
+  previewSessionId,
+} from '@/lib/chat-preview';
 
 import { getActiveGeminiModel } from '@/lib/gemini-config';
 import { generateEmbedding } from '@/lib/embeddings';
@@ -255,6 +266,7 @@ const ChatRequestSchema = z.object({
   sessionId: z.string().min(1, { message: 'Session ID cannot be empty' }),
   clientName: z.string().optional().nullable(),
   clientEmail: z.string().optional().nullable(),
+  preview: z.boolean().optional(),
 });
 
 // Initialize Supabase Admin Client using service role key (bypasses RLS for service logic)
@@ -325,16 +337,19 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: `Validation error: ${errorMsg}` }, { status: 400, headers: corsHeaders });
     }
 
-    const { message, chatbotId, sessionId, clientName } = validation.data;
+    let { message, chatbotId, sessionId, clientName } = validation.data;
+    const previewRequested = validation.data.preview === true;
 
     // Cryptographic Session Verification & Claim Matching
     let sessionPayload: ChatSessionPayload | null = null;
+    let bearerUserId: string | null = null;
     if (authHeader && authHeader.startsWith('Bearer ')) {
       const jwt = authHeader.replace(/^Bearer\s+/i, '').trim();
       const { data: userData, error: userError } = await supabaseAdmin.auth.getUser(jwt);
       if (userError || !userData?.user) {
         return NextResponse.json({ error: 'Unauthorized. Invalid authentication token.' }, { status: 401, headers: corsHeaders });
       }
+      bearerUserId = userData.user.id;
     } else if (sessionToken) {
       const verification = verifyChatSessionToken(sessionToken);
       if (!verification.valid || !verification.payload) {
@@ -494,7 +509,30 @@ Help them specify:
       ? `\n\n[MANDATORY CHATBOT RULES & DIRECTIVES]\nYou MUST strictly adhere to and enforce all of the following rules set by the business in every response:\n${chatbotRules.map((r, i) => `${i + 1}. ${r}`).join('\n')}`
       : '';
 
-    console.log(`[Chat Stream][${requestId}] Resolved Tenant ID: ${tenantId}, TZ: ${timezone}, Rules count: ${chatbotRules.length}`);
+    let isPreview = false;
+    if (previewRequested) {
+      if (!bearerUserId) {
+        return NextResponse.json(
+          { error: 'Owner sign-in is required to preview the receptionist.' },
+          { status: 403, headers: corsHeaders },
+        );
+      }
+      const { data: previewProfile } = await supabaseAdmin
+        .from('profiles')
+        .select('tenant_id, role, is_super_admin')
+        .eq('id', bearerUserId)
+        .maybeSingle();
+      if (!canUseReceptionistPreview(previewProfile, tenantId)) {
+        return NextResponse.json(
+          { error: 'Only the salon owner can preview this receptionist.' },
+          { status: 403, headers: corsHeaders },
+        );
+      }
+      isPreview = true;
+      sessionId = previewSessionId(bearerUserId, sessionId);
+    }
+
+    console.log(`[Chat Stream][${requestId}] Resolved Tenant ID: ${tenantId}, TZ: ${timezone}, Rules count: ${chatbotRules.length}, preview: ${isPreview}`);
 
     // STYL-181: Enforce terms of service & privacy notice acceptance for gated bots
     const requiresTermsGate =
@@ -522,8 +560,8 @@ Help them specify:
       }
     }
 
-    // Metered usage tracking
-    if (tenantId && tenantId !== '00000000-0000-0000-0000-000000000000') {
+    // Metered usage tracking. Owner previews are not customer traffic.
+    if (!isPreview && tenantId && tenantId !== '00000000-0000-0000-0000-000000000000') {
       logMeteredUsage(supabaseAdmin, tenantId, 'chat_messages', 1, 'Inbound web chat message').catch((err) => {
         console.warn(`[Chat Stream][${requestId}] Metered usage logging failure:`, err?.message);
       });
@@ -588,7 +626,7 @@ Help them specify:
     const [servicesRes, staffRes, tenantRes, integrationsRes] = await Promise.all([
       supabaseAdmin.from('services').select('id, name, duration_minutes, buffer_minutes, price, staff_services(staff_id, custom_price, custom_duration)').eq('tenant_id', tenantId).or(`chatbot_id.eq.${targetBotUuid},chatbot_id.is.null`),
       supabaseAdmin.from('staff').select('id, name, google_calendar_id, working_days').eq('tenant_id', tenantId).or(`chatbot_id.eq.${targetBotUuid},chatbot_id.is.null`),
-      supabaseAdmin.from('tenants').select('company_name, rwg_business_name, domain, booking_mode, booking_url, max_advance_weeks').eq('id', tenantId).maybeSingle(),
+      supabaseAdmin.from('tenants').select('company_name, rwg_business_name, domain, booking_mode, booking_url, max_advance_weeks, general_operating_hours, is_24_7').eq('id', tenantId).maybeSingle(),
       supabaseAdmin.from('tenant_integrations').select('provider, refresh_token').eq('tenant_id', tenantId),
     ]);
 
@@ -637,6 +675,51 @@ Help them specify:
         }
         throw err;
       }
+    };
+
+    const replyAfterBooking = async (args: {
+      result: string;
+      staffId: string;
+      serviceId: string;
+      slotStart: string;
+      custEmail: string;
+    }): Promise<string> => {
+      const parts = utcToLocalParts(new Date(args.slotStart), timezone);
+      const kind = bookingResultKind(args.result);
+      if (kind === 'booked') {
+        const svc = configuredServices.find((s: any) => s.id === args.serviceId);
+        return formatBookingConfirmation({
+          service: svc ? svc.name : 'appointment',
+          staff: staffNameFor(args.staffId),
+          displayDate: parts.displayDate,
+          time: parts.timeStr,
+          email: args.custEmail,
+        });
+      }
+      if (kind !== 'taken') {
+        return `I couldn't complete that booking just now. Please try again, or leave your phone number and the salon will confirm.`;
+      }
+
+      const [year, month, day] = parts.dateStr.split('-').map(Number);
+      const nextDate = new Date(Date.UTC(year, month - 1, day + 1)).toISOString().slice(0, 10);
+      const dayAvail = await loadAvailability(
+        args.staffId,
+        args.serviceId,
+        localTimeToUtc(parts.dateStr, '00:00', timezone).toISOString(),
+        localTimeToUtc(nextDate, '00:00', timezone).toISOString(),
+      );
+      const directSpeech = directAvailabilitySpeech(dayAvail.outcome, dayAvail.text);
+      const daySlots = excludeBookedSlot(
+        getSlotsForDay(dayAvail.slots, parts.dateStr),
+        args.staffId,
+        args.slotStart,
+        parts.timeStr,
+      );
+      if (directSpeech) return directSpeech;
+      if (daySlots.length === 0) {
+        return `I'm sorry, that ${parts.timeStr} slot was just taken. Please choose another day:\n\n${formatQuickDaysTag(args.serviceId, args.staffId, dayAvail.availableDays)}`;
+      }
+      return `I'm sorry, that ${parts.timeStr} slot was just taken! Here are the remaining available times for ${parts.displayDate}:\n\n${formatQuickTimesTag(parts.dateStr, args.serviceId, daySlots)}\n${formatQuickDaysTag(args.serviceId, args.staffId, dayAvail.availableDays)}`;
     };
 
     const loadBooking = async (
@@ -858,33 +941,19 @@ Help them specify:
       const custEmail = body.clientEmail || body.email || (emailMatch ? emailMatch[0] : '');
       const custPhone = body.clientPhone || body.phone || '';
 
-      if (!custEmail || !custPhone) {
+      if (!custEmail) {
         const replyText = `To confirm your appointment for ${parts.displayDate} at ${parts.timeStr}, please provide your email address and mobile phone number.`;
         return streamDirectResponse(replyText, message || parts.timeStr);
       }
 
-      const bookingResult = await loadBooking(staffId, serviceId, custName, custEmail, custPhone, slotStart, '');
-
-      let replyText = '';
-      if (bookingResult.includes('Error:') || bookingResult.includes('Failed') || bookingResult === calendarFallbackMessage('unreachable', bookingUrl)) {
-        // Race condition or calendar timeout: apologise and re-offer remaining times for that day
-        const dayAvail = await loadAvailability(staffId, serviceId, `${parts.dateStr}T00:00:00`, `${parts.dateStr}T23:59:59`);
-        const directSpeech = directAvailabilitySpeech(dayAvail.outcome, dayAvail.text);
-        const daySlots = getSlotsForDay(dayAvail.slots, parts.dateStr);
-
-        replyText = directSpeech
-          || `I'm sorry, that ${parts.timeStr} slot was just taken! Here are the remaining available times for ${parts.displayDate}:\n\n${formatQuickTimesTag(parts.dateStr, serviceId, daySlots)}\n${formatQuickDaysTag(serviceId, staffId, dayAvail.availableDays)}`;
-      } else {
-        const svc = configuredServices.find((s: any) => s.id === serviceId);
-        const svcName = svc ? svc.name : 'appointment';
-        replyText = formatBookingConfirmation({
-          service: svcName,
-          staff: staffNameFor(staffId),
-          displayDate: parts.displayDate,
-          time: parts.timeStr,
-          email: custEmail,
-        });
-      }
+      const bookingResult = await loadBooking(staffId, serviceId, custName, custEmail, custPhone, slotStart, body.end || '');
+      const replyText = await replyAfterBooking({
+        result: bookingResult,
+        staffId,
+        serviceId,
+        slotStart,
+        custEmail,
+      });
 
       return streamDirectResponse(replyText, message || parts.timeStr);
     }
@@ -907,6 +976,11 @@ Help them specify:
     }
 
     // 8. Build prompt and historical message messages array
+    const openingHoursView = normaliseOpeningHours(tenantRes.data?.general_operating_hours);
+    const openingHoursPrompt = formatOpeningHoursForPrompt(openingHoursView, { is24_7: tenantRes.data?.is_24_7 === true });
+    const previewRules = isPreview
+      ? `\nOWNER PREVIEW: This is a test conversation for the salon owner, not a customer. It is labelled as a preview. Booking is turned off. Never emit [BOOK_MEETING], [LEAD_CAPTURED], or any instruction that would email, text, or WhatsApp the visitor. If they ask to book, say that booking is turned off in this preview and no appointment will be created. You may still answer from the knowledge base and describe opening hours.\n`
+      : '';
     const systemPrompt = chatbotId === 'styleflo-onboarding-flobot'
       ? `You are Flo, the official AI receptionist setup assistant for StyleFlo.ai.
 Your goal is to guide new business owners through setting up their AI Receptionist in 60 seconds.
@@ -969,6 +1043,9 @@ STRICT BRAND PROTECTION RULE: You strictly represent "${businessName}". You are 
 
 The current date and time is: ${new Date().toISOString()}. Use this to resolve relative dates like "tomorrow" or "next Sunday".
 
+OPENING HOURS (answer from these saved hours; a day marked "not saved yet" is a fallback, not a confirmed time):
+${openingHoursPrompt}
+${previewRules}
 Guidelines:
 - Write in a natural, warm, and human-like conversational tone.
 - Keep replies short; finish every sentence.
@@ -1122,7 +1199,7 @@ ${staffContext}`;
 
             // Handle consolidated lead capture notification (combining email & phone into 1 email with intent & transcript)
             const leadMatch = event.text.match(/\[LEAD_CAPTURED:\s*(.+?)\]/);
-            if (leadMatch && leadMatch[1]) {
+            if (leadMatch && leadMatch[1] && !previewBlocksCustomerNotifications(isPreview)) {
               const contactInfo = leadMatch[1];
               console.log(`[Chat Stream][${requestId}] Extracted Lead Info: ${contactInfo}`);
               
@@ -1371,7 +1448,11 @@ ${staffContext}`;
           }
 
           // --- BOOKING TOOL PASS ---
-          if (bookMatch) {
+          if (bookMatch && previewBlocksBooking(isPreview)) {
+            emit(`\n\n${PREVIEW_BOOKING_DISABLED_MESSAGE}`);
+            await storeBotText(PREVIEW_BOOKING_DISABLED_MESSAGE);
+            transcriptSaved = true;
+          } else if (bookMatch) {
             const staffId = bookMatch[1].trim().replace(/['"]/g, '');
             const serviceId = bookMatch[2].trim().replace(/['"]/g, '');
             const custName = bookMatch[3].trim().replace(/['"]/g, '');
@@ -1381,33 +1462,17 @@ ${staffContext}`;
             const endStr = bookMatch[7].trim().replace(/['"]/g, '');
             
             const toolResult = await loadBooking(staffId, serviceId, custName, custEmail, custPhone, startStr, endStr);
-            const bookingFailed = !toolResult || toolResult.includes('Error:') || toolResult.includes('Failed')
-              || toolResult === calendarFallbackMessage('unreachable', bookingUrl);
-            console.log(`[Chat Stream][${requestId}] Booking result: ${bookingFailed ? 'failed' : 'ok'}`);
+            const bookingKind = bookingResultKind(toolResult);
+            console.log(`[Chat Stream][${requestId}] Booking result: ${bookingKind}`);
 
-            let bookingReply = '';
-            if (bookingFailed) {
-              const parts = utcToLocalParts(new Date(startStr), timezone);
-              const availData = await loadAvailability(staffId, serviceId, `${parts.dateStr}T00:00:00`, `${parts.dateStr}T23:59:59`);
-              const directSpeech = directAvailabilitySpeech(availData.outcome, availData.text);
-              const daySlots = getSlotsForDay(availData.slots, parts.dateStr);
-
-              bookingReply = directSpeech
-                || `I'm sorry, that time slot was just taken! Here are the remaining available times for ${parts.displayDate}:\n\n${formatQuickTimesTag(parts.dateStr, serviceId, daySlots)}\n${formatQuickDaysTag(serviceId, staffId, availData.availableDays)}`;
-              emit(`\n\n${bookingReply}`);
-            } else {
-              const parts = utcToLocalParts(new Date(startStr), timezone);
-              const svc = configuredServices.find((s: any) => s.id === serviceId);
-              const svcName = svc ? svc.name : 'appointment';
-              bookingReply = formatBookingConfirmation({
-                service: svcName,
-                staff: staffNameFor(staffId),
-                displayDate: parts.displayDate,
-                time: parts.timeStr,
-                email: custEmail,
-              });
-              emit(`\n\n${bookingReply}`);
-            }
+            const bookingReply = await replyAfterBooking({
+              result: toolResult,
+              staffId,
+              serviceId,
+              slotStart: startStr,
+              custEmail,
+            });
+            emit(`\n\n${bookingReply}`);
 
             await storeBotText(bookingReply);
             transcriptSaved = true;

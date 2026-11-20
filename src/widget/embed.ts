@@ -33,6 +33,14 @@ const CONNECTING_TIMEOUT_MS = 20000;
   const scriptSrc = (scriptEl as HTMLScriptElement).src;
   const scriptUrl = scriptSrc ? new URL(scriptSrc, window.location.href) : new URL(window.location.href);
   const apiHost = scriptEl.getAttribute('data-api-host') || scriptUrl.origin;
+  // Turnstile must run on the app origin (app.styleflo.ai, or the staging app
+  // origin), never on the customer website that embeds the widget.
+  let appOrigin = apiHost;
+  try {
+    appOrigin = new URL(apiHost).origin;
+  } catch {
+    appOrigin = apiHost;
+  }
 
   // 2. Generate or retrieve Session ID to preserve chat history
   const sessionKey = `styleflo_session_${chatbotId}`;
@@ -41,55 +49,95 @@ const CONNECTING_TIMEOUT_MS = 20000;
     sessionId = 'session_' + crypto.randomUUID();
     localStorage.setItem(sessionKey, sessionId);
   }
-  // Prefer embed attribute, then build-time NEXT_PUBLIC_TURNSTILE_SITE_KEY.
-  // No production site-key fallback — missing keys fail the challenge in the UI.
+  // Site key is inlined by esbuild from NEXT_PUBLIC_TURNSTILE_SITE_KEY.
+  // Do not guard it with `typeof process` (always false in browsers, so the
+  // baked key was discarded). Do not take the site key from the embed snippet:
+  // the host page must not choose it. The public production key is only the
+  // fallback when a build forgets the env var.
+  const TURNSTILE_TOKEN_TIMEOUT_MS = 30000;
   const turnstileSiteKey =
-    scriptEl.getAttribute('data-turnstile-sitekey') ||
-    (typeof process !== 'undefined' && process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY) ||
-    '';
+    process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY || '0x4AAAAAAEcGPat6Ll-AhKbf';
+
+  function reportTurnstileFailure(code: string) {
+    // No client error-ingest route exists; the browser console is the log.
+    console.error('[StyleFlo Widget] Turnstile error:', code);
+  }
+
+  function revealTurnstileOverlay(overlay: HTMLElement) {
+    overlay.style.opacity = '1';
+    overlay.style.pointerEvents = 'auto';
+  }
 
   async function getTurnstileViaIframe(): Promise<string> {
     return new Promise((resolve, reject) => {
       const frameId = 'styleflo-turnstile-frame';
-      let existingFrame = document.getElementById(frameId) as HTMLIFrameElement | null;
-      if (existingFrame) existingFrame.remove();
+      const panel = shadowRoot.querySelector('.styleflo-chat-window') as HTMLElement | null;
+      const mount = panel || shadowRoot;
+      mount.querySelector('#styleflo-turnstile-overlay')?.remove();
+
+      const overlay = document.createElement('div');
+      overlay.id = 'styleflo-turnstile-overlay';
+      overlay.style.position = 'absolute';
+      overlay.style.inset = '0';
+      overlay.style.display = 'flex';
+      overlay.style.alignItems = 'center';
+      overlay.style.justifyContent = 'center';
+      overlay.style.background = 'rgba(17, 24, 39, 0.45)';
+      overlay.style.zIndex = '40';
+      overlay.style.opacity = '0';
+      overlay.style.pointerEvents = 'none';
 
       const iframe = document.createElement('iframe');
       iframe.id = frameId;
-      iframe.src = `${apiHost}/turnstile.html?sitekey=${encodeURIComponent(turnstileSiteKey)}`;
-      iframe.style.position = 'fixed';
-      iframe.style.bottom = '0';
-      iframe.style.right = '0';
-      iframe.style.width = '0px';
-      iframe.style.height = '0px';
-      iframe.style.border = 'none';
-      iframe.style.opacity = '0';
-      iframe.style.pointerEvents = 'none';
-      iframe.style.zIndex = '999999';
+      iframe.title = 'Security verification';
+      const sitekeyQuery = turnstileSiteKey
+        ? `?sitekey=${encodeURIComponent(turnstileSiteKey)}`
+        : '';
+      iframe.src = `${appOrigin}/turnstile.html${sitekeyQuery}`;
+      iframe.style.width = '300px';
+      iframe.style.height = '70px';
+      iframe.style.border = '0';
+      iframe.style.borderRadius = '8px';
+      iframe.style.background = '#ffffff';
 
       const timeout = setTimeout(() => {
         window.removeEventListener('message', messageHandler);
-        if (iframe.parentNode) iframe.remove();
+        overlay.remove();
+        reportTurnstileFailure('timeout');
         reject(new Error('Turnstile verification timed out.'));
-      }, 10000);
+      }, TURNSTILE_TOKEN_TIMEOUT_MS);
 
       function messageHandler(event: MessageEvent) {
+        // Tokens are only accepted from this app-origin iframe. On a customer
+        // site the parent origin is the customer domain, so the check is the
+        // sender (the iframe), not the host page.
+        if (event.origin !== appOrigin) return;
+        if (event.source !== iframe.contentWindow) return;
         if (!event.data || typeof event.data !== 'object') return;
+        if (event.data.type === 'STYLEFLO_TURNSTILE_INTERACTIVE') {
+          revealTurnstileOverlay(overlay);
+          return;
+        }
         if (event.data.type === 'STYLEFLO_TURNSTILE_TOKEN' && event.data.token) {
           clearTimeout(timeout);
           window.removeEventListener('message', messageHandler);
-          if (iframe.parentNode) iframe.remove();
+          overlay.remove();
           resolve(event.data.token);
-        } else if (event.data.type === 'STYLEFLO_TURNSTILE_ERROR') {
+          return;
+        }
+        if (event.data.type === 'STYLEFLO_TURNSTILE_ERROR') {
+          const code = String(event.data.code || event.data.error || 'unknown');
+          reportTurnstileFailure(code);
           clearTimeout(timeout);
           window.removeEventListener('message', messageHandler);
-          if (iframe.parentNode) iframe.remove();
-          reject(new Error(`Turnstile bridge error: ${event.data.code || event.data.error || 'unknown'}`));
+          overlay.remove();
+          reject(new Error(`Turnstile bridge error: ${code}`));
         }
       }
 
       window.addEventListener('message', messageHandler);
-      document.body.appendChild(iframe);
+      overlay.appendChild(iframe);
+      mount.appendChild(overlay);
     });
   }
 
@@ -100,76 +148,11 @@ const CONNECTING_TIMEOUT_MS = 20000;
     const scriptTestToken = scriptEl?.getAttribute('data-turnstile-token');
     if (scriptTestToken) return scriptTestToken;
 
-    // When running cross-origin (e.g. on styleflo.ai or client sites), use the iframe bridge on apiHost
-    const isDifferentOrigin = typeof window !== 'undefined' && window.location.origin !== apiHost;
-
-    if (isDifferentOrigin) {
-      try {
-        const token = await getTurnstileViaIframe();
-        if (token) return token;
-      } catch (e) {
-        console.warn('[StyleFlo Widget] Turnstile iframe bridge failed, falling back to direct:', e);
-      }
+    try {
+      return await getTurnstileViaIframe();
+    } catch {
+      return '';
     }
-
-    return new Promise((resolve) => {
-      const ensureScript = () => {
-        if ((window as any).turnstile) return Promise.resolve();
-        return new Promise<void>((res) => {
-          const s = document.createElement('script');
-          s.src = 'https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit';
-          s.async = true;
-          s.defer = true;
-          s.onload = () => res();
-          s.onerror = () => res();
-          document.head.appendChild(s);
-        });
-      };
-
-      ensureScript().then(() => {
-        const turnstile = (window as any).turnstile;
-        if (!turnstile) {
-          return getTurnstileViaIframe().then(resolve).catch(() => resolve(''));
-        }
-
-        let container = document.getElementById('styleflo-turnstile-container');
-        if (container) {
-          container.remove();
-        }
-        container = document.createElement('div');
-        container.id = 'styleflo-turnstile-container';
-        // Note: Do NOT use display: none, as Turnstile refuses to render inside display: none elements
-        container.style.position = 'fixed';
-        container.style.bottom = '0';
-        container.style.right = '0';
-        container.style.width = '0px';
-        container.style.height = '0px';
-        container.style.opacity = '0';
-        container.style.pointerEvents = 'none';
-        container.style.overflow = 'hidden';
-        document.body.appendChild(container);
-
-        try {
-          turnstile.render(container, {
-            sitekey: turnstileSiteKey,
-            action: 'chat_init',
-            callback: (token: string) => resolve(token),
-            'error-callback': (code: any) => {
-              console.warn('[StyleFlo Widget] Direct Turnstile error:', code, '- falling back to bridge');
-              getTurnstileViaIframe().then(resolve).catch(() => resolve(''));
-            },
-            'expired-callback': () => {
-              if (container) turnstile.reset(container);
-            },
-          });
-        } catch (err) {
-          console.warn('[StyleFlo Widget] Direct Turnstile render failed, falling back to bridge:', err);
-          getTurnstileViaIframe().then(resolve).catch(() => resolve(''));
-        }
-      }).catch(() => {
-        getTurnstileViaIframe().then(resolve).catch(() => resolve(''));
-      });
-    });
   }
 
   let currentTermsVersion = '1.0';
@@ -338,6 +321,10 @@ const CONNECTING_TIMEOUT_MS = 20000;
       .styleflo-chat-window {
         width: 380px;
       }
+    }
+    #styleflo-turnstile-overlay {
+      position: absolute;
+      inset: 0;
     }
     .styleflo-text-17 { font-size: 17px; }
     .styleflo-text-15 { font-size: 15px; }

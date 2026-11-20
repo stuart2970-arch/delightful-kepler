@@ -56,6 +56,9 @@ jobs:
         env:
           NODE_OPTIONS: --max-old-space-size=8192
 
+      # STYL-356: every pull request to main or staging runs the full suite.
+      # The local pre-push hook only runs specs related to the change.
+      # Do not add a file filter to this step.
       - name: Run Playwright suite
         run: npm run test:e2e
         env:

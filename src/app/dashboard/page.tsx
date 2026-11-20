@@ -9,6 +9,7 @@ import { applyPublicAddonFilter } from '@/lib/addons/public-catalogue';
 import { buildAccountOwnership } from '@/lib/billing/account-ownership';
 import { knowledgeItemsTotal } from '@/lib/billing/bolt-on';
 import type { CatalogAddon, InclusionRecord, PurchaseRecord } from '@/lib/billing/account-ownership';
+import { TENANT_PROFILE_SELECT, salonNameFromTenant } from '@/lib/tenant-profile';
 
 export const dynamic = 'force-dynamic';
 
@@ -142,11 +143,18 @@ export default async function DashboardPage(props: { searchParams?: Promise<{ [k
       isSuperAdmin = await checkIsSuperAdmin(user.id);
       userRole = (profile.role as 'owner' | 'admin' | 'member') || 'owner';
       
-      const { data: tenant } = await supabase
+      const tenantQuery = await supabase
         .from('tenants')
-        .select('company_name, domain, business_address, postcode, plan_tier, is_rwg_enabled, rwg_business_name, rwg_street_address, rwg_city, rwg_postcode, rwg_phone, is_registered_business_address, booking_mode, booking_url, general_operating_hours, operating_hours_overrides, holiday_settings, twilio_shadow_number, twilio_mobile_number, trading_address_street, trading_address_city, trading_address_postcode, trading_address_phone, company_registration_number, registered_address_street, registered_address_city, registered_address_postcode, is_registered_company, registered_address_same_as_trading, rwg_address_same_as_trading, has_google_calendar, has_microsoft_calendar')
+        .select(TENANT_PROFILE_SELECT)
         .eq('id', tenantId)
         .maybeSingle();
+      // A non-literal select string is typed as GenericStringError by supabase-js.
+      const tenant = tenantQuery.data as Record<string, any> | null;
+      const tenantError = tenantQuery.error;
+
+      if (tenantError) {
+        console.error('[Dashboard] Tenant profile query failed:', tenantError.message);
+      }
       
       if (tenant) {
         if (tenant.has_google_calendar) {
@@ -155,15 +163,15 @@ export default async function DashboardPage(props: { searchParams?: Promise<{ [k
         if (tenant.has_microsoft_calendar) {
           initialHasMicrosoftCalendarAddon = true;
         }
-        tenantName = tenant.company_name;
+        tenantName = salonNameFromTenant(tenant.company_name) || 'My Workspace';
         domain = tenant.domain || '';
-        businessAddress = tenant.business_address || '';
-        postcode = tenant.postcode || '';
+        businessAddress = tenant.trading_address_street || '';
+        postcode = tenant.trading_address_postcode || '';
         bookingMode = tenant.booking_mode || 'single_calendar';
         bookingUrl = tenant.booking_url || '';
-        tradingAddressStreet = tenant.trading_address_street || tenant.business_address || '';
+        tradingAddressStreet = tenant.trading_address_street || '';
         tradingAddressCity = tenant.trading_address_city || '';
-        tradingAddressPostcode = tenant.trading_address_postcode || tenant.postcode || '';
+        tradingAddressPostcode = tenant.trading_address_postcode || '';
         tradingAddressPhone = tenant.trading_address_phone || tenant.twilio_shadow_number || '';
         rwgConfig = {
           is_rwg_enabled: tenant.is_rwg_enabled || false,
@@ -242,22 +250,28 @@ export default async function DashboardPage(props: { searchParams?: Promise<{ [k
       queryClient = createClient(supabaseUrl, serviceRoleKey);
       
       // Override tenant mapping to fetch impersonated tenant data
-      const { data: impTenant } = await queryClient
+      const impTenantQuery = await queryClient
         .from('tenants')
-        .select('company_name, domain, business_address, postcode, plan_tier, is_rwg_enabled, rwg_business_name, rwg_street_address, rwg_city, rwg_postcode, rwg_phone, is_registered_business_address, booking_mode, booking_url, general_operating_hours, operating_hours_overrides, holiday_settings, twilio_shadow_number, twilio_mobile_number, trading_address_street, trading_address_city, trading_address_postcode, trading_address_phone, company_registration_number, registered_address_street, registered_address_city, registered_address_postcode, is_registered_company, registered_address_same_as_trading, rwg_address_same_as_trading')
+        .select(TENANT_PROFILE_SELECT)
         .eq('id', tenantId)
         .maybeSingle();
+      const impTenant = impTenantQuery.data as Record<string, any> | null;
+      const impTenantError = impTenantQuery.error;
+
+      if (impTenantError) {
+        console.error('[Dashboard] Impersonated tenant profile query failed:', impTenantError.message);
+      }
         
       if (impTenant) {
-        tenantName = impTenant.company_name;
+        tenantName = salonNameFromTenant(impTenant.company_name) || 'My Workspace';
         domain = impTenant.domain || '';
-        businessAddress = impTenant.business_address || '';
-        postcode = impTenant.postcode || '';
+        businessAddress = impTenant.trading_address_street || '';
+        postcode = impTenant.trading_address_postcode || '';
         bookingMode = impTenant.booking_mode || 'single_calendar';
         bookingUrl = impTenant.booking_url || '';
-        tradingAddressStreet = impTenant.trading_address_street || impTenant.business_address || '';
+        tradingAddressStreet = impTenant.trading_address_street || '';
         tradingAddressCity = impTenant.trading_address_city || '';
-        tradingAddressPostcode = impTenant.trading_address_postcode || impTenant.postcode || '';
+        tradingAddressPostcode = impTenant.trading_address_postcode || '';
         tradingAddressPhone = impTenant.trading_address_phone || impTenant.twilio_shadow_number || '';
         rwgConfig = {
           is_rwg_enabled: impTenant.is_rwg_enabled || false,
@@ -326,7 +340,12 @@ export default async function DashboardPage(props: { searchParams?: Promise<{ [k
       if (bots) chatbots = bots;
 
       const { data: convs } = await queryClient.from('conversations').select('*').eq(queryFilter.key, queryFilter.value).order('created_at', { ascending: false });
-      if (convs) conversations = convs;
+      if (convs) {
+        conversations = convs.filter((conversation) => {
+          const sessionId = conversation?.user_session_id;
+          return typeof sessionId !== 'string' || !sessionId.startsWith('preview-');
+        });
+      }
 
       const { data: srvs } = await queryClient.from('services').select('*, staff_services(*)').eq(queryFilter.key, queryFilter.value).order('created_at', { ascending: false });
       services = srvs || [];

@@ -1,6 +1,8 @@
 // @ts-nocheck
 import React, { useState, useEffect } from 'react';
 import { useDashboardStore } from '../../lib/store';
+import { dashboardFetch } from '../../lib/auth/dashboard-auth-headers';
+import { browserAuthHeaders } from '@/lib/auth/client-auth-headers';
 
 export default function IntegrationsView() {
   const { 
@@ -10,7 +12,9 @@ export default function IntegrationsView() {
     postcode,
     twilioShadowNumber,
     isGoogleConnected, 
-    setIsGoogleConnected, 
+    setIsGoogleConnected,
+    googleConnectedEmail,
+    setGoogleConnectedEmail, 
     bookingMode, 
     bookingUrl, 
     rwgConfig, 
@@ -104,7 +108,7 @@ export default function IntegrationsView() {
       
       const res = await fetch('/api/tenants/settings', {
         method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
+        headers: await browserAuthHeaders({ 'Content-Type': 'application/json' }),
         body: JSON.stringify({
           tenantId,
           rwgConfig: newConfig
@@ -128,7 +132,7 @@ export default function IntegrationsView() {
     try {
       const res = await fetch('/api/tenants/settings', {
         method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
+        headers: await browserAuthHeaders({ 'Content-Type': 'application/json' }),
         body: JSON.stringify({
           tenantId,
           bookingMode,
@@ -196,7 +200,7 @@ export default function IntegrationsView() {
       setCrawlLogs((prev) => [...prev, `[System] [${i+1}/${urls.length}] Crawling ${currentUrl}...`]);
 
       try {
-        const response = await fetch('/api/ingest/crawl', {
+        const response = await dashboardFetch('/api/ingest/crawl', {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
@@ -247,9 +251,13 @@ export default function IntegrationsView() {
   const handleDisconnectCalendar = async () => {
     if (!confirm("Are you sure you want to disconnect Google Calendar? This will remove the chatbot's ability to check availability and book appointments, but no Google Calendar data will be lost.")) return;
     try {
-      const res = await fetch(`/api/integrations/google/status?tenantId=${tenantId}`, { method: 'DELETE' });
+      const res = await fetch(`/api/integrations/google/status?tenantId=${tenantId}`, {
+        method: 'DELETE',
+        headers: await browserAuthHeaders(),
+      });
       if (res.ok) {
         setIsGoogleConnected(false);
+        setGoogleConnectedEmail(null);
       } else {
         alert('Failed to disconnect Google Calendar.');
       }
@@ -262,6 +270,27 @@ export default function IntegrationsView() {
 
   return (
     <div className="space-y-6">
+              <div className="bg-white border border-[#f2f3f5] p-6 rounded-2xl shadow-sm space-y-3" data-testid="google-calendar-account">
+                <h3 className="text-lg font-bold text-[#260475]">Google Calendar</h3>
+                {isGoogleConnected ? (
+                  <p className="text-sm text-[#212326]" data-testid="google-connected-email">
+                    {googleConnectedEmail
+                      ? <>Connected as <strong>{googleConnectedEmail}</strong></>
+                      : 'Connected to Google Calendar'}
+                  </p>
+                ) : (
+                  <p className="text-sm text-[#434549]">Not connected to Google Calendar.</p>
+                )}
+                {isGoogleConnected && (
+                  <button
+                    type="button"
+                    onClick={handleDisconnectCalendar}
+                    className="text-xs font-bold text-rose-700 underline"
+                  >
+                    Disconnect / switch account
+                  </button>
+                )}
+              </div>
               {/* Manual Business Page Setup & Publishing */}
               <div className="bg-white border border-[#f2f3f5] p-6 rounded-2xl shadow-sm space-y-4">
                 <div className="flex items-center justify-between">
@@ -280,8 +309,10 @@ export default function IntegrationsView() {
 
                 <div className="flex flex-col md:flex-row gap-3 pt-2">
                   <div className="flex-1">
-                    <label className="block text-xs font-semibold text-[#212326] mb-1.5">Official Business Name</label>
+                    <label className="block text-xs font-semibold text-[#212326] mb-1.5" htmlFor="official-business-name">Official Business Name</label>
                     <input
+                      id="official-business-name"
+                      data-testid="official-business-name"
                       type="text"
                       value={businessNameInput}
                       onChange={(e) => setBusinessNameInput(e.target.value)}
@@ -394,7 +425,7 @@ export default function IntegrationsView() {
                               }
                               try {
                                 setIsSavingRwg(true);
-                                const res = await fetch('/api/integrations/google/places', {
+                                const res = await dashboardFetch('/api/integrations/google/places', {
                                   method: 'POST',
                                   headers: { 'Content-Type': 'application/json' },
                                   body: JSON.stringify({ url: rwgGoogleUrl })
@@ -455,7 +486,7 @@ export default function IntegrationsView() {
                               try {
                                 await fetch('/api/tenants/settings', {
                                   method: 'PATCH',
-                                  headers: { 'Content-Type': 'application/json' },
+                                  headers: await browserAuthHeaders({ 'Content-Type': 'application/json' }),
                                   body: JSON.stringify({
                                     tenantId,
                                     rwgAddressSameAsTrading: e.target.checked

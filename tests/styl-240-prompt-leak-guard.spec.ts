@@ -341,6 +341,8 @@ test.describe('STYL-240 chat stream never shows prompt leaks', () => {
   test('a route failure returns the trouble line and not Unexpected failure', async () => {
     const savedUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
     const savedKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+    const savedSecret = process.env.CHAT_SESSION_SIGNING_SECRET;
+    process.env.CHAT_SESSION_SIGNING_SECRET = 'styl240-route-failure-secret';
     delete process.env.NEXT_PUBLIC_SUPABASE_URL;
     delete process.env.SUPABASE_URL;
     delete process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -368,6 +370,8 @@ test.describe('STYL-240 chat stream never shows prompt leaks', () => {
     } finally {
       if (savedUrl !== undefined) process.env.NEXT_PUBLIC_SUPABASE_URL = savedUrl;
       if (savedKey !== undefined) process.env.SUPABASE_SERVICE_ROLE_KEY = savedKey;
+      if (savedSecret === undefined) delete process.env.CHAT_SESSION_SIGNING_SECRET;
+      else process.env.CHAT_SESSION_SIGNING_SECRET = savedSecret;
     }
   });
 
