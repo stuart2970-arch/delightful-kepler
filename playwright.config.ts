@@ -29,15 +29,6 @@ export default defineConfig({
     timeout: 120 * 1000,
     env: {
       ...process.env,
-      // E2E runs with voice on and non-placeholder Vapi env so guarded routes (e.g. web-call) can be exercised.
-      // .env.test keeps VOICE_ENABLED=false for local defaults; playwright overrides here only.
-      VOICE_ENABLED: 'true',
-      VAPI_API_KEY: 'safe-test-vapi-private-key',
-      VAPI_PRIVATE_API_KEY: 'safe-test-vapi-private-key',
-      VAPI_PRIVATE_KEY: 'safe-test-vapi-private-key',
-      NEXT_PUBLIC_VAPI_PUBLIC_KEY: 'safe-test-vapi-public-key',
-      VAPI_PUBLIC_KEY: 'safe-test-vapi-public-key',
-      VAPI_MASTER_ASSISTANT_ID: 'aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee',
       // The pre-push hook and CI give the Playwright process an 8GB heap.
       // Do not hand that same ceiling to the Next server. The signed-out
       // sweep compiles every API route, and two 8GB heaps get the machine
