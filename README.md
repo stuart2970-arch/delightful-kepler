@@ -54,7 +54,7 @@ Committed environment config lives under `.cursor/`:
 
 ```bash
 bash scripts/agent-supabase-up.sh
-npm run test:e2e
+npm run test:e2e:agent   # use plain test:e2e only when `docker` works without sg
 ```
 
 `supabase/config.toml` keeps **storage** enabled (migrations seed `storage.buckets`) but turns off **storage.s3_protocol** and **edge_runtime** to shorten startup on agent VMs. **Inbucket** (`127.0.0.1:54324`) stays enabled for `tests/styl-228-magic-link-auth.spec.ts`. Studio, Realtime, and Analytics were already off.
@@ -4513,4 +4513,4 @@ Highlighted adjustments in the modal:
 * **User**: Cloud agents on this repo could not run `npx supabase start` (storage-api DbSetupError / missing Docker). Add `.cursor/environment.json` + Dockerfile for Docker-in-Docker, slim local `supabase/config.toml` where safe, `scripts/agent-supabase-up.sh`, prove Playwright + pre-push on an agent VM, document workflow. Base branch `staging`; never hit live/staging cloud Supabase.
 * **Changes**: `.cursor/Dockerfile` (Docker CE, fuse-overlayfs, Node 22), `.cursor/environment.json`, `.cursor/agent-install.sh` (npm ci, Playwright Chromium, warm `supabase@3.2.0` images), `scripts/agent-supabase-up.sh` (retries, local-only `db reset`, `env:local`). `config.toml`: `db.health_timeout` 5m, `edge_runtime` off, `storage.s3_protocol` off (storage service stays on for migrations). Pinned `supabase` 3.2.0 in devDependencies. AGENTS.md + README Cloud Agent section.
 * **Disabled services (local config only)**: Studio, Realtime, Analytics (already off); **edge_runtime** (no `supabase/functions`); **storage.s3_protocol** (Playwright never uses S3 port). **Kept**: Storage API (migration seeds `storage.buckets`), Auth, REST, Postgres, Inbucket/Mailpit (magic-link spec).
-* **VM proof (this agent)**: `scripts/agent-supabase-up.sh` ~39s start+reset+env after image pull; warm re-start ~1s. Full `npm run test:e2e`: 689 passed, 9 failed, 4 skipped in ~201s (failures in styl-243/250/252/whatsapp-ui — investigate vs staging CI). Pre-push smoke (12 specs) passed.
+* **VM proof (this agent)**: `scripts/agent-supabase-up.sh` ~39s start+reset+env after image pull; warm re-start ~1s. Full suite must use `npm run test:e2e:agent` (docker group / `sg docker` for specs that `docker exec` psql). A plain `test:e2e` run without docker group had 9 false failures; those specs pass under `test:e2e:agent`. Pre-push smoke (12 specs) passed.

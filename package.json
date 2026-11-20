@@ -20,6 +20,7 @@
     "check:apphosting-yaml": "node scripts/check-apphosting-yaml.mjs",
     "test:server": "dotenv -e .env.test --override -- next dev -p 3001",
     "test:e2e": "playwright test",
+    "test:e2e:agent": "bash scripts/test-e2e-agent.sh",
     "test:e2e:ui": "playwright test --ui"
   },
   "dependencies": {
