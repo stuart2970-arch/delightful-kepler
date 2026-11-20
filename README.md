@@ -4460,3 +4460,8 @@ Highlighted adjustments in the modal:
 * **Changes**: `src/widget/index.ts` and `embed.ts` inline `NEXT_PUBLIC_TURNSTILE_SITE_KEY` with no `typeof process` guard (public production key only if the build omits the env var). The token always comes from `turnstile.html` on the app origin, mounted in the chat panel. `appearance: 'interaction-only'` plus `before-interactive-callback` shows that iframe when a click is required. Timeout is 30s. Error codes go to the browser console. There is no client error endpoint. The widget accepts `postMessage` only from that app-origin iframe.
 * **Tests**: `tests/styl-361-turnstile-iframe.spec.ts` and `tests/styl-226-widget-turnstile.spec.ts`: 6 passed. Rebased onto the STYL-356 hook.
 * **Merge**: `origin/staging` (PRs 67 and 68) merged in. The only conflict was this session log. Both the STYL-368 dashboard session notes and the STYL-361 Turnstile notes are kept.
+
+### Session (PR 53 merge onto staging - 20 Nov 2026)
+* **User**: Merge current `origin/staging` into PR 53 (`cursor/vapi-end-of-call-report-7954`). Resolve conflicts keeping Vapi end-of-call ingest intent plus staging widget/auth changes. Get CI green. Do not merge the PR.
+* **Conflicts**: `README.md` session log (kept Vapi note and every staging note), `public/embed.js` and `public/widget.js` (regenerated via `npm run build:widget` from merged `src/widget/*`, combining STYL-361 Turnstile iframe with server-side `web-call` / `reconnect`). `src/widget/*` auto-merged.
+* **Behaviour**: No intentional logic change beyond absorbing staging. Built widget bundles now include Turnstile iframe plus server-provisioned Vapi web calls.
