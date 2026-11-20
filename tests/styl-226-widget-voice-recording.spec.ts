@@ -12,6 +12,7 @@ test.describe('STYL-226: widget web calls do not record and use our webhook', ()
       expect(src).toContain('recordingEnabled: false');
       expect(src).toContain('artifactPlan');
       expect(src).toContain('/api/voice/web-call');
+      expect(src).toContain('x-session-token');
       expect(src).not.toContain('serverUrl');
       expect(src).not.toContain('VAPI_WEBHOOK_SECRET');
       expect(src).not.toContain('vapiInstance.delete');

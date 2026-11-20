@@ -655,7 +655,7 @@ export async function logMeteredUsage(
   quantity: number = 1,
   description?: string,
   options?: { sectorTag?: string },
-): Promise<void> {
+): Promise<boolean> {
   // Write to both usage_ledger (for entitlement checks) and usage_logs (for analytics).
   // supabase-js returns insert failures as { error } and does not throw.
   const recordedAt = new Date().toISOString();
@@ -690,6 +690,7 @@ export async function logMeteredUsage(
       message: logsResult.error.message,
     });
   }
+  return !ledgerResult?.error && !logsResult?.error;
 }
 
 // =========================================================================

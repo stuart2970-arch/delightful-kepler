@@ -1677,7 +1677,10 @@ const CONNECTING_TIMEOUT_MS = 20000;
 
           const createRes = await fetch(`${targetVoiceHost}/api/voice/web-call`, {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            headers: {
+              'Content-Type': 'application/json',
+              'x-session-token': session.sessionToken,
+            },
             body: JSON.stringify({
               chatbotId,
               sessionId: session.sessionId || sessionId,

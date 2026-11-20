@@ -198,21 +198,61 @@ export async function handleEndOfCallReport(body: unknown): Promise<NextResponse
     return NextResponse.json({ error: 'Unable to resolve tenant' }, { status: 500 });
   }
 
+  const sectorTag = `Vapi Call ID: ${callId}`;
+
+  const releaseClaim = async () => {
+    await supabase.from('vapi_call_ingest').delete().eq('vapi_call_id', callId);
+  };
+
+  const hasConsumptionRow = async (): Promise<boolean> => {
+    const { data, error } = await supabase
+      .from('usage_ledger')
+      .select('id')
+      .eq('tenant_id', tenantId)
+      .eq('sector_tag', sectorTag)
+      .eq('usage_type', 'consumption')
+      .limit(1);
+    if (error) {
+      console.error('[Vapi Webhook] Metering lookup failed', { callId, code: error.code });
+      return false;
+    }
+    return Boolean(data?.length);
+  };
+
+  const markIngestMetered = async (): Promise<boolean> => {
+    const { error } = await supabase
+      .from('vapi_call_ingest')
+      .update({ metered_at: new Date().toISOString() })
+      .eq('vapi_call_id', callId);
+    return !error;
+  };
+
+  let resumeIncompleteIngest = false;
   const { error: claimError } = await supabase.from('vapi_call_ingest').insert({
     vapi_call_id: callId,
     tenant_id: tenantId,
   });
   if (claimError) {
     if (claimError.code === '23505') {
-      return NextResponse.json({ success: true, duplicate: true });
+      const { data: existing, error: fetchError } = await supabase
+        .from('vapi_call_ingest')
+        .select('metered_at')
+        .eq('vapi_call_id', callId)
+        .maybeSingle();
+      if (fetchError) {
+        console.error('[Vapi Webhook] Could not read ingest row', { callId, code: fetchError.code });
+        return NextResponse.json({ error: 'Could not store the call report' }, { status: 500 });
+      }
+      if (existing?.metered_at || (await hasConsumptionRow())) {
+        if (!existing?.metered_at) await markIngestMetered();
+        return NextResponse.json({ success: true, duplicate: true });
+      }
+      resumeIncompleteIngest = true;
+    } else {
+      console.error('[Vapi Webhook] Could not claim call', { callId, code: claimError.code });
+      return NextResponse.json({ error: 'Could not store the call report' }, { status: 500 });
     }
-    console.error('[Vapi Webhook] Could not claim call', { callId, code: claimError.code });
-    return NextResponse.json({ error: 'Could not store the call report' }, { status: 500 });
   }
-
-  const releaseClaim = async () => {
-    await supabase.from('vapi_call_ingest').delete().eq('vapi_call_id', callId);
-  };
 
   try {
     const isPhoneCall = call.type === 'inboundPhoneCall'
@@ -284,10 +324,19 @@ export async function handleEndOfCallReport(body: unknown): Promise<NextResponse
       targetConvId = newConv.id;
     }
 
-    if (minutes > 0) {
-      await logMeteredUsage(supabase, tenantId, VOICE_USAGE_FEATURE_ID, minutes, `Vapi call ${callId}`, {
-        sectorTag: `Vapi Call ID: ${callId}`,
+    const alreadyMetered = await hasConsumptionRow();
+    if (minutes > 0 && !alreadyMetered) {
+      const metered = await logMeteredUsage(supabase, tenantId, VOICE_USAGE_FEATURE_ID, minutes, `Vapi call ${callId}`, {
+        sectorTag,
       });
+      if (!metered) {
+        console.error('[Vapi Webhook] Metering failed after claim', { callId, resumeIncompleteIngest });
+        return NextResponse.json({ error: 'Could not meter the call' }, { status: 500 });
+      }
+    }
+    if (!(await markIngestMetered())) {
+      console.error('[Vapi Webhook] Could not mark ingest as metered', { callId });
+      return NextResponse.json({ error: 'Could not meter the call' }, { status: 500 });
     }
 
     if (targetConvId && targetChatbotId) {

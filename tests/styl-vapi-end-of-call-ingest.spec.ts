@@ -256,6 +256,59 @@ test.describe('Vapi end-of-call reports are stored once and metered', () => {
     expect(server).toContain('DROPPED_ASSISTANT_KEYS');
   });
 
+  test('re-meters when a claim exists without metered_at after the ledger row was lost', async ({ request }) => {
+    const callId = `eoc-meter-retry-${Date.now()}`;
+    const payload = {
+      message: {
+        type: 'end-of-call-report',
+        startedAt: '2026-11-01T20:00:00.000Z',
+        endedAt: '2026-11-01T20:01:00.000Z',
+        artifact: { transcript: 'User: Re-meter me.' },
+        call: {
+          id: callId,
+          type: 'webCall',
+          metadata: {
+            tenant_id: TENANT_ID,
+            chatbot_id: CHATBOT_ID,
+            session_id: callId,
+          },
+        },
+      },
+    };
+
+    const first = await request.post('/api/webhooks/vapi', { headers: vapiWebhookHeaders, data: payload });
+    expect(first.status()).toBe(200);
+
+    const { data: ingestBefore } = await admin
+      .from('vapi_call_ingest')
+      .select('metered_at')
+      .eq('vapi_call_id', callId)
+      .single();
+    expect(ingestBefore?.metered_at).toBeTruthy();
+
+    await admin.from('usage_ledger').delete().eq('sector_tag', `Vapi Call ID: ${callId}`);
+    await admin.from('usage_logs').delete().eq('description', `Vapi call ${callId}`);
+    await admin.from('vapi_call_ingest').update({ metered_at: null }).eq('vapi_call_id', callId);
+
+    const retry = await request.post('/api/webhooks/vapi', { headers: vapiWebhookHeaders, data: payload });
+    expect(retry.status()).toBe(200);
+
+    const { data: ledger } = await admin
+      .from('usage_ledger')
+      .select('feature_id, quantity')
+      .eq('sector_tag', `Vapi Call ID: ${callId}`)
+      .maybeSingle();
+    expect(ledger?.feature_id).toBe(VOICE_USAGE_FEATURE_ID);
+    expect(Number(ledger?.quantity)).toBe(1);
+
+    const { data: ingestAfter } = await admin
+      .from('vapi_call_ingest')
+      .select('metered_at')
+      .eq('vapi_call_id', callId)
+      .single();
+    expect(ingestAfter?.metered_at).toBeTruthy();
+  });
+
   test('resolves the tenant from the assistant id when the report has no metadata or phone number', async ({ request }) => {
     const callId = `eoc-assistant-${Date.now()}`;
     const assistantId = `asst-${callId}`;

@@ -77,7 +77,7 @@ test.describe('STYL-197 usage metering and allowances', () => {
       },
     };
     try {
-      await expect(logMeteredUsage(client, GLOBEX, 'message_allowance', 1, 'styl-197-error')).resolves.toBeUndefined();
+      await expect(logMeteredUsage(client, GLOBEX, 'message_allowance', 1, 'styl-197-error')).resolves.toBe(false);
     } finally {
       console.error = original;
     }
