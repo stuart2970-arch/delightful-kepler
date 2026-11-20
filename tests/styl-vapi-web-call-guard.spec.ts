@@ -85,6 +85,7 @@ test.describe('Vapi web-call route guards', () => {
       'x-test-web-call-rate-limit-ip': '2',
       'x-test-web-call-rate-limit-bot': '100',
       'x-forwarded-for': `203.0.113.${stamp % 200}`,
+      'x-test-mock-vapi-web-call': '1',
     };
     const payload = { chatbotId: CHATBOT_ID, sessionId, assistant: {} };
     const first = await request.post('/api/voice/web-call', { headers, data: payload });
