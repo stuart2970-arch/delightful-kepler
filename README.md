@@ -4503,3 +4503,5 @@ Highlighted adjustments in the modal:
 
 ### Session (PR 53 re-merge after PR 50/60 - 20 Nov 2026)
 * **User**: Merge `origin/staging` at `4701d8d` into PR 53. Keep PR 53 `handleEndOfCallReport` webhook path and STYL-197 / PR 60 usage metering from staging. Regenerate widget bundles with empty Turnstile bake. Push with hooks; confirm Actions runs green.
+* **Conflicts**: `README.md` (kept PR 50/60 + OpenClaw notes and prior PR 53 logs), `src/app/api/webhooks/vapi/route.ts` (kept PR 53 thin wrapper → `handleEndOfCallReport`; dropped staging’s inline metering block). Post-merge fix: removed duplicate `VOICE_USAGE_FEATURE_ID` export in `src/lib/entitlements.ts` after STYL-197 auto-merge. Widgets rebuilt with `NEXT_PUBLIC_TURNSTILE_SITE_KEY=` (empty bake); bundles unchanged vs prior commit.
+* **Merge head**: `716a7a4`. Run `44794281731` failed with hosted-runner communication loss (infra), not a test failure — retriggered CI.
