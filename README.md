@@ -4474,3 +4474,9 @@ Highlighted adjustments in the modal:
 * **Changes**: `src/widget/index.ts` and `embed.ts` inline `NEXT_PUBLIC_TURNSTILE_SITE_KEY` with no `typeof process` guard (public production key only if the build omits the env var). The token always comes from `turnstile.html` on the app origin, mounted in the chat panel. `appearance: 'interaction-only'` plus `before-interactive-callback` shows that iframe when a click is required. Timeout is 30s. Error codes go to the browser console. There is no client error endpoint. The widget accepts `postMessage` only from that app-origin iframe.
 * **Tests**: `tests/styl-361-turnstile-iframe.spec.ts` and `tests/styl-226-widget-turnstile.spec.ts`: 6 passed. Rebased onto the STYL-356 hook.
 * **Merge**: `origin/staging` (PRs 67 and 68) merged in. The only conflict was this session log. Both the STYL-368 dashboard session notes and the STYL-361 Turnstile notes are kept.
+
+### Session (PR 50 and PR 60 merge onto staging - 20 Nov 2026)
+* **User**: Merge current `staging` into PR 50 (`cursor/styl-197-usage-metering-a7b7`), resolve conflicts keeping STYL-197 intent, then merge the updated PR 50 head into PR 60 (`cursor/foundation-voice-renewal-a7b7`). Do not retarget PR 60 to `staging` until PR 50 merges. Do not merge either PR. Get CI green.
+* **PR 50 conflicts**: `README.md` session log (kept all STYL-197 entries plus every note from `staging`). `src/app/api/chat/stream/route.ts`: kept `!isPreview &&` from staging and `CHAT_MESSAGE_FEATURE_ID` from PR 50 for metered chat usage.
+* **PR 60 conflicts**: `README.md` only — kept the Foundation voice renewal session note plus the full post–PR 50 staging log block.
+* **Behaviour**: No product change beyond integrating staging fixes with usage metering; chat preview messages are not metered; chat usage still records `message_allowance` via the shared feature id.
