@@ -1,4 +1,5 @@
 import { createClient } from '@supabase/supabase-js';
+import { resolveVoiceAllowance } from './telephony/voice-minute-gate';
 import { usageAlertLevel, type UsageAlertLevel } from './usage-alerts';
 
 export { USAGE_ALERT_LIMIT_PERCENT, USAGE_ALERT_WARNING_PERCENT, usageAlertLevel } from './usage-alerts';
@@ -264,6 +265,26 @@ export async function getRolloverBalance(tenantId: string): Promise<RolloverBala
   return balance;
 }
 
+/** Voice minutes used since the first of the current month. Same feature ids as the rollover. */
+export async function loadCurrentPeriodVoiceConsumption(
+  tenantId: string,
+  supabase: { from: (table: string) => any } = createAdminClient(),
+  now = new Date(),
+): Promise<{ consumed: number; error: string | null }> {
+  const start = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1));
+  const result = await supabase
+    .from('usage_ledger')
+    .select('feature_id, quantity')
+    .eq('tenant_id', tenantId)
+    .eq('usage_type', 'consumption')
+    .in('feature_id', [...VOICE_CONSUMPTION_FEATURE_IDS])
+    .gte('recorded_at', start.toISOString());
+  if (result?.error) {
+    return { consumed: 0, error: result.error.message || 'usage_ledger read failed' };
+  }
+  return { consumed: sumVoiceConsumption(result?.data ?? null), error: null };
+}
+
 // =========================================================================
 // Effective Limit (Modular Bolt-On Evaluation)
 // =========================================================================
@@ -512,9 +533,8 @@ export async function checkCapacityThresholds(
   ];
 
   const supabase = createAdminClient();
-  const firstDay = new Date();
-  firstDay.setDate(1);
-  firstDay.setHours(0, 0, 0, 0);
+  const now = new Date();
+  const firstDay = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1));
 
   // Query addon_catalog dynamically for up-to-date pricing
   const { data: catalogAddons } = await supabase
@@ -532,7 +552,23 @@ export async function checkCapacityThresholds(
     if (feature.id === 'voice_minutes' || feature.id === 'sms_messages') {
       const balance = await getRolloverBalance(tenantId);
       if (feature.id === 'voice_minutes') {
-        currentUsage = balance.voice_minutes_consumed;
+        const { consumed: monthVoice } = await loadCurrentPeriodVoiceConsumption(tenantId, supabase);
+        const { data: tenant } = await supabase.from('tenants').select('plan_tier').eq('id', tenantId).maybeSingle();
+        const planTier = tenant?.plan_tier || 'foundation';
+        const { data: tierEnt } = await supabase
+          .from('tier_entitlements')
+          .select('limit_value')
+          .eq('tier_id', planTier)
+          .eq('feature_id', 'voice_minutes')
+          .maybeSingle();
+        const planMinutes = tierEnt?.limit_value != null ? Number(tierEnt.limit_value) : null;
+        const resolved = resolveVoiceAllowance({
+          rolloverAllocated: balance.voice_minutes_allocated,
+          rolloverConsumed: balance.voice_minutes_consumed,
+          planMinutes: planMinutes && planMinutes > 0 ? planMinutes : null,
+          currentPeriodConsumed: monthVoice,
+        });
+        currentUsage = resolved.consumed;
       } else {
         currentUsage = balance.sms_consumed;
       }
@@ -661,7 +697,8 @@ export async function allocateRollingCredits(
   tenantId: string,
   featureId: string,
   quantity: number,
-  addonCatalogId?: string
+  addonCatalogId?: string,
+  options?: { sectorTag?: string; billingPeriodStart?: string },
 ): Promise<{ id?: string } | void> {
   const supabase = createAdminClient();
   const now = new Date();
@@ -673,14 +710,17 @@ export async function allocateRollingCredits(
     feature_id: featureId,
     quantity,
     usage_type: 'allocation',
-    billing_period_start: now.toISOString(),
+    billing_period_start: options?.billingPeriodStart || now.toISOString(),
     expires_at: expiresAt.toISOString(),
     addon_catalog_id: addonCatalogId || null,
+    sector_tag: options?.sectorTag || null,
     recorded_at: now.toISOString(),
   }).select('id').maybeSingle();
 
   if (error) {
-    throw new Error(error.message || 'Failed to allocate rolling credits');
+    const wrapped = new Error(error.message || 'Failed to allocate rolling credits') as Error & { code?: string };
+    wrapped.code = error.code;
+    throw wrapped;
   }
   return data || undefined;
 }

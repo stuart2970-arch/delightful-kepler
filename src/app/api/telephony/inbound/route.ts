@@ -2,11 +2,12 @@ import { NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import twilio from 'twilio';
 import { evaluateVoiceGate, getVapiMasterAssistantId } from '@/lib/env/vapi-config';
-import { loadRolloverBalance } from '@/lib/entitlements';
+import { loadCurrentPeriodVoiceConsumption, loadRolloverBalance } from '@/lib/entitlements';
 import {
   catalogLimitFromRow,
   decideVoiceMinuteGate,
   INBOUND_MINUTES_EXHAUSTED_MESSAGE,
+  resolveVoiceAllowance,
   type CatalogLimit,
 } from '@/lib/telephony/voice-minute-gate';
 
@@ -18,6 +19,7 @@ export type InboundMinuteSources = {
     row: { limit_value: number | null } | null;
     error: { message: string } | null;
   }>;
+  loadPeriodConsumption: (tenantId: string) => Promise<{ consumed: number; error: string | null }>;
 };
 
 function getSupabaseAdmin() {
@@ -54,6 +56,7 @@ export async function handleInboundPost(request: Request, sources?: Partial<Inbo
           .maybeSingle();
         return { row: data, error };
       },
+      loadPeriodConsumption: (tenantId) => loadCurrentPeriodVoiceConsumption(tenantId, supabase),
       ...sources,
     };
     const formData = await request.formData();
@@ -86,9 +89,9 @@ export async function handleInboundPost(request: Request, sources?: Partial<Inbo
       });
     }
 
-    // 2. Voice minutes use the same rolling balance as the dashboard.
-    // No allocation in that window falls back to the plan catalogue.
-    // A failed read does not block the call.
+    // 2. Voice minutes. Purchased allocations use the 3-month balance.
+    // With none in that window, this month's usage is compared with the plan's
+    // monthly minutes. A failed read does not block the call.
     const { data: tenantData } = await supabase
       .from('tenants')
       .select('plan_tier')
@@ -110,8 +113,27 @@ export async function handleInboundPost(request: Request, sources?: Partial<Inbo
     }
 
     const catalogLimit: CatalogLimit = catalogLimitFromRow(entitlement ?? null, Boolean(entitlementError));
+    let periodError: string | null = null;
+    let currentPeriodConsumed = balanceRead.consumed;
+    if (!balanceRead.error && balanceRead.allocated <= 0 && catalogLimit !== undefined) {
+      const period = await minuteSources.loadPeriodConsumption(tenant.id);
+      if (period.error) {
+        periodError = period.error;
+        console.error(`[Telephony Inbound] usage_ledger read failed for tenant ${tenant.id}; allowing the call.`, period.error);
+      } else {
+        currentPeriodConsumed = period.consumed;
+      }
+    }
+    const comparable = resolveVoiceAllowance({
+      rolloverAllocated: balanceRead.allocated,
+      rolloverConsumed: balanceRead.consumed,
+      planMinutes: typeof catalogLimit === 'number' ? catalogLimit : null,
+      currentPeriodConsumed,
+    });
     const minuteGate = decideVoiceMinuteGate({
-      balance: balanceRead.error ? null : { allocated: balanceRead.allocated, consumed: balanceRead.consumed },
+      balance: balanceRead.error || periodError
+        ? null
+        : { allocated: balanceRead.allocated, consumed: comparable.consumed },
       catalogLimit,
     });
 

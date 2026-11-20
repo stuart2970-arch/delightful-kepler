@@ -33,6 +33,32 @@ export type VoiceMinuteBalance = {
   consumed: number;
 };
 
+/**
+ * Purchased minutes use the 3-month rollover on both sides.
+ * With no allocation in that window, the plan's monthly minutes are compared
+ * with usage in the current calendar month, not with the whole rollover window.
+ */
+export function resolveVoiceAllowance(input: {
+  rolloverAllocated: number;
+  rolloverConsumed: number;
+  planMinutes: number | null;
+  currentPeriodConsumed: number;
+}): { allocated: number; consumed: number; source: 'rollover' | 'plan_window' } {
+  const rolloverAllocated = Number(input.rolloverAllocated || 0);
+  const rolloverConsumed = Number(input.rolloverConsumed || 0);
+  if (rolloverAllocated > 0) {
+    return { allocated: rolloverAllocated, consumed: rolloverConsumed, source: 'rollover' };
+  }
+  if (input.planMinutes != null && input.planMinutes > 0) {
+    return {
+      allocated: input.planMinutes,
+      consumed: Number(input.currentPeriodConsumed || 0),
+      source: 'plan_window',
+    };
+  }
+  return { allocated: 0, consumed: rolloverConsumed, source: 'rollover' };
+}
+
 export function catalogLimitFromRow(
   row: { limit_value: number | null } | null,
   lookupFailed: boolean,
