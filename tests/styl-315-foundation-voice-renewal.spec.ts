@@ -1,6 +1,9 @@
 import { test, expect } from '@playwright/test';
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
-import { handleStripeBillingEvent } from '../src/lib/billing/process-stripe-webhook';
+import {
+  handleStripeBillingEvent,
+  invoiceContainsBasePlanPrice,
+} from '../src/lib/billing/process-stripe-webhook';
 import { getRolloverBalance } from '../src/lib/entitlements';
 import { resolveVoiceAllowance } from '../src/lib/telephony/voice-minute-gate';
 import { handleInboundPost } from '../src/app/api/telephony/inbound/route';
@@ -13,6 +16,8 @@ const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || 'http://127.0.0.1:54
 const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY || '';
 const GLOBEX = '10000000-0000-0000-0000-000000000002';
 const PHONE = '+447700900315';
+const FOUNDATION_PRICE_ID = 'price_styl315_foundation';
+const LANDLINE_PRICE_ID = 'price_styl315_landline';
 
 test.describe('plan voice minutes for the current window', () => {
   test('a month of plan minutes is not compared with the whole rollover window', () => {
@@ -49,6 +54,12 @@ test.describe('STYL-315 Foundation voice renewal', () => {
     await admin.from('tenants').update({ twilio_shadow_number: PHONE }).eq('id', GLOBEX);
     await admin.from('usage_ledger').delete().like('sector_tag', 'plan_voice:in_styl315%');
     await admin.from('usage_ledger').delete().eq('sector_tag', 'styl-315-old-usage');
+    const { error: tierError } = await admin
+      .from('subscription_tiers')
+      .update({ stripe_price_id: FOUNDATION_PRICE_ID })
+      .in('id', ['foundation', 'base_tier']);
+    expect(tierError).toBeNull();
+    await admin.from('addon_catalog').update({ stripe_price_id: LANDLINE_PRICE_ID }).eq('id', 'landline_addon');
   });
 
   test.afterAll(async () => {
@@ -62,8 +73,13 @@ test.describe('STYL-315 Foundation voice renewal', () => {
     await admin.from('tenants').update({ twilio_shadow_number: savedPhone }).eq('id', GLOBEX);
   });
 
-  function renewalInvoice(id: string, reason = 'subscription_cycle') {
+  function renewalInvoice(
+    id: string,
+    reason = 'subscription_cycle',
+    linePriceIds: string[] = [FOUNDATION_PRICE_ID],
+  ) {
     const periodStart = Math.floor(Date.now() / 1000);
+    const period = { start: periodStart, end: periodStart + 2592000 };
     return {
       type: 'invoice.payment_succeeded',
       data: {
@@ -72,12 +88,45 @@ test.describe('STYL-315 Foundation voice renewal', () => {
           customer: 'cus_test_globex',
           billing_reason: reason,
           period_start: periodStart,
-          lines: { data: [{ period: { start: periodStart, end: periodStart + 2592000 } }] },
+          lines: {
+            data: linePriceIds.map((priceId) => ({
+              period,
+              price: { id: priceId },
+            })),
+          },
           subscription_details: { metadata: { tenant_id: GLOBEX } },
         },
       },
     };
   }
+
+  test('subscription_update and bolt-on-only cycle invoices do not grant plan voice', async () => {
+    const update = await handleStripeBillingEvent(renewalInvoice('in_styl315_update', 'subscription_update'), {
+      supabaseAdmin: admin,
+    });
+    expect(update.status).toBe(200);
+    const { count: updateCount } = await admin
+      .from('usage_ledger')
+      .select('id', { count: 'exact', head: true })
+      .eq('sector_tag', 'plan_voice:in_styl315_update');
+    expect(updateCount ?? 0).toBe(0);
+
+    const boltOnOnly = await handleStripeBillingEvent(
+      renewalInvoice('in_styl315_bolton_only', 'subscription_cycle', [LANDLINE_PRICE_ID]),
+      { supabaseAdmin: admin },
+    );
+    expect(boltOnOnly.status).toBe(200);
+    const { count: boltCount } = await admin
+      .from('usage_ledger')
+      .select('id', { count: 'exact', head: true })
+      .eq('sector_tag', 'plan_voice:in_styl315_bolton_only');
+    expect(boltCount ?? 0).toBe(0);
+    expect(
+      invoiceContainsBasePlanPrice(renewalInvoice('x', 'subscription_cycle', [LANDLINE_PRICE_ID]).data.object, [
+        FOUNDATION_PRICE_ID,
+      ]),
+    ).toBe(false);
+  });
 
   test('the first monthly renewal grants the plan minutes once, and a duplicate delivery does not grant again', async () => {
     const invoiceId = 'in_styl315_first';
@@ -195,7 +244,15 @@ test.describe('STYL-315 Foundation voice renewal', () => {
     const form = new FormData();
     form.set('To', PHONE);
     form.set('From', '+447700900316');
-    const previous = process.env.VOICE_ENABLED;
+    const savedEnv = {
+      VOICE_ENABLED: process.env.VOICE_ENABLED,
+      VAPI_API_KEY: process.env.VAPI_API_KEY,
+      VAPI_PRIVATE_API_KEY: process.env.VAPI_PRIVATE_API_KEY,
+      VAPI_PRIVATE_KEY: process.env.VAPI_PRIVATE_KEY,
+      NEXT_PUBLIC_VAPI_PUBLIC_KEY: process.env.NEXT_PUBLIC_VAPI_PUBLIC_KEY,
+      VAPI_PUBLIC_KEY: process.env.VAPI_PUBLIC_KEY,
+      VAPI_MASTER_ASSISTANT_ID: process.env.VAPI_MASTER_ASSISTANT_ID,
+    };
     process.env.VOICE_ENABLED = 'true';
     process.env.VAPI_API_KEY = 'safe-test-vapi-private-key';
     process.env.VAPI_PRIVATE_API_KEY = 'safe-test-vapi-private-key';
@@ -219,8 +276,10 @@ test.describe('STYL-315 Foundation voice renewal', () => {
       expect(logs.join('\n')).toContain('consumed: 0');
     } finally {
       console.log = original;
-      if (previous === undefined) delete process.env.VOICE_ENABLED;
-      else process.env.VOICE_ENABLED = previous;
+      for (const [key, value] of Object.entries(savedEnv)) {
+        if (value === undefined) delete process.env[key];
+        else process.env[key] = value;
+      }
       await admin.from('usage_ledger').delete().eq('sector_tag', 'styl-315-old-usage');
     }
   });

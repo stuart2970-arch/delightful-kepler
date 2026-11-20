@@ -4481,3 +4481,7 @@ Highlighted adjustments in the modal:
 * **PR 60 conflicts**: `README.md` only — kept the Foundation voice renewal session note plus the full post–PR 50 staging log block.
 * **Behaviour**: No product change beyond integrating staging fixes with usage metering; chat preview messages are not metered; chat usage still records `message_allowance` via the shared feature id.
 * **Rework**: PR 60 CI failed on `db reset` because `20261111143000_plan_voice_grant_idempotency.sql` shared a version with `20261111143000_styl252_keep_wp_trigger_styl178_guard.sql` after merging staging into PR 50. Renamed the plan-voice migration to `20261111143100_plan_voice_grant_idempotency.sql`.
+
+### Session (OpenClaw PR 60 — base-plan renewal grant guard - 20 Nov 2026)
+* **User**: OpenClaw at `0ed649e` on PR 60. Restrict plan voice grants to `billing_reason === 'subscription_cycle'` when the invoice includes the tenant base plan `subscription_tiers.stripe_price_id` line. Tests for `subscription_update` and bolt-on-only cycle invoices. Small should-fix from review: UTC month start in `loadCurrentPeriodVoiceConsumption`, require `invoice.id` for idempotency, surface tenant read errors, align `checkCapacityThresholds` voice usage with `resolveVoiceAllowance`. Never skip git hooks.
+* **Changes**: `grantPlanVoiceMinutesForRenewal` skips non-cycle and non-base-plan invoices. STYL-315 tests set foundation/landline Stripe price ids and assert no grant on update or bolt-on-only invoices. Voice alert thresholds use current-month consumption when rollover allocation is zero.

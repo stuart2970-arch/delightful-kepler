@@ -772,6 +772,34 @@ async function activateBoltOnByCatalogId(options: {
 
 const PLAN_VOICE_GRANT_PREFIX = 'plan_voice:';
 
+const BASE_PLAN_TIER_IDS = ['foundation', 'base_tier'] as const;
+
+export function invoiceContainsBasePlanPrice(
+  invoice: Record<string, any>,
+  basePlanPriceIds: string[],
+): boolean {
+  if (!basePlanPriceIds.length) return false;
+  const onInvoice = new Set(invoicePriceIdsFrom(invoice));
+  return basePlanPriceIds.some((id) => onInvoice.has(id));
+}
+
+async function loadBasePlanStripePriceIds(
+  supabaseAdmin: { from: (table: string) => any },
+  planTier: string,
+): Promise<string[]> {
+  const tierIds = [...new Set([planTier, ...BASE_PLAN_TIER_IDS])];
+  const { data, error } = await supabaseAdmin
+    .from('subscription_tiers')
+    .select('id, stripe_price_id')
+    .in('id', tierIds);
+  if (error) {
+    throw new Error(error.message || 'Could not read base plan Stripe prices');
+  }
+  return (data || [])
+    .map((row: { stripe_price_id?: string | null }) => row.stripe_price_id)
+    .filter((id: unknown): id is string => typeof id === 'string' && Boolean(id.trim()));
+}
+
 /**
  * Monthly Foundation (and any other plan with included voice minutes) renewal.
  * Signup already grants the first block from checkout. A repeated delivery of
@@ -787,14 +815,16 @@ export async function grantPlanVoiceMinutesForRenewal(
   if (billingReason === 'subscription_create') {
     return { granted: false, minutes: 0, reason: 'signup_invoice' };
   }
+  if (billingReason !== 'subscription_cycle') {
+    return { granted: false, minutes: 0, reason: 'not_subscription_cycle' };
+  }
 
   const invoiceId = typeof invoice.id === 'string' ? invoice.id.trim() : '';
-  const periodStartUnix = invoice.lines?.data?.[0]?.period?.start ?? invoice.period_start;
-  const periodKey = invoiceId || (periodStartUnix != null ? `period:${periodStartUnix}` : '');
-  if (!periodKey) {
-    return { granted: false, minutes: 0, reason: 'no_invoice_key' };
+  if (!invoiceId) {
+    return { granted: false, minutes: 0, reason: 'no_invoice_id' };
   }
-  const sectorTag = `${PLAN_VOICE_GRANT_PREFIX}${periodKey}`;
+  const periodStartUnix = invoice.lines?.data?.[0]?.period?.start ?? invoice.period_start;
+  const sectorTag = `${PLAN_VOICE_GRANT_PREFIX}${invoiceId}`;
 
   const { data: existing, error: existingError } = await supabaseAdmin
     .from('usage_ledger')
@@ -812,12 +842,21 @@ export async function grantPlanVoiceMinutesForRenewal(
     return { granted: false, minutes: 0, reason: 'already_granted' };
   }
 
-  const { data: tenant } = await supabaseAdmin
+  const { data: tenant, error: tenantError } = await supabaseAdmin
     .from('tenants')
     .select('plan_tier')
     .eq('id', tenantId)
     .maybeSingle();
+  if (tenantError) {
+    throw new Error(tenantError.message || 'Could not read the tenant plan');
+  }
   const planTier = tenant?.plan_tier || 'foundation';
+
+  const basePlanPriceIds = await loadBasePlanStripePriceIds(supabaseAdmin, planTier);
+  if (!invoiceContainsBasePlanPrice(invoice, basePlanPriceIds)) {
+    return { granted: false, minutes: 0, reason: 'no_base_plan_line' };
+  }
+
   const { data: entitlement, error: entitlementError } = await supabaseAdmin
     .from('tier_entitlements')
     .select('limit_value')

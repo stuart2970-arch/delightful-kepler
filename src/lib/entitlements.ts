@@ -1,4 +1,5 @@
 import { createClient } from '@supabase/supabase-js';
+import { resolveVoiceAllowance } from '@/lib/telephony/voice-minute-gate';
 import { usageAlertLevel, type UsageAlertLevel } from './usage-alerts';
 
 export { USAGE_ALERT_LIMIT_PERCENT, USAGE_ALERT_WARNING_PERCENT, usageAlertLevel } from './usage-alerts';
@@ -270,9 +271,7 @@ export async function loadCurrentPeriodVoiceConsumption(
   supabase: { from: (table: string) => any } = createAdminClient(),
   now = new Date(),
 ): Promise<{ consumed: number; error: string | null }> {
-  const start = new Date(now);
-  start.setDate(1);
-  start.setHours(0, 0, 0, 0);
+  const start = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1));
   const result = await supabase
     .from('usage_ledger')
     .select('feature_id, quantity')
@@ -534,9 +533,8 @@ export async function checkCapacityThresholds(
   ];
 
   const supabase = createAdminClient();
-  const firstDay = new Date();
-  firstDay.setDate(1);
-  firstDay.setHours(0, 0, 0, 0);
+  const now = new Date();
+  const firstDay = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1));
 
   // Query addon_catalog dynamically for up-to-date pricing
   const { data: catalogAddons } = await supabase
@@ -554,7 +552,23 @@ export async function checkCapacityThresholds(
     if (feature.id === 'voice_minutes' || feature.id === 'sms_messages') {
       const balance = await getRolloverBalance(tenantId);
       if (feature.id === 'voice_minutes') {
-        currentUsage = balance.voice_minutes_consumed;
+        const { consumed: monthVoice } = await loadCurrentPeriodVoiceConsumption(tenantId, supabase);
+        const { data: tenant } = await supabase.from('tenants').select('plan_tier').eq('id', tenantId).maybeSingle();
+        const planTier = tenant?.plan_tier || 'foundation';
+        const { data: tierEnt } = await supabase
+          .from('tier_entitlements')
+          .select('limit_value')
+          .eq('tier_id', planTier)
+          .eq('feature_id', 'voice_minutes')
+          .maybeSingle();
+        const planMinutes = tierEnt?.limit_value != null ? Number(tierEnt.limit_value) : null;
+        const resolved = resolveVoiceAllowance({
+          rolloverAllocated: balance.voice_minutes_allocated,
+          rolloverConsumed: balance.voice_minutes_consumed,
+          planMinutes: planMinutes && planMinutes > 0 ? planMinutes : null,
+          currentPeriodConsumed: monthVoice,
+        });
+        currentUsage = resolved.consumed;
       } else {
         currentUsage = balance.sms_consumed;
       }
