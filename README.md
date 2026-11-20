@@ -39,6 +39,28 @@ Local development uses the **local Supabase CLI stack** and mock third-party key
    The Husky pre-push hook (`.husky/pre-push`, STYL-356) lints the changed TypeScript and JavaScript files, runs `npm run typecheck`, and runs only the Playwright specs related to the commits being pushed. `scripts/prepush-related-specs.mjs` picks those specs. If none match, it runs a small smoke set: `tests/addon-text.spec.ts` and `tests/styl-226-release-source.spec.ts`. It does not run the full suite. A full `npm run lint` still reports more than a thousand existing errors, including in files a small change has to touch, so ESLint is printed and does not by itself fail the push. Typecheck and the related specs do.
    Every pull request to `main` or `staging` still runs the **full** Playwright suite in `.github/workflows/playwright.yml` (`npm run test:e2e`, no file filter), plus the typecheck. Do not narrow that workflow to the related-spec list.
 
+### Cursor Cloud Agents (local Supabase on agent VMs)
+
+Committed environment config lives under `.cursor/`:
+
+| File | Purpose |
+| :--- | :--- |
+| `.cursor/environment.json` | Docker-in-Docker base image, `install` warms npm + Playwright + Supabase images, `start` runs `sudo service docker start` |
+| `.cursor/Dockerfile` | Docker CE (fuse-overlayfs), Node 22, `ubuntu` user in `docker` group |
+| `.cursor/agent-install.sh` | Idempotent install: `npm ci`, Playwright Chromium, `supabase@3.2.0 start` then `stop` to pre-pull images |
+| `scripts/agent-supabase-up.sh` | Per-agent boot: retry `supabase start`, local-only `db reset`, `npm run env:local` |
+
+**Agent workflow**
+
+```bash
+bash scripts/agent-supabase-up.sh
+npm run test:e2e:agent   # use plain test:e2e only when `docker` works without sg
+```
+
+`supabase/config.toml` keeps **storage** enabled (migrations seed `storage.buckets`) but turns off **storage.s3_protocol** and **edge_runtime** to shorten startup on agent VMs. **Inbucket** (`127.0.0.1:54324`) stays enabled for `tests/styl-228-magic-link-auth.spec.ts`. Studio, Realtime, and Analytics were already off.
+
+Point the team Cloud Agent environment’s **environment.json location** at this repo’s `.cursor/environment.json`, trigger a new Build, then run agents on that environment.
+
 ---
 
 ## Project Resources
@@ -4514,3 +4536,13 @@ Highlighted adjustments in the modal:
 * **User**: Merge `origin/staging` at `4701d8d` into PR 53. Keep PR 53 `handleEndOfCallReport` webhook path and STYL-197 / PR 60 usage metering from staging. Regenerate widget bundles with empty Turnstile bake. Push with hooks; confirm Actions runs green.
 * **Conflicts**: `README.md` (kept PR 50/60 + OpenClaw notes and prior PR 53 logs), `src/app/api/webhooks/vapi/route.ts` (kept PR 53 thin wrapper → `handleEndOfCallReport`; dropped staging’s inline metering block). Post-merge fix: removed duplicate `VOICE_USAGE_FEATURE_ID` export in `src/lib/entitlements.ts` after STYL-197 auto-merge. Widgets rebuilt with `NEXT_PUBLIC_TURNSTILE_SITE_KEY=` (empty bake); bundles unchanged vs prior commit.
 * **Merge head**: `716a7a4` (merge commit); branch tip `bd28c22` after `logMeteredUsage` `sector_tag` fix for STYL-197. Run `44794281731` / `44811659379`: hosted-runner disconnect during long Playwright (~50m). Run `44810577505`: real failure — STYL-197 Vapi test expects `usage_ledger.sector_tag` `Vapi Call ID: …`; fixed in `afafff7`. **Green CI**: [run 44819257414](https://github.com/stuart2970-arch/delightful-kepler/actions/runs/44819257414) on `bd28c22`.
+
+### Session (Cursor Cloud Agent local Supabase - 20 Nov 2026)
+* **User**: Cloud agents on this repo could not run `npx supabase start` (storage-api DbSetupError / missing Docker). Add `.cursor/environment.json` + Dockerfile for Docker-in-Docker, slim local `supabase/config.toml` where safe, `scripts/agent-supabase-up.sh`, prove Playwright + pre-push on an agent VM, document workflow. Base branch `staging`; never hit live/staging cloud Supabase.
+* **Changes**: `.cursor/Dockerfile` (Docker CE, fuse-overlayfs, Node 22), `.cursor/environment.json`, `.cursor/agent-install.sh` (npm ci, Playwright Chromium, warm `supabase@3.2.0` images), `scripts/agent-supabase-up.sh` (retries, local-only `db reset`, `env:local`). `config.toml`: `db.health_timeout` 5m, `edge_runtime` off, `storage.s3_protocol` off (storage service stays on for migrations). Pinned `supabase` 3.2.0 in devDependencies. AGENTS.md + README Cloud Agent section.
+* **Disabled services (local config only)**: Studio, Realtime, Analytics (already off); **edge_runtime** (no `supabase/functions`); **storage.s3_protocol** (Playwright never uses S3 port). **Kept**: Storage API (migration seeds `storage.buckets`), Auth, REST, Postgres, Inbucket/Mailpit (magic-link spec).
+* **VM proof (this agent)**: `scripts/agent-supabase-up.sh` ~39s start+reset+env after image pull; warm re-start ~1s. Use `npm run test:e2e:agent` (docker group / `sg docker` for specs that `docker exec` psql). Pre-push smoke (12 specs) passed. PR #73 Playwright CI on commit `74ee203`: **green** (~6m36s job).
+
+### Session (PR 53 merge staging 7b8e407 — Cloud Agent Supabase - 20 Nov 2026)
+* **User**: Merge `origin/staging` at `7b8e407` (PR 73) into PR 53. Keep agent tooling and PR 53 voice/test workflow changes. Green CI; do not merge PR.
+* **Conflicts**: `README.md` session log only — retained all PR 53 notes and the PR 73 Cloud Agent section. Auto-merged: `.cursor/*`, `AGENTS.md`, `package.json` (`supabase@3.2.0`, `test:e2e:agent`), `scripts/agent-supabase-up.sh`, `scripts/test-e2e-agent.sh`, `supabase/config.toml`.

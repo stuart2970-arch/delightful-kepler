@@ -35,7 +35,8 @@ port = 54322
 # Port used by db diff command to initialize the shadow database.
 shadow_port = 54320
 # Maximum amount of time to wait for health check when starting the local database.
-health_timeout = "2m"
+# Cloud Agent VMs (nested Docker) can be slow on first boot; CI and agents use --ignore-health-check too.
+health_timeout = "5m"
 # The database major version to use. This has to be the same as your remote database's. Run `SHOW
 # server_version;` on the remote database to check.
 major_version = 15
@@ -112,6 +113,8 @@ port = 54324
 # sender_name = "Admin"
 
 [storage]
+# Must stay enabled: migration 20260718123400_create_assets_bucket.sql inserts storage.buckets.
+# Playwright does not call the Storage HTTP API; disabling the service breaks db reset.
 enabled = true
 # The maximum file size allowed (e.g. "5MB", "500KB").
 file_size_limit = "50MiB"
@@ -123,9 +126,9 @@ file_size_limit = "50MiB"
 # allowed_mime_types = ["image/png", "image/jpeg"]
 # objects_path = "./images"
 
-# Allow connections via S3 compatible clients
+# Allow connections via S3 compatible clients (unused in Playwright).
 [storage.s3_protocol]
-enabled = true
+enabled = false
 
 # Image transformation API is available to Supabase Pro plan.
 # [storage.image_transformation]
@@ -374,7 +377,8 @@ authorization_url_path = "/oauth/consent"
 allow_dynamic_registration = false
 
 [edge_runtime]
-enabled = true
+# No supabase/functions in this repo; edge runtime adds startup time on agent VMs.
+enabled = false
 # Supported request policies: `oneshot`, `per_worker`.
 # `per_worker` (default) — enables hot reload during local development.
 # `oneshot` — fallback mode if hot reload causes issues (e.g. in large repos or with symlinks).

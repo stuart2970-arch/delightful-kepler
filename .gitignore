@@ -72,4 +72,5 @@ playwright-report/
 *.json
 !package.json
 !tsconfig.json
+!.cursor/environment.json
 !src/**/*.json
