@@ -4500,7 +4500,7 @@ Highlighted adjustments in the modal:
 * **Behaviour**: No intentional logic change beyond absorbing staging. Built widget bundles now include Turnstile iframe plus server-provisioned Vapi web calls.
 ### Session (PR 53 stuck CI run - 20 Nov 2026)
 * **User**: Run `44827024672` on `da7a18b` stayed `in_progress` ~45m. Inspect logs; fix real hang; cancel/rerun if runner stuck.
-* **Finding**: Job `136602101536` marked Playwright step `cancelled` at 22:18 UTC (~3m after start); workflow `updated_at` never advanced — stuck GitHub Actions state, not a hung local test. `gh run cancel`/`rerun` returned 403 for this token. Empty commit to retrigger.
+* **Finding**: Job `136602101536` marked Playwright step `cancelled` at 22:18 UTC (~3m after start); workflow `updated_at` never advanced — stuck GitHub Actions state, not a hung local test. `gh run cancel`/`rerun` returned 403 for this token. With `cancel-in-progress: false`, the stuck run blocked newer pushes from starting CI; set `cancel-in-progress: true` on Playwright workflow and retriggered.
 
 ### Session (PR 53 OpenClaw web-call guards + ingest re-meter - 20 Nov 2026)
 * **User**: On PR 53 (`cursor/vapi-end-of-call-report-7954`), address OpenClaw review `5894566710`: harden `POST /api/voice/web-call` (rate limits, embed origin, session/Turnstile, voice entitlement) before any Vapi call; fix end-of-call ingest so a retry re-meters when `metered_at` is null after a failed claim. Amend `20261111103000_vapi_call_ingest.sql` (not on hosted staging migration list yet). Keep empty-bake widget bundles, hooks on, do not merge.
