@@ -20,6 +20,8 @@ export type PurchaseRecord = {
   addon_catalog_id: string;
   is_active: boolean;
   price_paid_pence: number | null;
+  cancel_at_period_end?: boolean | null;
+  cancel_at?: string | null;
 };
 
 export type InclusionRecord = {
@@ -47,6 +49,8 @@ export type AccountProduct = {
   price_paid_pence: number | null;
   catalogue_price_pence: number;
   price_label: string;
+  cancel_at_period_end: boolean;
+  cancel_at: string | null;
 };
 
 export type IncludedFlag = {
@@ -59,7 +63,36 @@ export type ActiveBoltOn = {
   addon_catalog_id: string;
   is_active: boolean;
   price_paid_pence: number | null;
+  cancel_at_period_end: boolean;
+  cancel_at: string | null;
 };
+
+const BOLT_ON_CANCEL_TIME_ZONE = 'Europe/London';
+
+/**
+ * "Cancels 9 Dec 2026" in Europe/London. Day, short month, and year are
+ * taken from format parts so a same-year date still includes the year.
+ * Returns null when there is no cancel_at.
+ */
+export function formatBoltOnCancelLabel(
+  cancelAt: string | null | undefined,
+  timeZone = BOLT_ON_CANCEL_TIME_ZONE,
+): string | null {
+  if (cancelAt == null || String(cancelAt).trim() === '') return null;
+  const date = new Date(cancelAt);
+  if (Number.isNaN(date.getTime())) return null;
+  const parts = new Intl.DateTimeFormat('en-GB', {
+    timeZone,
+    day: 'numeric',
+    month: 'short',
+    year: 'numeric',
+  }).formatToParts(date);
+  const day = parts.find((part) => part.type === 'day')?.value;
+  const month = parts.find((part) => part.type === 'month')?.value;
+  const year = parts.find((part) => part.type === 'year')?.value;
+  if (!day || !month || !year) return null;
+  return `Cancels ${day} ${month} ${year}`;
+}
 
 export type AccountOwnership = {
   plan: {
@@ -169,6 +202,8 @@ export function buildAccountOwnership(input: {
       ownership: alreadyIncluded ? ownership : (billing === 'one_off' ? null : ownership),
       price_paid_pence: alreadyIncluded ? pricePaid : null,
       catalogue_price_pence: cataloguePrice,
+      cancel_at_period_end: purchase?.cancel_at_period_end === true,
+      cancel_at: purchase?.cancel_at ?? null,
       price_label: priceLabel({
         billing,
         already_included: alreadyIncluded,
@@ -219,6 +254,8 @@ export function buildAccountOwnership(input: {
         addon_catalog_id: row.addon_catalog_id,
         is_active: row.is_active,
         price_paid_pence: row.price_paid_pence,
+        cancel_at_period_end: row.cancel_at_period_end === true,
+        cancel_at: row.cancel_at ?? null,
       })),
   };
 }

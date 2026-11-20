@@ -1,4 +1,5 @@
 import { test, expect } from '@playwright/test';
+import { verifyOAuthState } from '../src/lib/auth/oauth-state';
 import * as fs from 'fs';
 import * as path from 'path';
 import { createClient } from '@supabase/supabase-js';
@@ -234,7 +235,7 @@ test.describe.serial('Multi-Colleague Dashboard & RBAC Rota Systems', () => {
         
         // Intercept OAuth redirection URL
         const requestPromise = page.waitForRequest(req => req.url().includes('accounts.google.com'));
-        await page.click('a:has-text("Connect Google Calendar")'); // Triggers Route 1 (OAuth authorize URL)
+        await page.locator('a[href*="/api/integrations/google/authorize?staffId="]').click();
         const request = await requestPromise;
 
         // Verify redirect URL points to Google accounts page and contains base64 context state passing staffId
@@ -243,34 +244,24 @@ test.describe.serial('Multi-Colleague Dashboard & RBAC Rota Systems', () => {
         expect(url).toContain('state=');
         expect(url).toContain('scope=https%3A%2F%2Fwww.googleapis.com%2Fauth%2Fcalendar.events');
 
-        // Extract and decode base64 state payload to confirm staffId tracking parameter is correctly bound
+        // Signed state is bound to the signed-in colleague and their staff row.
         const stateParam = new URL(url).searchParams.get('state');
         expect(stateParam).not.toBeNull();
-        const decodedState = JSON.parse(Buffer.from(stateParam!, 'base64').toString('utf-8'));
-        
-        expect(decodedState).toHaveProperty('staffId');
-        expect(decodedState.staffId).not.toBeNull(); // Ensure dynamic staffId mapping is maintained
+        const decodedState = verifyOAuthState(stateParam);
+        expect(decodedState).not.toBeNull();
+        expect(decodedState!.staffId).not.toBeNull();
       });
 
-      test('should write OAuth tokens strictly on staff row and not on general tenants table on callback', async ({ request }) => {
-        // Simulate google redirect callback for Route A (Staff Calendar)
+      test('rejects an unsigned mock Google callback instead of writing tokens', async ({ request }) => {
         const mockCode = 'mock_google_oauth_auth_code_9876';
-        
-        // Trigger the OAuth callback URL manually with a mock payload
         const mockState = Buffer.from(JSON.stringify({
           userId: '11111111-1111-1111-1111-111111111111',
           staffId: '22222222-2222-2222-2222-222222222222'
         })).toString('base64');
 
-        // Execute API callback
         const response = await request.get(`/api/integrations/google/callback?code=${mockCode}&state=${mockState}`);
-        
-        // Check redirect back to scheduling dashboard tab (middleware may redirect to login in mock flow, so check query params)
-        expect(response.url()).toContain('tab=scheduling&success=google_calendar');
-
-        // Confirm database checks (verified via backend telemetry or isolated mock checks)
-        // 1. Staff table must hold: google_access_token, google_refresh_token, google_token_expiry
-        // 2. Tenants table MUST remain NULL for these fields (ensuring isolation from general business calendar)
+        expect(response.status()).toBe(401);
+        expect(response.url()).not.toContain('success=google_calendar');
       });
     });
 

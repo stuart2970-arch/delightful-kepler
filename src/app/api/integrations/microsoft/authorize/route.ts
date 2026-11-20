@@ -1,32 +1,49 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createServerClient } from '@/utils/supabase-server';
 import { publicAppPath } from '@/lib/env/public-app-url';
+import { requireUser } from '@/lib/auth/require-superadmin';
+import { signOAuthState } from '@/lib/auth/oauth-state';
+import { calendarConnectAllowed } from '@/lib/auth/oauth-callback-guard';
+import { createAdminClient } from '@/utils/supabase-admin';
 
 export async function GET(request: NextRequest) {
   try {
+    const auth = await requireUser(request);
+    if (!auth.ok) return auth.response;
+
     const { searchParams } = new URL(request.url);
     const staffId = searchParams.get('staffId');
+    const appUrl = publicAppPath('');
+    const supabase = createAdminClient();
 
-    const supabase = await createServerClient();
-    const { data: { user } } = await supabase.auth.getUser();
+    const { data: profile } = await supabase
+      .from('profiles')
+      .select('tenant_id')
+      .eq('id', auth.userId)
+      .single();
 
-    if (!user) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    if (!profile?.tenant_id) {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
 
-    const appUrl = publicAppPath('');
-    const clientId = process.env.MICROSOFT_CLIENT_ID || process.env.AZURE_CLIENT_ID || 'mock_microsoft_client_id';
+    const connectAllowed = await calendarConnectAllowed(auth.userId, String(profile.tenant_id), staffId);
+    if (!connectAllowed) {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+    }
 
-    const statePayload = JSON.stringify({
-      userId: user.id,
+    const state = signOAuthState({
+      userId: auth.userId,
+      tenantId: String(profile.tenant_id),
       staffId: staffId || null,
     });
+    if (!state) {
+      return NextResponse.json({ error: 'Server configuration error' }, { status: 500 });
+    }
 
+    const clientId = process.env.MICROSOFT_CLIENT_ID || process.env.AZURE_CLIENT_ID || 'mock_microsoft_client_id';
     const redirectUri = `${appUrl}/api/integrations/microsoft/callback`;
     const scopes = encodeURIComponent('openid profile offline_access https://graph.microsoft.com/Calendars.ReadWrite https://graph.microsoft.com/User.Read');
-    const state = Buffer.from(statePayload).toString('base64');
 
-    const authorizeUrl = `https://login.microsoftonline.com/common/oauth2/v2.0/authorize?client_id=${clientId}&response_type=code&redirect_uri=${encodeURIComponent(redirectUri)}&response_mode=query&scope=${scopes}&state=${state}&prompt=consent`;
+    const authorizeUrl = `https://login.microsoftonline.com/common/oauth2/v2.0/authorize?client_id=${clientId}&response_type=code&redirect_uri=${encodeURIComponent(redirectUri)}&response_mode=query&scope=${scopes}&state=${encodeURIComponent(state)}&prompt=consent`;
 
     return NextResponse.redirect(authorizeUrl);
   } catch (err: any) {

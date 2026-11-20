@@ -10,7 +10,7 @@ function bearerToken(req: NextRequest): string {
 
 /**
  * Fail closed. An unset, blank, or mismatched TENANT_CREATED_WEBHOOK_SECRET
- * never falls through the way WPMUDEV_WEBHOOK_SECRET does.
+ * never falls through.
  */
 function isTenantCreatedAuthorized(req: NextRequest): boolean {
   const expected = (process.env.TENANT_CREATED_WEBHOOK_SECRET || '').trim();

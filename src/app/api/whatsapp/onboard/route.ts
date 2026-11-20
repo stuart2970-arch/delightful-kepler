@@ -9,8 +9,10 @@ import {
   subscribeAppToWaba,
   registerPhoneNumber,
   submitStarterTemplates,
+  listStarterTemplateStatuses,
 } from '@/lib/meta';
-import { encryptToken, encryptPin, maskPhoneNumber } from '@/lib/crypto';
+import { publicWhatsAppAccount } from '@/lib/whatsapp-starter-templates';
+import { encryptToken, encryptPin, decryptToken, maskPhoneNumber } from '@/lib/crypto';
 
 export const dynamic = 'force-dynamic';
 
@@ -78,14 +80,31 @@ export async function GET(req: NextRequest) {
 
     const { data: account } = await supabaseAdmin
       .from('whatsapp_accounts')
-      .select('id, waba_id, phone_number_id, display_phone, display_name, mode, status, card_missing, payment_status, quality_rating, messaging_limit, updated_at')
+      .select('id, waba_id, phone_number_id, display_phone, display_name, mode, status, card_missing, payment_status, quality_rating, messaging_limit, updated_at, business_token_enc')
       .eq('tenant_id', tenantId)
       .maybeSingle();
+
+    let starterTemplateStatuses: Record<string, string> | null = null;
+    if (account?.business_token_enc && account.waba_id) {
+      try {
+        const accessToken = decryptToken(account.business_token_enc);
+        if (accessToken) {
+          starterTemplateStatuses = await listStarterTemplateStatuses({
+            wabaId: account.waba_id,
+            accessToken,
+          });
+        }
+      } catch {
+        starterTemplateStatuses = null;
+      }
+    }
 
     return NextResponse.json({
       success: true,
       connected: account?.status === 'connected',
-      account: account || null,
+      account: account
+        ? publicWhatsAppAccount(account, starterTemplateStatuses)
+        : null,
     });
   } catch (err: any) {
     console.error('[WhatsApp Onboard GET] Error:', err);

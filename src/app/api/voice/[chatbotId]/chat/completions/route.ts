@@ -12,6 +12,8 @@ import { generateEmbedding } from '@/lib/embeddings';
 import { buildGreeting, getFirstName, isEchoOfGreeting } from '@/lib/greeting';
 import { voiceLogError } from '@/lib/voice/log-error';
 import { resolveMockModelReply } from '@/lib/env/allow-mock-reply';
+import { formatOpeningHoursForPrompt, normaliseOpeningHours } from '@/lib/opening-hours';
+import { loadVoiceSalon } from '@/lib/voice-salon';
 
 export const maxDuration = 300;
 
@@ -125,22 +127,23 @@ export async function POST(
 
     const targetBotUuid = chatbotRecord?.id || chatbotId;
 
-    const [tenantResRes, servicesResRes, staffResRes, globalBotRes] = await Promise.all([
-      supabaseAdmin.from('tenants').select('id, company_name, rwg_business_name, booking_mode, booking_url, currency, timezone').eq('id', tenantId).single(),
-      supabaseAdmin.from('services').select('id, name, base_price, duration_minutes, buffer_minutes, description').eq('tenant_id', tenantId).eq('chatbot_id', targetBotUuid),
+    const [salon, staffResRes, globalBotRes] = await Promise.all([
+      loadVoiceSalon(supabaseAdmin, tenantId, targetBotUuid),
       supabaseAdmin.from('staff').select('id, name, role, google_calendar_id, working_days, staff_services(service_id, custom_price, custom_duration)').eq('tenant_id', tenantId).eq('chatbot_id', targetBotUuid),
       supabaseAdmin.from('chatbots').select('configuration_json').eq('id', '00000000-0000-0000-0000-000000000000').single(),
     ]);
 
-    const tenantRes = tenantResRes.data;
-    const servicesRes = servicesResRes.data;
+    const tenantRes = salon.tenant;
+    const servicesRes = salon.services;
     const staffRes = staffResRes.data;
     const globalBot = globalBotRes.data;
+    if (salon.tenantError) console.warn('[Voice] Tenant hours query failed:', salon.tenantError);
+    if (salon.servicesError) console.warn('[Voice] Services query failed:', salon.servicesError);
 
     const bookingMode = tenantRes?.booking_mode || 'single_calendar';
     const bookingUrl = tenantRes?.booking_url || '';
-    const timezone = tenantRes?.timezone || 'Europe/London';
-    const currency = tenantRes?.currency || '£';
+    const timezone = (configData.timezone as string) || 'Europe/London';
+    const currency = (configData.currency as string) || '£';
     const tenantCompany = (tenantRes?.company_name || tenantRes?.rwg_business_name || '').trim();
     const chatbotName = ((chatbotRecord?.name as string) || '').trim();
 
@@ -383,6 +386,7 @@ DO NOT use markdown formatting, asterisks, bullet points, or special characters.
 ${clientFirstName ? `The customer's first name is ${clientFirstName}.\n` : ''}You have already greeted them with: "${formattedGreeting}". Do not greet them again or re-introduce yourself; answer their next question. Use British English.
 
 The current date and time is: ${new Date().toISOString()}. Use this to resolve relative dates like "tomorrow" or "next Sunday".
+Opening hours: ${formatOpeningHoursForPrompt(normaliseOpeningHours(tenantRes?.general_operating_hours), { spoken: true, is24_7: tenantRes?.is_24_7 === true })}
 
 ${bookingMode === 'walk_in_only' ? 'We DO NOT accept appointments. We are walk-ins only. If the caller asks to book, politely inform them they can walk in at any time.' : ''}
 ${bookingMode === 'external_platform' ? `We use an external booking platform. If the caller asks to book, direct them to ${bookingUrl}` : ''}

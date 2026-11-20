@@ -2,8 +2,9 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import { useDashboardStore } from '../../lib/store';
-import { createBrowserClient } from '@supabase/ssr';
+import { browserAuthHeaders } from '@/lib/auth/client-auth-headers';
 import AddOnUpsellModal from '../AddOnUpsellModal';
+import { STARTER_TEMPLATES_EN_GB } from '../../lib/whatsapp-starter-templates';
 
 interface WhatsAppAccountData {
   id: string;
@@ -18,6 +19,15 @@ interface WhatsAppAccountData {
   quality_rating: string;
   messaging_limit: string;
   updated_at: string;
+  starter_template_statuses?: Record<string, string> | null;
+}
+
+function starterTemplateStatusClass(status: string): string {
+  const normalized = status.toUpperCase();
+  if (normalized === 'APPROVED') return 'text-emerald-800';
+  if (normalized === 'REJECTED' || normalized === 'DISABLED') return 'text-rose-800';
+  if (normalized === 'PENDING' || normalized === 'IN_APPEAL') return 'text-amber-800';
+  return 'text-gray-600';
 }
 
 export default function WhatsAppMetaView() {
@@ -80,24 +90,8 @@ export default function WhatsAppMetaView() {
   // Copy feedback
   const [copiedField, setCopiedField] = useState<string | null>(null);
 
-  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
-  const supabase = supabaseUrl && supabaseAnonKey ? createBrowserClient(supabaseUrl, supabaseAnonKey) : null;
-
-  const getAuthHeaders = async (baseHeaders: Record<string, string> = {}) => {
-    const headers: Record<string, string> = { ...baseHeaders };
-    if (supabase) {
-      try {
-        const { data: { session } } = await supabase.auth.getSession();
-        if (session?.access_token) {
-          headers['Authorization'] = `Bearer ${session.access_token}`;
-        }
-      } catch (e) {
-        console.warn('Could not get session for auth header:', e);
-      }
-    }
-    return headers;
-  };
+  const getAuthHeaders = (baseHeaders: Record<string, string> = {}) =>
+    browserAuthHeaders(baseHeaders);
 
   const copyToClipboard = (text: string, fieldName: string) => {
     navigator.clipboard.writeText(text);
@@ -866,10 +860,10 @@ export default function WhatsAppMetaView() {
                 <div className="flex justify-between items-center">
                   <div>
                     <h4 className="text-sm font-bold text-[#260475] flex items-center gap-2">
-                      <span>📋 Pre-Approved Starter Templates (en_GB)</span>
+                      <span>📋 Starter Templates (en_GB)</span>
                     </h4>
                     <p className="text-xs text-[#434549] mt-0.5">
-                      Meta automatically reviews and approves these Utility templates for automated salon notifications.
+                      These utility templates are submitted to Meta for review. They can be sent only after Meta approves them.
                     </p>
                   </div>
                   <span className="text-[11px] font-bold px-2 py-0.5 rounded bg-emerald-50 text-emerald-800 border border-emerald-200">
@@ -878,38 +872,24 @@ export default function WhatsAppMetaView() {
                 </div>
 
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-                  <div className="p-3.5 rounded-xl border border-gray-100 bg-[#f9f9fb] space-y-1.5">
-                    <div className="flex justify-between items-center">
-                      <span className="font-mono text-xs font-bold text-gray-800">appointment_reminder</span>
-                      <span className="text-[9px] uppercase px-1.5 py-0.5 rounded font-bold bg-blue-100 text-blue-800">Utility</span>
-                    </div>
-                    <p className="text-[11px] text-gray-600 italic leading-relaxed">
-                      "Hi &#123;&#123;1&#125;&#125;, reminder of your appointment for &#123;&#123;2&#125;&#125; at &#123;&#123;3&#125;&#125; with &#123;&#123;4&#125;&#125;. Reply 1 to confirm."
-                    </p>
-                    <span className="text-[10px] text-emerald-800 font-bold block">✓ Approved by Meta</span>
-                  </div>
-
-                  <div className="p-3.5 rounded-xl border border-gray-100 bg-[#f9f9fb] space-y-1.5">
-                    <div className="flex justify-between items-center">
-                      <span className="font-mono text-xs font-bold text-gray-800">booking_link</span>
-                      <span className="text-[9px] uppercase px-1.5 py-0.5 rounded font-bold bg-blue-100 text-blue-800">Utility</span>
-                    </div>
-                    <p className="text-[11px] text-gray-600 italic leading-relaxed">
-                      "Hi &#123;&#123;1&#125;&#125;, here is your link to book your appointment with &#123;&#123;2&#125;&#125;: &#123;&#123;3&#125;&#125;. Reply if you have questions!"
-                    </p>
-                    <span className="text-[10px] text-emerald-800 font-bold block">✓ Approved by Meta</span>
-                  </div>
-
-                  <div className="p-3.5 rounded-xl border border-gray-100 bg-[#f9f9fb] space-y-1.5">
-                    <div className="flex justify-between items-center">
-                      <span className="font-mono text-xs font-bold text-gray-800">missed_call_followup</span>
-                      <span className="text-[9px] uppercase px-1.5 py-0.5 rounded font-bold bg-blue-100 text-blue-800">Utility</span>
-                    </div>
-                    <p className="text-[11px] text-gray-600 italic leading-relaxed">
-                      "Hi &#123;&#123;1&#125;&#125;, we missed your call to &#123;&#123;2&#125;&#125;! How can our AI assistant help you today?"
-                    </p>
-                    <span className="text-[10px] text-emerald-800 font-bold block">✓ Approved by Meta</span>
-                  </div>
+                  {STARTER_TEMPLATES_EN_GB.map((template) => {
+                    const body = template.components.find((component) => component.type === 'BODY');
+                    const status = whatsappAccount.starter_template_statuses?.[template.name]?.trim() || '';
+                    return (
+                      <div key={template.name} className="p-3.5 rounded-xl border border-gray-100 bg-[#f9f9fb] space-y-1.5">
+                        <div className="flex justify-between items-center">
+                          <span className="font-mono text-xs font-bold text-gray-800">{template.name}</span>
+                          <span className="text-[9px] uppercase px-1.5 py-0.5 rounded font-bold bg-blue-100 text-blue-800">Utility</span>
+                        </div>
+                        <p className="text-[11px] text-gray-600 italic leading-relaxed">
+                          &quot;{body?.text}&quot;
+                        </p>
+                        {status ? (
+                          <span className={`text-[10px] font-bold block ${starterTemplateStatusClass(status)}`}>{status}</span>
+                        ) : null}
+                      </div>
+                    );
+                  })}
                 </div>
               </div>
 
