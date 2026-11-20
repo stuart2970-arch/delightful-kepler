@@ -4480,3 +4480,4 @@ Highlighted adjustments in the modal:
 * **PR 50 conflicts**: `README.md` session log (kept all STYL-197 entries plus every note from `staging`). `src/app/api/chat/stream/route.ts`: kept `!isPreview &&` from staging and `CHAT_MESSAGE_FEATURE_ID` from PR 50 for metered chat usage.
 * **PR 60 conflicts**: `README.md` only — kept the Foundation voice renewal session note plus the full post–PR 50 staging log block.
 * **Behaviour**: No product change beyond integrating staging fixes with usage metering; chat preview messages are not metered; chat usage still records `message_allowance` via the shared feature id.
+* **Rework**: PR 60 CI failed on `db reset` because `20261111143000_plan_voice_grant_idempotency.sql` shared a version with `20261111143000_styl252_keep_wp_trigger_styl178_guard.sql` after merging staging into PR 50. Renamed the plan-voice migration to `20261111143100_plan_voice_grant_idempotency.sql`.
