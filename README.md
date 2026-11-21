@@ -4581,6 +4581,11 @@ Highlighted adjustments in the modal:
 * **STYL-271**: Removed widget email pre-fill; `getAvailableDays` filters `slotsCount === 0`; chat “this chat” / voice “this call” prompts; `lead-notifier` uses `buildBrandedEmailHtml` + `publicAppPath('/dashboard')`; rebuilt `public/widget.js` / `embed.js`; `tests/styl-271-widget-channel-lead.spec.ts` + unit lead HTML (5 passed locally).
 * **Branches pushed**: `cursor/styl-389-customer-booking-manage` (`8c2dbc9`), `cursor/styl-271-widget-channel-lead-email` (`1e5607e`). `gh pr create` blocked (integration permissions) — Stuart to open PRs (base #77 stack then staging) or rely on Cursor cloud PR automation.
 
+### Session (STYL-218 / STYL-381 / STYL-382 knowledge items — 21 Nov 2026)
+* **User**: Package B — Foundation 500 knowledge items, Extra Knowledge packs +500 each (quantity-aware), no customer “chunks” copy; billing UI uses `knowledgeItemsTotal`.
+* **Changes**: `dashboard/page.tsx` sets `knowledgeItemsLimit`; `BillingView` + Subscriptions show “X of Y knowledge items”; `knowledgeItemsTotal` multiplies `quantity`; landing HTML/PHP templates updated; Playwright `styl-218-knowledge-items-billing.spec.ts`.
+* **Verify**: `bash scripts/agent-supabase-up.sh` then `bash scripts/test-e2e-agent.sh tests/styl-218-knowledge-items-billing.spec.ts tests/dashboard-return-tabs.spec.ts tests/unit/bolton-activation.spec.ts` — 42 passed.
+
 ### Session (STYL-219 Meta channel labels — 21 Nov 2026)
 * **User**: WhatsApp/Instagram/Messenger badges must say **Coming soon**, not **Available**, with shared helper to avoid drift.
 * **Changes**: `src/lib/channels/meta-messaging-status.ts`; `WhatsAppMetaView`, `DashboardClient`, `InboxView`; `tests/styl-219-meta-channel-labels.spec.ts`.
