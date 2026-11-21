@@ -20,6 +20,7 @@
     "check:apphosting-yaml": "node scripts/check-apphosting-yaml.mjs",
     "test:server": "dotenv -e .env.test --override -- next dev -p 3001",
     "test:e2e": "playwright test",
+    "test:e2e:agent": "bash scripts/test-e2e-agent.sh",
     "test:e2e:ui": "playwright test --ui"
   },
   "dependencies": {
@@ -61,6 +62,7 @@
     "dotenv-cli": "^11.0.0",
     "eslint": "^9",
     "eslint-config-next": "^16.3.5",
-    "husky": "^9.1.7"
+    "husky": "^9.1.7",
+    "supabase": "3.2.0"
   }
 }

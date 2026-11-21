@@ -55,6 +55,7 @@ const PUBLIC_EXACT = new Set([
   'GET /api/billing/checkout',
   'POST /api/v3/CheckAvailability',
   'POST /api/v3/CreateBooking',
+  'GET /api/config/public',
   'GET /api/rwg/feeds/availability',
   'GET /api/rwg/feeds/services',
   'GET /api/rwg/feeds/merchants',

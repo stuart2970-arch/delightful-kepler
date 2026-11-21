@@ -72,11 +72,11 @@ custom_domain, inventory_control, crm_zapier_sync, & email_marketing have yet to
 
 For users on a lower tier
 
-Knowledgebase chunks - If a users account reached 85% capacity based on data stored, there must be a banner displayed at the top of the dashboard landing page with the following text ‘you have now used [xx%] of allocated knowledgebase memory, you can either upgrade to the next tier for [£XX]* now, then [new_tier_price] per month thereafter
+Knowledgebase chunks - If a users account reached 80% capacity based on data stored, there must be a banner displayed at the top of the dashboard landing page. At 100% the banner says the allowance is used up. Warning copy: ‘you have now used [xx%] of allocated knowledgebase memory, you can either upgrade to the next tier for [£XX]* now, then [new_tier_price] per month thereafter
 
 * = days_until_last_payment x diff_between_tiers eg. user on starter upgraded to premier on the 15th then the cost would be 15 (days until next payment) = (79/30x15)-(29/30x15)=25.00
 
-The above also applies if any of the following capacities reach 85%
+The above also applies if any of the following capacities reach 80%, and again at 100%
 
 - Phone Voice Agent Minutes (vapi_voice_minutes)
 - Webchat Voice Agent Limits (voice_agent_minutes_web)
@@ -84,7 +84,7 @@ The above also applies if any of the following capacities reach 85%
 - SMS Reminders (sms)
 - SMS Marketing (sms_marketing)
 
-If the user is on the Premium Tier and reaches 85% they must be given the opportunity to increase their allowances on all measurable amount items by 30%
+If the user is on the Premium Tier and reaches 80%, and again at 100%, they must be given the opportunity to increase their allowances on all measurable amount items by 30%
 
 - Monthly Webchat Messages (message_allowance)
 - Knowledgebase Date Chunks (knowledge_data_chunks)

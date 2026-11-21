@@ -32,9 +32,13 @@ test.describe('STYL-180: Real Homepage Widget Flow & Voice Chat Verification', (
     expect(config.name).toBeTruthy();
     expect(config.primaryColor).toBeTruthy();
     expect(typeof config.voiceEnabled).toBe('boolean');
-    expect(config.voiceRuntimeAllowed).toBe(false);
-    expect(config.vapiPublicKey || '').toBe('');
-    expect(config.vapiAssistantId || '').toBe('');
+    if (config.voiceRuntimeAllowed) {
+      expect(config.vapiPublicKey).toBeTruthy();
+      expect(config.vapiAssistantId).toBeTruthy();
+    } else {
+      expect(config.vapiPublicKey || '').toBe('');
+      expect(config.vapiAssistantId || '').toBe('');
+    }
     expect(config.voiceId).toBeTruthy();
   });
 

@@ -39,6 +39,28 @@ Local development uses the **local Supabase CLI stack** and mock third-party key
    The Husky pre-push hook (`.husky/pre-push`, STYL-356) lints the changed TypeScript and JavaScript files, runs `npm run typecheck`, and runs only the Playwright specs related to the commits being pushed. `scripts/prepush-related-specs.mjs` picks those specs. If none match, it runs a small smoke set: `tests/addon-text.spec.ts` and `tests/styl-226-release-source.spec.ts`. It does not run the full suite. A full `npm run lint` still reports more than a thousand existing errors, including in files a small change has to touch, so ESLint is printed and does not by itself fail the push. Typecheck and the related specs do.
    Every pull request to `main` or `staging` still runs the **full** Playwright suite in `.github/workflows/playwright.yml` (`npm run test:e2e`, no file filter), plus the typecheck. Do not narrow that workflow to the related-spec list.
 
+### Cursor Cloud Agents (local Supabase on agent VMs)
+
+Committed environment config lives under `.cursor/`:
+
+| File | Purpose |
+| :--- | :--- |
+| `.cursor/environment.json` | Docker-in-Docker base image, `install` warms npm + Playwright + Supabase images, `start` runs `sudo service docker start` |
+| `.cursor/Dockerfile` | Docker CE (fuse-overlayfs), Node 22, `ubuntu` user in `docker` group |
+| `.cursor/agent-install.sh` | Idempotent install: `npm ci`, Playwright Chromium, `supabase@3.2.0 start` then `stop` to pre-pull images |
+| `scripts/agent-supabase-up.sh` | Per-agent boot: retry `supabase start`, local-only `db reset`, `npm run env:local` |
+
+**Agent workflow**
+
+```bash
+bash scripts/agent-supabase-up.sh
+npm run test:e2e:agent   # use plain test:e2e only when `docker` works without sg
+```
+
+`supabase/config.toml` keeps **storage** enabled (migrations seed `storage.buckets`) but turns off **storage.s3_protocol** and **edge_runtime** to shorten startup on agent VMs. **Inbucket** (`127.0.0.1:54324`) stays enabled for `tests/styl-228-magic-link-auth.spec.ts`. Studio, Realtime, and Analytics were already off.
+
+Point the team Cloud Agent environment’s **environment.json location** at this repo’s `.cursor/environment.json`, trigger a new Build, then run agents on that environment.
+
 ---
 
 ## Project Resources
@@ -4265,6 +4287,27 @@ Highlighted adjustments in the modal:
 * **SQL**: The brief's activation function and duplicate guard compiled and ran on the local stack, which already has the full unique constraint. No sketch SQL was rewritten to make it compile. The guard lives in a function so the migration and the test call the same body.
 * **Tests**: Local Supabase CLI only, `sk_test_mock`, no live project. `tsc --noEmit` passed. Full Playwright suite: 535 passed. That includes the new race, reactivation, migration-guard, RLS, and Billing "Already included" specs.
 
+### Session (STYL-197 step 2 - usage metering catch-up - 11 Nov 2026)
+* **User**: Implement STYL-197 step 2 as one pull request into `staging`, from the 11 Nov plan (§4, §4a, §6). Usage metering and allowances must work on a database that is missing `usage_logs`, `tenant_entitlements`, and `features.description` / `features.type`. Do not edit `20261001150000` in place. Do not apply anything to a hosted Supabase project. Never `--no-verify`.
+* **Changes**:
+  - `20261111120000_styl197_dynamic_entitlements_catchup.sql` adds the two tables and the two feature columns if they are missing, turns on tenant-scoped SELECT policies, and leaves writes to the service role. The only change to an existing row is filling a NULL `microsoft_calendar` description. Applied twice on the local database; the second run changed nothing.
+  - `20261111120100_styl197_microsoft_calendar_catalogue_safe.sql` keeps `remove_branding` in the bolt-on category check, inserts the Microsoft Calendar catalogue rows only when they are missing, and does not require `features.description`. It does not replace `sync_tenant_channel_flags` or touch the STYL-202 / WordPress migrations.
+  - Chat metering writes `message_allowance`. `logMeteredUsage` logs insert errors. New Vapi minutes are stored as `voice_minutes`, and the dashboard balance and usage alerts also count older `vapi_voice_minutes` rows. The inbound gate uses the plan catalogue when there is no usage row in the rolling window, blocks at 100% of a known allowance, and logs every block. The caller line is interim wording, pending the solicitor. Connected accounts reads `usage_ledger.recorded_at`.
+* **Tests**: Local Supabase only, mock keys. `tsc --noEmit` passed. Playwright `tests/styl-197-usage-metering.spec.ts` and `tests/styl-197-entitlement-rls.spec.ts`: 13 passed (chat ledger + usage log, logged insert errors, voice balance and alert, inbound under / at 100% / plan default, tenant A cannot read tenant B, clients cannot write). Pre-push hook: full Playwright suite 549 passed. Nothing was applied to a hosted project.
+
+### Session (STYL-197 dashboard alerts 80% and 100% - 11 Nov 2026)
+* **User**: Product Owner decision on PR 50. Change the in-app dashboard usage alert from 85% to two thresholds, 80% and 100%. Update copy and tests. Do not build alert emails (STYL-171). Push without `--no-verify`.
+* **Changes**: The dashboard banner warns from 80% (“You have now used n%…”) and switches to a limit alert at 100% (“You have used all of your allocated…”). `checkCapacityThresholds` uses the same rule. No email is sent.
+* **Tests**: Playwright on the local stack, including a signed-in dashboard pass at 8 of 10 voice minutes and at 10 of 10. Widget bubble widths that happen to be 85% of the chat column were left as layout, not usage alerts.
+
+### Session (PR 50 review - rolling gate, caller line, STYL-315 - 11 Nov 2026)
+* **User**: Product Owner blocked PR 50. Keep the 80% and 100% alerts. The inbound gate must use the dashboard rolling balance, not all-time usage. Replace the out-of-minutes caller line with the interim solicitor-pending sentence. Add tests for mixed voice ids, read failures, the current window, expired allocations, and no rows. Rebuild the bolt-on category check only when `remove_branding` is missing. STYL-315: the chat-allowance alert must open the plan and usage page, not Extra Knowledge. Do not rebase onto release 10006 yet.
+* **Changes**: `loadRolloverBalance` is the one balance read. The gate uses it. The caller hears "We can't take your call right now. Please contact us through our website or by text message." A chat-allowance alert button says "View plan" and opens the billing tab. No alert email.
+
+### Session (Foundation voice renewal, stacked on PR 50 - 11 Nov 2026)
+* **User**: Do not add to PR 50 and do not rebase it. Foundation's 10 voice minutes are granted only at sign-up, so after that allocation expires the PR 50 gate blocks a paying salon. Each monthly renewal must grant that period's plan minutes, once per invoice. The no-rows fallback in the gate and the dashboard must compare plan minutes with usage in the same current window. Playwright tests for the first renewal, a duplicate delivery, and bolt-on plus plan minutes. Separate PR based on `cursor/styl-197-usage-metering-a7b7`. Test mode only. Never `--no-verify`.
+* **Changes**: `invoice.payment_succeeded` for the base plan grants `tier_entitlements.voice_minutes` with sector tag `plan_voice:<invoice id>`. A signup invoice is skipped so checkout's first grant is not doubled. With no allocation in the rollover window, the gate and the dashboard compare that plan allowance with this month's usage. Purchased minutes still use the 3-month balance.
+
 ### Session (Sync main into staging without production-only App Hosting secrets - 11 Nov 2026)
 * **User**: Open one pull request into `staging` that merges `main` (`105bf5c`) into staging (`5ea412c`) so later release PRs stay linear, and keep the styleflo-staging App Hosting backend deployable. Do not push to `main`, do not merge the PR, and do not create, read, or change Secret Manager secrets. No production change to `apphosting.yaml`.
 * **Drift**: `staging` was 2 commits ahead (PR 41, already in `main` via PR 42) and 12 commits behind. The tree diff was only `README.md`, `apphosting.yaml` (+34 lines once the shared Meta public ids are ignored: `TENANT_CREATED_WEBHOOK_SECRET`, `WORDPRESS_SITE_URL`, `STYLEFLO_WP_CREATE_BUSINESS_TOKEN`, `META_APP_SECRET`, `TOKEN_ENC_KEY`), and `tests/styl-226-apphosting-secrets.spec.ts`. No application source differed.
@@ -4290,6 +4333,13 @@ Highlighted adjustments in the modal:
   - `docs/staging.md` names this file for a staging-first apply and says production promote must use the named file, not a plain `supabase db push`.
 * **Judgement vs the brief**: PostgREST cannot express `IS DISTINCT FROM`, so the webhook compares the stored pair in application code and skips the write when it already matches. The action check constraint had to be extended or the new audit actions would be rejected. The dashboard keeps a last-resort read without the new columns so a database that has not had the migration yet does not blank the Billing tab. Plan subscriptions that share a `stripe_subscription_id` with a bolt-on also show the cancel date, which the brief recommended.
 * **Tests**: Local Supabase CLI and `sk_test_mock` only. No hosted Supabase and no live Stripe charges. `tsc --noEmit` passed. Full Playwright suite: 546 passed (2.6m), including the new pending-cancel, Billing Adjust, and `addon_audit_log` RLS specs plus STYL-194, STYL-200, STYL-226, STYL-242, STYL-243, and billing checkout auth.
+
+### Session (Vapi end-of-call reports - 11 Nov 2026)
+* **User**: End-of-call reports must land so each call's transcript is stored and its minutes are metered. Evidence from 1 Nov: production received no reports, so there were no transcripts and no usage rows. One PR into `staging`. Do not record audio, do not store or fetch `recordingUrl`, keep handling idempotent per call id, call the existing metering function, do not rewrite it (STYL-197 step 2 owns metering). Migration must be additive. Do not touch `20261024130000` or `apphosting*.yaml`. Do not apply anything to hosted Supabase or Vapi. Never `--no-verify`.
+* **Root cause**: Web calls were started in the browser as a transient assistant with no server URL, so Vapi had nowhere to send `end-of-call-report` unless an org Server URL was set (it was not on production). A client `server.url` also makes Vapi withhold the org credential, and the secret cannot live in the browser. Phone assistant responses set legacy `server.secret`, which the current Server object ignores, so the transient URL overrode the phone number and the report arrived with no `X-Vapi-Secret` (401). When a report did get through, the handler read `call.transcript` and `call.duration` (both absent; the transcript is `message.artifact.transcript` and the length is `startedAt`/`endedAt`), looked up the tenant only from metadata, and inserted a new usage row on every retry.
+* **Changes**: Server creates web calls (`POST /api/voice/web-call`) with `X-Vapi-Secret` and `recordingEnabled: false`. The widget joins via `reconnect` and never sees the secret. Assistant responses and phone imports send the same header. The handler accepts `X-Vapi-Secret` or `Authorization: Bearer`, reads the artifact transcript, resolves the tenant from metadata, assistant id, or the called number, claims `vapi_call_ingest` once per call id, stores the transcript with `recording_url` null, and calls `logMeteredUsage`. Migration `20261111103000_vapi_call_ingest.sql` (local only).
+* **Tests**: Local Supabase CLI and mock keys only. `tsc --noEmit` passed. Playwright `tests/styl-vapi-end-of-call-ingest.spec.ts` covers a retried report (one transcript, one usage row) via the `vapi_call_ingest` primary key. Pre-push Playwright: 542 passed. No hosted Supabase or Vapi calls.
+* **Follow-up (PR 53 review)**: Usage is logged as `VOICE_USAGE_FEATURE_ID` (`voice_minutes`), the same export PR 50 defines, so a later rebase is an import. Phone-number imports send `X-Vapi-Secret` and not legacy `server.secret`. Missing secret stays fail-closed (503). Minute rounding stays `Math.ceil`. This ships in release 10010, after PR 50 creates `usage_logs`.
 
 ### Session (STYL-217, STYL-244, STYL-245, STYL-246, STYL-247 launch blockers - 11 Nov 2026)
 * **User**: Fix the five open bugs in Jira release 10006 from production smoke tests. Branch from `staging`, one pull request into `staging`. Do not merge, deploy, or apply migrations to a hosted Supabase project. The product-owner note was a hypothesis only. No live Stripe, Google, or Meta calls. Never `--no-verify`. Do not edit `apphosting*.yaml` or `20261024130000_styl202_addon_unique_and_helpers.sql`.
@@ -4453,3 +4503,46 @@ Highlighted adjustments in the modal:
 * **Changes**: `src/widget/index.ts` and `embed.ts` inline `NEXT_PUBLIC_TURNSTILE_SITE_KEY` with no `typeof process` guard (public production key only if the build omits the env var). The token always comes from `turnstile.html` on the app origin, mounted in the chat panel. `appearance: 'interaction-only'` plus `before-interactive-callback` shows that iframe when a click is required. Timeout is 30s. Error codes go to the browser console. There is no client error endpoint. The widget accepts `postMessage` only from that app-origin iframe.
 * **Tests**: `tests/styl-361-turnstile-iframe.spec.ts` and `tests/styl-226-widget-turnstile.spec.ts`: 6 passed. Rebased onto the STYL-356 hook.
 * **Merge**: `origin/staging` (PRs 67 and 68) merged in. The only conflict was this session log. Both the STYL-368 dashboard session notes and the STYL-361 Turnstile notes are kept.
+
+### Session (PR 50 and PR 60 merge onto staging - 20 Nov 2026)
+* **User**: Merge current `staging` into PR 50 (`cursor/styl-197-usage-metering-a7b7`), resolve conflicts keeping STYL-197 intent, then merge the updated PR 50 head into PR 60 (`cursor/foundation-voice-renewal-a7b7`). Do not retarget PR 60 to `staging` until PR 50 merges. Do not merge either PR. Get CI green.
+* **PR 50 conflicts**: `README.md` session log (kept all STYL-197 entries plus every note from `staging`). `src/app/api/chat/stream/route.ts`: kept `!isPreview &&` from staging and `CHAT_MESSAGE_FEATURE_ID` from PR 50 for metered chat usage.
+* **PR 60 conflicts**: `README.md` only — kept the Foundation voice renewal session note plus the full post–PR 50 staging log block.
+* **Behaviour**: No product change beyond integrating staging fixes with usage metering; chat preview messages are not metered; chat usage still records `message_allowance` via the shared feature id.
+* **Rework**: PR 60 CI failed on `db reset` because `20261111143000_plan_voice_grant_idempotency.sql` shared a version with `20261111143000_styl252_keep_wp_trigger_styl178_guard.sql` after merging staging into PR 50. Renamed the plan-voice migration to `20261111143100_plan_voice_grant_idempotency.sql`.
+
+### Session (OpenClaw PR 60 — base-plan renewal grant guard - 20 Nov 2026)
+* **User**: OpenClaw at `0ed649e` on PR 60. Restrict plan voice grants to `billing_reason === 'subscription_cycle'` when the invoice includes the tenant base plan `subscription_tiers.stripe_price_id` line. Tests for `subscription_update` and bolt-on-only cycle invoices. Small should-fix from review: UTC month start in `loadCurrentPeriodVoiceConsumption`, require `invoice.id` for idempotency, surface tenant read errors, align `checkCapacityThresholds` voice usage with `resolveVoiceAllowance`. Never skip git hooks.
+* **Changes**: `grantPlanVoiceMinutesForRenewal` skips non-cycle and non-base-plan invoices. STYL-315 tests set foundation/landline Stripe price ids and assert no grant on update or bolt-on-only invoices. Voice alert thresholds use current-month consumption when rollover allocation is zero.
+* **CI follow-up**: Added `20261111143200_subscription_tiers_stripe_price_id.sql` because `subscription_tiers` never had `stripe_price_id` on databases created from `00000000000008` (later `CREATE TABLE IF NOT EXISTS` did not add the column).
+
+### Session (PR 53 merge onto staging - 20 Nov 2026)
+* **User**: Merge current `origin/staging` into PR 53 (`cursor/vapi-end-of-call-report-7954`). Resolve conflicts keeping Vapi end-of-call ingest intent plus staging widget/auth changes. Get CI green. Do not merge the PR.
+* **Conflicts**: `README.md` session log (kept Vapi note and every staging note), `public/embed.js` and `public/widget.js` (regenerated via `npm run build:widget` from merged `src/widget/*`, combining STYL-361 Turnstile iframe with server-side `web-call` / `reconnect`). `src/widget/*` auto-merged.
+* **Behaviour**: No intentional logic change beyond absorbing staging. Built widget bundles now include Turnstile iframe plus server-provisioned Vapi web calls.
+### Session (PR 53 stuck CI run - 20 Nov 2026)
+* **User**: Run `44827024672` on `da7a18b` stayed `in_progress` ~45m. Inspect logs; fix real hang; cancel/rerun if runner stuck.
+* **Finding**: Job `136602101536` marked Playwright step `cancelled` at 22:18 UTC (~3m after start); log ends `The operation was canceled` — not a hung Playwright/webServer. Workflow then sat `in_progress` until the 50m job timeout (`44827024672` → `failure`). `cancel-in-progress: false` blocked queued PR runs; set `cancel-in-progress: true` and added `push` on `cursor/**` to resume CI. Run `44835344031` on `155f117`: **success** (~7m). Test fixes: valid telephony bot UUID, clear `VOICE_ENABLED` in prod-fallback spec, mock header on web-call rate-limit test.
+
+### Session (PR 53 OpenClaw web-call guards + ingest re-meter - 20 Nov 2026)
+* **User**: On PR 53 (`cursor/vapi-end-of-call-report-7954`), address OpenClaw review `5894566710`: harden `POST /api/voice/web-call` (rate limits, embed origin, session/Turnstile, voice entitlement) before any Vapi call; fix end-of-call ingest so a retry re-meters when `metered_at` is null after a failed claim. Amend `20261111103000_vapi_call_ingest.sql` (not on hosted staging migration list yet). Keep empty-bake widget bundles, hooks on, do not merge.
+* **Changes**: `web-call` enforces IP/chatbot rate limits, signed chat session or Turnstile, tenant domain embed check, and `resolveChatbotVoiceAccess`. Widget sends `x-session-token`. Ingest adds `metered_at`; retries resume incomplete claims and call `logMeteredUsage` when no consumption row. Playwright test server overrides safe `VOICE_ENABLED` + non-placeholder Vapi keys (`.env.test` stays off).
+* **Tests**: `tests/styl-vapi-web-call-guard.spec.ts`, ingest re-meter in `tests/styl-vapi-end-of-call-ingest.spec.ts`; `env:local` writes safe non-placeholder Vapi keys with `VOICE_ENABLED=true` into `.env.test` only. Telephony integration tests seed a chatbot per telephony tenant.
+
+* **CI**: First run failed `styl-226-widget-turnstile` because `npm run build:widget` ran without `NEXT_PUBLIC_TURNSTILE_SITE_KEY`, so esbuild folded in the production fallback. Rebuilt with the dummy key (`1x0000…AA`). Run `44769023008`: typecheck and full Playwright green.
+* **OpenClaw (Turnstile in committed bundles)**: Staging `origin/staging` already committed dummy-inlined `public/widget.js`. Production Cloud Run (`Dockerfile` → `npm run build` → `build:widget` with `NEXT_PUBLIC_TURNSTILE_SITE_KEY` build-arg) and Firebase App Hosting (`apphosting*.yaml` BUILD env) rebuild bundles at deploy — they do not serve git blobs as-is. Follow-up: `GET /api/config/public` exposes the runtime site key; widget bundles commit with an empty bake and fetch from the app origin so local `next dev` and git copies never embed production keys. `turnstile.html` no longer defaults to the live sitekey. Deploy builds may still inline the key at compile time when `NEXT_PUBLIC_TURNSTILE_SITE_KEY` is set.
+
+### Session (PR 53 re-merge after PR 50/60 - 20 Nov 2026)
+* **User**: Merge `origin/staging` at `4701d8d` into PR 53. Keep PR 53 `handleEndOfCallReport` webhook path and STYL-197 / PR 60 usage metering from staging. Regenerate widget bundles with empty Turnstile bake. Push with hooks; confirm Actions runs green.
+* **Conflicts**: `README.md` (kept PR 50/60 + OpenClaw notes and prior PR 53 logs), `src/app/api/webhooks/vapi/route.ts` (kept PR 53 thin wrapper → `handleEndOfCallReport`; dropped staging’s inline metering block). Post-merge fix: removed duplicate `VOICE_USAGE_FEATURE_ID` export in `src/lib/entitlements.ts` after STYL-197 auto-merge. Widgets rebuilt with `NEXT_PUBLIC_TURNSTILE_SITE_KEY=` (empty bake); bundles unchanged vs prior commit.
+* **Merge head**: `716a7a4` (merge commit); branch tip `bd28c22` after `logMeteredUsage` `sector_tag` fix for STYL-197. Run `44794281731` / `44811659379`: hosted-runner disconnect during long Playwright (~50m). Run `44810577505`: real failure — STYL-197 Vapi test expects `usage_ledger.sector_tag` `Vapi Call ID: …`; fixed in `afafff7`. **Green CI**: [run 44819257414](https://github.com/stuart2970-arch/delightful-kepler/actions/runs/44819257414) on `bd28c22`.
+
+### Session (Cursor Cloud Agent local Supabase - 20 Nov 2026)
+* **User**: Cloud agents on this repo could not run `npx supabase start` (storage-api DbSetupError / missing Docker). Add `.cursor/environment.json` + Dockerfile for Docker-in-Docker, slim local `supabase/config.toml` where safe, `scripts/agent-supabase-up.sh`, prove Playwright + pre-push on an agent VM, document workflow. Base branch `staging`; never hit live/staging cloud Supabase.
+* **Changes**: `.cursor/Dockerfile` (Docker CE, fuse-overlayfs, Node 22), `.cursor/environment.json`, `.cursor/agent-install.sh` (npm ci, Playwright Chromium, warm `supabase@3.2.0` images), `scripts/agent-supabase-up.sh` (retries, local-only `db reset`, `env:local`). `config.toml`: `db.health_timeout` 5m, `edge_runtime` off, `storage.s3_protocol` off (storage service stays on for migrations). Pinned `supabase` 3.2.0 in devDependencies. AGENTS.md + README Cloud Agent section.
+* **Disabled services (local config only)**: Studio, Realtime, Analytics (already off); **edge_runtime** (no `supabase/functions`); **storage.s3_protocol** (Playwright never uses S3 port). **Kept**: Storage API (migration seeds `storage.buckets`), Auth, REST, Postgres, Inbucket/Mailpit (magic-link spec).
+* **VM proof (this agent)**: `scripts/agent-supabase-up.sh` ~39s start+reset+env after image pull; warm re-start ~1s. Use `npm run test:e2e:agent` (docker group / `sg docker` for specs that `docker exec` psql). Pre-push smoke (12 specs) passed. PR #73 Playwright CI on commit `74ee203`: **green** (~6m36s job).
+
+### Session (PR 53 merge staging 7b8e407 — Cloud Agent Supabase - 20 Nov 2026)
+* **User**: Merge `origin/staging` at `7b8e407` (PR 73) into PR 53. Keep agent tooling and PR 53 voice/test workflow changes. Green CI; do not merge PR.
+* **Conflicts**: `README.md` session log only — retained all PR 53 notes and the PR 73 Cloud Agent section. Auto-merged: `.cursor/*`, `AGENTS.md`, `package.json` (`supabase@3.2.0`, `test:e2e:agent`), `scripts/agent-supabase-up.sh`, `scripts/test-e2e-agent.sh`, `supabase/config.toml`.

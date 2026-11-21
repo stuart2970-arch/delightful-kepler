@@ -1,6 +1,11 @@
+import { VAPI_SERVER_MESSAGES } from '@/lib/voice/vapi-server';
+
 export const VOICE_UNAVAILABLE_MESSAGE = 'Voice is currently unavailable.';
 
-export function voiceUnavailableAssistantResponse(message = VOICE_UNAVAILABLE_MESSAGE) {
+export function voiceUnavailableAssistantResponse(
+  message = VOICE_UNAVAILABLE_MESSAGE,
+  server?: { url: string; timeoutSeconds: number; headers: { 'X-Vapi-Secret': string } },
+) {
   const assistant = {
     firstMessage: message,
     endCallMessage: message,
@@ -9,6 +14,8 @@ export function voiceUnavailableAssistantResponse(message = VOICE_UNAVAILABLE_ME
     artifactPlan: {
       recordingEnabled: false,
     },
+    serverMessages: [...VAPI_SERVER_MESSAGES],
+    ...(server ? { server } : {}),
   };
   return {
     assistant,

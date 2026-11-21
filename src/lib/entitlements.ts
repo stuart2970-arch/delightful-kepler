@@ -1,4 +1,9 @@
 import { createClient } from '@supabase/supabase-js';
+import { resolveVoiceAllowance } from './telephony/voice-minute-gate';
+import { usageAlertLevel, type UsageAlertLevel } from './usage-alerts';
+
+export { USAGE_ALERT_LIMIT_PERCENT, USAGE_ALERT_WARNING_PERCENT, usageAlertLevel } from './usage-alerts';
+export type { UsageAlertLevel } from './usage-alerts';
 
 // =========================================================================
 // Admin Client
@@ -60,11 +65,49 @@ export type CapacityThreshold = {
   percentUsed: number;
   currentUsage: number;
   limit: number;
+  alertLevel: UsageAlertLevel;
+  /** Chat messages have no bolt-on. The alert opens the plan and usage page. */
+  upgradeAction: 'addon' | 'plan';
   upgradeCategory: string;
   upgradeAddonId: string;
   upgradeAddonName: string;
   upgradePricePence: number;
 };
+
+/** Feature id the chat allowance checker and the dashboard usage alert already read. */
+export const CHAT_MESSAGE_FEATURE_ID = 'message_allowance';
+
+/**
+ * Voice consumption is stored as voice_minutes. Older Vapi rows used
+ * vapi_voice_minutes (and voice_agent_minutes_web). All three count as
+ * minutes used so the dashboard balance and capacity alerts see them.
+ * Allocations stay on voice_minutes.
+ */
+export const VOICE_CONSUMPTION_FEATURE_IDS = [
+  'voice_minutes',
+  'vapi_voice_minutes',
+  'voice_agent_minutes_web',
+] as const;
+
+export const VOICE_USAGE_FEATURE_ID = 'voice_minutes';
+
+export function isVoiceConsumptionFeature(featureId: string | null | undefined): boolean {
+  return (
+    featureId === 'voice_minutes' ||
+    featureId === 'vapi_voice_minutes' ||
+    featureId === 'voice_agent_minutes_web'
+  );
+}
+
+export function sumVoiceConsumption(
+  rows: Array<{ feature_id?: string | null; quantity?: number | null }> | null,
+): number {
+  if (!rows) return 0;
+  return rows.reduce((sum, row) => {
+    if (!isVoiceConsumptionFeature(row.feature_id)) return sum;
+    return sum + Number(row.quantity || 0);
+  }, 0);
+}
 
 // Feature ID mapping for bolt-on categories
 const FEATURE_TO_UPGRADE_MAP: Record<string, { category: string; addonId: string; defaultName: string }> = {
@@ -141,14 +184,31 @@ export async function getTenantActiveAddons(tenantId: string): Promise<ActiveAdd
 // =========================================================================
 // 3-Month Rolling Balance (Voice Minutes & SMS)
 // =========================================================================
-export async function getRolloverBalance(tenantId: string): Promise<RolloverBalance> {
-  const supabase = createAdminClient();
+const EMPTY_ROLLOVER: RolloverBalance = {
+  voice_minutes_allocated: 0,
+  voice_minutes_consumed: 0,
+  voice_minutes_remaining: 0,
+  sms_allocated: 0,
+  sms_consumed: 0,
+  sms_remaining: 0,
+};
+
+/**
+ * One rolling-balance read. Allocations count only while unexpired and inside
+ * the last three months. Voice consumption in that window includes
+ * voice_minutes, vapi_voice_minutes and voice_agent_minutes_web.
+ * The filters are the dashboard rule. Callers that need a failure (the inbound
+ * gate) use `error`; getRolloverBalance still returns the numbers only.
+ */
+export async function loadRolloverBalance(
+  tenantId: string,
+  supabase: { from: (table: string) => any } = createAdminClient(),
+): Promise<{ balance: RolloverBalance; error: string | null }> {
   const now = new Date();
   const threeMonthsAgo = new Date(now);
   threeMonthsAgo.setMonth(threeMonthsAgo.getMonth() - 3);
 
-  // Query allocations (credits) that haven't expired
-  const { data: allocations } = await supabase
+  const allocationsResult = await supabase
     .from('usage_ledger')
     .select('feature_id, quantity')
     .eq('tenant_id', tenantId)
@@ -157,14 +217,21 @@ export async function getRolloverBalance(tenantId: string): Promise<RolloverBala
     .gte('expires_at', now.toISOString())
     .gte('billing_period_start', threeMonthsAgo.toISOString());
 
-  // Query consumptions in the same window
-  const { data: consumptions } = await supabase
+  const consumptionsResult = await supabase
     .from('usage_ledger')
     .select('feature_id, quantity')
     .eq('tenant_id', tenantId)
     .eq('usage_type', 'consumption')
-    .in('feature_id', ['voice_minutes', 'sms_messages'])
+    .in('feature_id', [...VOICE_CONSUMPTION_FEATURE_IDS, 'sms_messages'])
     .gte('recorded_at', threeMonthsAgo.toISOString());
+
+  const readError = allocationsResult?.error || consumptionsResult?.error;
+  if (readError) {
+    return {
+      balance: { ...EMPTY_ROLLOVER },
+      error: readError.message || 'usage_ledger read failed',
+    };
+  }
 
   const sumByFeature = (rows: any[] | null, featureId: string): number => {
     if (!rows) return 0;
@@ -173,19 +240,49 @@ export async function getRolloverBalance(tenantId: string): Promise<RolloverBala
       .reduce((sum, r) => sum + Number(r.quantity || 0), 0);
   };
 
+  const allocations = allocationsResult?.data ?? null;
+  const consumptions = consumptionsResult?.data ?? null;
   const voiceAllocated = sumByFeature(allocations, 'voice_minutes');
-  const voiceConsumed = sumByFeature(consumptions, 'voice_minutes');
+  const voiceConsumed = sumVoiceConsumption(consumptions);
   const smsAllocated = sumByFeature(allocations, 'sms_messages');
   const smsConsumed = sumByFeature(consumptions, 'sms_messages');
 
   return {
-    voice_minutes_allocated: voiceAllocated,
-    voice_minutes_consumed: voiceConsumed,
-    voice_minutes_remaining: Math.max(0, voiceAllocated - voiceConsumed),
-    sms_allocated: smsAllocated,
-    sms_consumed: smsConsumed,
-    sms_remaining: Math.max(0, smsAllocated - smsConsumed),
+    balance: {
+      voice_minutes_allocated: voiceAllocated,
+      voice_minutes_consumed: voiceConsumed,
+      voice_minutes_remaining: Math.max(0, voiceAllocated - voiceConsumed),
+      sms_allocated: smsAllocated,
+      sms_consumed: smsConsumed,
+      sms_remaining: Math.max(0, smsAllocated - smsConsumed),
+    },
+    error: null,
   };
+}
+
+export async function getRolloverBalance(tenantId: string): Promise<RolloverBalance> {
+  const { balance } = await loadRolloverBalance(tenantId);
+  return balance;
+}
+
+/** Voice minutes used since the first of the current month. Same feature ids as the rollover. */
+export async function loadCurrentPeriodVoiceConsumption(
+  tenantId: string,
+  supabase: { from: (table: string) => any } = createAdminClient(),
+  now = new Date(),
+): Promise<{ consumed: number; error: string | null }> {
+  const start = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1));
+  const result = await supabase
+    .from('usage_ledger')
+    .select('feature_id, quantity')
+    .eq('tenant_id', tenantId)
+    .eq('usage_type', 'consumption')
+    .in('feature_id', [...VOICE_CONSUMPTION_FEATURE_IDS])
+    .gte('recorded_at', start.toISOString());
+  if (result?.error) {
+    return { consumed: 0, error: result.error.message || 'usage_ledger read failed' };
+  }
+  return { consumed: sumVoiceConsumption(result?.data ?? null), error: null };
 }
 
 // =========================================================================
@@ -419,7 +516,7 @@ export async function checkFeatureEntitlement(
 }
 
 // =========================================================================
-// 85% Capacity Threshold Checker
+// Capacity threshold checker (80% warning, 100% limit)
 // Points users to bolt-on upgrades (not percentage-based tier upgrades)
 // =========================================================================
 export async function checkCapacityThresholds(
@@ -436,9 +533,8 @@ export async function checkCapacityThresholds(
   ];
 
   const supabase = createAdminClient();
-  const firstDay = new Date();
-  firstDay.setDate(1);
-  firstDay.setHours(0, 0, 0, 0);
+  const now = new Date();
+  const firstDay = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1));
 
   // Query addon_catalog dynamically for up-to-date pricing
   const { data: catalogAddons } = await supabase
@@ -456,7 +552,23 @@ export async function checkCapacityThresholds(
     if (feature.id === 'voice_minutes' || feature.id === 'sms_messages') {
       const balance = await getRolloverBalance(tenantId);
       if (feature.id === 'voice_minutes') {
-        currentUsage = balance.voice_minutes_consumed;
+        const { consumed: monthVoice } = await loadCurrentPeriodVoiceConsumption(tenantId, supabase);
+        const { data: tenant } = await supabase.from('tenants').select('plan_tier').eq('id', tenantId).maybeSingle();
+        const planTier = tenant?.plan_tier || 'foundation';
+        const { data: tierEnt } = await supabase
+          .from('tier_entitlements')
+          .select('limit_value')
+          .eq('tier_id', planTier)
+          .eq('feature_id', 'voice_minutes')
+          .maybeSingle();
+        const planMinutes = tierEnt?.limit_value != null ? Number(tierEnt.limit_value) : null;
+        const resolved = resolveVoiceAllowance({
+          rolloverAllocated: balance.voice_minutes_allocated,
+          rolloverConsumed: balance.voice_minutes_consumed,
+          planMinutes: planMinutes && planMinutes > 0 ? planMinutes : null,
+          currentPeriodConsumed: monthVoice,
+        });
+        currentUsage = resolved.consumed;
       } else {
         currentUsage = balance.sms_consumed;
       }
@@ -484,8 +596,26 @@ export async function checkCapacityThresholds(
     }
 
     const percentUsed = Math.round((currentUsage / limit) * 100);
+    const alertLevel = usageAlertLevel(percentUsed);
 
-    if (percentUsed >= 85) {
+    if (alertLevel !== 'none') {
+      if (feature.id === 'message_allowance') {
+        thresholds.push({
+          featureId: feature.id,
+          featureName: feature.name,
+          percentUsed,
+          currentUsage,
+          limit,
+          alertLevel,
+          upgradeAction: 'plan',
+          upgradeCategory: 'plan',
+          upgradeAddonId: '',
+          upgradeAddonName: '',
+          upgradePricePence: 0,
+        });
+        continue;
+      }
+
       const upgradeInfo = FEATURE_TO_UPGRADE_MAP[feature.id] || {
         category: 'data_pack',
         addonId: 'data_pack_500',
@@ -502,6 +632,8 @@ export async function checkCapacityThresholds(
         percentUsed,
         currentUsage,
         limit,
+        alertLevel,
+        upgradeAction: 'addon',
         upgradeCategory: upgradeInfo.category,
         upgradeAddonId: upgradeInfo.addonId,
         upgradeAddonName,
@@ -521,23 +653,44 @@ export async function logMeteredUsage(
   tenantId: string,
   featureId: string,
   quantity: number = 1,
-  description?: string
-): Promise<void> {
-  // Write to both usage_ledger (for entitlement checks) and usage_logs (for analytics)
-  await dbClient.from('usage_ledger').insert({
+  description?: string,
+  options?: { sectorTag?: string },
+): Promise<boolean> {
+  // Write to both usage_ledger (for entitlement checks) and usage_logs (for analytics).
+  // supabase-js returns insert failures as { error } and does not throw.
+  const recordedAt = new Date().toISOString();
+  const ledgerResult = await dbClient.from('usage_ledger').insert({
     tenant_id: tenantId,
     feature_id: featureId,
     quantity,
     usage_type: 'consumption',
-    recorded_at: new Date().toISOString(),
+    sector_tag: options?.sectorTag || null,
+    recorded_at: recordedAt,
   });
+  if (ledgerResult?.error) {
+    console.error('[logMeteredUsage] usage_ledger insert failed', {
+      tenantId,
+      featureId,
+      code: ledgerResult.error.code,
+      message: ledgerResult.error.message,
+    });
+  }
 
-  await dbClient.from('usage_logs').insert({
+  const logsResult = await dbClient.from('usage_logs').insert({
     tenant_id: tenantId,
     feature_id: featureId,
     amount: quantity,
     description: description || null,
   });
+  if (logsResult?.error) {
+    console.error('[logMeteredUsage] usage_logs insert failed', {
+      tenantId,
+      featureId,
+      code: logsResult.error.code,
+      message: logsResult.error.message,
+    });
+  }
+  return !ledgerResult?.error && !logsResult?.error;
 }
 
 // =========================================================================
@@ -547,7 +700,8 @@ export async function allocateRollingCredits(
   tenantId: string,
   featureId: string,
   quantity: number,
-  addonCatalogId?: string
+  addonCatalogId?: string,
+  options?: { sectorTag?: string; billingPeriodStart?: string },
 ): Promise<{ id?: string } | void> {
   const supabase = createAdminClient();
   const now = new Date();
@@ -559,14 +713,17 @@ export async function allocateRollingCredits(
     feature_id: featureId,
     quantity,
     usage_type: 'allocation',
-    billing_period_start: now.toISOString(),
+    billing_period_start: options?.billingPeriodStart || now.toISOString(),
     expires_at: expiresAt.toISOString(),
     addon_catalog_id: addonCatalogId || null,
+    sector_tag: options?.sectorTag || null,
     recorded_at: now.toISOString(),
   }).select('id').maybeSingle();
 
   if (error) {
-    throw new Error(error.message || 'Failed to allocate rolling credits');
+    const wrapped = new Error(error.message || 'Failed to allocate rolling credits') as Error & { code?: string };
+    wrapped.code = error.code;
+    throw wrapped;
   }
   return data || undefined;
 }

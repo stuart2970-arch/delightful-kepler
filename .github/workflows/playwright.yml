@@ -5,10 +5,15 @@ on:
     branches:
       - main
       - staging
+  # Ensure CI runs when head-branch pushes are not delivered as pull_request synchronize (e.g. stuck runs).
+  push:
+    branches:
+      - 'cursor/**'
 
 concurrency:
   group: playwright-${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: false
+  # Cancel superseded runs so a stuck/failed job does not block the branch for hours.
+  cancel-in-progress: true
 
 jobs:
   playwright:
