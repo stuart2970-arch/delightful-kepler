@@ -501,6 +501,13 @@ export default async function DashboardPage(props: { searchParams?: Promise<{ [k
             is_active
           )
         `;
+      const isMissingAddonColumn = (err: { code?: string; message?: string } | null) => {
+        if (!err) return false;
+        const code = String(err.code ?? '');
+        const message = String(err.message ?? '');
+        return code === '42703' || code === 'PGRST204' || /column.*does not exist/i.test(message);
+      };
+
       const withPrice = await queryClient
         .from('tenant_active_addons')
         .select(`price_paid_pence, ${addonEmbed}`)
@@ -508,25 +515,31 @@ export default async function DashboardPage(props: { searchParams?: Promise<{ [k
 
       let purchaseRows: any[] = withPrice.data || [];
       if (withPrice.error) {
-        console.warn('[Dashboard] Price paid or cancel columns are not available yet:', withPrice.error.message);
-        const fallback = await queryClient
-          .from('tenant_active_addons')
-          .select(addonEmbed)
-          .eq('tenant_id', tenantId);
-        purchaseRows = fallback.data || [];
-        if (fallback.error) {
-          console.warn('[Dashboard] tenant_active_addons fallback read failed:', fallback.error.code || 'unknown');
-          const legacyEmbed = addonEmbed
+        if (isMissingAddonColumn(withPrice.error)) {
+          console.warn('[Dashboard] Pending-cancel columns are not available yet:', withPrice.error.message);
+          const withoutCancel = addonEmbed
             .replace('cancel_at_period_end,', '')
             .replace('cancel_at,', '');
-          const legacy = await queryClient
+          const fallback = await queryClient
             .from('tenant_active_addons')
-            .select(legacyEmbed)
+            .select(`price_paid_pence, ${withoutCancel}`)
             .eq('tenant_id', tenantId);
-          if (legacy.error) {
-            console.warn('[Dashboard] tenant_active_addons legacy read failed:', legacy.error.code || 'unknown');
+          purchaseRows = fallback.data || [];
+          if (fallback.error && isMissingAddonColumn(fallback.error)) {
+            console.warn('[Dashboard] price_paid_pence is not available yet:', fallback.error.message);
+            const legacy = await queryClient
+              .from('tenant_active_addons')
+              .select(withoutCancel)
+              .eq('tenant_id', tenantId);
+            if (legacy.error) {
+              console.warn('[Dashboard] tenant_active_addons legacy read failed:', legacy.error.code || 'unknown');
+            }
+            purchaseRows = legacy.data || [];
+          } else if (fallback.error) {
+            console.warn('[Dashboard] tenant_active_addons fallback read failed:', fallback.error.code || 'unknown');
           }
-          purchaseRows = legacy.data || [];
+        } else {
+          console.warn('[Dashboard] tenant_active_addons read failed:', withPrice.error.message);
         }
       }
       const activeAddons = purchaseRows.filter((row: any) => row.is_active);

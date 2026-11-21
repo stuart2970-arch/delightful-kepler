@@ -4580,3 +4580,8 @@ Highlighted adjustments in the modal:
 * **STYL-389**: Migration `20261121130000_styl389_appointment_manage_tokens.sql`; `manage-token.ts`, public `GET/POST /api/public/bookings/manage/[token]`, `/booking/manage` page, `deleteCalendarEvent`, RULE 6 offers manage/LOOKUP links; `tests/styl-389-booking-manage.spec.ts` (5 passed locally).
 * **STYL-271**: Removed widget email pre-fill; `getAvailableDays` filters `slotsCount === 0`; chat “this chat” / voice “this call” prompts; `lead-notifier` uses `buildBrandedEmailHtml` + `publicAppPath('/dashboard')`; rebuilt `public/widget.js` / `embed.js`; `tests/styl-271-widget-channel-lead.spec.ts` + unit lead HTML (5 passed locally).
 * **Branches pushed**: `cursor/styl-389-customer-booking-manage` (`8c2dbc9`), `cursor/styl-271-widget-channel-lead-email` (`1e5607e`). `gh pr create` blocked (integration permissions) — Stuart to open PRs (base #77 stack then staging) or rely on Cursor cloud PR automation.
+
+### Session (STYL-261 billing webhook cancel race — 21 Nov 2026)
+* **User**: STYL-249 follow-ups — optimistic cancel updates, out-of-order Stripe event guard, set-date `cancel_at`, item `current_period_end` fallback, billing select missing-column retry.
+* **Changes**: `process-stripe-webhook.ts`, `addon-subscription-status.ts`, `account-ownership.ts`, `dashboard/page.tsx` (select fallback only); migration `20261121180200_styl261_stripe_cancel_event_guard.sql`; tests `styl-261-webhook-cancel-race.spec.ts` + `styl-249` mock `select` on update.
+* **Verify**: `bash scripts/agent-supabase-up.sh` then Playwright `styl-249` / `styl-250` / `styl-261` (15 passed); `NODE_OPTIONS=--max-old-space-size=8192 npm run typecheck`.

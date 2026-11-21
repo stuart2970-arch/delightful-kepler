@@ -145,7 +145,39 @@ type AddonCancelRow = {
   cancel_at_period_end?: boolean | null;
   cancel_at?: string | null;
   is_active?: boolean | null;
+  stripe_cancel_event_created_at?: string | null;
 };
+
+function stripeEventCreatedToIso(eventCreatedAt: number | null | undefined): string | null {
+  if (eventCreatedAt == null || !Number.isFinite(eventCreatedAt)) return null;
+  return new Date(eventCreatedAt * 1000).toISOString();
+}
+
+function isStaleStripeCancelEvent(
+  storedEventAt: string | null | undefined,
+  eventCreatedAt: number | null | undefined,
+): boolean {
+  const incoming = stripeEventCreatedToIso(eventCreatedAt);
+  if (!incoming || !storedEventAt) return false;
+  const storedMs = Date.parse(storedEventAt);
+  const incomingMs = Date.parse(incoming);
+  if (Number.isNaN(storedMs) || Number.isNaN(incomingMs)) return false;
+  return incomingMs < storedMs;
+}
+
+function applyOptimisticCancelFilters(query: any, row: AddonCancelRow) {
+  if (row.cancel_at_period_end == null) {
+    query = query.is('cancel_at_period_end', null);
+  } else {
+    query = query.eq('cancel_at_period_end', row.cancel_at_period_end);
+  }
+  if (row.cancel_at == null) {
+    query = query.is('cancel_at', null);
+  } else {
+    query = query.eq('cancel_at', row.cancel_at);
+  }
+  return query;
+}
 
 function cancelFlagsDiffer(stored: unknown, next: boolean): boolean {
   if (stored == null) return true;
@@ -167,7 +199,7 @@ async function readActiveAddonRows(
 ): Promise<{ rows: AddonCancelRow[]; error: string | null }> {
   let query = supabaseAdmin
     .from('tenant_active_addons')
-    .select('id, addon_catalog_id, tenant_id, is_active, cancel_at_period_end, cancel_at')
+    .select('id, addon_catalog_id, tenant_id, is_active, cancel_at_period_end, cancel_at, stripe_cancel_event_created_at')
     .eq('is_active', true);
   if (filter.stripeSubscriptionId) {
     query = query.eq('stripe_subscription_id', filter.stripeSubscriptionId);
@@ -191,7 +223,10 @@ async function readActiveAddonRows(
 export async function syncBoltOnPendingCancellation(
   supabaseAdmin: any,
   dataObject: Record<string, any>,
+  options: { eventCreatedAt?: number | null } = {},
 ): Promise<{ ok: true } | { ok: false; error: string }> {
+  const eventCreatedAt = options.eventCreatedAt ?? null;
+  const eventCreatedIso = stripeEventCreatedToIso(eventCreatedAt);
   const pair = pendingCancelPairFromStripe(dataObject);
   const metadata = dataObject.metadata || {};
   const stripeSubscriptionId = (typeof dataObject.id === 'string' && dataObject.id.startsWith('sub_'))
@@ -207,21 +242,34 @@ export async function syncBoltOnPendingCancellation(
   if (loaded.error) return { ok: false, error: loaded.error };
 
   for (const row of loaded.rows) {
+    if (isStaleStripeCancelEvent(row.stripe_cancel_event_created_at, eventCreatedAt)) {
+      continue;
+    }
+
     const flagChanged = cancelFlagsDiffer(row.cancel_at_period_end, pair.cancel_at_period_end);
     const atChanged = cancelInstantsDiffer(row.cancel_at, pair.cancel_at);
     if (!flagChanged && !atChanged) continue;
 
-    const wasPending = row.cancel_at_period_end === true;
-    const { error: updateError } = await supabaseAdmin
+    const wasPending = row.cancel_at_period_end === true || (row.cancel_at != null && row.cancel_at !== '');
+    const updatePayload: Record<string, unknown> = {
+      cancel_at_period_end: pair.cancel_at_period_end,
+      cancel_at: pair.cancel_at,
+    };
+    if (eventCreatedIso) {
+      updatePayload.stripe_cancel_event_created_at = eventCreatedIso;
+    }
+
+    let updateQuery = supabaseAdmin
       .from('tenant_active_addons')
-      .update({
-        cancel_at_period_end: pair.cancel_at_period_end,
-        cancel_at: pair.cancel_at,
-      })
+      .update(updatePayload)
       .eq('id', row.id);
+    updateQuery = applyOptimisticCancelFilters(updateQuery, row);
+    const { data: updatedRows, error: updateError } = await updateQuery.select('id');
     if (updateError) {
       return { ok: false, error: updateError.message || 'Failed to store bolt-on cancel state' };
     }
+    const applied = Array.isArray(updatedRows) ? updatedRows.length > 0 : Boolean(updatedRows);
+    if (!applied) continue;
 
     const movedIntoPending = pair.cancel_at_period_end && (!wasPending || atChanged);
     const movedOutOfPending = wasPending && !pair.cancel_at_period_end;
@@ -273,6 +321,7 @@ export async function syncBoltOnPendingCancellation(
 export type StripeBillingEvent = {
   id?: string;
   type?: string;
+  created?: number;
   data?: { object?: Record<string, any> };
 };
 
@@ -1138,7 +1187,9 @@ async function processStripeBillingEventBody(
         return { status: 500, body: { success: false, error: activated.error || 'Bolt-on fulfilment failed' } };
       }
       if (activated.ok) {
-        const synced = await syncBoltOnPendingCancellation(supabaseAdmin, dataObject);
+        const synced = await syncBoltOnPendingCancellation(supabaseAdmin, dataObject, {
+          eventCreatedAt: event.created ?? null,
+        });
         if (!synced.ok) {
           return { status: 500, body: { success: false, error: synced.error } };
         }
@@ -1154,7 +1205,9 @@ async function processStripeBillingEventBody(
       if (lineItemsResult.retry) {
         return { status: 500, body: { success: false, error: lineItemsResult.error || 'Bolt-on fulfilment failed' } };
       }
-      const synced = await syncBoltOnPendingCancellation(supabaseAdmin, dataObject);
+      const synced = await syncBoltOnPendingCancellation(supabaseAdmin, dataObject, {
+        eventCreatedAt: event.created ?? null,
+      });
       if (!synced.ok) {
         return { status: 500, body: { success: false, error: synced.error } };
       }

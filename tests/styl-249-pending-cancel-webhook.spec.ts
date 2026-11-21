@@ -111,9 +111,13 @@ function createStore(addons: Row[] = []) {
             filters.push(['or', '', expr]);
             return chain;
           },
+          select() {
+            return chain;
+          },
           then(resolve: (value: any) => unknown, reject?: (reason: any) => unknown) {
-            for (const item of matched()) Object.assign(item, row);
-            return Promise.resolve({ data: matched(), error: null }).then(resolve, reject);
+            const hits = matched();
+            for (const item of hits) Object.assign(item, row);
+            return Promise.resolve({ data: hits, error: null }).then(resolve, reject);
           },
         };
         return chain;

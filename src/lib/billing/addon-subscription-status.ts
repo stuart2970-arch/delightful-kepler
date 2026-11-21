@@ -71,18 +71,41 @@ function stripeInstantToIso(value: unknown): string | null {
 }
 
 /**
+ * current_period_end moved under subscription items on newer Stripe API versions.
+ */
+export function stripeSubscriptionPeriodEndUnix(
+  object: Record<string, any> | null | undefined,
+): unknown {
+  if (!object) return null;
+  if (object.current_period_end != null && object.current_period_end !== '') {
+    return object.current_period_end;
+  }
+  const items = object.items?.data;
+  if (!Array.isArray(items)) return null;
+  for (const item of items) {
+    if (item?.current_period_end != null && item.current_period_end !== '') {
+      return item.current_period_end;
+    }
+  }
+  return null;
+}
+
+/**
  * Stripe cancel_at is Unix seconds. A pending cancel with a null cancel_at
- * falls back to current_period_end so Billing still has a date.
+ * falls back to current_period_end (root or line item) so Billing still has a date.
+ * Dashboard set-date cancel (cancel_at set, cancel_at_period_end false) still counts as pending.
  * A subscription that is not pending stores false and null.
  */
 export function pendingCancelPairFromStripe(
   object: Record<string, any> | null | undefined,
 ): PendingCancelPair {
-  if (object?.cancel_at_period_end !== true) {
+  const periodEndCancel = object?.cancel_at_period_end === true;
+  const cancelAt = stripeInstantToIso(object?.cancel_at);
+  if (!periodEndCancel && !cancelAt) {
     return { cancel_at_period_end: false, cancel_at: null };
   }
   return {
     cancel_at_period_end: true,
-    cancel_at: stripeInstantToIso(object.cancel_at) ?? stripeInstantToIso(object.current_period_end),
+    cancel_at: cancelAt ?? stripeInstantToIso(stripeSubscriptionPeriodEndUnix(object)),
   };
 }
