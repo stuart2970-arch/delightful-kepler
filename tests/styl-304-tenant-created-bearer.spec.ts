@@ -164,15 +164,9 @@ test.describe('STYL-304 tenant-created webhook bearer', () => {
     const requestHeaders = sql(
       `SELECT coalesce(headers::text, '') FROM net.http_request_queue WHERE id = ${dispatch}::bigint;`,
     );
-    if (requestHeaders) {
-      expect(requestHeaders).toContain('Authorization');
-      expect(requestHeaders.toLowerCase()).toContain('bearer');
-    } else {
-      const dispatchedUrl = sql(
-        `SELECT url FROM private.tenant_created_webhook_dispatch WHERE tenant_id = ${sqlLiteral(tenantId)}::uuid ORDER BY id DESC LIMIT 1;`,
-      );
-      expect(dispatchedUrl).toBe(STAGING_WEBHOOK_URL);
-    }
+    expect(requestHeaders, 'pg_net request must remain queued long enough to read outbound headers').not.toBe('');
+    expect(requestHeaders).toContain('Authorization');
+    expect(requestHeaders.toLowerCase()).toContain('bearer');
   });
 
   test('tenant insert does nothing when vault secret is missing', () => {
