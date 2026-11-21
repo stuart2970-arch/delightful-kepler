@@ -4557,6 +4557,10 @@ Highlighted adjustments in the modal:
 * **User**: Remove Calendar scope, `access_type=offline`, and `prompt=consent` from Google sign-in on login, register, and onboard; keep incremental calendar scopes on `/api/integrations/google/authorize`.
 * **Changes**: `tests/styl-231-google-sign-in-scopes.spec.ts` asserts Supabase OAuth and calendar connect URLs.
 
+### Session (STYL-304 tenant-created Bearer — 21 Nov 2026)
+* **User**: Verify STYL-252 trigger posts `Authorization: Bearer` from vault; document vault secret names.
+* **Changes**: `tests/styl-304-tenant-created-bearer.spec.ts`, `docs/staging.md` verification query and vault name table. No migration changes — production Ops must ensure vault rows match `TENANT_CREATED_WEBHOOK_SECRET`.
+
 ### Session (PR 53 merge staging 7b8e407 — Cloud Agent Supabase - 20 Nov 2026)
 * **User**: Merge `origin/staging` at `7b8e407` (PR 73) into PR 53. Keep agent tooling and PR 53 voice/test workflow changes. Green CI; do not merge PR.
 * **Conflicts**: `README.md` session log only — retained all PR 53 notes and the PR 73 Cloud Agent section. Auto-merged: `.cursor/*`, `AGENTS.md`, `package.json` (`supabase@3.2.0`, `test:e2e:agent`), `scripts/agent-supabase-up.sh`, `scripts/test-e2e-agent.sh`, `supabase/config.toml`.
