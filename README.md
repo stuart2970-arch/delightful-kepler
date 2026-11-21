@@ -4590,3 +4590,8 @@ Highlighted adjustments in the modal:
 * **User**: Package C — widget voice must respect the same minute gate as inbound telephony; include plan minutes when checkout never wrote `plan_voice` but a purchased pack exists.
 * **Changes**: `tenant-voice-minute-gate.ts`, `buildVoiceMinuteGateBalance`, `chatbot-voice-access`, public chatbot GET, inbound refactor; `tests/styl-295-296-voice-minute-gate.spec.ts`.
 * **Verify**: `bash scripts/agent-supabase-up.sh`; focused Playwright 15 passed; husky pre-push 126 related specs passed; PR #96 → `staging`.
+
+### Session (PR 96 review regressions — 21 Nov 2026)
+* **User**: Fix CI failures on homepage-widget STYL-181/Emma mock tests and isolated minute-gate spec; OpenClaw must-forward `loadPurchasedPackInLedger` on inbound; merge `origin/staging` (README both sides); no webpack/font CI bundle.
+* **Changes**: Restored unconditional `e000…000002` demo JSON; inbound forwards ledger override deps; `voiceEnabled` vs web-call `allowed` split; dedicated tenant `f295…0295` + ledger cleanup; `PLAYWRIGHT_TEST` env restore in gate spec; `entitlements` reuses passed Supabase client for rolling voice reads.
+* **Verify**: `styl-295-296-voice-minute-gate.spec.ts` (7), homepage-widget voice intercept + Emma mock grep tests, `npm run typecheck`; push `423a95b` — husky pre-push 195 related specs passed.
