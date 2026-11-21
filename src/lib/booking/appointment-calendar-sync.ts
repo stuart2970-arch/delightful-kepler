@@ -8,6 +8,14 @@ import { getMicrosoftAccessToken } from '@/lib/microsoft-calendar'
 import { APPOINTMENT_STATUS_BOOKED, APPOINTMENT_STATUS_CANCELLED } from '@/lib/booking/appointment-status'
 
 const DEFAULT_VERIFY_TIMEOUT_MS = 4_000
+const VERIFY_CONCURRENCY = 5
+
+export class AppointmentOverlapQueryError extends Error {
+  constructor(message: string) {
+    super(message)
+    this.name = 'AppointmentOverlapQueryError'
+  }
+}
 
 export type OverlappingAppointmentRow = {
   id: string
@@ -39,6 +47,15 @@ export type VerifyCalendarEvent = (
   row: OverlappingAppointmentRow,
 ) => Promise<ExternalEventState>
 
+/** Synthetic ids must never trigger external calendar lookups (RwG placeholders, mocks). */
+export function rowHasReconcilableProviderEventId(row: OverlappingAppointmentRow): boolean {
+  const google = row.google_event_id?.trim() ?? ''
+  const microsoft = row.microsoft_event_id?.trim() ?? ''
+  if (google.startsWith('rwg-') || google.startsWith('mock-google-evt-')) return false
+  if (microsoft.startsWith('rwg-') || microsoft.startsWith('mock-ms-evt-')) return false
+  return Boolean(google || microsoft)
+}
+
 async function withTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise<T> {
   let timer: ReturnType<typeof setTimeout> | undefined
   try {
@@ -53,16 +70,39 @@ async function withTimeout<T>(promise: Promise<T>, ms: number, label: string): P
   }
 }
 
+async function mapWithConcurrency<T, R>(
+  items: T[],
+  limit: number,
+  fn: (item: T, index: number) => Promise<R>,
+): Promise<R[]> {
+  const results: R[] = new Array(items.length)
+  let nextIndex = 0
+
+  async function worker(): Promise<void> {
+    while (true) {
+      const index = nextIndex
+      nextIndex += 1
+      if (index >= items.length) return
+      results[index] = await fn(items[index], index)
+    }
+  }
+
+  const workers = Math.min(Math.max(1, limit), items.length || 1)
+  await Promise.all(Array.from({ length: workers }, () => worker()))
+  return results
+}
+
 export async function defaultVerifyCalendarEvent(
   tenantId: string,
   staff: StaffCalendarTarget,
   row: OverlappingAppointmentRow,
 ): Promise<ExternalEventState> {
-  const googleEventId = row.google_event_id?.trim()
-  const microsoftEventId = row.microsoft_event_id?.trim()
-  if (!googleEventId && !microsoftEventId) {
+  if (!rowHasReconcilableProviderEventId(row)) {
     return { kind: 'skipped' }
   }
+
+  const googleEventId = row.google_event_id?.trim()
+  const microsoftEventId = row.microsoft_event_id?.trim()
 
   try {
     const provider = await resolveCalendarProvider(tenantId, staff)
@@ -134,7 +174,12 @@ async function verifyMicrosoftEvent(tenantId: string, eventId: string): Promise<
 
   try {
     const res = await withTimeout(
-      fetch(url, { headers: { Authorization: `Bearer ${token}` } }),
+      fetch(url, {
+        headers: {
+          Authorization: `Bearer ${token}`,
+          Prefer: 'outlook.timezone="UTC"',
+        },
+      }),
       DEFAULT_VERIFY_TIMEOUT_MS,
       'Microsoft event lookup',
     )
@@ -146,8 +191,8 @@ async function verifyMicrosoftEvent(tenantId: string, eventId: string): Promise<
     }
     const data = (await res.json()) as {
       isCancelled?: boolean
-      start?: { dateTime?: string }
-      end?: { dateTime?: string }
+      start?: { dateTime?: string; timeZone?: string }
+      end?: { dateTime?: string; timeZone?: string }
     }
     if (data.isCancelled) {
       return { kind: 'cancelled' }
@@ -174,6 +219,66 @@ function intervalOverlaps(
   return aStart < bEnd && aEnd > bStart
 }
 
+type RowVerifyPlan = {
+  row: OverlappingAppointmentRow
+  staff: StaffCalendarTarget
+}
+
+async function applyVerifiedRow(params: {
+  admin: SupabaseClient
+  tenantId: string
+  windowStart: Date
+  windowEnd: Date
+  row: OverlappingAppointmentRow
+  state: ExternalEventState
+}): Promise<BusyAppointmentInterval | null> {
+  const { row, state } = params
+  let startIso = row.start_time
+  let endIso = row.end_time
+  let block = true
+
+  if (state.kind === 'cancelled' || state.kind === 'missing') {
+    await params.admin
+      .from('appointments')
+      .update({ status: APPOINTMENT_STATUS_CANCELLED })
+      .eq('id', row.id)
+      .eq('tenant_id', params.tenantId)
+    return null
+  }
+
+  if (state.kind === 'active') {
+    if (state.startIso && state.endIso) {
+      startIso = state.startIso
+      endIso = state.endIso
+      if (startIso !== row.start_time || endIso !== row.end_time) {
+        await params.admin
+          .from('appointments')
+          .update({ start_time: startIso, end_time: endIso, status: APPOINTMENT_STATUS_BOOKED })
+          .eq('id', row.id)
+          .eq('tenant_id', params.tenantId)
+        block = intervalOverlaps(
+          new Date(startIso),
+          new Date(endIso),
+          params.windowStart,
+          params.windowEnd,
+        )
+      }
+    }
+  } else if (state.kind === 'error') {
+    block = true
+  } else if (state.kind === 'skipped') {
+    block = true
+  }
+
+  if (!block) return null
+
+  return {
+    staff_id: row.staff_id,
+    start_time: startIso,
+    end_time: endIso,
+  }
+}
+
 /**
  * Returns appointment intervals that should block availability after excluding
  * cancelled rows and reconciling overlapping rows against the connected calendar.
@@ -189,59 +294,50 @@ export async function resolveBusyAppointmentIntervals(params: {
   verify?: VerifyCalendarEvent
 }): Promise<BusyAppointmentInterval[]> {
   const verify = params.verify ?? defaultVerifyCalendarEvent
-  const busy: BusyAppointmentInterval[] = []
+  const candidates: OverlappingAppointmentRow[] = []
+  const verifyPlans: RowVerifyPlan[] = []
 
   for (const row of params.rows || []) {
     if (!row.staff_id || !row.start_time || !row.end_time) continue
     if (row.status === APPOINTMENT_STATUS_CANCELLED) continue
+    candidates.push(row)
 
     const staff = params.staffById.get(row.staff_id)
-    const hasExternalId = Boolean(row.google_event_id?.trim() || row.microsoft_event_id?.trim())
-
-    let startIso = row.start_time
-    let endIso = row.end_time
-    let block = true
-
-    if (hasExternalId && staff) {
-      const state = await verify(params.tenantId, staff, row)
-      if (state.kind === 'cancelled' || state.kind === 'missing') {
-        await params.admin
-          .from('appointments')
-          .update({ status: APPOINTMENT_STATUS_CANCELLED })
-          .eq('id', row.id)
-          .eq('tenant_id', params.tenantId)
-        block = false
-      } else if (state.kind === 'active') {
-        if (state.startIso && state.endIso) {
-          startIso = state.startIso
-          endIso = state.endIso
-          if (startIso !== row.start_time || endIso !== row.end_time) {
-            await params.admin
-              .from('appointments')
-              .update({ start_time: startIso, end_time: endIso, status: APPOINTMENT_STATUS_BOOKED })
-              .eq('id', row.id)
-              .eq('tenant_id', params.tenantId)
-            block = intervalOverlaps(
-              new Date(startIso),
-              new Date(endIso),
-              params.windowStart,
-              params.windowEnd,
-            )
-          }
-        }
-      } else if (state.kind === 'error') {
-        block = true
-      } else {
-        block = true
-      }
+    if (rowHasReconcilableProviderEventId(row) && staff) {
+      verifyPlans.push({ row, staff })
     }
+  }
 
-    if (!block) continue
+  const stateByRowId = new Map<string, ExternalEventState>()
+  if (verifyPlans.length > 0) {
+    const states = await mapWithConcurrency(verifyPlans, VERIFY_CONCURRENCY, async (plan) =>
+      verify(params.tenantId, plan.staff, plan.row),
+    )
+    verifyPlans.forEach((plan, index) => {
+      stateByRowId.set(plan.row.id, states[index])
+    })
+  }
+
+  const busy: BusyAppointmentInterval[] = []
+  for (const row of candidates) {
+    const state = stateByRowId.get(row.id)
+    if (state) {
+      const interval = await applyVerifiedRow({
+        admin: params.admin,
+        tenantId: params.tenantId,
+        windowStart: params.windowStart,
+        windowEnd: params.windowEnd,
+        row,
+        state,
+      })
+      if (interval) busy.push(interval)
+      continue
+    }
 
     busy.push({
       staff_id: row.staff_id,
-      start_time: startIso,
-      end_time: endIso,
+      start_time: row.start_time,
+      end_time: row.end_time,
     })
   }
 
@@ -250,6 +346,7 @@ export async function resolveBusyAppointmentIntervals(params: {
 
 /**
  * Query overlapping booked appointments for a tenant/window (optional staff filter).
+ * Throws on database errors so callers fail closed (treat slot as busy).
  */
 export async function fetchOverlappingAppointments(
   admin: SupabaseClient,
@@ -273,7 +370,7 @@ export async function fetchOverlappingAppointments(
   const { data, error } = await query
   if (error) {
     console.error('[Appointments] Overlap query failed:', error.message)
-    return []
+    throw new AppointmentOverlapQueryError(error.message)
   }
   return (data || []) as OverlappingAppointmentRow[]
 }
