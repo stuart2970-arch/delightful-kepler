@@ -26,7 +26,7 @@ import {
   type VerifyCalendarEvent,
 } from '@/lib/booking/appointment-calendar-sync';
 import { APPOINTMENT_STATUS_BOOKED } from '@/lib/booking/appointment-status';
-import { hasActiveManageToken, issueManageToken, manageBookingUrl } from '@/lib/booking/manage-token';
+import { hasActiveManageToken, issueManageToken } from '@/lib/booking/manage-token';
 import { sendBookingConfirmationEmail } from '@/lib/booking/booking-confirmation-email';
 
 // Helper to lazily initialize Supabase Admin
