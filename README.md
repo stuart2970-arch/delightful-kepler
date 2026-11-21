@@ -126,6 +126,12 @@ This runbook documents the key fixes and architecture enhancements implemented d
 
 ### Session Chat History Log
 
+### Session (STYL-401 / STYL-315 dashboard copy — 21 Nov 2026)
+* **User / Jira**: Package B (R3) — WhatsApp and Instagram dashboard cards show **Coming soon** with no price or purchase/activate actions (STYL-401); chat-allowance usage alert must not upsell Extra Knowledge and should point to Subscriptions & Bolt-ons (STYL-315).
+* **STYL-401**: `WhatsAppMetaView` upsell/onboarding replaced with `Coming soon` for disconnected WhatsApp; Instagram setup tab is coming soon only; `DashboardClient` adds a matching Instagram monthly bolt-on placeholder card.
+* **STYL-315**: Already on `staging` (`page.tsx` + `CapacityThresholdBanner` use `upgradeAction: 'plan'` and **View plan**); regression covered by existing `styl-197-usage-metering.spec.ts`.
+* **Tests**: `bash scripts/agent-supabase-up.sh` then `bash scripts/test-e2e-agent.sh tests/styl-401-315-dashboard-copy.spec.ts tests/styl-219-meta-channel-labels.spec.ts tests/styl-197-usage-metering.spec.ts -g "dashboard usage alerts|the dashboard warns"` — passed locally.
+
 ### Session (STYL-279 / STYL-385 OpenClaw rework - 21 Nov 2026)
 * **Rework**: `claim_stripe_webhook_event` now locks the existing row with `SELECT … FOR UPDATE` before reclaiming failed/stale `processing` rows; claim RPC errors return HTTP 500 with `retry: true`; added concurrent failed-retry Playwright test.
 * **STYL-385 merge**: Merged updated 279 branch; `grant_one_off_pack` skips `usage_ledger_one_off_grant_key` unique violations per credit; JS duplicate detection uses `isUniqueViolation`.

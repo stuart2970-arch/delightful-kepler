@@ -21,9 +21,12 @@ in_docker_group() {
   getent group docker 2>/dev/null | grep -qE "[,:]${user}([,]|$)"
 }
 
-if ! docker info >/dev/null 2>&1 && ! id -nG | grep -qw docker && in_docker_group; then
+if [[ -z "${DELIGHTFUL_AGENT_SG_DOCKER:-}" ]] \
+  && ! docker info >/dev/null 2>&1 \
+  && ! id -nG | grep -qw docker \
+  && in_docker_group; then
   log 'Re-running inside docker group (sg docker)'
-  exec sg docker -c "cd $(printf '%q' "$ROOT") && bash $(printf '%q' "$SELF")"
+  exec sg docker -c "export DELIGHTFUL_AGENT_SG_DOCKER=1; cd $(printf '%q' "$ROOT") && bash $(printf '%q' "$SELF")"
 fi
 
 refuse_remote_env() {

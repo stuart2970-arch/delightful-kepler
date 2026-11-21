@@ -3,12 +3,31 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useDashboardStore } from '../../lib/store';
 import { browserAuthHeaders } from '@/lib/auth/client-auth-headers';
-import AddOnUpsellModal from '../AddOnUpsellModal';
 import { STARTER_TEMPLATES_EN_GB } from '../../lib/whatsapp-starter-templates';
 import {
+  META_MESSAGING_COMING_SOON_LABEL,
   metaMessagingChannelBadgeLabel,
   resolveWhatsAppConnectionState,
 } from '@/lib/channels/meta-messaging-status';
+
+type MetaChannelComingSoonCardProps = {
+  emoji: string
+  title: string
+  description: string
+}
+
+const MetaChannelComingSoonCard = ({ emoji, title, description }: MetaChannelComingSoonCardProps) => (
+  <div className="bg-[var(--awb-color2)] border border-[var(--awb-color3)] p-6 rounded-2xl shadow-sm space-y-3">
+    <div className="flex items-center gap-2 flex-wrap">
+      <span className="text-2xl" aria-hidden="true">{emoji}</span>
+      <h3 className="text-lg font-bold text-[var(--awb-color8)]">{title}</h3>
+      <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded bg-gray-200 text-gray-700 border border-gray-300">
+        {META_MESSAGING_COMING_SOON_LABEL}
+      </span>
+    </div>
+    <p className="text-xs text-[var(--awb-color6)] max-w-xl leading-relaxed">{description}</p>
+  </div>
+)
 
 interface WhatsAppAccountData {
   id: string;
@@ -35,7 +54,7 @@ function starterTemplateStatusClass(status: string): string {
 }
 
 export default function WhatsAppMetaView() {
-  const { tenantId, tenantName, twilioMobileNumber, chatbots, billingData } = useDashboardStore();
+  const { tenantId, tenantName, twilioMobileNumber, chatbots } = useDashboardStore();
 
   const [activeSubTab, setActiveSubTab] = useState<'whatsapp' | 'instagram' | 'messenger' | 'webhook' | 'simulator'>('whatsapp');
   const [isLoading, setIsLoading] = useState(true);
@@ -54,7 +73,6 @@ export default function WhatsAppMetaView() {
   const [isPollingCode, setIsPollingCode] = useState(false);
   const [showDisconnectModal, setShowDisconnectModal] = useState(false);
   const [isDisconnecting, setIsDisconnecting] = useState(false);
-  const [showUpsellModal, setShowUpsellModal] = useState(false);
   const [showManualConfig, setShowManualConfig] = useState(false);
 
   // Settings state for Webhook & Manual fallback
@@ -515,8 +533,6 @@ export default function WhatsAppMetaView() {
   const instagramChannelBadge = metaMessagingChannelBadgeLabel('instagram');
   const messengerChannelBadge = metaMessagingChannelBadgeLabel('messenger');
   const isCardMissing = whatsappAccount?.card_missing === true || whatsappAccount?.payment_status === 'card_missing';
-  const hasWhatsAppBoltOn = billingData?.channelFlags?.has_whatsapp || isConnected;
-
   return (
     <div className="space-y-6">
       {/* HEADER SECTION */}
@@ -538,7 +554,7 @@ export default function WhatsAppMetaView() {
             </span>
           </div>
           <p className="text-xs text-[var(--awb-color6)] mt-1 max-w-2xl">
-            Direct two-way messaging connection for <strong>WhatsApp Business Cloud API</strong>, <strong>Instagram Messaging</strong>, and <strong>Facebook Messenger</strong>. Seamlessly integrated with your salon AI receptionist and RAG knowledge base.
+            Direct two-way messaging connection for <strong>WhatsApp Business Cloud API</strong>, <strong>Instagram Messaging</strong>, and <strong>Facebook Messenger</strong>. Seamlessly integrated with your small business AI receptionist and knowledge base.
           </p>
         </div>
 
@@ -753,43 +769,13 @@ export default function WhatsAppMetaView() {
       {/* SUB-TAB 1: WHATSAPP SETUP (Meta Embedded Signup v4) */}
       {activeSubTab === 'whatsapp' && (
         <div className="space-y-6">
-          {/* If tenant doesn't have the bolt-on yet and isn't connected, show upsell card */}
-          {!hasWhatsAppBoltOn && !isConnected && (
-            <div className="bg-gradient-to-br from-emerald-950/20 via-[var(--awb-color1)] to-gray-900 border border-emerald-500/30 p-6 rounded-2xl shadow-xl space-y-4">
-              <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
-                <div>
-                  <div className="flex items-center gap-2">
-                    <span className="text-2xl">✨</span>
-                    <h3 className="text-lg font-bold text-white">WhatsApp AI Channel Add-on</h3>
-                    <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">
-                      Bolt-on Available
-                    </span>
-                  </div>
-                  <p className="text-xs text-gray-300 mt-1 max-w-xl">
-                    Unlock 24/7 conversational booking and inquiry handling on your clients' favorite messaging app. 
-                    Includes official Meta Embedded Signup v4 and instant two-way AI replies.
-                  </p>
-                </div>
-                <div className="flex items-center gap-3">
-                  <button
-                    onClick={() => setShowUpsellModal(true)}
-                    className="px-5 py-2.5 bg-[#25D366] hover:bg-emerald-600 text-white text-xs font-bold rounded-xl transition shadow-lg"
-                  >
-                    Subscribe to WhatsApp Bolt-on
-                  </button>
-                  <button
-                    onClick={launchEmbeddedSignup}
-                    className="text-xs text-gray-400 hover:text-white underline"
-                  >
-                    Test / Connect Now
-                  </button>
-                </div>
-              </div>
-            </div>
-          )}
-
-          {/* CONNECTED STATE DASHBOARD */}
-          {isConnected && whatsappAccount ? (
+          {!isConnected ? (
+            <MetaChannelComingSoonCard
+              emoji="💬"
+              title="WhatsApp AI Channel"
+              description="Official Meta WhatsApp Business integration for two-way AI chat is coming soon. You will not need to purchase a bolt-on here when it launches."
+            />
+          ) : isConnected && whatsappAccount ? (
             <div className="bg-white border border-[#f2f3f5] p-6 rounded-2xl shadow-sm space-y-6">
               <div className="flex flex-col sm:flex-row justify-between sm:items-center border-b border-[#f2f3f5] pb-5 gap-3">
                 <div className="space-y-1">
@@ -911,66 +897,9 @@ export default function WhatsAppMetaView() {
                 </p>
               </div>
             </div>
-          ) : (
-            /* ONBOARDING STATE */
-            <div className="bg-white border border-[#f2f3f5] p-8 rounded-2xl shadow-sm text-center space-y-6">
-              <div className="max-w-md mx-auto space-y-3">
-                <div className="w-16 h-16 bg-[#25D366]/10 text-[#25D366] rounded-2xl flex items-center justify-center text-3xl mx-auto shadow-inner">
-                  💬
-                </div>
-                <h3 className="text-xl font-extrabold text-[#260475] tracking-tight">
-                  Connect WhatsApp Business via Meta
-                </h3>
-                <p className="text-xs text-[#434549] leading-relaxed">
-                  Use Meta's official <strong>Embedded Signup v4</strong> to link your WhatsApp Business Account in under 60 seconds.
-                  Connect your StyleFlo virtual mobile number or a new dedicated number.
-                </p>
-              </div>
+          ) : null}
 
-              {/* Launch Embedded Signup Button */}
-              <div className="pt-2">
-                <button
-                  type="button"
-                  onClick={launchEmbeddedSignup}
-                  disabled={isOnboarding}
-                  className="px-8 py-4 bg-[#25D366] hover:bg-emerald-600 text-white font-extrabold text-sm rounded-2xl transition shadow-lg hover:shadow-xl inline-flex items-center gap-3 disabled:opacity-50"
-                >
-                  {isOnboarding ? (
-                    <>
-                      <span className="animate-spin">⏳</span>
-                      <span>Waiting for Meta Popup...</span>
-                    </>
-                  ) : (
-                    <>
-                      <span>💬 Connect WhatsApp with Meta</span>
-                      <span>→</span>
-                    </>
-                  )}
-                </button>
-              </div>
-
-              {/* Steps explanation */}
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-left max-w-2xl mx-auto pt-4 border-t border-[#f2f3f5]">
-                <div className="space-y-1">
-                  <span className="text-[10px] font-bold text-[#198fd9] uppercase">Step 1</span>
-                  <h4 className="text-xs font-bold text-[#212326]">Meta Login Popup</h4>
-                  <p className="text-[11px] text-gray-500">Sign in with your Facebook account and select your salon business portfolio.</p>
-                </div>
-                <div className="space-y-1">
-                  <span className="text-[10px] font-bold text-[#198fd9] uppercase">Step 2</span>
-                  <h4 className="text-xs font-bold text-[#212326]">Verify Phone Number</h4>
-                  <p className="text-[11px] text-gray-500">Enter your virtual mobile number. The 6-digit code auto-populates right here.</p>
-                </div>
-                <div className="space-y-1">
-                  <span className="text-[10px] font-bold text-[#198fd9] uppercase">Step 3</span>
-                  <h4 className="text-xs font-bold text-[#212326]">Instant AI Activation</h4>
-                  <p className="text-[11px] text-gray-500">Your AI Receptionist begins answering incoming messages 24/7 immediately.</p>
-                </div>
-              </div>
-            </div>
-          )}
-
-          {/* ADVANCED / MANUAL CONFIG ACCORDION */}
+          {isConnected && whatsappAccount ? (
           <div className="border border-[#f2f3f5] rounded-xl overflow-hidden bg-white">
             <button
               type="button"
@@ -1054,85 +983,17 @@ export default function WhatsAppMetaView() {
               </div>
             )}
           </div>
+          ) : null}
         </div>
       )}
 
       {/* SUB-TAB 2: INSTAGRAM SETUP */}
       {activeSubTab === 'instagram' && (
-        <div className="bg-white border border-[#f2f3f5] p-6 rounded-2xl shadow-sm space-y-6">
-          <div className="flex items-center justify-between border-b border-[#f2f3f5] pb-4">
-            <div>
-              <h3 className="text-lg font-bold text-[#260475] flex items-center gap-2">
-                <span>📸 Instagram Messaging Connection</span>
-              </h3>
-              <p className="text-xs text-[#434549] mt-0.5">
-                Respond to Direct Messages (DMs) automatically with your StyleFlo AI assistant.
-              </p>
-            </div>
-            <label className="flex items-center gap-2.5 cursor-pointer">
-              <span className="text-xs font-bold text-[#212326]">
-                {instagramEnabled ? 'Channel Active' : 'Channel Disabled'}
-              </span>
-              <input
-                type="checkbox"
-                checked={instagramEnabled}
-                onChange={(e) => setInstagramEnabled(e.target.checked)}
-                className="w-5 h-5 rounded text-[#198fd9] focus:ring-[#198fd9]"
-              />
-            </label>
-          </div>
-
-          <div className="bg-pink-50/70 border border-pink-200 rounded-xl p-4 text-xs text-pink-900 space-y-2">
-            <p className="font-bold flex items-center gap-1.5 text-pink-800">
-              📘 Instagram Messaging Requirements
-            </p>
-            <ol className="list-decimal list-inside space-y-1 text-[11px] leading-relaxed text-pink-800">
-              <li>Ensure your Instagram account is a <strong>Business or Creator</strong> profile connected to a Facebook Page.</li>
-              <li>In Instagram mobile app: <strong>Settings &gt; Privacy &gt; Messages &gt; Connected Tools</strong>, turn ON <strong>Allow Access to Messages</strong>.</li>
-              <li>In your Meta App, add the <strong>Instagram Graph API</strong> and subscribe to <code className="bg-pink-100 px-1 py-0.5 rounded font-mono">messages</code> under Webhooks.</li>
-            </ol>
-          </div>
-
-          <form onSubmit={handleSaveSettings} className="space-y-4">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div>
-                <label className="block text-xs font-semibold text-[#212326] mb-1.5">
-                  Instagram Handle
-                </label>
-                <input
-                  type="text"
-                  value={instagramHandle}
-                  onChange={(e) => setInstagramHandle(e.target.value)}
-                  placeholder="e.g. @styleflo.ai"
-                  className="w-full h-[50px] bg-white border border-[#f2f3f5] rounded-[6px] px-3.5 py-2 text-sm text-[#212326] font-mono focus:outline-none focus:border-[#198fd9]"
-                />
-              </div>
-
-              <div>
-                <label className="block text-xs font-semibold text-[#212326] mb-1.5">
-                  Instagram Business Account ID
-                </label>
-                <input
-                  type="text"
-                  value={instagramAccountId}
-                  onChange={(e) => setInstagramAccountId(e.target.value)}
-                  placeholder="e.g. 17841400000000000"
-                  className="w-full h-[50px] bg-white border border-[#f2f3f5] rounded-[6px] px-3.5 py-2 text-sm text-[#212326] font-mono focus:outline-none focus:border-[#198fd9]"
-                />
-              </div>
-            </div>
-
-            <div className="pt-3 border-t border-[#f2f3f5] flex justify-end">
-              <button
-                type="submit"
-                disabled={isSaving}
-                className="awb-btn text-sm shadow-md disabled:opacity-50"
-              >
-                {isSaving ? 'Saving Instagram Settings...' : 'Save Instagram Settings'}
-              </button>
-            </div>
-          </form>
-        </div>
+        <MetaChannelComingSoonCard
+          emoji="📸"
+          title="Instagram Messaging"
+          description="Instagram Direct Message integration with your StyleFlo assistant is coming soon."
+        />
       )}
 
       {/* SUB-TAB 3: MESSENGER SETUP */}
@@ -1478,15 +1339,6 @@ export default function WhatsAppMetaView() {
         </div>
       )}
 
-      {/* ADD-ON UPSELL MODAL */}
-      {showUpsellModal && (
-        <AddOnUpsellModal
-          isOpen={showUpsellModal}
-          onClose={() => setShowUpsellModal(false)}
-          category="whatsapp"
-          tenantId={tenantId}
-        />
-      )}
     </div>
   );
 }
