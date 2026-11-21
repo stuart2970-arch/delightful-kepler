@@ -674,6 +674,7 @@ export default function SchedulingView() {
   // Filter appointments for selected date
   const rotaAppointments = appointments.filter(a => {
     if (!a.start_time) return false;
+    if (a.status === 'cancelled') return false;
     const apptDateStr = new Date(a.start_time).toISOString().split('T')[0];
     return apptDateStr === selectedRotaDate;
   });
