@@ -4543,6 +4543,10 @@ Highlighted adjustments in the modal:
 * **Disabled services (local config only)**: Studio, Realtime, Analytics (already off); **edge_runtime** (no `supabase/functions`); **storage.s3_protocol** (Playwright never uses S3 port). **Kept**: Storage API (migration seeds `storage.buckets`), Auth, REST, Postgres, Inbucket/Mailpit (magic-link spec).
 * **VM proof (this agent)**: `scripts/agent-supabase-up.sh` ~39s start+reset+env after image pull; warm re-start ~1s. Use `npm run test:e2e:agent` (docker group / `sg docker` for specs that `docker exec` psql). Pre-push smoke (12 specs) passed. PR #73 Playwright CI on commit `74ee203`: **green** (~6m36s job).
 
+### Session (STYL-231 Google sign-in scopes — 21 Nov 2026)
+* **User**: Remove Calendar scope, `access_type=offline`, and `prompt=consent` from Google sign-in on login, register, and onboard; keep incremental calendar scopes on `/api/integrations/google/authorize`.
+* **Changes**: `tests/styl-231-google-sign-in-scopes.spec.ts` asserts Supabase OAuth and calendar connect URLs.
+
 ### Session (PR 53 merge staging 7b8e407 — Cloud Agent Supabase - 20 Nov 2026)
 * **User**: Merge `origin/staging` at `7b8e407` (PR 73) into PR 53. Keep agent tooling and PR 53 voice/test workflow changes. Green CI; do not merge PR.
 * **Conflicts**: `README.md` session log only — retained all PR 53 notes and the PR 73 Cloud Agent section. Auto-merged: `.cursor/*`, `AGENTS.md`, `package.json` (`supabase@3.2.0`, `test:e2e:agent`), `scripts/agent-supabase-up.sh`, `scripts/test-e2e-agent.sh`, `supabase/config.toml`.
