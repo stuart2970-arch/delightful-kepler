@@ -482,14 +482,8 @@ export default async function DashboardPage(props: { searchParams?: Promise<{ [k
           .reduce((sum, r) => sum + (r.quantity || 0), 0);
       }
 
-      // Fetch bolt-on purchases. Price paid is optional until the STYL-194 migration runs.
-      const addonEmbed = `
-          id,
-          addon_catalog_id,
-          is_active,
-          activated_at,
-          cancel_at_period_end,
-          cancel_at,
+      // Fetch bolt-on purchases. Optional columns drop out one at a time when migrations are pending.
+      const addonCatalogEmbed = `
           addon_catalog (
             name,
             category,
@@ -507,40 +501,50 @@ export default async function DashboardPage(props: { searchParams?: Promise<{ [k
         const message = String(err.message ?? '');
         return code === '42703' || code === 'PGRST204' || /column.*does not exist/i.test(message);
       };
-
-      const withPrice = await queryClient
-        .from('tenant_active_addons')
-        .select(`price_paid_pence, ${addonEmbed}`)
-        .eq('tenant_id', tenantId);
-
-      let purchaseRows: any[] = withPrice.data || [];
-      if (withPrice.error) {
-        if (isMissingAddonColumn(withPrice.error)) {
-          console.warn('[Dashboard] Pending-cancel columns are not available yet:', withPrice.error.message);
-          const withoutCancel = addonEmbed
-            .replace('cancel_at_period_end,', '')
-            .replace('cancel_at,', '');
-          const fallback = await queryClient
-            .from('tenant_active_addons')
-            .select(`price_paid_pence, ${withoutCancel}`)
-            .eq('tenant_id', tenantId);
-          purchaseRows = fallback.data || [];
-          if (fallback.error && isMissingAddonColumn(fallback.error)) {
-            console.warn('[Dashboard] price_paid_pence is not available yet:', fallback.error.message);
-            const legacy = await queryClient
-              .from('tenant_active_addons')
-              .select(withoutCancel)
-              .eq('tenant_id', tenantId);
-            if (legacy.error) {
-              console.warn('[Dashboard] tenant_active_addons legacy read failed:', legacy.error.code || 'unknown');
-            }
-            purchaseRows = legacy.data || [];
-          } else if (fallback.error) {
-            console.warn('[Dashboard] tenant_active_addons fallback read failed:', fallback.error.code || 'unknown');
-          }
-        } else {
-          console.warn('[Dashboard] tenant_active_addons read failed:', withPrice.error.message);
+      const missingAddonColumnName = (err: { message?: string } | null) => {
+        const message = String(err?.message ?? '');
+        const patterns = [
+          /column\s+[\w.]+\.(\w+)\s+does not exist/i,
+          /Could not find the '(\w+)' column/i,
+        ];
+        for (const pattern of patterns) {
+          const match = message.match(pattern);
+          if (match?.[1]) return match[1];
         }
+        return null;
+      };
+
+      let addonTopLevelFields = [
+        'price_paid_pence',
+        'id',
+        'addon_catalog_id',
+        'is_active',
+        'activated_at',
+        'cancel_at_period_end',
+        'cancel_at',
+      ];
+      let purchaseRows: any[] = [];
+      for (let attempt = 0; attempt < addonTopLevelFields.length + 1; attempt += 1) {
+        const select = [...addonTopLevelFields, addonCatalogEmbed].join(',\n          ');
+        const result = await queryClient
+          .from('tenant_active_addons')
+          .select(select)
+          .eq('tenant_id', tenantId);
+        if (!result.error) {
+          purchaseRows = result.data || [];
+          break;
+        }
+        if (!isMissingAddonColumn(result.error)) {
+          console.warn('[Dashboard] tenant_active_addons read failed:', result.error.message);
+          break;
+        }
+        const missing = missingAddonColumnName(result.error);
+        if (!missing || !addonTopLevelFields.includes(missing)) {
+          console.warn('[Dashboard] tenant_active_addons missing-column fallback stopped:', result.error.message);
+          break;
+        }
+        console.warn(`[Dashboard] ${missing} column is not available yet:`, result.error.message);
+        addonTopLevelFields = addonTopLevelFields.filter((field) => field !== missing);
       }
       const activeAddons = purchaseRows.filter((row: any) => row.is_active);
       billingData.addons = activeAddons.map((a: any) => ({

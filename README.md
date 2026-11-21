@@ -4585,3 +4585,8 @@ Highlighted adjustments in the modal:
 * **User**: STYL-249 follow-ups — optimistic cancel updates, out-of-order Stripe event guard, set-date `cancel_at`, item `current_period_end` fallback, billing select missing-column retry.
 * **Changes**: `process-stripe-webhook.ts`, `addon-subscription-status.ts`, `account-ownership.ts`, `dashboard/page.tsx` (select fallback only); migration `20261121180200_styl261_stripe_cancel_event_guard.sql`; tests `styl-261-webhook-cancel-race.spec.ts` + `styl-249` mock `select` on update.
 * **Verify**: `bash scripts/agent-supabase-up.sh` then Playwright `styl-249` / `styl-250` / `styl-261` (15 passed); `NODE_OPTIONS=--max-old-space-size=8192 npm run typecheck`.
+
+### Session (STYL-219 Meta channel labels — 21 Nov 2026)
+* **User**: WhatsApp/Instagram/Messenger badges must say **Coming soon**, not **Available**, with shared helper to avoid drift.
+* **Changes**: `src/lib/channels/meta-messaging-status.ts`; `WhatsAppMetaView`, `DashboardClient`, `InboxView`; `tests/styl-219-meta-channel-labels.spec.ts`.
+* **Verify**: `bash scripts/test-e2e-agent.sh tests/styl-219-meta-channel-labels.spec.ts` — 2 passed; pre-push 64 related specs passed.

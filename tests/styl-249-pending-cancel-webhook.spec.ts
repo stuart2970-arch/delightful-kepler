@@ -46,6 +46,11 @@ function createStore(addons: Row[] = []) {
     const filters: Array<[string, string, any]> = [];
     let pendingInsert: Row | null = null;
     const rowMatches = (row: Row) => filters.every(([op, col, val]) => {
+      if (op === 'eq' && col === 'cancel_at') {
+        const left = Date.parse(String(row[col]));
+        const right = Date.parse(String(val));
+        if (!Number.isNaN(left) && !Number.isNaN(right)) return left === right;
+      }
       if (op === 'eq') return row[col] === val;
       if (op === 'in') return Array.isArray(val) && val.includes(row[col]);
       if (op === 'neq') return row[col] != null && row[col] !== val;

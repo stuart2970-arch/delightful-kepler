@@ -30,7 +30,11 @@ const root = process.cwd();
 
 type Row = Record<string, any>;
 
-function createStore(addons: Row[] = []) {
+type StoreOptions = {
+  stripeCancelEventColumnMissing?: boolean;
+};
+
+function createStore(addons: Row[] = [], options: StoreOptions = {}) {
   const tables: Record<string, Row[]> = {
     addon_catalog: [{
       id: CATALOG,
@@ -52,7 +56,14 @@ function createStore(addons: Row[] = []) {
   function from(name: string) {
     const filters: Array<[string, string, any]> = [];
     let pendingInsert: Row | null = null;
+    let pendingSelect = '';
+    let pendingUpdate: Row | null = null;
     const rowMatches = (row: Row) => filters.every(([op, col, val]) => {
+      if (op === 'eq' && col === 'cancel_at') {
+        const left = Date.parse(String(row[col]));
+        const right = Date.parse(String(val));
+        if (!Number.isNaN(left) && !Number.isNaN(right)) return left === right;
+      }
       if (op === 'eq') return row[col] === val;
       if (op === 'in') return Array.isArray(val) && val.includes(row[col]);
       if (op === 'neq') return row[col] != null && row[col] !== val;
@@ -68,8 +79,19 @@ function createStore(addons: Row[] = []) {
       return true;
     });
     const matched = () => (tables[name] || []).filter(rowMatches);
+    const guardColumnSelectError = () => ({
+      data: null,
+      error: {
+        code: 'PGRST204',
+        message: "Could not find the 'stripe_cancel_event_created_at' column of 'tenant_active_addons' in the schema cache",
+      },
+    });
+
     const api: any = {
-      select() { return api; },
+      select(cols?: string) {
+        if (cols) pendingSelect = cols;
+        return api;
+      },
       eq(column: string, value: any) {
         filters.push(['eq', column, value]);
         return api;
@@ -97,6 +119,7 @@ function createStore(addons: Row[] = []) {
         return api;
       },
       update(row: Row) {
+        pendingUpdate = row;
         const chain: any = {
           eq(column: string, value: any) {
             filters.push(['eq', column, value]);
@@ -110,8 +133,16 @@ function createStore(addons: Row[] = []) {
             return chain;
           },
           then(resolve: (value: any) => unknown, reject?: (reason: any) => unknown) {
+            if (
+              name === 'tenant_active_addons'
+              && options.stripeCancelEventColumnMissing
+              && row.stripe_cancel_event_created_at != null
+            ) {
+              return Promise.resolve(guardColumnSelectError()).then(resolve, reject);
+            }
             const hits = matched();
             for (const item of hits) Object.assign(item, row);
+            pendingUpdate = null;
             return Promise.resolve({ data: hits, error: null }).then(resolve, reject);
           },
         };
@@ -122,6 +153,15 @@ function createStore(addons: Row[] = []) {
       },
       then(resolve: (value: any) => unknown, reject?: (reason: any) => unknown) {
         const result = Promise.resolve().then(() => {
+          if (
+            !pendingInsert
+            && !pendingUpdate
+            && name === 'tenant_active_addons'
+            && options.stripeCancelEventColumnMissing
+            && pendingSelect.includes('stripe_cancel_event_created_at')
+          ) {
+            return guardColumnSelectError();
+          }
           if (!pendingInsert) return { data: matched(), error: null };
           const row = pendingInsert;
           (tables[name] || (tables[name] = [])).push({
@@ -288,6 +328,23 @@ test.describe('STYL-261 webhook cancel guard', () => {
     expect(newerCleared).toEqual({ ok: true });
     expect(store.addons[0].cancel_at_period_end).toBe(false);
     expect(store.audit.filter((row) => row.action === 'addon_cancel_unscheduled')).toHaveLength(1);
+  });
+
+  test('syncs cancel state when stripe_cancel_event_created_at is not migrated yet', async () => {
+    const store = createStore([activeRow()], { stripeCancelEventColumnMissing: true });
+    const result = await syncBoltOnPendingCancellation(
+      store,
+      subscriptionObject({
+        cancel_at_period_end: true,
+        cancel_at: CANCEL_UNIX,
+      }),
+      { eventCreatedAt: 1_800_000_100 },
+    );
+    expect(result).toEqual({ ok: true });
+    expect(store.addons[0].cancel_at_period_end).toBe(true);
+    expect(Date.parse(store.addons[0].cancel_at)).toBe(Date.parse(CANCEL_AT));
+    expect(store.addons[0].stripe_cancel_event_created_at).toBeUndefined();
+    expect(store.audit.filter((row) => row.action === 'addon_cancel_scheduled')).toHaveLength(1);
   });
 
   test('customer.subscription.updated end-to-end honours item period end for set-date cancel', async () => {
