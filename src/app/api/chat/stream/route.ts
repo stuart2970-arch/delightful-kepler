@@ -1,5 +1,12 @@
 import { verifyChatSessionToken, checkRateLimit, type ChatSessionPayload } from '@/lib/chat-session';
-import { logMeteredUsage, checkFeatureEntitlement, CHAT_MESSAGE_FEATURE_ID } from '@/lib/entitlements';
+import { checkFeatureEntitlement, CHAT_MESSAGE_FEATURE_ID } from '@/lib/entitlements';
+import {
+  assistantReplyCountAtFairUseLimit,
+  CHAT_CONVERSATION_CLOSING_REPLY,
+  hasConversationUsageRow,
+  meterWebChatConversationOnce,
+  shouldStartNewConversationSession,
+} from '@/lib/chat/conversation-metering';
 
 import { NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
@@ -560,13 +567,6 @@ Help them specify:
       }
     }
 
-    // Metered usage tracking. Owner previews are not customer traffic.
-    if (!isPreview && tenantId && tenantId !== '00000000-0000-0000-0000-000000000000') {
-      logMeteredUsage(supabaseAdmin, tenantId, CHAT_MESSAGE_FEATURE_ID, 1, 'Inbound web chat message').catch((err) => {
-        console.warn(`[Chat Stream][${requestId}] Metered usage logging failure:`, err?.message);
-      });
-    }
-
     // 4. Generate user message embedding using central generateEmbedding helper
     let queryEmbedding: number[] = [];
     if (chatbotId !== 'styleflo-onboarding-flobot') {
@@ -760,13 +760,18 @@ Help them specify:
     console.log(`[Chat Stream][${requestId}] Resolving conversation session...`);
     let conversationId: string = '00000000-0000-0000-0000-000000000000';
 
+    let assistantRepliesInConversation = 0;
+
     if (chatbotId !== 'styleflo-onboarding-flobot') {
-      const { data: conversation, error: convError } = await supabaseAdmin
+      const nowMs = Date.now();
+      const { data: latestConversation, error: convError } = await supabaseAdmin
         .from('conversations')
-        .select('id')
+        .select('id, created_at')
         .eq('tenant_id', tenantId)
         .eq('chatbot_id', targetBotUuid)
         .eq('user_session_id', sessionId)
+        .order('created_at', { ascending: false })
+        .limit(1)
         .maybeSingle();
 
       if (convError) {
@@ -774,8 +779,22 @@ Help them specify:
         return NextResponse.json({ error: `Conversation query failed: ${convError.message}` }, { status: 200, headers: corsHeaders });
       }
 
-      if (!conversation) {
-        // Create new conversation session
+      let reuseConversationId: string | null = latestConversation?.id ?? null;
+      if (reuseConversationId) {
+        const { data: lastMessage } = await supabaseAdmin
+          .from('messages')
+          .select('created_at')
+          .eq('conversation_id', reuseConversationId)
+          .order('created_at', { ascending: false })
+          .limit(1)
+          .maybeSingle();
+        const lastActivity = lastMessage?.created_at || latestConversation?.created_at;
+        if (shouldStartNewConversationSession(lastActivity, nowMs)) {
+          reuseConversationId = null;
+        }
+      }
+
+      if (!reuseConversationId) {
         const { data: newConv, error: createConvError } = await supabaseAdmin
           .from('conversations')
           .insert({
@@ -793,8 +812,35 @@ Help them specify:
         conversationId = newConv.id;
         console.log(`[Chat Stream][${requestId}] Initialized new conversation: ${conversationId}`);
       } else {
-        conversationId = conversation.id;
+        conversationId = reuseConversationId;
         console.log(`[Chat Stream][${requestId}] Found existing conversation: ${conversationId}`);
+      }
+
+      const { count: botCount } = await supabaseAdmin
+        .from('messages')
+        .select('*', { count: 'exact', head: true })
+        .eq('conversation_id', conversationId)
+        .eq('sender_type', 'bot');
+      assistantRepliesInConversation = typeof botCount === 'number' ? botCount : 0;
+
+      if (!isPreview && tenantId && tenantId !== '00000000-0000-0000-0000-000000000000') {
+        const alreadyMetered = await hasConversationUsageRow(supabaseAdmin, tenantId, conversationId);
+        if (!alreadyMetered) {
+          const entitlement = await checkFeatureEntitlement(supabaseAdmin, tenantId, CHAT_MESSAGE_FEATURE_ID, 1);
+          if (!entitlement.allowed) {
+            return NextResponse.json(
+              {
+                error: entitlement.error
+                  || 'Your monthly chat conversation allowance has been reached. Please upgrade your plan to continue.',
+              },
+              { status: 429, headers: corsHeaders },
+            );
+          }
+          const metered = await meterWebChatConversationOnce(supabaseAdmin, tenantId, conversationId);
+          if (!metered.logged) {
+            console.warn(`[Chat Stream][${requestId}] Conversation metering failed for ${conversationId}`);
+          }
+        }
       }
     }
 
@@ -1129,7 +1175,13 @@ ${staffContext}`;
     );
     let result: any;
 
-    if (mockModelReply) {
+    if (assistantReplyCountAtFairUseLimit(assistantRepliesInConversation)) {
+      result = {
+        textStream: (async function* () {
+          yield CHAT_CONVERSATION_CLOSING_REPLY;
+        })(),
+      };
+    } else if (mockModelReply) {
       const mockChunks: string[] = Array.isArray(mockModelReply) ? mockModelReply : [mockModelReply];
       result = {
         textStream: (async function* () {

@@ -673,7 +673,7 @@ export default async function DashboardPage(props: { searchParams?: Promise<{ [k
           if (ent.feature_id === 'message_allowance') {
             thresholds.push({
               featureId: ent.feature_id,
-              featureName: ent.features?.name || 'Monthly Chat Messages',
+              featureName: ent.features?.name || 'Monthly Chat Conversations',
               percentUsed,
               currentUsage,
               limit,

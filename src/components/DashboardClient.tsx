@@ -1094,7 +1094,7 @@ const globalBotId = '00000000-0000-0000-0000-000000000000';
                   {/* Message Allowance */}
                   <div className="bg-[var(--awb-color2)] p-5 rounded-xl border border-[var(--awb-color3)]">
                     <div className="flex justify-between items-start mb-2">
-                      <h4 className="text-sm font-bold text-[var(--awb-color7)]">Monthly Chat Messages</h4>
+                      <h4 className="text-sm font-bold text-[var(--awb-color7)]">Monthly Chat Conversations</h4>
                       <button
                         onClick={() => {
                           const isLocal = typeof window !== 'undefined' && (window.location.hostname.includes('localhost') || window.location.hostname.includes('.test'));
@@ -1106,7 +1106,7 @@ const globalBotId = '00000000-0000-0000-0000-000000000000';
                           }
                         }}
                         className="bg-[var(--awb-color3)] hover:bg-[var(--awb-color4)] text-[var(--awb-color8)] text-[11px] font-bold py-1 px-3 rounded-[4px] shadow-sm transition-colors cursor-pointer flex items-center gap-1 shrink-0"
-                        title="Manage monthly chat message quota"
+                        title="Manage monthly chat conversation quota"
                       >
                         Plan Allowance
                       </button>

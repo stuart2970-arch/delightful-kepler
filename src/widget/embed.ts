@@ -1356,6 +1356,19 @@ const CONNECTING_TIMEOUT_MS = 20000;
       hideConnecting();
     }
 
+  function endVisitorChatSession() {
+    const tokenKey = `styleflo_session_token_${chatbotId}`;
+    const sessIdKey = `styleflo_session_id_${chatbotId}`;
+    const expKey = `styleflo_session_exp_${chatbotId}`;
+    localStorage.removeItem(sessionKey);
+    localStorage.removeItem(tokenKey);
+    localStorage.removeItem(sessIdKey);
+    localStorage.removeItem(expKey);
+    localStorage.removeItem('styleflo_session_token');
+    const nextSessionId = `session_${crypto.randomUUID()}`;
+    localStorage.setItem(sessionKey, nextSessionId);
+  }
+
     function closeChatUI() {
       isOpen = false;
       chatWindow.classList.remove('scale-100', 'opacity-100', 'pointer-events-auto');
@@ -1368,6 +1381,7 @@ const CONNECTING_TIMEOUT_MS = 20000;
       gateMode = 'text';
       renderGateNotice();
       cancelVoiceAttempt();
+      endVisitorChatSession();
 
       if (isVapiActive && vapiInstance) {
         vapiInstance.stop();

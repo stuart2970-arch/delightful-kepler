@@ -19,3 +19,9 @@ export function invoiceAddonGrantSectorTag(
 export function oneOffGrantSectorTag(sessionId: string, featureId: string): string {
   return `one_off:${sessionId}:${featureId}`;
 }
+
+export const CHAT_CONVERSATION_PREFIX = 'chat_conversation:';
+
+export function chatConversationSectorTag(conversationId: string): string {
+  return `${CHAT_CONVERSATION_PREFIX}${conversationId}`;
+}
