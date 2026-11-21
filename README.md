@@ -4546,3 +4546,9 @@ Highlighted adjustments in the modal:
 ### Session (PR 53 merge staging 7b8e407 — Cloud Agent Supabase - 20 Nov 2026)
 * **User**: Merge `origin/staging` at `7b8e407` (PR 73) into PR 53. Keep agent tooling and PR 53 voice/test workflow changes. Green CI; do not merge PR.
 * **Conflicts**: `README.md` session log only — retained all PR 53 notes and the PR 73 Cloud Agent section. Auto-merged: `.cursor/*`, `AGENTS.md`, `package.json` (`supabase@3.2.0`, `test:e2e:agent`), `scripts/agent-supabase-up.sh`, `scripts/test-e2e-agent.sh`, `supabase/config.toml`.
+
+### Session (STYL-388 / STYL-384 voice diagnostics and no recordings - 21 Nov 2026)
+* **User**: Package C — production widget showed "Voice is currently unavailable"; recordings still appeared in Vapi after `recordingEnabled=false`. Two PRs to `staging`, stacked.
+* **STYL-388 (PR #76)**: Distinct voice error `code`s (`voice_gate_off`, `no_private_key`, `no_webhook_secret`, `vapi_401`, etc.); `VOICE_ENABLED=true` in production `apphosting.yaml`; known production Vapi IDs allowed only when `resolveAppEnv` is production; widget uses `voiceUnavailableCode` + British-friendly copy; tests `styl-388-voice-diagnostics.spec.ts`.
+* **STYL-384 (PR #78, stacked on #76)**: `vapi-recording-policy.ts` / `applyVapiNoRecordingFlags` on web-call, widget, assistant webhook, unavailable assistant; end-of-call warns when Vapi sends recording URLs but keeps `recording_url` null; tests `styl-384-vapi-no-recording.spec.ts`. Widget bundles rebuilt.
+* **Verify**: Local `bash scripts/agent-supabase-up.sh` + `bash scripts/test-e2e-agent.sh` on voice specs; pre-push 160 passed on STYL-384 branch. CI on #76 pending at push time. Stuart/ops: confirm production `VOICE_ENABLED`, Vapi private key validity, and dashboard assistant recording toggles.
