@@ -1,4 +1,8 @@
 import { allocateRollingCredits as allocateRollingCreditsDefault } from '@/lib/entitlements';
+import {
+  claimStripeWebhookEvent,
+  completeStripeWebhookEvent,
+} from '@/lib/billing/stripe-webhook-event-idempotency';
 import { isBoltOnMetadata, mapAddonCategoryToFeatureId } from '@/lib/billing/bolt-on';
 import { resolvePricePaidPence } from '@/lib/billing/account-ownership';
 import {
