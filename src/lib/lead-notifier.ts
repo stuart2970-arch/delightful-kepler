@@ -2,7 +2,8 @@ import { createClient } from '@supabase/supabase-js';
 import formData from 'form-data';
 import Mailgun from 'mailgun.js';
 import { buildBrandedEmailHtml } from '@/lib/email/branded-email-layout';
-import { publicAppPath } from '@/lib/env/public-app-url';
+import { resolveServerPublicAppOrigin } from '@/lib/env/public-app-url';
+import { escapeHtml } from '@/lib/email/escape-html';
 
 function getSupabaseAdmin() {
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
@@ -223,31 +224,43 @@ Log into your StyleFlo Dashboard to view and manage this conversation.
 ==================================================
 `.trim();
 
-    const dashboardUrl = publicAppPath('/dashboard');
+    const dashboardUrl = `${resolveServerPublicAppOrigin().replace(/\/+$/, '')}/dashboard`;
     const channelLabel = channelType === 'voice' ? 'Voice call' : 'Web chat';
+    const safeChatbot = escapeHtml(chatbotName);
+    const safeBusiness = escapeHtml(businessName);
+    const safeCustomer = customerName ? escapeHtml(customerName) : '';
+    const safeEmail = escapeHtml(emailDisplay);
+    const safePhone = escapeHtml(phoneDisplay);
+    const safeIntent = escapeHtml(intentCategory);
+    const safeSnippet = escapeHtml(userIntentSnippet);
+    const transcriptHtml = escapeHtml(
+      formattedTranscriptLines.length > 0
+        ? formattedTranscriptLines.join('\n\n')
+        : (voiceTranscript || combinedAllText || 'No transcript text available.'),
+    );
     const htmlBody = buildBrandedEmailHtml({
       title: 'New Lead Captured',
-      subtitle: `Chatbot: ${chatbotName} | Business: ${businessName} | ${channelLabel}`,
+      subtitle: `Chatbot: ${safeChatbot} | Business: ${safeBusiness} | ${channelLabel}`,
       bodyHtml: `
     <div style="background-color: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 18px; margin-bottom: 20px;">
       <h3 style="margin-top: 0; margin-bottom: 12px; font-size: 16px; color: #1e293b;">Consolidated contact details</h3>
       <table style="width: 100%; border-collapse: collapse; font-size: 14px;">
-        ${customerName ? `<tr><td style="padding: 4px 0; color: #64748b; width: 140px;">Customer name:</td><td style="padding: 4px 0; font-weight: 600; color: #0f172a;">${customerName}</td></tr>` : ''}
+        ${safeCustomer ? `<tr><td style="padding: 4px 0; color: #64748b; width: 140px;">Customer name:</td><td style="padding: 4px 0; font-weight: 600; color: #0f172a;">${safeCustomer}</td></tr>` : ''}
         <tr>
           <td style="padding: 4px 0; color: #64748b; width: 140px;">Email:</td>
-          <td style="padding: 4px 0; font-weight: 600; color: #0f172a;">${emailDisplay}</td>
+          <td style="padding: 4px 0; font-weight: 600; color: #0f172a;">${safeEmail}</td>
         </tr>
         <tr>
           <td style="padding: 4px 0; color: #64748b; width: 140px;">Mobile:</td>
-          <td style="padding: 4px 0; font-weight: 600; color: #0f172a;">${phoneDisplay}</td>
+          <td style="padding: 4px 0; font-weight: 600; color: #0f172a;">${safePhone}</td>
         </tr>
       </table>
     </div>
     <div style="background-color: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 8px; padding: 18px; margin-bottom: 20px;">
-      <p style="margin: 0 0 6px 0; font-size: 14px; font-weight: 600; color: #15803d;">Category: ${intentCategory}</p>
-      <p style="margin: 0; font-size: 14px; color: #166534; font-style: italic;">"${userIntentSnippet}"</p>
+      <p style="margin: 0 0 6px 0; font-size: 14px; font-weight: 600; color: #15803d;">Category: ${safeIntent}</p>
+      <p style="margin: 0; font-size: 14px; color: #166534; font-style: italic;">&quot;${safeSnippet}&quot;</p>
     </div>
-    <div style="background-color: #f1f5f9; border-radius: 8px; padding: 16px; font-size: 13px; color: #334155; max-height: 400px; overflow-y: auto; white-space: pre-wrap; font-family: monospace;">${formattedTranscriptLines.length > 0 ? formattedTranscriptLines.join('\n\n') : (voiceTranscript || combinedAllText || 'No transcript text available.')}</div>`,
+    <div style="background-color: #f1f5f9; border-radius: 8px; padding: 16px; font-size: 13px; color: #334155; max-height: 400px; overflow-y: auto; white-space: pre-wrap; font-family: monospace;">${transcriptHtml}</div>`,
       ctaHref: dashboardUrl,
       ctaLabel: 'View in StyleFlo Dashboard',
     });
