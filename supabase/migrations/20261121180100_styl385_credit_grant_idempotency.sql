@@ -75,27 +75,34 @@ BEGIN
       ELSE NULL
     END;
 
-    INSERT INTO public.usage_ledger (
-      tenant_id,
-      feature_id,
-      quantity,
-      usage_type,
-      billing_period_start,
-      expires_at,
-      addon_catalog_id,
-      sector_tag,
-      recorded_at
-    ) VALUES (
-      p_tenant_id,
-      v_feature_id,
-      v_quantity,
-      'allocation',
-      v_now,
-      v_expires,
-      p_addon_catalog_id,
-      v_sector,
-      v_now
-    );
+    BEGIN
+      INSERT INTO public.usage_ledger (
+        tenant_id,
+        feature_id,
+        quantity,
+        usage_type,
+        billing_period_start,
+        expires_at,
+        addon_catalog_id,
+        sector_tag,
+        recorded_at
+      ) VALUES (
+        p_tenant_id,
+        v_feature_id,
+        v_quantity,
+        'allocation',
+        v_now,
+        v_expires,
+        p_addon_catalog_id,
+        v_sector,
+        v_now
+      );
+    EXCEPTION
+      WHEN unique_violation THEN
+        IF SQLERRM NOT ILIKE '%usage_ledger_one_off_grant_key%' THEN
+          RAISE;
+        END IF;
+    END;
   END LOOP;
 
   RETURN jsonb_build_object('granted', true, 'already_granted', false);

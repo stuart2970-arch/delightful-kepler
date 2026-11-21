@@ -301,8 +301,10 @@ type ActivateBoltOnResult = {
   error?: string;
 };
 
-function isUniqueViolation(error: any): boolean {
-  return String(error?.code ?? '') === '23505';
+function isUniqueViolation(error: { code?: string; message?: string } | null | undefined): boolean {
+  if (!error) return false;
+  if (String(error.code ?? '') === '23505') return true;
+  return /duplicate key|unique constraint/i.test(String(error.message ?? ''));
 }
 
 async function allocateCreditOrSkipDuplicate(
@@ -317,7 +319,7 @@ async function allocateCreditOrSkipDuplicate(
     const row = await allocateRollingCredits(tenantId, featureId, quantity, addonCatalogId, options);
     return { duplicate: false, id: row?.id };
   } catch (err: any) {
-    if (err?.code === '23505') return { duplicate: true };
+    if (isUniqueViolation(err)) return { duplicate: true };
     throw err;
   }
 }
@@ -910,7 +912,7 @@ export async function grantPlanVoiceMinutesForRenewal(
       billingPeriodStart: periodStart,
     });
   } catch (err: any) {
-    if (err?.code === '23505') {
+    if (isUniqueViolation(err)) {
       return { granted: false, minutes: 0, reason: 'already_granted' };
     }
     throw err;
@@ -936,7 +938,17 @@ export async function handleStripeBillingEvent(
   if (claim.action === 'locked') {
     return {
       status: 500,
-      body: { success: false, error: 'Stripe webhook event is still processing' },
+      body: { success: false, error: 'Stripe webhook event is still processing', retry: true },
+    };
+  }
+  if (claim.action === 'error') {
+    return {
+      status: 500,
+      body: {
+        success: false,
+        error: claim.message || 'Could not claim Stripe webhook event',
+        retry: true,
+      },
     };
   }
 
