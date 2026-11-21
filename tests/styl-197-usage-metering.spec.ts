@@ -56,10 +56,11 @@ function enableVoiceEnv(): () => void {
 }
 
 test.describe('STYL-197 usage metering and allowances', () => {
-  test('chat meters message_allowance, the id the allowance checker reads', () => {
+  test('chat meters message_allowance once per conversation', () => {
     expect(CHAT_MESSAGE_FEATURE_ID).toBe('message_allowance');
     const src = readFileSync(join(root, 'src/app/api/chat/stream/route.ts'), 'utf8');
     expect(src).toContain('CHAT_MESSAGE_FEATURE_ID');
+    expect(src).toContain('meterWebChatConversationOnce');
     expect(src).not.toContain("'chat_messages'");
     expect(src).not.toContain('"chat_messages"');
   });

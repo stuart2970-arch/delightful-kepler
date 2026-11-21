@@ -1094,7 +1094,7 @@ const globalBotId = '00000000-0000-0000-0000-000000000000';
                   {/* Message Allowance */}
                   <div className="bg-[var(--awb-color2)] p-5 rounded-xl border border-[var(--awb-color3)]">
                     <div className="flex justify-between items-start mb-2">
-                      <h4 className="text-sm font-bold text-[var(--awb-color7)]">Monthly Chat Messages</h4>
+                      <h4 className="text-sm font-bold text-[var(--awb-color7)]">Monthly Chat Conversations</h4>
                       <button
                         onClick={() => {
                           const isLocal = typeof window !== 'undefined' && (window.location.hostname.includes('localhost') || window.location.hostname.includes('.test'));
@@ -1106,7 +1106,7 @@ const globalBotId = '00000000-0000-0000-0000-000000000000';
                           }
                         }}
                         className="bg-[var(--awb-color3)] hover:bg-[var(--awb-color4)] text-[var(--awb-color8)] text-[11px] font-bold py-1 px-3 rounded-[4px] shadow-sm transition-colors cursor-pointer flex items-center gap-1 shrink-0"
-                        title="Manage monthly chat message quota"
+                        title="Manage monthly chat conversation quota"
                       >
                         Plan Allowance
                       </button>
@@ -1298,6 +1298,28 @@ const globalBotId = '00000000-0000-0000-0000-000000000000';
                           className="w-full bg-gray-300 text-gray-500 text-xs font-bold py-2 px-3 rounded-[4px] cursor-not-allowed flex items-center justify-center gap-1.5"
                         >
                           <span>💬</span> {META_MESSAGING_COMING_SOON_LABEL}
+                        </button>
+                      </div>
+
+                      <div className="bg-[var(--awb-color2)] border border-[var(--awb-color3)] rounded-xl p-4 flex flex-col justify-between shadow-sm opacity-50 filter grayscale pointer-events-none cursor-not-allowed select-none">
+                        <div>
+                          <div className="flex items-center justify-between mb-2">
+                            <div className="flex items-center gap-2">
+                              <span className="text-xl">📸</span>
+                              <h5 className="text-xs font-extrabold text-[var(--awb-color8)]">Instagram</h5>
+                            </div>
+                            <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded bg-gray-200 text-gray-700">{META_MESSAGING_COMING_SOON_LABEL}</span>
+                          </div>
+                          <p className="text-[11px] text-[var(--awb-color6)] mb-3 leading-relaxed">
+                            Instagram Direct Message integration is {META_MESSAGING_COMING_SOON_LABEL.toLowerCase()}.
+                          </p>
+                        </div>
+                        <button
+                          type="button"
+                          disabled
+                          className="w-full bg-gray-300 text-gray-500 text-xs font-bold py-2 px-3 rounded-[4px] cursor-not-allowed flex items-center justify-center gap-1.5"
+                        >
+                          <span>📸</span> {META_MESSAGING_COMING_SOON_LABEL}
                         </button>
                       </div>
                     </div>

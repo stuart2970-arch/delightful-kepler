@@ -104,6 +104,8 @@ const tenantRow = {
   currency: 'GBP',
   domain: '',
   max_advance_weeks: 12,
+  plan_tier: 'foundation',
+  is_active: true,
 };
 
 function eqParam(url: URL, key: string): string {
@@ -160,6 +162,35 @@ function handleSupabase(req: IncomingMessage, res: ServerResponse) {
         return;
       }
       sendJson(res, 200, object ? staffRow : [staffRow]);
+      return;
+    }
+    if (table === 'tier_entitlements') {
+      const feature = eqParam(url, 'feature_id');
+      const limitValue = feature === 'message_allowance' ? 1500 : feature === 'voice_minutes' ? 10 : 0;
+      const row = { limit_value: limitValue };
+      sendJson(res, 200, object ? row : [row]);
+      return;
+    }
+    if (table === 'tenant_entitlements' || table === 'usage_ledger' || table === 'document_chunks' || table === 'tenant_integrations') {
+      sendJson(res, 200, object ? null : []);
+      return;
+    }
+    if (table === 'conversations') {
+      if (req.method === 'HEAD') {
+        res.writeHead(200, { 'content-range': '*/0' });
+        res.end();
+        return;
+      }
+      sendJson(res, 200, object ? null : []);
+      return;
+    }
+    if (table === 'messages') {
+      if (req.method === 'HEAD') {
+        res.writeHead(200, { 'content-range': '*/0' });
+        res.end();
+        return;
+      }
+      sendJson(res, 200, object ? null : []);
       return;
     }
     sendJson(res, 200, object ? null : []);

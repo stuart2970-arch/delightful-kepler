@@ -126,6 +126,20 @@ This runbook documents the key fixes and architecture enhancements implemented d
 
 ### Session Chat History Log
 
+### Session (STYL-310 conversation metering CI fix — 21 Nov 2026)
+* **User / OpenClaw**: PR #105 failed CI because `tests/styl-199-mock-reply-guard.spec.ts` returned 429 after the conversation entitlement gate — the local Supabase stub lacked `tier_entitlements`, `usage_ledger`, and conversation/message reads. Also move the gate before embedding/RAG, fail safe on message lookup errors, treat `23505` on ledger insert as already metered, and reset widget transcript on close.
+* **Merge**: Merged `origin/staging` (includes merged STYL-405 / STYL-309) into `cursor/styl-310-conversation-metering-62fa`.
+* **Stream**: Conversation resolve + `checkFeatureEntitlement` / `meterWebChatConversationOnce` run before `generateEmbedding`; transient `messages` count/activity errors return 503 instead of opening a duplicate session.
+* **Metering**: Direct `usage_ledger` insert with unique `sector_tag`; `23505` → `alreadyMetered` (no warning). STYL-199 stub serves metering tables and Foundation tenant row.
+* **Widget**: `resetChatTranscriptForNewSession()` on close (rebuilt `public/widget.js` / `public/embed.js`).
+* **Tests**: `bash scripts/agent-supabase-up.sh`, affected specs, then Husky pre-push (278 Playwright tests) — passed locally.
+
+### Session (STYL-401 / STYL-315 dashboard copy — 21 Nov 2026)
+* **User / Jira**: Package B (R3) — WhatsApp and Instagram dashboard cards show **Coming soon** with no price or purchase/activate actions (STYL-401); chat-allowance usage alert must not upsell Extra Knowledge and should point to Subscriptions & Bolt-ons (STYL-315).
+* **STYL-401**: `WhatsAppMetaView` upsell/onboarding replaced with `Coming soon` for disconnected WhatsApp; Instagram setup tab is coming soon only; `DashboardClient` adds a matching Instagram monthly bolt-on placeholder card.
+* **STYL-315**: Already on `staging` (`page.tsx` + `CapacityThresholdBanner` use `upgradeAction: 'plan'` and **View plan**); regression covered by existing `styl-197-usage-metering.spec.ts`.
+* **Tests**: `bash scripts/agent-supabase-up.sh` then `bash scripts/test-e2e-agent.sh tests/styl-401-315-dashboard-copy.spec.ts tests/styl-219-meta-channel-labels.spec.ts tests/styl-197-usage-metering.spec.ts -g "dashboard usage alerts|the dashboard warns"` — passed locally.
+
 ### Session (STYL-279 / STYL-385 OpenClaw rework - 21 Nov 2026)
 * **Rework**: `claim_stripe_webhook_event` now locks the existing row with `SELECT … FOR UPDATE` before reclaiming failed/stale `processing` rows; claim RPC errors return HTTP 500 with `retry: true`; added concurrent failed-retry Playwright test.
 * **STYL-385 merge**: Merged updated 279 branch; `grant_one_off_pack` skips `usage_ledger_one_off_grant_key` unique violations per credit; JS duplicate detection uses `isUniqueViolation`.
@@ -4615,3 +4629,19 @@ Highlighted adjustments in the modal:
 * **User**: Revert `tsconfig.json` churn (not ticket-related); merge `origin/staging` at 631e73e (PRs 90–95); re-run gate + homepage-widget specs.
 * **Changes**: `tsconfig.json` restored to match `staging` exactly; merge brought STYL-218 billing copy + STYL-400 CI concurrency.
 * **Verify**: typecheck; `styl-295-296-voice-minute-gate.spec.ts` (7); `homepage-widget.spec.ts` (14).
+
+### Session (Package A — STYL-405 / STYL-309 / STYL-310 — 21 Nov 2026)
+* **User**: R3 chat metering and billing grants on `staging`: quoted-column fallbacks, checkout voice grant from `tier_entitlements`, conversation-based chat metering (1,500 Foundation conversations, 30-minute idle, fair-use closing reply).
+* **Changes**: Shared `missing-column-error` helpers; `loadTierIncludedVoiceMinutes` for checkout/renewal; `conversation-metering` + stream route + widget session reset; migration `20261121200000_styl310_chat_conversation_metering.sql`; widget bundles rebuilt.
+* **PRs**: #100 (`fd09b40`), #103 (`a27617a`, stacks on #100 commits), #105 (`85bf6d1f`, stacks on #103). CI pending on #100/#103 at handoff; #105 run starting.
+* **Verify**: `bash scripts/agent-supabase-up.sh`; unit specs 405/309/310; husky pre-push related billing suites green on each push.
+
+### Session (STYL-404 calendar push sync — 21 Nov 2026)
+* **User**: Package C follow-up to STYL-392 — Google `events.watch` and Microsoft Graph subscriptions with renewal, webhooks that reconcile cancelled/moved events, no live registration until Stuart enables staging.
+* **Changes**: Migration `20261121193000_styl404_calendar_push_subscriptions.sql`; push-sync libs under `src/lib/calendar/push-sync/`; webhooks `POST /api/webhooks/calendar/google|microsoft`; renewal `POST /api/calendar/push-subscriptions/renew` (CRON_SECRET); exported `applyExternalEventStateToAppointment` from `appointment-calendar-sync.ts`; `tests/styl-404-calendar-push-sync.spec.ts`.
+* **Verify**: `bash scripts/agent-supabase-up.sh`; `bash scripts/test-e2e-agent.sh tests/styl-404-calendar-push-sync.spec.ts` — 6 passed; `npm run typecheck` pass.
+
+### Session (STYL-404 OpenClaw review fixes — 21 Nov 2026)
+* **User**: Address PR 102 must-fix — gate Microsoft mock payload fields; verify Graph on delete; renew Google watch before row delete; filter Google reconcile by calendar; per-item Microsoft subscriptionId check.
+* **Changes**: `calendarPushTestMocksAllowed`, `stripMicrosoftNotificationTestFields`, `staff-google-calendar.ts`; `tests/unit/styl-404-calendar-push-sync.spec.ts`.
+* **Verify**: `bash scripts/test-e2e-agent.sh tests/styl-404-calendar-push-sync.spec.ts tests/unit/styl-404-calendar-push-sync.spec.ts` — 11 passed; typecheck pass.
