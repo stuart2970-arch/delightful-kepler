@@ -1,7 +1,7 @@
 import { test, expect } from '@playwright/test';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { createClient, type SupabaseClient } from '@supabase/supabase-js';
+import { createClient } from '@supabase/supabase-js';
 import Stripe from 'stripe';
 import { handleStripeBillingEvent } from '../src/lib/billing/process-stripe-webhook';
 import { POST } from '../src/app/api/webhooks/stripe/route';
