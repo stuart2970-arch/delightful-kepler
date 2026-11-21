@@ -1,4 +1,8 @@
 import { allocateRollingCredits as allocateRollingCreditsDefault } from '@/lib/entitlements';
+import {
+  claimStripeWebhookEvent,
+  completeStripeWebhookEvent,
+} from '@/lib/billing/stripe-webhook-event-idempotency';
 import { isBoltOnMetadata, mapAddonCategoryToFeatureId } from '@/lib/billing/bolt-on';
 import { resolvePricePaidPence } from '@/lib/billing/account-ownership';
 import {
@@ -262,6 +266,7 @@ export async function syncBoltOnPendingCancellation(
 }
 
 export type StripeBillingEvent = {
+  id?: string;
   type?: string;
   data?: { object?: Record<string, any> };
 };
@@ -890,6 +895,58 @@ export async function grantPlanVoiceMinutesForRenewal(
 }
 
 export async function handleStripeBillingEvent(
+  event: StripeBillingEvent,
+  deps: StripeWebhookDeps,
+): Promise<StripeWebhookResult> {
+  const eventId = typeof event.id === 'string' ? event.id.trim() : '';
+  const claim = eventId
+    ? await claimStripeWebhookEvent(deps.supabaseAdmin, eventId, event.type || 'direct_payload')
+    : { action: 'process' as const };
+
+  if (claim.action === 'skip') {
+    return {
+      status: 200,
+      body: { success: true, message: 'Stripe webhook event already processed', duplicate: true },
+    };
+  }
+  if (claim.action === 'locked') {
+    return {
+      status: 500,
+      body: { success: false, error: 'Stripe webhook event is still processing', retry: true },
+    };
+  }
+  if (claim.action === 'error') {
+    return {
+      status: 500,
+      body: {
+        success: false,
+        error: claim.message || 'Could not claim Stripe webhook event',
+        retry: true,
+      },
+    };
+  }
+
+  const trackCompletion = eventId && claim.action === 'process';
+  let result: StripeWebhookResult;
+  try {
+    result = await processStripeBillingEventBody(event, deps);
+  } catch (err: unknown) {
+    if (trackCompletion) {
+      await completeStripeWebhookEvent(deps.supabaseAdmin, eventId, false);
+    }
+    const message = err instanceof Error ? err.message : 'Webhook processing failed';
+    return { status: 500, body: { success: false, error: message } };
+  }
+
+  if (trackCompletion) {
+    const succeeded = result.status >= 200 && result.status < 500;
+    await completeStripeWebhookEvent(deps.supabaseAdmin, eventId, succeeded);
+  }
+
+  return result;
+}
+
+async function processStripeBillingEventBody(
   event: StripeBillingEvent,
   deps: StripeWebhookDeps,
 ): Promise<StripeWebhookResult> {
