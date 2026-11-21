@@ -1,6 +1,4 @@
 import { createClient } from '@supabase/supabase-js';
-import formData from 'form-data';
-import Mailgun from 'mailgun.js';
 import {
   getBusy,
   createEvent,
@@ -21,6 +19,15 @@ import {
   ServiceConfig,
 } from '@/lib/calendar/availability';
 import { normaliseOpeningHours, staffHoursOverrideAccepted } from '@/lib/opening-hours';
+import {
+  fetchOverlappingAppointments,
+  resolveBusyAppointmentIntervals,
+  AppointmentOverlapQueryError,
+  type VerifyCalendarEvent,
+} from '@/lib/booking/appointment-calendar-sync';
+import { APPOINTMENT_STATUS_BOOKED } from '@/lib/booking/appointment-status';
+import { hasActiveManageToken, issueManageToken } from '@/lib/booking/manage-token';
+import { sendBookingConfirmationEmail } from '@/lib/booking/booking-confirmation-email';
 
 // Helper to lazily initialize Supabase Admin
 function getSupabaseAdmin() {
@@ -81,6 +88,7 @@ export interface AvailabilityDeps {
   lookup?: BusyLookup;
   log?: (message: string) => void;
   fixture?: AvailabilityFixture;
+  verifyCalendarEvent?: VerifyCalendarEvent;
 }
 
 export interface AvailabilityResult {
@@ -309,18 +317,49 @@ export async function getAvailabilityData(
     // Internal appointments are not on the external calendar until the event
     // exists. Without this, a refused slot is offered again.
     if (!deps?.fixture && succeededIds.size > 0) {
-      const { data: existingAppointments } = await getSupabaseAdmin()
-        .from('appointments')
-        .select('staff_id, start_time, end_time')
-        .eq('tenant_id', tenantId)
-        .in('staff_id', [...succeededIds])
-        .lt('start_time', end.toISOString())
-        .gt('end_time', start.toISOString());
-      for (const appt of existingAppointments || []) {
-        if (!appt.staff_id || !appt.start_time || !appt.end_time) continue;
-        const list = busyMap.get(appt.staff_id) || [];
-        list.push({ start: new Date(appt.start_time), end: new Date(appt.end_time) });
-        busyMap.set(appt.staff_id, list);
+      const admin = getSupabaseAdmin();
+      const staffById = new Map<string, StaffCalendarTarget>();
+      for (const member of reachableStaff) {
+        staffById.set(member.id, {
+          id: member.id,
+          name: member.name,
+          email: member.email ?? undefined,
+          calendar_provider: member.calendar_provider ?? undefined,
+          google_calendar_id: member.google_calendar_id ?? undefined,
+          microsoft_calendar_id: member.microsoft_calendar_id ?? undefined,
+        });
+      }
+      try {
+        const overlappingRows = await fetchOverlappingAppointments(
+          admin,
+          tenantId,
+          start,
+          end,
+          [...succeededIds],
+        );
+        const busyIntervals = await resolveBusyAppointmentIntervals({
+          admin,
+          tenantId,
+          staffById,
+          windowStart: start,
+          windowEnd: end,
+          rows: overlappingRows,
+          verify: deps?.verifyCalendarEvent,
+        });
+        for (const appt of busyIntervals) {
+          if (!appt.staff_id || !appt.start_time || !appt.end_time) continue;
+          const list = busyMap.get(appt.staff_id) || [];
+          list.push({ start: new Date(appt.start_time), end: new Date(appt.end_time) });
+          busyMap.set(appt.staff_id, list);
+        }
+      } catch (err) {
+        if (err instanceof AppointmentOverlapQueryError) {
+          for (const staffId of succeededIds) {
+            busyMap.set(staffId, [{ start, end }]);
+          }
+        } else {
+          throw err;
+        }
       }
     }
 
@@ -539,6 +578,7 @@ export async function bookMeeting(
       .select('id, google_event_id, start_time')
       .eq('tenant_id', tenantId)
       .eq('staff_id', resolvedStaffId)
+      .eq('status', APPOINTMENT_STATUS_BOOKED)
       .eq('customer_email', customerEmail.trim().toLowerCase())
       .gte('start_time', new Date(startUtc.getTime() - 1000).toISOString())
       .lte('start_time', new Date(startUtc.getTime() + 1000).toISOString())
@@ -549,23 +589,6 @@ export async function bookMeeting(
       return `Successfully booked appointment. Confirmation sent to ${customerEmail}.`;
     }
 
-    // 2. Re-check Free/Busy status right before booking to prevent race conditions
-    // Check internal appointments table (excluding any booking by the same customer)
-    const { data: overlappingAppt } = await getSupabaseAdmin()
-      .from('appointments')
-      .select('id')
-      .eq('tenant_id', tenantId)
-      .eq('staff_id', resolvedStaffId)
-      .neq('customer_email', customerEmail.trim().toLowerCase())
-      .lt('start_time', endUtc.toISOString())
-      .gt('end_time', startUtc.toISOString())
-      .maybeSingle();
-
-    if (overlappingAppt) {
-      console.warn(`[Calendar] Race condition: slot ${startTimeStr} was taken in appointments table before booking confirmation.`);
-      return `Error: That time slot is no longer available. Please choose another time.`;
-    }
-
     const staffTarget: StaffCalendarTarget = {
       id: staff.id,
       name: staff.name,
@@ -574,6 +597,43 @@ export async function bookMeeting(
       google_calendar_id: staff.google_calendar_id,
       microsoft_calendar_id: staff.microsoft_calendar_id,
     };
+
+    // 2. Re-check Free/Busy status right before booking to prevent race conditions
+    // Check internal appointments table (excluding any booking by the same customer)
+    const customerNorm = customerEmail.trim().toLowerCase();
+    let blocking: Awaited<ReturnType<typeof resolveBusyAppointmentIntervals>> = [];
+    try {
+      const overlappingRows = await fetchOverlappingAppointments(
+        admin,
+        tenantId,
+        startUtc,
+        endUtc,
+        [resolvedStaffId],
+      );
+      const othersOverlap = overlappingRows.filter(
+        (row) => String(row.customer_email || '').trim().toLowerCase() !== customerNorm,
+      );
+      const staffById = new Map<string, StaffCalendarTarget>([[staff.id, staffTarget]]);
+      blocking = await resolveBusyAppointmentIntervals({
+        admin,
+        tenantId,
+        staffById,
+        windowStart: startUtc,
+        windowEnd: endUtc,
+        rows: othersOverlap,
+      });
+    } catch (err) {
+      if (err instanceof AppointmentOverlapQueryError) {
+        console.warn('[Calendar] Overlap query failed during booking; treating slot as busy.');
+        return `Error: That time slot is no longer available. Please choose another time.`;
+      }
+      throw err;
+    }
+
+    if (blocking.length > 0) {
+      console.warn(`[Calendar] Race condition: slot ${startTimeStr} was taken in appointments table before booking confirmation.`);
+      return `Error: That time slot is no longer available. Please choose another time.`;
+    }
 
     try {
       const busyIntervals = await getBusy(tenantId, staffTarget, startUtc, endUtc);
@@ -623,6 +683,7 @@ export async function bookMeeting(
       customer_phone: customerPhone,
       start_time: startUtc.toISOString(),
       end_time: endUtc.toISOString(),
+      status: APPOINTMENT_STATUS_BOOKED,
       google_event_id: eventResult?.id || null,
     };
 
@@ -630,38 +691,56 @@ export async function bookMeeting(
       appointmentRow.microsoft_event_id = eventResult.id;
     }
 
-    let insertRes = await getSupabaseAdmin().from('appointments').insert(appointmentRow);
+    let insertRes = await getSupabaseAdmin()
+      .from('appointments')
+      .insert(appointmentRow)
+      .select('id')
+      .single();
     if (insertRes.error && insertRes.error.message?.includes('microsoft_event_id')) {
       delete appointmentRow.microsoft_event_id;
-      insertRes = await getSupabaseAdmin().from('appointments').insert(appointmentRow);
+      insertRes = await getSupabaseAdmin()
+        .from('appointments')
+        .insert(appointmentRow)
+        .select('id')
+        .single();
     }
 
-    if (insertRes.error) {
+    if (insertRes.error || !insertRes.data?.id) {
       console.error('[Calendar] Failed to insert appointment record:', insertRes.error);
       return 'Booking could not be saved. Please try again.';
     }
 
-    // 5. Send Mailgun confirmation email if credentials exist
+    const appointmentId = insertRes.data.id as string;
+    let manageTokenRaw: string | null = null;
     try {
-      if (process.env.MAILGUN_API_KEY && process.env.MAILGUN_DOMAIN) {
-        const mailgun = new Mailgun(formData);
-        const mg = mailgun.client({
-          username: 'api',
-          key: process.env.MAILGUN_API_KEY,
-          url: 'https://api.eu.mailgun.net',
-        });
+      const issued = await issueManageToken(appointmentId);
+      manageTokenRaw = issued.rawToken;
+    } catch (tokenErr: unknown) {
+      const message = tokenErr instanceof Error ? tokenErr.message : String(tokenErr);
+      console.warn('[Calendar] Manage token issue failed; sending confirmation without manage link:', message);
+    }
 
-        const formattedStart = startUtc.toLocaleString('en-GB', { timeZone: timezone });
-        await mg.messages.create(process.env.MAILGUN_DOMAIN, {
-          from: `StyleFlo Bookings <no-reply@${process.env.MAILGUN_DOMAIN}>`,
-          to: [customerEmail],
-          subject: `Booking Confirmed: ${serviceName} with ${staff.name}`,
-          text: `Hi ${customerName},\n\nYour appointment for ${serviceName} with ${staff.name} is confirmed for ${formattedStart}.\n\nThank you for booking with us!`,
-        });
-        console.log(`[Calendar] Sent Mailgun confirmation to ${customerEmail}`);
-      }
-    } catch (mgErr: any) {
-      console.warn('[Calendar] Exception sending Mailgun email:', mgErr?.message);
+    // 5. Send confirmation email (with manage link when token issued)
+    try {
+      const { data: tenantRow } = await getSupabaseAdmin()
+        .from('tenants')
+        .select('company_name')
+        .eq('id', tenantId)
+        .maybeSingle();
+      const formattedStart = startUtc.toLocaleString('en-GB', { timeZone: timezone });
+      await sendBookingConfirmationEmail({
+        customerName,
+        customerEmail,
+        serviceName,
+        staffName: staff.name || 'Colleague',
+        formattedStart,
+        manageToken: manageTokenRaw,
+        businessName: tenantRow?.company_name,
+      });
+      console.log(`[Calendar] Sent confirmation to ${customerEmail}${manageTokenRaw ? ' (with manage link)' : ''}`);
+    } catch (mgErr: unknown) {
+      const message = mgErr instanceof Error ? mgErr.message : String(mgErr);
+      console.warn('[Calendar] Exception sending confirmation email:', message);
     }
 
     return `Successfully booked appointment. Confirmation sent to ${customerEmail}.`;
@@ -674,6 +753,10 @@ export async function bookMeeting(
 /**
  * Looks up future appointments for a customer.
  */
+function digitsOnly(phone: string): string {
+  return phone.replace(/\D/g, '');
+}
+
 export async function lookupAppointments(
   tenantId: string,
   customerEmail: string,
@@ -681,35 +764,70 @@ export async function lookupAppointments(
   timezone: string = 'Europe/London'
 ) {
   try {
-    console.log(`[Calendar] Looking up appointments for ${customerEmail} / ${customerPhone}`);
+    const emailNorm = customerEmail.trim().toLowerCase();
+    const phoneDigits = digitsOnly(customerPhone);
 
     const now = new Date().toISOString();
     const { data: appointments, error } = await getSupabaseAdmin()
       .from('appointments')
-      .select('*, staff(name, google_calendar_id), services(name)')
+      .select('id, start_time, customer_phone, staff(name), services(name)')
       .eq('tenant_id', tenantId)
-      .ilike('customer_email', customerEmail.trim())
+      .eq('status', APPOINTMENT_STATUS_BOOKED)
+      .ilike('customer_email', emailNorm)
       .gte('start_time', now)
       .order('start_time', { ascending: true });
 
     if (error) throw error;
 
-    if (!appointments || appointments.length === 0) {
-      return 'No upcoming appointments found for this email address.';
+    const filtered = (appointments || []).filter((appt) => {
+      if (!phoneDigits || phoneDigits.length < 7) return true;
+      const stored = digitsOnly(String(appt.customer_phone || ''));
+      if (!stored) return true;
+      return stored.endsWith(phoneDigits.slice(-7)) || phoneDigits.endsWith(stored.slice(-7));
+    });
+
+    if (filtered.length === 0) {
+      return 'No upcoming appointments found for those details.';
     }
 
     const validAppointments: string[] = [];
-    for (const appt of appointments) {
+    const manageLinks: string[] = [];
+  let remindExistingEmailLink = false;
+    for (const appt of filtered) {
       const displayTime = new Date(appt.start_time).toLocaleString('en-GB', {
         timeZone: timezone,
         dateStyle: 'full',
         timeStyle: 'short',
       });
-      validAppointments.push(`- ${appt.services?.name || 'Appointment'} with ${appt.staff?.name || 'Colleague'} on ${displayTime}`);
+      const svc = appt.services as { name?: string } | { name?: string }[] | null;
+      const stf = appt.staff as { name?: string } | { name?: string }[] | null;
+      const serviceName = Array.isArray(svc) ? svc[0]?.name : svc?.name;
+      const staffName = Array.isArray(stf) ? stf[0]?.name : stf?.name;
+      validAppointments.push(
+        `- ${serviceName || 'Appointment'} with ${staffName || 'Colleague'} on ${displayTime} (ref: ${appt.id})`,
+      );
+      const apptId = appt.id as string;
+      if (await hasActiveManageToken(apptId)) {
+        remindExistingEmailLink = true;
+        continue;
+      }
+      try {
+        const issued = await issueManageToken(apptId, { replaceExisting: false });
+        manageLinks.push(issued.manageUrl);
+      } catch {
+        remindExistingEmailLink = true;
+      }
     }
 
-    return `Found ${validAppointments.length} upcoming appointment(s):\n` + validAppointments.join('\n');
-  } catch (error: any) {
+    let output = `Found ${validAppointments.length} upcoming appointment(s):\n${validAppointments.join('\n')}`;
+    if (manageLinks.length > 0) {
+      output += `\n\nThe customer can cancel or reschedule using their secure manage link(s):\n${manageLinks.join('\n')}`;
+      output += '\nPolitely share the manage link in your reply (do not read token hashes aloud on voice).';
+    } else if (remindExistingEmailLink) {
+      output += '\n\nA manage link was already sent in the customer\'s confirmation email. Ask them to use that link to cancel or reschedule (do not issue a new link).';
+    }
+    return output;
+  } catch (error: unknown) {
     console.error('[Calendar] Error looking up appointments:', error);
     return `Error: Failed to look up appointments.`;
   }

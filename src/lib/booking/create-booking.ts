@@ -4,6 +4,14 @@ import { verifyChatSessionToken } from '@/lib/chat-session';
 import { clientIp, consumeAuthRateLimit } from '@/lib/security/auth-rate-limit';
 import { verifyVapiWebhookSecret } from '@/lib/env/vapi-webhook-auth';
 import { getBusy, resolveCalendarProvider, type StaffCalendarTarget } from '@/lib/calendar/provider';
+import {
+  fetchOverlappingAppointments,
+  resolveBusyAppointmentIntervals,
+  AppointmentOverlapQueryError,
+} from '@/lib/booking/appointment-calendar-sync';
+import { APPOINTMENT_STATUS_BOOKED } from '@/lib/booking/appointment-status';
+import { issueManageToken } from '@/lib/booking/manage-token';
+import { sendBookingConfirmationEmail } from '@/lib/booking/booking-confirmation-email';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -241,20 +249,26 @@ async function slotIsBusy(
   start: Date,
   end: Date,
 ): Promise<'free' | 'busy' | 'unknown'> {
-  const { data: overlapping, error } = await admin
-    .from('appointments')
-    .select('id')
-    .eq('tenant_id', tenantId)
-    .eq('staff_id', staff.id)
-    .lt('start_time', end.toISOString())
-    .gt('end_time', start.toISOString())
-    .limit(1);
-
-  if (error) {
-    console.error('[CreateBooking] Local busy check failed:', error.message);
-    return 'unknown';
+  let overlappingRows
+  try {
+    overlappingRows = await fetchOverlappingAppointments(admin, tenantId, start, end, [staff.id])
+  } catch (err) {
+    if (err instanceof AppointmentOverlapQueryError) {
+      return 'busy'
+    }
+    throw err
   }
-  if (overlapping && overlapping.length > 0) return 'busy';
+  const staffById = new Map<string, StaffCalendarTarget>([[staff.id, staff]]);
+  const blocking = await resolveBusyAppointmentIntervals({
+    admin,
+    tenantId,
+    staffById,
+    windowStart: start,
+    windowEnd: end,
+    rows: overlappingRows,
+  });
+
+  if (blocking.length > 0) return 'busy';
 
   const { data: integrations, error: integrationError } = await admin
     .from('tenant_integrations')
@@ -485,6 +499,7 @@ export async function handleCreateBooking(request: Request): Promise<NextRespons
       start_time: start.toISOString(),
       end_time: end.toISOString(),
       google_event_id: `rwg-${Date.now()}`,
+      status: APPOINTMENT_STATUS_BOOKED,
     })
     .select('id')
     .single();
@@ -529,6 +544,37 @@ export async function handleCreateBooking(request: Request): Promise<NextRespons
     customerEmail: fields.email,
     ignoredBodyTenant,
   });
+
+  let manageTokenRaw: string | null = null;
+  try {
+    const issued = await issueManageToken(appointment.id as string);
+    manageTokenRaw = issued.rawToken;
+  } catch (tokenErr: unknown) {
+    const message = tokenErr instanceof Error ? tokenErr.message : String(tokenErr);
+    console.warn('[CreateBooking] Manage token issue failed; sending confirmation without manage link:', message);
+  }
+
+  try {
+    const [{ data: svc }, { data: stf }, { data: tenant }] = await Promise.all([
+      admin.from('services').select('name').eq('id', fields.serviceId).maybeSingle(),
+      admin.from('staff').select('name').eq('id', fields.staffId).maybeSingle(),
+      admin.from('tenants').select('company_name').eq('id', auth.tenantId).maybeSingle(),
+    ]);
+    const tz = 'Europe/London';
+    const formattedStart = start.toLocaleString('en-GB', { timeZone: tz });
+    await sendBookingConfirmationEmail({
+      customerName,
+      customerEmail: fields.email,
+      serviceName: svc?.name || 'Appointment',
+      staffName: stf?.name || 'Colleague',
+      formattedStart,
+      manageToken: manageTokenRaw,
+      businessName: tenant?.company_name,
+    });
+  } catch (emailErr: unknown) {
+    const message = emailErr instanceof Error ? emailErr.message : String(emailErr);
+    console.warn('[CreateBooking] Confirmation email failed:', message);
+  }
 
   return json({
     booking: {

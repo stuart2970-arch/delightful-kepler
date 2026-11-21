@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { createServerClient } from '@supabase/ssr';
 import { cookies } from 'next/headers';
+import { APPOINTMENT_STATUS_BOOKED } from '@/lib/booking/appointment-status';
 
 export const dynamic = 'force-dynamic';
 
@@ -35,6 +36,7 @@ export async function GET(request: Request) {
     const { data: appointmentsData } = await supabase.from('appointments')
       .select('*')
       .in('tenant_id', tenantIds)
+      .eq('status', APPOINTMENT_STATUS_BOOKED)
       .gte('start_time', new Date().toISOString());
 
     if (!staffData || !servicesData) {

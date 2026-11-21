@@ -1,6 +1,8 @@
 import { NextResponse } from 'next/server';
 import { createServerClient } from '@supabase/ssr';
 import { cookies } from 'next/headers';
+import { staffIdsBlockingSlot } from '@/lib/booking/rwg-slot-busy';
+import type { StaffCalendarTarget } from '@/lib/calendar/provider';
 
 export const dynamic = 'force-dynamic';
 
@@ -53,7 +55,7 @@ export async function POST(request: Request) {
     // that at least ONE staff member is not double-booked at this time.
     const { data: staffData } = await supabase
       .from('staff')
-      .select('id')
+      .select('id, name, email, calendar_provider, google_calendar_id, microsoft_calendar_id')
       .eq('tenant_id', slot.merchant_id);
       
     if (!staffData || staffData.length === 0) {
@@ -63,14 +65,25 @@ export async function POST(request: Request) {
       });
     }
 
-    const { data: overlappingAppointments } = await supabase
-      .from('appointments')
-      .select('staff_id')
-      .eq('tenant_id', slot.merchant_id)
-      .lt('start_time', endIso)
-      .gt('end_time', startIso);
+    const staffById = new Map<string, StaffCalendarTarget>();
+    for (const member of staffData) {
+      staffById.set(member.id, {
+        id: member.id,
+        name: member.name,
+        email: member.email ?? undefined,
+        calendar_provider: member.calendar_provider ?? undefined,
+        google_calendar_id: member.google_calendar_id ?? undefined,
+        microsoft_calendar_id: member.microsoft_calendar_id ?? undefined,
+      });
+    }
 
-    const bookedStaffIds = new Set((overlappingAppointments || []).map(a => a.staff_id));
+    const bookedStaffIds = await staffIdsBlockingSlot({
+      admin: supabase,
+      tenantId: slot.merchant_id,
+      slotStart: new Date(startIso),
+      slotEnd: new Date(endIso),
+      staffById,
+    });
     const availableStaff = staffData.filter(s => !bookedStaffIds.has(s.id));
 
     if (availableStaff.length === 0) {
