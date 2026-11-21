@@ -3,6 +3,7 @@ import { buildGreeting, getFirstName, isEchoOfGreeting } from '../lib/greeting';
 import { resolveChatFooter } from '../lib/billing/branding';
 import { resolveTurnstileSiteKey } from './turnstile-config';
 import { voiceUnavailableMessage, webCallFailureMessage } from '../lib/voice/voice-user-messages';
+import { buildWebCallVapiStartFields } from '../lib/voice/web-call-config';
 
 // STYL-241: text-chat gate copy. Voice calls keep globalVoiceDisclaimer.
 const TEXT_CHAT_NOTICE =
@@ -1637,6 +1638,7 @@ const CONNECTING_TIMEOUT_MS = 20000;
           }
 
           const assistant = {
+            ...buildWebCallVapiStartFields(),
             name: `${agentName} Assistant`,
             transcriber: {
               provider: "deepgram",
@@ -1645,10 +1647,6 @@ const CONNECTING_TIMEOUT_MS = 20000;
             },
             silenceTimeoutSeconds: 30,
             maxDurationSeconds: 600,
-            recordingEnabled: false,
-            artifactPlan: {
-              recordingEnabled: false,
-            },
             // The server creates the call and attaches the webhook header.
             // Do not put a server URL or secret on this browser payload.
             model: {

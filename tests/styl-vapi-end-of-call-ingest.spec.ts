@@ -240,7 +240,7 @@ test.describe('Vapi end-of-call reports are stored once and metered', () => {
       const src = readFileSync(join(root, rel), 'utf8');
       expect(src).toContain('/api/voice/web-call');
       expect(src).toContain('reconnect');
-      expect(src).toContain('recordingEnabled: false');
+      expect(src).toContain('buildWebCallVapiStartFields');
       expect(src).not.toContain('VAPI_WEBHOOK_SECRET');
       expect(src).not.toContain('server.secret');
       expect(src).not.toContain('serverUrl');
@@ -248,10 +248,10 @@ test.describe('Vapi end-of-call reports are stored once and metered', () => {
     const assistant = readFileSync(join(root, 'src/app/api/webhooks/vapi/assistant/route.ts'), 'utf8');
     const server = readFileSync(join(root, 'src/lib/voice/vapi-server.ts'), 'utf8');
     expect(assistant).toContain('vapiEndOfCallServer');
-    expect(assistant).toContain('recordingEnabled: false');
+    expect(assistant).toContain('applyVapiNoRecordingFlags');
     expect(assistant).not.toContain('recordingUrl');
     expect(server).toContain('X-Vapi-Secret');
-    expect(server).toContain('recordingEnabled: false');
+    expect(server).toContain('applyVapiNoRecordingFlags');
     expect(server).toContain("'recordingUrl'");
     expect(server).toContain('DROPPED_ASSISTANT_KEYS');
   });

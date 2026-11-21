@@ -8,6 +8,8 @@
  * `recordingEnabled` stays false. Recording URLs are never copied onto the assistant.
  */
 
+import { applyVapiNoRecordingFlags } from '@/lib/voice/vapi-recording-policy';
+
 export const VAPI_SERVER_MESSAGES = [
   'conversation-update',
   'end-of-call-report',
@@ -55,13 +57,11 @@ export function sealWebCallAssistant(
     if (DROPPED_ASSISTANT_KEYS.has(key)) continue;
     assistant[key] = value;
   }
-  assistant.recordingEnabled = false;
-  assistant.artifactPlan = { recordingEnabled: false };
   assistant.serverMessages = [...VAPI_SERVER_MESSAGES];
   assistant.server = {
     url: webhook.url,
     timeoutSeconds: 20,
     headers: { 'X-Vapi-Secret': webhook.secret },
   };
-  return assistant;
+  return applyVapiNoRecordingFlags(assistant);
 }
