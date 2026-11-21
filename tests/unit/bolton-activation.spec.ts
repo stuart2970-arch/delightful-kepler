@@ -146,8 +146,14 @@ function createFakeBillingDb(seed?: {
   const rpcCalls: Array<{ name: string; args: any }> = [];
   const activateTenantAddon = createActivateTenantAddon(activeAddons);
 
-  const matches = (row: Record<string, any>, filters: Array<[string, any]>) =>
-    filters.every(([col, val]) => {
+  const matches = (row: Record<string, any>, filters: Array<[string, any] | ['__is', string, any]>) =>
+    filters.every((entry) => {
+      if (Array.isArray(entry) && entry[0] === '__is') {
+        const val = entry[2];
+        const col = entry[1];
+        return val === null ? row[col] == null : row[col] === val;
+      }
+      const [col, val] = entry as [string, any];
       if (Array.isArray(val)) return val.includes(row[col]);
       return row[col] === val;
     });
@@ -173,6 +179,10 @@ function createFakeBillingDb(seed?: {
       },
       eq(col: string, val: any) {
         filters.push([col, val]);
+        return api;
+      },
+      is(col: string, val: any) {
+        filters.push(['__is', col, val]);
         return api;
       },
       neq(col: string, val: any) {
@@ -319,9 +329,14 @@ function createFakeBillingDb(seed?: {
                 }
               }
               if (table === 'tenant_active_addons') {
+                const updated: ActiveAddonRow[] = [];
                 for (const row of activeAddons) {
-                  if (rowMatches(row)) Object.assign(row, pendingUpdate);
+                  if (rowMatches(row)) {
+                    Object.assign(row, pendingUpdate);
+                    updated.push(row);
+                  }
                 }
+                return { data: updated.map((row) => ({ id: row.id })), error: null };
               }
               return { data: null, error: null };
             }
