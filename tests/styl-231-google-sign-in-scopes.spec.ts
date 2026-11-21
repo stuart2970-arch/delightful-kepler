@@ -41,8 +41,13 @@ async function captureGoogleSignInUrl(page: import('@playwright/test').Page, pat
 
   await page.goto(path);
   if (path === '/onboard') {
-    await page.waitForFunction(() => typeof (window as any).stylefloGoogleSignIn === 'function');
-    await page.evaluate(() => (window as any).stylefloGoogleSignIn());
+    await page.waitForFunction(() => {
+      return typeof (window as Window & { stylefloGoogleSignIn?: () => void }).stylefloGoogleSignIn === 'function';
+    });
+    await page.evaluate(() => {
+      const w = window as Window & { stylefloGoogleSignIn?: () => void };
+      w.stylefloGoogleSignIn?.();
+    });
   } else {
     await page.getByRole('button', { name: /1-Click with Google/i }).click({ force: true });
   }
