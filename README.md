@@ -4635,3 +4635,13 @@ Highlighted adjustments in the modal:
 * **Changes**: Shared `missing-column-error` helpers; `loadTierIncludedVoiceMinutes` for checkout/renewal; `conversation-metering` + stream route + widget session reset; migration `20261121200000_styl310_chat_conversation_metering.sql`; widget bundles rebuilt.
 * **PRs**: #100 (`fd09b40`), #103 (`a27617a`, stacks on #100 commits), #105 (`85bf6d1f`, stacks on #103). CI pending on #100/#103 at handoff; #105 run starting.
 * **Verify**: `bash scripts/agent-supabase-up.sh`; unit specs 405/309/310; husky pre-push related billing suites green on each push.
+
+### Session (STYL-404 calendar push sync — 21 Nov 2026)
+* **User**: Package C follow-up to STYL-392 — Google `events.watch` and Microsoft Graph subscriptions with renewal, webhooks that reconcile cancelled/moved events, no live registration until Stuart enables staging.
+* **Changes**: Migration `20261121193000_styl404_calendar_push_subscriptions.sql`; push-sync libs under `src/lib/calendar/push-sync/`; webhooks `POST /api/webhooks/calendar/google|microsoft`; renewal `POST /api/calendar/push-subscriptions/renew` (CRON_SECRET); exported `applyExternalEventStateToAppointment` from `appointment-calendar-sync.ts`; `tests/styl-404-calendar-push-sync.spec.ts`.
+* **Verify**: `bash scripts/agent-supabase-up.sh`; `bash scripts/test-e2e-agent.sh tests/styl-404-calendar-push-sync.spec.ts` — 6 passed; `npm run typecheck` pass.
+
+### Session (STYL-404 OpenClaw review fixes — 21 Nov 2026)
+* **User**: Address PR 102 must-fix — gate Microsoft mock payload fields; verify Graph on delete; renew Google watch before row delete; filter Google reconcile by calendar; per-item Microsoft subscriptionId check.
+* **Changes**: `calendarPushTestMocksAllowed`, `stripMicrosoftNotificationTestFields`, `staff-google-calendar.ts`; `tests/unit/styl-404-calendar-push-sync.spec.ts`.
+* **Verify**: `bash scripts/test-e2e-agent.sh tests/styl-404-calendar-push-sync.spec.ts tests/unit/styl-404-calendar-push-sync.spec.ts` — 11 passed; typecheck pass.
