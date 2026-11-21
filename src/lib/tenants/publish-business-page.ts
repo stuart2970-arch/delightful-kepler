@@ -6,6 +6,46 @@ export type PublishBusinessPageResult =
   | { ok: true; finalSlug: string; cleanName: string; wordpressPublished: boolean; pageUrl?: string; wpData?: unknown; disabledReason?: string }
   | { ok: false; status: number; error: string; wordpressError?: string };
 
+async function persistTenantRename(
+  supabase: SupabaseClient,
+  tenantId: string,
+  cleanName: string,
+  finalSlug: string,
+  wordpressOrphanContext?: { wpPageCreated: boolean },
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  const payload = { company_name: cleanName, slug: finalSlug };
+
+  const attemptUpdate = () =>
+    supabase.from('tenants').update(payload).eq('id', tenantId).select('id').maybeSingle();
+
+  let { data: updated, error: updateErr } = await attemptUpdate();
+  if (!updateErr && updated?.id) {
+    return { ok: true };
+  }
+
+  if (wordpressOrphanContext?.wpPageCreated) {
+    console.warn('[Publish Business Page] DB update failed after WordPress page was created; retrying once', {
+      tenantId,
+      slug: finalSlug,
+      detail: updateErr?.message || 'no row returned',
+    });
+    ({ data: updated, error: updateErr } = await attemptUpdate());
+    if (!updateErr && updated?.id) {
+      return { ok: true };
+    }
+    console.error('[Publish Business Page] ORPHAN: WordPress page exists but tenant rename did not persist', {
+      tenantId,
+      slug: finalSlug,
+      detail: updateErr?.message || 'no row returned',
+    });
+  }
+
+  return {
+    ok: false,
+    error: updateErr?.message || 'Tenant update did not change a row',
+  };
+}
+
 export async function publishBusinessPageForTenant(
   supabase: SupabaseClient,
   tenantId: string,
@@ -42,16 +82,9 @@ export async function publishBusinessPageForTenant(
 
   const wpConfig = getWordpressPublishConfig();
   if (!wpConfig.enabled) {
-    const { error: updateErr } = await supabase
-      .from('tenants')
-      .update({
-        company_name: cleanName,
-        slug: finalSlug,
-      })
-      .eq('id', tenantId);
-
-    if (updateErr) {
-      return { ok: false, status: 500, error: updateErr.message };
+    const persisted = await persistTenantRename(supabase, tenantId, cleanName, finalSlug);
+    if (!persisted.ok) {
+      return { ok: false, status: 500, error: persisted.error };
     }
 
     return {
@@ -73,16 +106,11 @@ export async function publishBusinessPageForTenant(
     };
   }
 
-  const { error: updateErr } = await supabase
-    .from('tenants')
-    .update({
-      company_name: cleanName,
-      slug: finalSlug,
-    })
-    .eq('id', tenantId);
-
-  if (updateErr) {
-    return { ok: false, status: 500, error: updateErr.message };
+  const persisted = await persistTenantRename(supabase, tenantId, cleanName, finalSlug, {
+    wpPageCreated: true,
+  });
+  if (!persisted.ok) {
+    return { ok: false, status: 500, error: persisted.error };
   }
 
   return {

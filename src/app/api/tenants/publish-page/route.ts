@@ -1,29 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createServerClient } from '@supabase/ssr';
-import { cookies } from 'next/headers';
+import { createClient } from '@supabase/supabase-js';
+import { requireTenantRole } from '@/lib/auth/require-tenant-role';
 import { publishBusinessPageForTenant } from '@/lib/tenants/publish-business-page';
 
 export async function POST(req: NextRequest) {
   try {
-    const cookieStore = await cookies();
-    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.SUPABASE_URL;
-    const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
-
-    if (!supabaseUrl || !serviceRoleKey) {
-      return NextResponse.json({ error: 'Server configuration missing' }, { status: 500 });
-    }
-
-    const supabase = createServerClient(supabaseUrl, serviceRoleKey, {
-      cookies: {
-        getAll() { return cookieStore.getAll(); },
-        setAll() {}
-      }
-    });
-
-    const { data: { user }, error: authErr } = await supabase.auth.getUser();
-    if (authErr || !user) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
+    const auth = await requireTenantRole(req, ['owner', 'admin']);
+    if (!auth.ok) return auth.response;
 
     const body = await req.json();
     const { tenantId, businessName } = body;
@@ -32,7 +15,21 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Tenant ID and Business Name are required.' }, { status: 400 });
     }
 
-    const result = await publishBusinessPageForTenant(supabase, tenantId, businessName);
+    if (String(tenantId) !== auth.tenantId) {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+    }
+
+    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.SUPABASE_URL;
+    const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+    if (!supabaseUrl || !serviceRoleKey) {
+      return NextResponse.json({ error: 'Server configuration missing' }, { status: 500 });
+    }
+
+    const supabase = createClient(supabaseUrl, serviceRoleKey, {
+      auth: { persistSession: false, autoRefreshToken: false },
+    });
+
+    const result = await publishBusinessPageForTenant(supabase, String(tenantId), businessName);
     if (!result.ok) {
       if (result.wordpressError) {
         console.error('[Publish Business Page] WordPress rejection', {

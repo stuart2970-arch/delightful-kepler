@@ -34,6 +34,13 @@ test.describe('STYL-251 WordPress publish diagnostics and slug rollback', () => 
     expect(body).not.toContain('Authorization');
   });
 
+  test('redactWordpressBody redacts quoted JSON token keys', () => {
+    const body = '{"token":"super-secret","message":"fail"}';
+    const classified = classifyWordpressHttpFailure(401, body);
+    expect(classified.logDetail).not.toContain('super-secret');
+    expect(classified.logDetail).toContain('[redacted]');
+  });
+
   test('postWordpressCreateBusiness maps 401 without logging token values', async () => {
     const mockFetch = (async () =>
       new Response(
