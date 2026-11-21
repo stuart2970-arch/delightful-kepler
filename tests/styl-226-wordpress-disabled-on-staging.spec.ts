@@ -21,12 +21,25 @@ test.describe('STYL-226: WordPress publishing disabled on staging', () => {
   });
 
   test('publish routes use getWordpressPublishConfig and have no live site fallback', () => {
-    for (const rel of [
-      'src/app/api/tenants/publish-page/route.ts',
+    const wpConfigReaders = [
+      'src/lib/tenants/publish-business-page.ts',
       'src/app/api/webhooks/tenant-created/route.ts',
-    ]) {
+    ];
+    const noLiveFallback = [
+      'src/app/api/tenants/publish-page/route.ts',
+      'src/lib/tenants/publish-business-page.ts',
+      'src/lib/wordpress/wordpress-api.ts',
+      'src/app/api/webhooks/tenant-created/route.ts',
+    ];
+    for (const rel of wpConfigReaders) {
       const src = readFileSync(join(root, rel), 'utf8');
       expect(src, rel).toContain('getWordpressPublishConfig');
+    }
+    expect(
+      readFileSync(join(root, 'src/lib/wordpress/wordpress-api.ts'), 'utf8'),
+    ).toContain('create-business');
+    for (const rel of noLiveFallback) {
+      const src = readFileSync(join(root, rel), 'utf8');
       expect(src, rel).not.toContain("|| 'https://styleflo.ai'");
     }
   });

@@ -4553,6 +4553,10 @@ Highlighted adjustments in the modal:
 * **Disabled services (local config only)**: Studio, Realtime, Analytics (already off); **edge_runtime** (no `supabase/functions`); **storage.s3_protocol** (Playwright never uses S3 port). **Kept**: Storage API (migration seeds `storage.buckets`), Auth, REST, Postgres, Inbucket/Mailpit (magic-link spec).
 * **VM proof (this agent)**: `scripts/agent-supabase-up.sh` ~39s start+reset+env after image pull; warm re-start ~1s. Use `npm run test:e2e:agent` (docker group / `sg docker` for specs that `docker exec` psql). Pre-push smoke (12 specs) passed. PR #73 Playwright CI on commit `74ee203`: **green** (~6m36s job).
 
+### Session (STYL-251 WordPress publish rollback — 21 Nov 2026)
+* **User**: Do not persist slug/name when WordPress publish fails; classify WP errors safely.
+* **Changes**: `publishBusinessPageForTenant` calls WordPress before Supabase update when publishing is enabled; shared `wordpress-api` helper for tenant-created and manual publish.
+
 ### Session (STYL-231 Google sign-in scopes — 21 Nov 2026)
 * **User**: Remove Calendar scope, `access_type=offline`, and `prompt=consent` from Google sign-in on login, register, and onboard; keep incremental calendar scopes on `/api/integrations/google/authorize`.
 * **Changes**: `tests/styl-231-google-sign-in-scopes.spec.ts` asserts Supabase OAuth and calendar connect URLs.
