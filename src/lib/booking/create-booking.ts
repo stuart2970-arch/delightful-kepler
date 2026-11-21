@@ -9,6 +9,8 @@ import {
   resolveBusyAppointmentIntervals,
 } from '@/lib/booking/appointment-calendar-sync';
 import { APPOINTMENT_STATUS_BOOKED } from '@/lib/booking/appointment-status';
+import { issueManageToken } from '@/lib/booking/manage-token';
+import { sendBookingConfirmationEmail } from '@/lib/booking/booking-confirmation-email';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -533,6 +535,29 @@ export async function handleCreateBooking(request: Request): Promise<NextRespons
     customerEmail: fields.email,
     ignoredBodyTenant,
   });
+
+  try {
+    const issued = await issueManageToken(appointment.id as string);
+    const [{ data: svc }, { data: stf }, { data: tenant }] = await Promise.all([
+      admin.from('services').select('name').eq('id', fields.serviceId).maybeSingle(),
+      admin.from('staff').select('name').eq('id', fields.staffId).maybeSingle(),
+      admin.from('tenants').select('name, timezone').eq('id', auth.tenantId).maybeSingle(),
+    ]);
+    const tz = (tenant?.timezone as string | undefined) || 'Europe/London';
+    const formattedStart = start.toLocaleString('en-GB', { timeZone: tz });
+    await sendBookingConfirmationEmail({
+      customerName,
+      customerEmail: fields.email,
+      serviceName: svc?.name || 'Appointment',
+      staffName: stf?.name || 'Colleague',
+      formattedStart,
+      manageToken: issued.rawToken,
+      businessName: tenant?.name,
+    });
+  } catch (emailErr: unknown) {
+    const message = emailErr instanceof Error ? emailErr.message : String(emailErr);
+    console.warn('[CreateBooking] Confirmation email skipped:', message);
+  }
 
   return json({
     booking: {

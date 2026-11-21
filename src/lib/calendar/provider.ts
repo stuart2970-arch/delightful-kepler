@@ -328,3 +328,61 @@ export async function createEvent(
 
   throw new Error('No calendar provider connected to create event');
 }
+
+export interface DeleteCalendarEventParams {
+  tenantId: string;
+  staff: StaffCalendarTarget;
+  eventId: string;
+}
+
+/**
+ * Deletes an external calendar event (Google or Microsoft). Mock-safe in tests.
+ */
+export async function deleteCalendarEvent(params: DeleteCalendarEventParams): Promise<boolean> {
+  const { tenantId, staff, eventId } = params;
+  if (!eventId) return false;
+
+  const provider = await resolveCalendarProvider(tenantId, staff);
+
+  if (provider === 'google') {
+    const calendar = await getGoogleCalendarClient(tenantId);
+    if (!calendar) {
+      return true;
+    }
+    const calendarId = staff.google_calendar_id || 'primary';
+    try {
+      await calendar.events.delete({ calendarId, eventId });
+      return true;
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : String(err);
+      console.warn('[Calendar] Google event delete failed:', message);
+      return false;
+    }
+  }
+
+  if (provider === 'microsoft') {
+    const token = await getMicrosoftAccessToken(tenantId);
+    if (!token || token === 'mock_ms_access_token') {
+      return true;
+    }
+    const calendarTarget =
+      staff.microsoft_calendar_id && staff.microsoft_calendar_id !== 'primary'
+        ? `me/calendars/${staff.microsoft_calendar_id}/events/${eventId}`
+        : `me/events/${eventId}`;
+    try {
+      const res = await fetch(`https://graph.microsoft.com/v1.0/${calendarTarget}`, {
+        method: 'DELETE',
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (res.ok || res.status === 404) return true;
+      console.warn('[Calendar] Microsoft event delete failed:', res.status, await res.text());
+      return false;
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : String(err);
+      console.warn('[Calendar] Microsoft event delete error:', message);
+      return false;
+    }
+  }
+
+  return false;
+}
