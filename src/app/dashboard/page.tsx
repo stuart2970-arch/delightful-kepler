@@ -12,6 +12,11 @@ import { buildAccountOwnership } from '@/lib/billing/account-ownership';
 import { knowledgeItemsTotal } from '@/lib/billing/bolt-on';
 import type { CatalogAddon, InclusionRecord, PurchaseRecord } from '@/lib/billing/account-ownership';
 import { TENANT_PROFILE_SELECT, salonNameFromTenant } from '@/lib/tenant-profile';
+import {
+  isPostgresMissingColumnError,
+  missingPostgresColumnName,
+  MINIMAL_TENANT_ACTIVE_ADDON_COLUMNS,
+} from '@/lib/postgres/missing-column-error';
 
 export const dynamic = 'force-dynamic';
 
@@ -495,24 +500,6 @@ export default async function DashboardPage(props: { searchParams?: Promise<{ [k
             is_active
           )
         `;
-      const isMissingAddonColumn = (err: { code?: string; message?: string } | null) => {
-        if (!err) return false;
-        const code = String(err.code ?? '');
-        const message = String(err.message ?? '');
-        return code === '42703' || code === 'PGRST204' || /column.*does not exist/i.test(message);
-      };
-      const missingAddonColumnName = (err: { message?: string } | null) => {
-        const message = String(err?.message ?? '');
-        const patterns = [
-          /column\s+[\w.]+\.(\w+)\s+does not exist/i,
-          /Could not find the '(\w+)' column/i,
-        ];
-        for (const pattern of patterns) {
-          const match = message.match(pattern);
-          if (match?.[1]) return match[1];
-        }
-        return null;
-      };
 
       let addonTopLevelFields = [
         'price_paid_pence',
@@ -535,17 +522,18 @@ export default async function DashboardPage(props: { searchParams?: Promise<{ [k
           purchaseRows = result.data || [];
           break;
         }
-        if (!isMissingAddonColumn(result.error)) {
+        if (!isPostgresMissingColumnError(result.error)) {
           console.warn('[Dashboard] tenant_active_addons read failed:', result.error.message);
           break;
         }
-        const missing = missingAddonColumnName(result.error);
-        if (!missing || !addonTopLevelFields.includes(missing)) {
-          console.warn('[Dashboard] tenant_active_addons missing-column fallback stopped:', result.error.message);
-          break;
+        const missing = missingPostgresColumnName(result.error);
+        if (missing && addonTopLevelFields.includes(missing)) {
+          console.warn(`[Dashboard] ${missing} column is not available yet:`, result.error.message);
+          addonTopLevelFields = addonTopLevelFields.filter((field) => field !== missing);
+          continue;
         }
-        console.warn(`[Dashboard] ${missing} column is not available yet:`, result.error.message);
-        addonTopLevelFields = addonTopLevelFields.filter((field) => field !== missing);
+        console.warn('[Dashboard] tenant_active_addons missing-column fallback using minimal columns:', result.error.message);
+        addonTopLevelFields = [...MINIMAL_TENANT_ACTIVE_ADDON_COLUMNS];
       }
       const activeAddons = purchaseRows.filter((row: any) => row.is_active);
       billingData.addons = activeAddons.map((a: any) => ({
