@@ -16,6 +16,10 @@ import {
   addonPastDueStatusFields,
   pendingCancelPairFromStripe,
 } from '@/lib/billing/addon-subscription-status';
+import {
+  isPostgresMissingColumnError,
+  missingPostgresColumnName,
+} from '@/lib/postgres/missing-column-error';
 
 export type AddonLineItemContext = {
   stripeSubscriptionStatus?: string | null;
@@ -165,24 +169,16 @@ function isStaleStripeCancelEvent(
   return incomingMs < storedMs;
 }
 
-function isMissingColumnError(error: { code?: string; message?: string } | null | undefined): boolean {
-  if (!error) return false;
-  const code = String(error.code ?? '');
-  const message = String(error.message ?? '');
-  return code === '42703' || code === 'PGRST204' || /column.*does not exist/i.test(message);
-}
-
-function missingColumnFromError(error: { message?: string } | null | undefined): string | null {
-  const message = String(error?.message ?? '');
-  const patterns = [
-    /column\s+[\w.]+\.(\w+)\s+does not exist/i,
-    /Could not find the '(\w+)' column/i,
-  ];
-  for (const pattern of patterns) {
-    const match = message.match(pattern);
-    if (match?.[1]) return match[1];
-  }
-  return null;
+export function shouldFallbackStripeCancelGuardColumn(
+  error: { code?: string; message?: string } | null | undefined,
+  opts: { includesGuardColumn?: boolean; updatingGuardColumn?: boolean } = {},
+): boolean {
+  if (!isPostgresMissingColumnError(error)) return false;
+  const missing = missingPostgresColumnName(error);
+  if (missing === 'stripe_cancel_event_created_at') return true;
+  if (missing) return false;
+  if (opts.updatingGuardColumn) return true;
+  return opts.includesGuardColumn === true;
 }
 
 function applyOptimisticCancelFilters(query: any, row: AddonCancelRow) {
@@ -239,7 +235,7 @@ async function readActiveAddonRows(
 
   let cancelEventGuardAvailable = true;
   let { data, error } = await buildQuery(guardedSelect);
-  if (error && isMissingColumnError(error) && missingColumnFromError(error) === 'stripe_cancel_event_created_at') {
+  if (error && shouldFallbackStripeCancelGuardColumn(error, { includesGuardColumn: true })) {
     cancelEventGuardAvailable = false;
     ({ data, error } = await buildQuery(baseSelect));
   }
@@ -309,9 +305,7 @@ export async function syncBoltOnPendingCancellation(
     let { data: updatedRows, error: updateError } = await runOptimisticUpdate(updatePayload);
     if (
       updateError
-      && isMissingColumnError(updateError)
-      && missingColumnFromError(updateError) === 'stripe_cancel_event_created_at'
-      && 'stripe_cancel_event_created_at' in updatePayload
+      && shouldFallbackStripeCancelGuardColumn(updateError, { updatingGuardColumn: 'stripe_cancel_event_created_at' in updatePayload })
     ) {
       cancelEventGuardAvailable = false;
       loaded.cancelEventGuardAvailable = false;
