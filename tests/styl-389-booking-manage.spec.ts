@@ -7,9 +7,10 @@ import { bookMeeting } from '../src/app/api/chat/stream/calendar';
 import {
   hashManageToken,
   issueManageToken,
+  hasActiveManageToken,
   MANAGE_TOKEN_TTL_MS,
 } from '../src/lib/booking/manage-token';
-import { getAvailabilityData } from '../src/app/api/chat/stream/calendar';
+import { getAvailabilityData, lookupAppointments } from '../src/app/api/chat/stream/calendar';
 import { APPOINTMENT_STATUS_BOOKED, APPOINTMENT_STATUS_CANCELLED } from '../src/lib/booking/appointment-status';
 
 dotenv.config({ path: path.resolve(__dirname, '../.env.test'), override: true });
@@ -185,5 +186,47 @@ test.describe('STYL-389 customer booking manage', () => {
 
   test('issueManageToken ttl is approximately 30 days', async () => {
     expect(MANAGE_TOKEN_TTL_MS).toBe(30 * 24 * 60 * 60 * 1000);
+  });
+
+  test('lookupAppointments does not rotate an active emailed token', async () => {
+    const start = new Date(Date.now() + 4 * 24 * 60 * 60 * 1000);
+    start.setUTCHours(14, 0, 0, 0);
+    const end = new Date(start.getTime() + 30 * 60 * 1000);
+
+    const { data: appt } = await admin
+      .from('appointments')
+      .insert({
+        tenant_id: seedTenantId,
+        staff_id: seedStaffId,
+        service_id: seedServiceId,
+        customer_name: 'Lookup User',
+        customer_email: 'lookup-token@test.example',
+        customer_phone: '07700900333',
+        start_time: start.toISOString(),
+        end_time: end.toISOString(),
+        status: APPOINTMENT_STATUS_BOOKED,
+        google_event_id: 'mock-evt-lookup',
+      })
+      .select('id')
+      .single();
+
+    const first = await issueManageToken(appt!.id);
+    const hashBefore = hashManageToken(first.rawToken);
+
+    const lookupText = await lookupAppointments(
+      seedTenantId,
+      'lookup-token@test.example',
+      '07700900333',
+    );
+    expect(lookupText).toContain('confirmation email');
+    expect(lookupText).not.toContain(first.manageUrl);
+
+    const { data: tokenRow } = await admin
+      .from('appointment_manage_tokens')
+      .select('token_hash')
+      .eq('appointment_id', appt!.id)
+      .single();
+    expect(tokenRow?.token_hash).toBe(hashBefore);
+    expect(await hasActiveManageToken(appt!.id)).toBe(true);
   });
 });

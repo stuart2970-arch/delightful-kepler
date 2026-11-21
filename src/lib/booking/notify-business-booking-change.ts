@@ -2,7 +2,8 @@ import formData from 'form-data';
 import Mailgun from 'mailgun.js';
 import { createClient } from '@supabase/supabase-js';
 import { buildBrandedEmailHtml } from '@/lib/email/branded-email-layout';
-import { publicAppPath } from '@/lib/env/public-app-url';
+import { resolveServerPublicAppOrigin } from '@/lib/env/public-app-url';
+import { escapeHtml } from '@/lib/email/escape-html';
 
 function getSupabaseAdmin() {
   const supabaseUrl = process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL;
@@ -42,15 +43,15 @@ export async function sendBusinessBookingCancelledEmail(params: {
   const adminEmail = await resolveOwnerEmail(params.tenantId);
   if (!adminEmail) return;
 
-  const dashboardUrl = publicAppPath('/dashboard?tab=scheduling');
+  const dashboardUrl = `${resolveServerPublicAppOrigin().replace(/\/+$/, '')}/dashboard?tab=scheduling`;
   const bodyHtml = `
 <p style="font-size: 14px; color: #334155; line-height: 1.6;">
-  <strong>${params.customerName}</strong> (${params.customerEmail}) cancelled their booking online.
+  <strong>${escapeHtml(params.customerName)}</strong> (${escapeHtml(params.customerEmail)}) cancelled their booking online.
 </p>
 <ul style="font-size: 14px; color: #334155;">
-  <li>Service: ${params.serviceName}</li>
-  <li>Staff: ${params.staffName}</li>
-  <li>Was scheduled: ${params.formattedStart}</li>
+  <li>Service: ${escapeHtml(params.serviceName)}</li>
+  <li>Staff: ${escapeHtml(params.staffName)}</li>
+  <li>Was scheduled: ${escapeHtml(params.formattedStart)}</li>
 </ul>`;
 
   const mailgun = new Mailgun(formData);

@@ -545,8 +545,16 @@ export async function handleCreateBooking(request: Request): Promise<NextRespons
     ignoredBodyTenant,
   });
 
+  let manageTokenRaw: string | null = null;
   try {
     const issued = await issueManageToken(appointment.id as string);
+    manageTokenRaw = issued.rawToken;
+  } catch (tokenErr: unknown) {
+    const message = tokenErr instanceof Error ? tokenErr.message : String(tokenErr);
+    console.warn('[CreateBooking] Manage token issue failed; sending confirmation without manage link:', message);
+  }
+
+  try {
     const [{ data: svc }, { data: stf }, { data: tenant }] = await Promise.all([
       admin.from('services').select('name').eq('id', fields.serviceId).maybeSingle(),
       admin.from('staff').select('name').eq('id', fields.staffId).maybeSingle(),
@@ -560,12 +568,12 @@ export async function handleCreateBooking(request: Request): Promise<NextRespons
       serviceName: svc?.name || 'Appointment',
       staffName: stf?.name || 'Colleague',
       formattedStart,
-      manageToken: issued.rawToken,
+      manageToken: manageTokenRaw,
       businessName: tenant?.company_name,
     });
   } catch (emailErr: unknown) {
     const message = emailErr instanceof Error ? emailErr.message : String(emailErr);
-    console.warn('[CreateBooking] Confirmation email skipped:', message);
+    console.warn('[CreateBooking] Confirmation email failed:', message);
   }
 
   return json({
