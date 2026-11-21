@@ -1,22 +1,6 @@
 import type { Metadata } from "next";
-import { Poppins, Inter } from "next/font/google";
+import { rootFontClassName } from "@/lib/fonts";
 import "./globals.css";
-
-const poppins = Poppins({
-  variable: "--font-poppins",
-  subsets: ["latin"],
-  weight: ["400", "500", "600", "700"],
-  display: "swap",
-  preload: false,
-});
-
-const inter = Inter({
-  variable: "--font-inter",
-  subsets: ["latin"],
-  weight: ["400", "500", "600", "700"],
-  display: "swap",
-  preload: false,
-});
 
 const isStaging =
   (process.env.APP_ENV || process.env.NEXT_PUBLIC_ENV || "")
@@ -46,7 +30,7 @@ export default function RootLayout({
   return (
     <html
       lang="en"
-      className={`${poppins.variable} ${inter.variable} antialiased`}
+      className={rootFontClassName}
     >
       <head>
         {/* 1. Google Consent Mode v2 (default denied, runs before any tag/script both inside and outside frame) */}
@@ -83,7 +67,7 @@ export default function RootLayout({
                   isTopWindow = false;
                 }
 
-                if (isTopWindow) {
+                if (isTopWindow && !${JSON.stringify(process.env.PLAYWRIGHT_TEST === 'true')}) {
                   // Direct visit on app.styleflo.ai: load CookieYes banner
                   var script = document.createElement('script');
                   script.id = 'cookieyes';

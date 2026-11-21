@@ -202,7 +202,8 @@ export function buildAccountOwnership(input: {
       ownership: alreadyIncluded ? ownership : (billing === 'one_off' ? null : ownership),
       price_paid_pence: alreadyIncluded ? pricePaid : null,
       catalogue_price_pence: cataloguePrice,
-      cancel_at_period_end: purchase?.cancel_at_period_end === true,
+      cancel_at_period_end: purchase?.cancel_at_period_end === true
+        || (purchase?.cancel_at != null && String(purchase.cancel_at).trim() !== ''),
       cancel_at: purchase?.cancel_at ?? null,
       price_label: priceLabel({
         billing,
@@ -254,7 +255,8 @@ export function buildAccountOwnership(input: {
         addon_catalog_id: row.addon_catalog_id,
         is_active: row.is_active,
         price_paid_pence: row.price_paid_pence,
-        cancel_at_period_end: row.cancel_at_period_end === true,
+        cancel_at_period_end: row.cancel_at_period_end === true
+          || (row.cancel_at != null && String(row.cancel_at).trim() !== ''),
         cancel_at: row.cancel_at ?? null,
       })),
   };

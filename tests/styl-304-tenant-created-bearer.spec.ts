@@ -112,10 +112,20 @@ test.describe('STYL-304 tenant-created webhook bearer', () => {
 
   test.afterAll(() => {
     if (createdTenantIds.length) {
-      const ids = createdTenantIds.map((id) => `${sqlLiteral(id)}::uuid`).join(', ');
-      sql(`DELETE FROM public.tenants WHERE id IN (${ids});`);
+      try {
+        const ids = createdTenantIds.map((id) => `${sqlLiteral(id)}::uuid`).join(', ');
+        sql(`DELETE FROM public.tenants WHERE id IN (${ids});`);
+      } catch (error) {
+        const message = error instanceof Error ? error.message : 'tenant cleanup failed';
+        console.warn('[STYL-304] afterAll tenant cleanup:', message);
+      }
     }
-    restoreVault();
+    try {
+      restoreVault();
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'vault restore failed';
+      console.warn('[STYL-304] afterAll vault restore:', message);
+    }
   });
 
   test('webhook route requires Bearer TENANT_CREATED_WEBHOOK_SECRET', async () => {
@@ -161,12 +171,11 @@ test.describe('STYL-304 tenant-created webhook bearer', () => {
     );
     expect(dispatch).not.toBe('');
 
-    const requestHeaders = sql(
-      `SELECT coalesce(headers::text, '') FROM net.http_request_queue WHERE id = ${dispatch}::bigint;`,
+    const authorizationHeader = sql(
+      `SELECT coalesce(headers ->> 'Authorization', '') FROM net.http_request_queue WHERE id = ${dispatch}::bigint;`,
     );
-    expect(requestHeaders, 'pg_net request must remain queued long enough to read outbound headers').not.toBe('');
-    expect(requestHeaders).toContain('Authorization');
-    expect(requestHeaders.toLowerCase()).toContain('bearer');
+    expect(authorizationHeader, 'pg_net request must remain queued long enough to read outbound headers').not.toBe('');
+    expect(authorizationHeader).toBe(`Bearer ${TEST_BEARER}`);
   });
 
   test('tenant insert does nothing when vault secret is missing', () => {

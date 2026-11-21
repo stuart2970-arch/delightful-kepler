@@ -48,6 +48,7 @@ function createStore(options?: { addons?: Row[]; missingRpc?: boolean; voiceMinu
     const rowMatches = (row: Row) => filters.every(([op, col, val]) => {
       if (op === 'eq') return row[col] === val;
       if (op === 'in') return Array.isArray(val) && val.includes(row[col]);
+      if (op === 'is') return val === null ? row[col] == null : row[col] === val;
       return true;
     });
     const matched = () => (tables[name] || []).filter(rowMatches);
@@ -73,9 +74,17 @@ function createStore(options?: { addons?: Row[]; missingRpc?: boolean; voiceMinu
             filters.push(['eq', column, value]);
             return chain;
           },
+          is(column: string, value: any) {
+            filters.push(['is', column, value]);
+            return chain;
+          },
+          select() {
+            return chain;
+          },
           then(resolve: (value: any) => unknown, reject?: (reason: any) => unknown) {
-            for (const item of matched()) Object.assign(item, row);
-            return Promise.resolve({ error: null }).then(resolve, reject);
+            const hits = matched();
+            for (const item of hits) Object.assign(item, row);
+            return Promise.resolve({ data: hits, error: null }).then(resolve, reject);
           },
         };
         return chain;

@@ -1,5 +1,6 @@
 import { createClient } from '@supabase/supabase-js';
-import { resolveVoiceAllowance } from './telephony/voice-minute-gate';
+import { buildVoiceMinuteGateBalance, resolveVoiceAllowance } from './telephony/voice-minute-gate';
+import { PLAN_VOICE_PREFIX } from './billing/credit-grant-keys';
 import { usageAlertLevel, type UsageAlertLevel } from './usage-alerts';
 
 export { USAGE_ALERT_LIMIT_PERCENT, USAGE_ALERT_WARNING_PERCENT, usageAlertLevel } from './usage-alerts';
@@ -266,6 +267,59 @@ export async function getRolloverBalance(tenantId: string): Promise<RolloverBala
 }
 
 /** Voice minutes used since the first of the current month. Same feature ids as the rollover. */
+/** Sum of plan-included voice allocations written to usage_ledger this calendar month. */
+export async function loadPurchasedPackVoiceAllocationInLedger(
+  tenantId: string,
+  supabase: { from: (table: string) => any } = createAdminClient(),
+  now = new Date(),
+): Promise<{ quantity: number; error: string | null }> {
+  const threeMonthsAgo = new Date(now);
+  threeMonthsAgo.setMonth(threeMonthsAgo.getMonth() - 3);
+  const result = await supabase
+    .from('usage_ledger')
+    .select('quantity, sector_tag')
+    .eq('tenant_id', tenantId)
+    .eq('usage_type', 'allocation')
+    .eq('feature_id', 'voice_minutes')
+    .gte('expires_at', now.toISOString())
+    .gte('billing_period_start', threeMonthsAgo.toISOString());
+  if (result?.error) {
+    return { quantity: 0, error: result.error.message || 'usage_ledger read failed' };
+  }
+  const quantity = (result?.data ?? []).reduce((sum: number, row: { quantity?: number | null; sector_tag?: string | null }) => {
+    const tag = String(row.sector_tag || '');
+    if (!tag.startsWith('one_off:') && !tag.startsWith('invoice_addon:')) {
+      return sum;
+    }
+    return sum + Number(row.quantity || 0);
+  }, 0);
+  return { quantity, error: null };
+}
+
+export async function loadPlanVoiceAllocationInLedger(
+  tenantId: string,
+  supabase: { from: (table: string) => any } = createAdminClient(),
+  now = new Date(),
+): Promise<{ quantity: number; error: string | null }> {
+  const start = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1));
+  const result = await supabase
+    .from('usage_ledger')
+    .select('quantity')
+    .eq('tenant_id', tenantId)
+    .eq('usage_type', 'allocation')
+    .eq('feature_id', 'voice_minutes')
+    .like('sector_tag', `${PLAN_VOICE_PREFIX}%`)
+    .gte('recorded_at', start.toISOString());
+  if (result?.error) {
+    return { quantity: 0, error: result.error.message || 'usage_ledger read failed' };
+  }
+  const quantity = (result?.data ?? []).reduce(
+    (sum: number, row: { quantity?: number | null }) => sum + Number(row.quantity || 0),
+    0,
+  );
+  return { quantity, error: null };
+}
+
 export async function loadCurrentPeriodVoiceConsumption(
   tenantId: string,
   supabase: { from: (table: string) => any } = createAdminClient(),
@@ -437,9 +491,38 @@ export async function checkFeatureEntitlement(
       ? 'voice' : 'sms';
 
     if (normalizedId === 'voice') {
-      // For rolling features, the "limit" is the allocated amount and "usage" is consumed
       currentUsage = balance.voice_minutes_consumed;
-      const effectiveLimit = balance.voice_minutes_allocated > 0 ? balance.voice_minutes_allocated : limit;
+      let effectiveLimit = balance.voice_minutes_allocated > 0 ? balance.voice_minutes_allocated : limit;
+      if (balance.voice_minutes_allocated > 0) {
+        const rollingClient = dbClient ?? createAdminClient();
+        const { data: tenantRow } = await rollingClient
+          .from('tenants')
+          .select('plan_tier')
+          .eq('id', tenantId)
+          .maybeSingle();
+        const { data: tierEnt } = await rollingClient
+          .from('tier_entitlements')
+          .select('limit_value')
+          .eq('tier_id', tenantRow?.plan_tier || 'foundation')
+          .eq('feature_id', 'voice_minutes')
+          .maybeSingle();
+        const catalogLimit =
+          tierEnt?.limit_value === null || tierEnt?.limit_value === undefined
+            ? null
+            : Number(tierEnt.limit_value);
+        const [planVoice, purchasedPack] = await Promise.all([
+          loadPlanVoiceAllocationInLedger(tenantId, rollingClient),
+          loadPurchasedPackVoiceAllocationInLedger(tenantId, rollingClient),
+        ]);
+        const gateBalance = buildVoiceMinuteGateBalance({
+          rolloverAllocated: balance.voice_minutes_allocated,
+          consumed: currentUsage,
+          catalogLimit,
+          planVoiceAllocatedInLedger: planVoice.quantity,
+          purchasedPackAllocationInLedger: purchasedPack.quantity,
+        });
+        effectiveLimit = gateBalance.allocated;
+      }
       if (currentUsage + requestedVolume > effectiveLimit) {
         return {
           allowed: false,

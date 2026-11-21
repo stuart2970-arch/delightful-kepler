@@ -574,7 +574,7 @@ if (!defined('ABSPATH')) exit;
                   </div>
                   <div class="flex items-center gap-2">
                     <i data-lucide="check-circle-2" class="w-4 h-4 text-emerald-600 flex-shrink-0"></i>
-                    <span><strong>50</strong> Knowledge Vector Chunks</span>
+                    <span><strong>500</strong> knowledge items</span>
                   </div>
                   <div class="flex items-center gap-2">
                     <i data-lucide="check-circle-2" class="w-4 h-4 text-emerald-600 flex-shrink-0"></i>
@@ -648,13 +648,13 @@ if (!defined('ABSPATH')) exit;
                       <div class="w-10 h-10 rounded-lg bg-purple-100 text-amethyst flex items-center justify-center font-bold flex-shrink-0">
                         <i data-lucide="database" class="w-5 h-5"></i>
                       </div>
-                      <input type="checkbox" id="addon-knowledge-storage" value="data_pack_500" data-price="9.99" data-name="Knowledgebase Storage (500 Chunks)" onchange="updatePackageTotal()" class="addon-checkbox w-5 h-5 rounded border-slate-300 text-amethyst focus:ring-amethyst cursor-pointer mt-1">
+                      <input type="checkbox" id="addon-knowledge-storage" value="data_pack_500" data-price="9.99" data-name="Extra Knowledge (500 knowledge items)" onchange="updatePackageTotal()" class="addon-checkbox w-5 h-5 rounded border-slate-300 text-amethyst focus:ring-amethyst cursor-pointer mt-1">
                     </div>
                     <h4 class="font-bold text-sm text-slate-body group-hover:text-amethyst transition-colors mb-1">
                       Knowledgebase Additional Storage
                     </h4>
                     <p class="text-xs text-slate-muted leading-relaxed mb-4">
-                      500 additional knowledge vector chunks for rich product catalogs, complex multi-tier service menus, and detailed business rules.
+                      500 additional knowledge items for rich product catalogs, complex multi-tier service menus, and detailed business rules.
                     </p>
                   </div>
                   <div class="pt-3 border-t border-slate-ash/60 flex items-center justify-between">
@@ -813,7 +813,7 @@ if (!defined('ABSPATH')) exit;
               <i id="faq-icon-1" data-lucide="chevron-down" class="w-5 h-5 text-amethyst transition-transform"></i>
             </button>
             <div id="faq-content-1" class="hidden px-6 pb-6 text-sm text-slate-muted leading-relaxed">
-              Our Foundation Subscription gives you a full 24/7 web chat AI receptionist for just £9.99/mo with 1,000 messages and 50 knowledge vector chunks included. As your business grows, you can easily stack modular bolt-ons like a Voice AI Phone Agent, dedicated phone numbers, or extra message and knowledge packs anytime from your dashboard.
+              Our Foundation Subscription gives you a full 24/7 web chat AI receptionist for just £9.99/mo with 1,000 messages and 500 knowledge items included. As your business grows, you can easily stack modular bolt-ons like a Voice AI Phone Agent, dedicated phone numbers, or extra message and knowledge packs anytime from your dashboard.
             </div>
           </div>
 
@@ -843,7 +843,7 @@ if (!defined('ABSPATH')) exit;
               <i id="faq-icon-4" data-lucide="chevron-down" class="w-5 h-5 text-amethyst transition-transform"></i>
             </button>
             <div id="faq-content-4" class="hidden px-6 pb-6 text-sm text-slate-muted leading-relaxed">
-              StyleFlo triggers a notification once you reach 85% of your monthly quota. You can easily upgrade tiers or add a modular chunk/message boost pack from your billing control panel.
+              StyleFlo triggers a notification once you reach 85% of your monthly quota. You can easily upgrade tiers or add a modular knowledge or message boost pack from your billing control panel.
             </div>
           </div>
 
