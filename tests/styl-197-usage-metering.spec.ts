@@ -13,6 +13,7 @@ import {
 } from '../src/lib/entitlements';
 import { usageAlertLevel } from '../src/lib/usage-alerts';
 import {
+  buildVoiceMinuteGateBalance,
   decideVoiceMinuteGate,
   INBOUND_MINUTES_EXHAUSTED_MESSAGE,
 } from '../src/lib/telephony/voice-minute-gate';
@@ -207,6 +208,19 @@ test.describe('STYL-197 usage metering and allowances', () => {
         catalogLimit: 10,
       }),
     ).toMatchObject({ allowed: true, reason: 'under_allowance', allowanceMinutes: 30, consumedMinutes: 10 });
+
+    expect(
+      decideVoiceMinuteGate({
+        balance: buildVoiceMinuteGateBalance({
+          rolloverAllocated: 20,
+          consumed: 12,
+          catalogLimit: 10,
+          planVoiceAllocatedInLedger: 0,
+          purchasedPackAllocationInLedger: 20,
+        }),
+        catalogLimit: 10,
+      }),
+    ).toMatchObject({ allowed: true, allowanceMinutes: 30, consumedMinutes: 12 });
 
     expect(INBOUND_MINUTES_EXHAUSTED_MESSAGE).toBe(
       "We can't take your call right now. Please contact us through our website or by text message.",

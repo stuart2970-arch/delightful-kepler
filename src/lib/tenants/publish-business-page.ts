@@ -46,6 +46,59 @@ async function persistTenantRename(
   };
 }
 
+const SLUG_CLAIM_TABLE = 'tenant_publish_slug_claims';
+const MAX_SLUG_RESERVE_ATTEMPTS = 64;
+
+async function releasePublishSlugClaim(
+  supabase: SupabaseClient,
+  tenantId: string,
+  slug: string,
+): Promise<void> {
+  await supabase.from(SLUG_CLAIM_TABLE).delete().eq('tenant_id', tenantId).eq('slug', slug);
+}
+
+async function reservePublishSlug(
+  supabase: SupabaseClient,
+  tenantId: string,
+  baseSlug: string,
+): Promise<{ ok: true; finalSlug: string } | { ok: false; error: string }> {
+  let finalSlug = baseSlug;
+  let counter = 1;
+
+  for (let attempt = 0; attempt < MAX_SLUG_RESERVE_ATTEMPTS; attempt++) {
+    const { data: tenantConflict } = await supabase
+      .from('tenants')
+      .select('id')
+      .eq('slug', finalSlug)
+      .neq('id', tenantId)
+      .maybeSingle();
+
+    if (tenantConflict) {
+      finalSlug = `${baseSlug}-${counter}`;
+      counter++;
+      continue;
+    }
+
+    const { error: claimErr } = await supabase
+      .from(SLUG_CLAIM_TABLE)
+      .insert({ slug: finalSlug, tenant_id: tenantId });
+
+    if (!claimErr) {
+      return { ok: true, finalSlug };
+    }
+
+    if (claimErr.code === '23505') {
+      finalSlug = `${baseSlug}-${counter}`;
+      counter++;
+      continue;
+    }
+
+    return { ok: false, error: claimErr.message };
+  }
+
+  return { ok: false, error: 'Could not reserve a unique publish slug' };
+}
+
 export async function publishBusinessPageForTenant(
   supabase: SupabaseClient,
   tenantId: string,
@@ -65,27 +118,21 @@ export async function publishBusinessPageForTenant(
   let baseSlug = cleanName.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
   if (!baseSlug) baseSlug = 'business';
 
-  let finalSlug = baseSlug;
-  let counter = 1;
-  while (true) {
-    const { data: conflicting } = await supabase
-      .from('tenants')
-      .select('id')
-      .eq('slug', finalSlug)
-      .neq('id', tenantId)
-      .maybeSingle();
-
-    if (!conflicting) break;
-    finalSlug = `${baseSlug}-${counter}`;
-    counter++;
+  const reserved = await reservePublishSlug(supabase, tenantId, baseSlug);
+  if (!reserved.ok) {
+    return { ok: false, status: 500, error: reserved.error };
   }
+  const { finalSlug } = reserved;
 
   const wpConfig = getWordpressPublishConfig();
   if (!wpConfig.enabled) {
     const persisted = await persistTenantRename(supabase, tenantId, cleanName, finalSlug);
     if (!persisted.ok) {
+      await releasePublishSlugClaim(supabase, tenantId, finalSlug);
       return { ok: false, status: 500, error: persisted.error };
     }
+
+    await releasePublishSlugClaim(supabase, tenantId, finalSlug);
 
     return {
       ok: true,
@@ -98,6 +145,7 @@ export async function publishBusinessPageForTenant(
 
   const wpResult = await postWordpressCreateBusiness(wpConfig, finalSlug, cleanName);
   if (!wpResult.ok) {
+    await releasePublishSlugClaim(supabase, tenantId, finalSlug);
     return {
       ok: false,
       status: wpResult.status > 0 ? wpResult.status : 502,
@@ -112,6 +160,8 @@ export async function publishBusinessPageForTenant(
   if (!persisted.ok) {
     return { ok: false, status: 500, error: persisted.error };
   }
+
+  await releasePublishSlugClaim(supabase, tenantId, finalSlug);
 
   return {
     ok: true,

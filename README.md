@@ -4595,3 +4595,18 @@ Highlighted adjustments in the modal:
 * **User**: WhatsApp/Instagram/Messenger badges must say **Coming soon**, not **Available**, with shared helper to avoid drift.
 * **Changes**: `src/lib/channels/meta-messaging-status.ts`; `WhatsAppMetaView`, `DashboardClient`, `InboxView`; `tests/styl-219-meta-channel-labels.spec.ts`.
 * **Verify**: `bash scripts/test-e2e-agent.sh tests/styl-219-meta-channel-labels.spec.ts` — 2 passed; pre-push 64 related specs passed.
+
+### Session (STYL-295 + STYL-296 voice minute gate — 21 Nov 2026)
+* **User**: Package C — widget voice must respect the same minute gate as inbound telephony; include plan minutes when checkout never wrote `plan_voice` but a purchased pack exists.
+* **Changes**: `tenant-voice-minute-gate.ts`, `buildVoiceMinuteGateBalance`, `chatbot-voice-access`, public chatbot GET, inbound refactor; `tests/styl-295-296-voice-minute-gate.spec.ts`.
+* **Verify**: `bash scripts/agent-supabase-up.sh`; focused Playwright 15 passed; husky pre-push 126 related specs passed; PR #96 → `staging`.
+
+### Session (PR 96 review regressions — 21 Nov 2026)
+* **User**: Fix CI failures on homepage-widget STYL-181/Emma mock tests and isolated minute-gate spec; OpenClaw must-forward `loadPurchasedPackInLedger` on inbound; merge `origin/staging` (README both sides); no webpack/font CI bundle.
+* **Changes**: Restored unconditional `e000…000002` demo JSON; inbound forwards ledger override deps; `voiceEnabled` vs web-call `allowed` split; dedicated tenant `f295…0295` + ledger cleanup; `PLAYWRIGHT_TEST` env restore in gate spec; `entitlements` reuses passed Supabase client for rolling voice reads.
+* **Verify**: `styl-295-296-voice-minute-gate.spec.ts` (7), homepage-widget voice intercept + Emma mock grep tests, `npm run typecheck`; push `423a95b` — husky pre-push 195 related specs passed.
+
+### Session (PR 96 tsconfig hygiene + staging merge — 21 Nov 2026)
+* **User**: Revert `tsconfig.json` churn (not ticket-related); merge `origin/staging` at 631e73e (PRs 90–95); re-run gate + homepage-widget specs.
+* **Changes**: `tsconfig.json` restored to match `staging` exactly; merge brought STYL-218 billing copy + STYL-400 CI concurrency.
+* **Verify**: typecheck; `styl-295-296-voice-minute-gate.spec.ts` (7); `homepage-widget.spec.ts` (14).
