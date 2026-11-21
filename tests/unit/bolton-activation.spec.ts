@@ -261,12 +261,35 @@ function createFakeBillingDb(seed?: {
                 return { data: withIds, error: null };
               }
               if (table === 'usage_ledger') {
-                const withIds = rows.map((row, index) => ({
-                  id: row.id || `led-${ledger.length + index + 1}`,
-                  ...row,
-                }));
-                ledger.push(...withIds);
-                return { data: withIds, error: null };
+                const withIds = rows.map((row, index) => {
+                  const sectorTag = row.sector_tag;
+                  if (sectorTag) {
+                    const clash = ledger.some((existingRow) => (
+                      existingRow.tenant_id === row.tenant_id
+                      && existingRow.sector_tag === sectorTag
+                      && existingRow.usage_type === (row.usage_type || 'allocation')
+                    ));
+                    if (clash) {
+                      return null;
+                    }
+                  }
+                  return {
+                    id: row.id || `led-${ledger.length + index + 1}`,
+                    ...row,
+                  };
+                });
+                const valid = withIds.filter(Boolean) as any[];
+                if (valid.length !== rows.length) {
+                  return {
+                    data: null,
+                    error: {
+                      code: '23505',
+                      message: 'duplicate key value violates unique constraint "usage_ledger_one_off_grant_key"',
+                    },
+                  };
+                }
+                ledger.push(...valid);
+                return { data: valid, error: null };
               }
               return { data: rows, error: null };
             }
@@ -374,6 +397,7 @@ async function recordLedgerAllocation(
   featureId: string,
   quantity: number,
   addonId?: string,
+  extra?: Record<string, unknown>,
 ) {
   const { data, error } = await db.from('usage_ledger').insert({
     tenant_id: tenantId,
@@ -381,8 +405,13 @@ async function recordLedgerAllocation(
     quantity,
     usage_type: 'allocation',
     addon_catalog_id: addonId || null,
+    ...extra,
   }).select('id');
-  if (error) throw new Error(error.message);
+  if (error) {
+    const err = new Error(error.message) as Error & { code?: string };
+    err.code = error.code;
+    throw err;
+  }
   const row = Array.isArray(data) ? data[0] : data;
   return { id: row?.id as string };
 }
@@ -772,8 +801,11 @@ test.describe('Bolt-on webhook detection and fulfilment', () => {
     };
     const deps = {
       supabaseAdmin: db,
-      allocateRollingCredits: async (tenantId: string, featureId: string, quantity: number, addonId?: string) => {
+      allocateRollingCredits: async (tenantId: string, featureId: string, quantity: number, addonId?: string, options?) => {
         allocations.push([tenantId, featureId, quantity, addonId]);
+        return recordLedgerAllocation(db, tenantId, featureId, quantity, addonId, {
+          sector_tag: options?.sectorTag ?? null,
+        });
       },
     };
 
@@ -782,8 +814,8 @@ test.describe('Bolt-on webhook detection and fulfilment', () => {
     await handleStripeBillingEvent(smsEvent, deps);
     await handleStripeBillingEvent(smsEvent, deps);
 
-    expect(allocations.filter((row) => row[1] === 'voice_minutes')).toEqual([[TENANT_ID, 'voice_minutes', 20, 'voice_pack_20']]);
-    expect(allocations.filter((row) => row[1] === 'sms_messages')).toEqual([[TENANT_ID, 'sms_messages', 100, 'sms_pack_100']]);
+    expect(db.state.ledger.filter((row) => row.feature_id === 'voice_minutes')).toHaveLength(1);
+    expect(db.state.ledger.filter((row) => row.feature_id === 'sms_messages')).toHaveLength(1);
     expect(db.state.tenants[0].plan_tier).toBe('premium');
     expect(db.state.audit.filter((row) => row.action === 'one_off_addon_purchased')).toHaveLength(2);
   });
@@ -807,22 +839,26 @@ test.describe('Bolt-on webhook detection and fulfilment', () => {
       },
     };
 
+    const allocateOnce = async (tenantId: string, featureId: string, quantity: number, addonId?: string, options?) => {
+      granted.push([tenantId, featureId, quantity, addonId]);
+      return recordLedgerAllocation(grantedDb, tenantId, featureId, quantity, addonId, {
+        sector_tag: options?.sectorTag ?? null,
+      });
+    };
+
     const first = await handleStripeBillingEvent(voiceEvent, {
       supabaseAdmin: grantedDb,
-      allocateRollingCredits: async (tenantId, featureId, quantity, addonId) => {
-        granted.push([tenantId, featureId, quantity, addonId]);
-      },
+      allocateRollingCredits: allocateOnce,
     });
     const replay = await handleStripeBillingEvent(voiceEvent, {
       supabaseAdmin: grantedDb,
-      allocateRollingCredits: async (tenantId, featureId, quantity, addonId) => {
-        granted.push([tenantId, featureId, quantity, addonId]);
-      },
+      allocateRollingCredits: allocateOnce,
     });
 
     expect(first.status).toBe(200);
     expect(replay.status).toBe(200);
-    expect(granted).toEqual([[TENANT_ID, 'voice_minutes', 20, 'voice_pack_20']]);
+    expect(grantedDb.state.ledger).toHaveLength(1);
+    expect(grantedDb.state.ledger[0].feature_id).toBe('voice_minutes');
     expect(grantedDb.state.audit).toHaveLength(1);
 
     const failedDb = createFakeBillingDb({
@@ -862,12 +898,14 @@ test.describe('Bolt-on webhook detection and fulfilment', () => {
     };
     const deps = {
       supabaseAdmin: db,
-      allocateRollingCredits: async (tenantId: string, featureId: string, quantity: number, addonId?: string) => {
+      allocateRollingCredits: async (tenantId: string, featureId: string, quantity: number, addonId?: string, options?) => {
         if (shouldFail) {
           throw new Error('usage_ledger insert failed');
         }
         allocations.push([tenantId, featureId, quantity, addonId]);
-        return recordLedgerAllocation(db, tenantId, featureId, quantity, addonId);
+        return recordLedgerAllocation(db, tenantId, featureId, quantity, addonId, {
+          sector_tag: options?.sectorTag ?? null,
+        });
       },
     };
 
@@ -875,7 +913,7 @@ test.describe('Bolt-on webhook detection and fulfilment', () => {
     expect(first.status).toBe(500);
     expect(first.body.success).toBe(false);
     expect(allocations).toHaveLength(0);
-    expect(db.state.audit).toHaveLength(0);
+    expect(db.state.audit).toHaveLength(1);
     expect(db.state.ledger).toHaveLength(0);
 
     shouldFail = false;
@@ -884,15 +922,13 @@ test.describe('Bolt-on webhook detection and fulfilment', () => {
 
     expect(retry.status).toBe(200);
     expect(replay.status).toBe(200);
-    expect(allocations).toEqual([
-      [TENANT_ID, 'voice_minutes', 20, 'combo_pack_voice_sms'],
-      [TENANT_ID, 'sms_messages', 100, 'combo_pack_voice_sms'],
-    ]);
     expect(db.state.audit).toHaveLength(1);
     expect(db.state.ledger).toHaveLength(2);
+    expect(db.state.ledger.filter((row) => row.feature_id === 'voice_minutes')).toHaveLength(1);
+    expect(db.state.ledger.filter((row) => row.feature_id === 'sms_messages')).toHaveLength(1);
   });
 
-  test('multi-credit pack rolls back a partial allocation so nothing is granted', async () => {
+  test('multi-credit pack keeps the first credit and completes the rest on retry', async () => {
     const db = createFakeBillingDb();
     const allocations: Array<[string, string, number, string?]> = [];
     const comboEvent = {
@@ -912,73 +948,102 @@ test.describe('Bolt-on webhook detection and fulfilment', () => {
 
     const first = await handleStripeBillingEvent(comboEvent, {
       supabaseAdmin: db,
-      allocateRollingCredits: async (tenantId, featureId, quantity, addonId) => {
-        allocations.push([tenantId, featureId, quantity, addonId]);
+      allocateRollingCredits: async (tenantId, featureId, quantity, addonId, options) => {
         if (featureId === 'sms_messages') {
           throw new Error('second credit insert failed');
         }
-        return recordLedgerAllocation(db, tenantId, featureId, quantity, addonId);
+        allocations.push([tenantId, featureId, quantity, addonId]);
+        return recordLedgerAllocation(db, tenantId, featureId, quantity, addonId, {
+          sector_tag: options?.sectorTag ?? null,
+        });
       },
     });
 
     expect(first.status).toBe(500);
-    expect(db.state.audit).toHaveLength(0);
-    expect(db.state.ledger).toHaveLength(0);
+    expect(db.state.audit).toHaveLength(1);
+    expect(db.state.ledger).toHaveLength(1);
+    expect(db.state.ledger[0].feature_id).toBe('voice_minutes');
 
     const retry = await handleStripeBillingEvent(comboEvent, {
       supabaseAdmin: db,
-      allocateRollingCredits: async (tenantId, featureId, quantity, addonId) => {
+      allocateRollingCredits: async (tenantId, featureId, quantity, addonId, options) => {
         allocations.push([tenantId, featureId, quantity, addonId]);
-        return recordLedgerAllocation(db, tenantId, featureId, quantity, addonId);
+        return recordLedgerAllocation(db, tenantId, featureId, quantity, addonId, {
+          sector_tag: options?.sectorTag ?? null,
+        });
       },
     });
 
     expect(retry.status).toBe(200);
-    expect(allocations.filter((row) => row[1] === 'voice_minutes')).toHaveLength(2);
-    expect(allocations.filter((row) => row[1] === 'sms_messages')).toHaveLength(2);
     expect(db.state.audit).toHaveLength(1);
     expect(db.state.ledger).toHaveLength(2);
+    expect(db.state.ledger.filter((row) => row.feature_id === 'voice_minutes')).toHaveLength(1);
+    expect(db.state.ledger.filter((row) => row.feature_id === 'sms_messages')).toHaveLength(1);
   });
 
-  test('ledger rollback delete failure returns 500 and leaves the granted credit', async () => {
-    const db = createFakeBillingDb({
-      ledgerDeleteError: { code: '57014', message: 'ledger delete failed' },
-    });
-    const result = await handleStripeBillingEvent(
-      oneOffCheckoutEvent('cs_ledger_delete_fail', { addon_catalog_id: 'combo_pack_voice_sms' }),
+  test('partial one-off grant retries without doubling voice minutes after a failed second credit', async () => {
+    const db = createFakeBillingDb();
+    let attempts = 0;
+    const sessionId = 'cs_ledger_retry_safe';
+    const resultOnce = async () => handleStripeBillingEvent(
+      oneOffCheckoutEvent(sessionId, { addon_catalog_id: 'combo_pack_voice_sms' }),
       {
         supabaseAdmin: db,
-        allocateRollingCredits: async (tenantId, featureId, quantity, addonId) => {
-          if (featureId === 'sms_messages') throw new Error('second credit insert failed');
-          return recordLedgerAllocation(db, tenantId, featureId, quantity, addonId);
+        allocateRollingCredits: async (tenantId, featureId, quantity, addonId, options) => {
+          attempts += 1;
+          if (featureId === 'sms_messages' && attempts === 2) {
+            throw new Error('second credit insert failed');
+          }
+          return recordLedgerAllocation(db, tenantId, featureId, quantity, addonId, {
+            sector_tag: options?.sectorTag ?? null,
+          });
         },
       },
     );
 
-    expect(result.status).toBe(500);
-    expect(result.body.error).toMatch(/roll back/i);
+    const first = await resultOnce();
+    expect(first.status).toBe(500);
+    expect(db.state.audit).toHaveLength(1);
     expect(db.state.ledger).toHaveLength(1);
     expect(db.state.ledger[0].feature_id).toBe('voice_minutes');
+
+    const second = await resultOnce();
+    expect(second.status).toBe(200);
+    expect(db.state.ledger).toHaveLength(2);
+    expect(db.state.ledger.filter((row) => row.feature_id === 'voice_minutes')).toHaveLength(1);
+    expect(db.state.ledger.filter((row) => row.feature_id === 'sms_messages')).toHaveLength(1);
   });
 
-  test('audit rollback delete failure returns 500 and leaves the audit row', async () => {
-    const db = createFakeBillingDb({
-      auditDeleteError: { code: '57014', message: 'audit delete failed' },
-    });
-    const result = await handleStripeBillingEvent(
-      oneOffCheckoutEvent('cs_audit_delete_fail', { addon_catalog_id: 'voice_pack_20' }),
-      {
-        supabaseAdmin: db,
-        allocateRollingCredits: async () => {
-          throw new Error('usage_ledger insert failed');
-        },
+  test('failed first credit keeps the audit row and retry still grants once', async () => {
+    const db = createFakeBillingDb();
+    const sessionId = 'cs_audit_retry_safe';
+    let failVoice = true;
+    const deps = {
+      supabaseAdmin: db,
+      allocateRollingCredits: async (tenantId: string, featureId: string, quantity: number, addonId?: string, options?) => {
+        if (failVoice) throw new Error('usage_ledger insert failed');
+        return recordLedgerAllocation(db, tenantId, featureId, quantity, addonId, {
+          sector_tag: options?.sectorTag ?? null,
+        });
       },
-    );
+    };
 
-    expect(result.status).toBe(500);
-    expect(result.body.error).toMatch(/roll back/i);
+    const failed = await handleStripeBillingEvent(
+      oneOffCheckoutEvent(sessionId, { addon_catalog_id: 'voice_pack_20' }),
+      deps,
+    );
+    expect(failed.status).toBe(500);
     expect(db.state.audit).toHaveLength(1);
     expect(db.state.ledger).toHaveLength(0);
+
+    failVoice = false;
+    const retry = await handleStripeBillingEvent(
+      oneOffCheckoutEvent(sessionId, { addon_catalog_id: 'voice_pack_20' }),
+      deps,
+    );
+    expect(retry.status).toBe(200);
+    expect(db.state.audit).toHaveLength(1);
+    expect(db.state.ledger).toHaveLength(1);
   });
 
   test('successful RPC grant sets voice auto top-up', async () => {
@@ -1053,9 +1118,11 @@ test.describe('Bolt-on webhook detection and fulfilment', () => {
       oneOffCheckoutEvent('cs_rpc_missing', { addon_catalog_id: 'voice_pack_20' }),
       {
         supabaseAdmin: db,
-        allocateRollingCredits: async (tenantId, featureId, quantity, addonId) => {
+        allocateRollingCredits: async (tenantId, featureId, quantity, addonId, options) => {
           allocations.push([tenantId, featureId, quantity, addonId]);
-          return recordLedgerAllocation(db, tenantId, featureId, quantity, addonId);
+          return recordLedgerAllocation(db, tenantId, featureId, quantity, addonId, {
+            sector_tag: options?.sectorTag ?? null,
+          });
         },
       },
     );

@@ -1,4 +1,13 @@
 import { allocateRollingCredits as allocateRollingCreditsDefault } from '@/lib/entitlements';
+import {
+  claimStripeWebhookEvent,
+  completeStripeWebhookEvent,
+} from '@/lib/billing/stripe-webhook-event-idempotency';
+import {
+  invoiceAddonGrantSectorTag,
+  oneOffGrantSectorTag,
+  planVoiceCheckoutSectorTag,
+} from '@/lib/billing/credit-grant-keys';
 import { isBoltOnMetadata, mapAddonCategoryToFeatureId } from '@/lib/billing/bolt-on';
 import { resolvePricePaidPence } from '@/lib/billing/account-ownership';
 import {
@@ -262,6 +271,7 @@ export async function syncBoltOnPendingCancellation(
 }
 
 export type StripeBillingEvent = {
+  id?: string;
   type?: string;
   data?: { object?: Record<string, any> };
 };
@@ -291,8 +301,74 @@ type ActivateBoltOnResult = {
   error?: string;
 };
 
-function isUniqueViolation(error: any): boolean {
-  return String(error?.code ?? '') === '23505';
+function isUniqueViolation(error: { code?: string; message?: string } | null | undefined): boolean {
+  if (!error) return false;
+  if (String(error.code ?? '') === '23505') return true;
+  return /duplicate key|unique constraint/i.test(String(error.message ?? ''));
+}
+
+async function allocateCreditOrSkipDuplicate(
+  allocateRollingCredits: NonNullable<StripeWebhookDeps['allocateRollingCredits']>,
+  tenantId: string,
+  featureId: string,
+  quantity: number,
+  addonCatalogId?: string,
+  options?: { sectorTag?: string; billingPeriodStart?: string },
+): Promise<{ duplicate: boolean; id?: string }> {
+  try {
+    const row = await allocateRollingCredits(tenantId, featureId, quantity, addonCatalogId, options);
+    return { duplicate: false, id: row?.id };
+  } catch (err: any) {
+    if (isUniqueViolation(err)) return { duplicate: true };
+    throw err;
+  }
+}
+
+async function grantOneOffPackWithoutRpc(options: {
+  supabaseAdmin: any;
+  tenantId: string;
+  addonCatalogId: string;
+  stripeSessionId?: string | null;
+  auditRow: Record<string, any>;
+  credits: Array<{ feature_id: string; quantity: number }>;
+  allocateRollingCredits: NonNullable<StripeWebhookDeps['allocateRollingCredits']>;
+}): Promise<{ ok: true } | { ok: false; retry: true; error: string }> {
+  const sessionId = (options.stripeSessionId || '').trim();
+  const { error: auditError } = await options.supabaseAdmin
+    .from('addon_audit_log')
+    .insert(options.auditRow);
+
+  if (auditError && !isUniqueViolation(auditError)) {
+    console.error('[Stripe Webhook] One-off audit insert failed:', auditError);
+    return {
+      ok: false,
+      retry: true,
+      error: auditError.message || 'Failed to record one-off pack grant',
+    };
+  }
+
+  for (const credit of options.credits) {
+    try {
+      const sectorTag = sessionId ? oneOffGrantSectorTag(sessionId, credit.feature_id) : undefined;
+      await allocateCreditOrSkipDuplicate(
+        options.allocateRollingCredits,
+        options.tenantId,
+        credit.feature_id,
+        credit.quantity,
+        options.addonCatalogId,
+        sectorTag ? { sectorTag } : undefined,
+      );
+    } catch (allocErr: any) {
+      console.error('[Stripe Webhook] One-off allocation failed; credits remain idempotent for retry:', allocErr);
+      return {
+        ok: false,
+        retry: true,
+        error: allocErr?.message || 'Failed to allocate one-off credits',
+      };
+    }
+  }
+
+  return { ok: true };
 }
 
 function isMissingRpc(error: any): boolean {
@@ -657,67 +733,22 @@ async function activateBoltOnByCatalogId(options: {
         return { ok: true, alreadyGranted: true, addonId: addon.id, oneOff: true };
       }
     } else {
-      const { data: insertedAudit, error: auditError } = await supabaseAdmin
-        .from('addon_audit_log')
-        .insert(auditRow)
-        .select('id');
-      if (auditError) {
-        if (isUniqueViolation(auditError)) {
-          return { ok: true, alreadyGranted: true, addonId: addon.id, oneOff: true };
-        }
-        console.error('[Stripe Webhook] One-off audit insert failed; leaving credits unchanged:', auditError);
+      const jsGrant = await grantOneOffPackWithoutRpc({
+        supabaseAdmin,
+        tenantId,
+        addonCatalogId: addon.id,
+        stripeSessionId,
+        auditRow,
+        credits: oneOffCredits,
+        allocateRollingCredits: allocateRollingCredits || allocateRollingCreditsDefault,
+      });
+      if (!jsGrant.ok) {
         return {
           ok: false,
           retry: true,
           oneOff: true,
           addonId: addon.id,
-          error: auditError.message || 'Failed to record one-off pack grant',
-        };
-      }
-      const auditId = Array.isArray(insertedAudit) ? insertedAudit[0]?.id : insertedAudit?.id;
-      const grantedLedgerIds: string[] = [];
-      try {
-        for (const credit of oneOffCredits) {
-          const granted = await allocateRollingCredits?.(tenantId, credit.feature_id, credit.quantity, addon.id);
-          if (granted?.id) grantedLedgerIds.push(granted.id);
-        }
-      } catch (allocErr: any) {
-        console.error('[Stripe Webhook] One-off allocation failed; rolling back audit grant:', allocErr);
-        let rollbackFailed = false;
-        if (grantedLedgerIds.length > 0) {
-          const { error: ledgerDeleteError } = await supabaseAdmin
-            .from('usage_ledger')
-            .delete()
-            .in('id', grantedLedgerIds);
-          if (ledgerDeleteError) {
-            console.error(
-              '[Stripe Webhook] CRITICAL: failed to roll back one-off usage_ledger rows after allocation failure. Retry must not grant twice.',
-              ledgerDeleteError,
-            );
-            rollbackFailed = true;
-          }
-        }
-        if (auditId) {
-          const { error: auditDeleteError } = await supabaseAdmin
-            .from('addon_audit_log')
-            .delete()
-            .eq('id', auditId);
-          if (auditDeleteError) {
-            console.error(
-              '[Stripe Webhook] CRITICAL: failed to roll back one-off addon_audit_log row after allocation failure. Retry must not grant twice.',
-              auditDeleteError,
-            );
-            rollbackFailed = true;
-          }
-        }
-        return {
-          ok: false,
-          retry: true,
-          oneOff: true,
-          addonId: addon.id,
-          error: rollbackFailed
-            ? 'Failed to roll back one-off grant after allocation error'
-            : (allocErr?.message || 'Failed to allocate one-off credits'),
+          error: jsGrant.error,
         };
       }
     }
@@ -881,7 +912,7 @@ export async function grantPlanVoiceMinutesForRenewal(
       billingPeriodStart: periodStart,
     });
   } catch (err: any) {
-    if (err?.code === '23505') {
+    if (isUniqueViolation(err)) {
       return { granted: false, minutes: 0, reason: 'already_granted' };
     }
     throw err;
@@ -890,6 +921,58 @@ export async function grantPlanVoiceMinutesForRenewal(
 }
 
 export async function handleStripeBillingEvent(
+  event: StripeBillingEvent,
+  deps: StripeWebhookDeps,
+): Promise<StripeWebhookResult> {
+  const eventId = typeof event.id === 'string' ? event.id.trim() : '';
+  const claim = eventId
+    ? await claimStripeWebhookEvent(deps.supabaseAdmin, eventId, event.type || 'direct_payload')
+    : { action: 'process' as const };
+
+  if (claim.action === 'skip') {
+    return {
+      status: 200,
+      body: { success: true, message: 'Stripe webhook event already processed', duplicate: true },
+    };
+  }
+  if (claim.action === 'locked') {
+    return {
+      status: 500,
+      body: { success: false, error: 'Stripe webhook event is still processing', retry: true },
+    };
+  }
+  if (claim.action === 'error') {
+    return {
+      status: 500,
+      body: {
+        success: false,
+        error: claim.message || 'Could not claim Stripe webhook event',
+        retry: true,
+      },
+    };
+  }
+
+  const trackCompletion = eventId && claim.action === 'process';
+  let result: StripeWebhookResult;
+  try {
+    result = await processStripeBillingEventBody(event, deps);
+  } catch (err: unknown) {
+    if (trackCompletion) {
+      await completeStripeWebhookEvent(deps.supabaseAdmin, eventId, false);
+    }
+    const message = err instanceof Error ? err.message : 'Webhook processing failed';
+    return { status: 500, body: { success: false, error: message } };
+  }
+
+  if (trackCompletion) {
+    const succeeded = result.status >= 200 && result.status < 500;
+    await completeStripeWebhookEvent(deps.supabaseAdmin, eventId, succeeded);
+  }
+
+  return result;
+}
+
+async function processStripeBillingEventBody(
   event: StripeBillingEvent,
   deps: StripeWebhookDeps,
 ): Promise<StripeWebhookResult> {
@@ -930,6 +1013,12 @@ export async function handleStripeBillingEvent(
         .update({ is_active: true, subscription_status: 'active' })
         .eq('id', tenantId);
 
+      const invoiceId = typeof dataObject.id === 'string' ? dataObject.id.trim() : '';
+      const periodStartUnix = dataObject.lines?.data?.[0]?.period?.start ?? dataObject.period_start;
+      const billingPeriodStart = periodStartUnix != null
+        ? new Date(Number(periodStartUnix) * 1000).toISOString()
+        : new Date().toISOString();
+
       const { data: activeAddons } = await supabaseAdmin
         .from('tenant_active_addons')
         .select('addon_catalog_id, addon_catalog(category, included_voice_minutes, included_sms, included_messages)')
@@ -942,13 +1031,49 @@ export async function handleStripeBillingEvent(
           if (catalog?.category === 'sms_pack' || catalog?.category === 'voice_pack') continue;
 
           if (catalog?.included_voice_minutes > 0) {
-            await allocateRollingCredits(tenantId, 'voice_minutes', catalog.included_voice_minutes, addon.addon_catalog_id);
+            await allocateCreditOrSkipDuplicate(
+              allocateRollingCredits,
+              tenantId,
+              'voice_minutes',
+              catalog.included_voice_minutes,
+              addon.addon_catalog_id,
+              invoiceId
+                ? {
+                    sectorTag: invoiceAddonGrantSectorTag(invoiceId, addon.addon_catalog_id, 'voice_minutes'),
+                    billingPeriodStart,
+                  }
+                : undefined,
+            );
           }
           if (catalog?.included_sms > 0) {
-            await allocateRollingCredits(tenantId, 'sms_messages', catalog.included_sms, addon.addon_catalog_id);
+            await allocateCreditOrSkipDuplicate(
+              allocateRollingCredits,
+              tenantId,
+              'sms_messages',
+              catalog.included_sms,
+              addon.addon_catalog_id,
+              invoiceId
+                ? {
+                    sectorTag: invoiceAddonGrantSectorTag(invoiceId, addon.addon_catalog_id, 'sms_messages'),
+                    billingPeriodStart,
+                  }
+                : undefined,
+            );
           }
           if (catalog?.included_messages > 0) {
-            await allocateRollingCredits(tenantId, 'whatsapp_messages', catalog.included_messages, addon.addon_catalog_id);
+            await allocateCreditOrSkipDuplicate(
+              allocateRollingCredits,
+              tenantId,
+              'whatsapp_messages',
+              catalog.included_messages,
+              addon.addon_catalog_id,
+              invoiceId
+                ? {
+                    sectorTag: invoiceAddonGrantSectorTag(invoiceId, addon.addon_catalog_id, 'whatsapp_messages'),
+                    billingPeriodStart,
+                  }
+                : undefined,
+            );
           }
         }
       }
@@ -1283,7 +1408,15 @@ export async function handleStripeBillingEvent(
       }
     }
 
-    await allocateRollingCredits(targetTenantId, 'voice_minutes', 10);
+    const checkoutSessionId = typeof dataObject.id === 'string' ? dataObject.id.trim() : '';
+    await allocateCreditOrSkipDuplicate(
+      allocateRollingCredits,
+      targetTenantId,
+      'voice_minutes',
+      10,
+      undefined,
+      checkoutSessionId ? { sectorTag: planVoiceCheckoutSectorTag(checkoutSessionId) } : undefined,
+    );
 
     return {
       status: 200,

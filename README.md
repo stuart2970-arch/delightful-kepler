@@ -126,6 +126,16 @@ This runbook documents the key fixes and architecture enhancements implemented d
 
 ### Session Chat History Log
 
+### Session (STYL-279 / STYL-385 OpenClaw rework - 21 Nov 2026)
+* **Rework**: `claim_stripe_webhook_event` now locks the existing row with `SELECT … FOR UPDATE` before reclaiming failed/stale `processing` rows; claim RPC errors return HTTP 500 with `retry: true`; added concurrent failed-retry Playwright test.
+* **STYL-385 merge**: Merged updated 279 branch; `grant_one_off_pack` skips `usage_ledger_one_off_grant_key` unique violations per credit; JS duplicate detection uses `isUniqueViolation`.
+
+### Session (STYL-279 / STYL-385 - Stripe webhook and credit grant idempotency - 21 Nov 2026)
+* **User / Jira**: Package B — record Stripe webhook `event.id` before billing side effects (STYL-279) and make credit grants idempotent per Stripe invoice / checkout session via `sector_tag` keys (STYL-385), stacked PRs targeting `staging`.
+* **STYL-279**: `stripe_webhook_processed_events` table + `claim_stripe_webhook_event` / `complete_stripe_webhook_event` RPCs; `handleStripeBillingEvent` claims the event id first and marks `processed` only after a 2xx–4xx handler result (5xx leaves `failed` for safe retry).
+* **STYL-385**: `usage_ledger` unique indexes for `invoice_addon:%` and `one_off:%`; idempotent JS one-off fallback without rollback deletes; checkout Foundation minutes keyed as `plan_voice:checkout:<session_id>`; invoice bolt-on re-grants keyed per invoice line.
+* **Tests**: `bash scripts/agent-supabase-up.sh` then `bash scripts/test-e2e-agent.sh tests/styl-279-stripe-webhook-event-idempotency.spec.ts tests/styl-385-credit-grant-idempotency.spec.ts tests/unit/bolton-activation.spec.ts` — 36 passed locally.
+
 ### Session (STYL-361 follow-up - staging Turnstile site key - 14 Nov 2026)
 * **User / Jira**: STYL-361 follow-up — staging App Hosting (`delightful-kepler` on `styleflo-staging`) had `NEXT_PUBLIC_TURNSTILE_SITE_KEY` set to Cloudflare's always-pass test secret. `embed.js` inlines that value into `/turnstile.html`, so the embedded widget errors and the client throws "Security verification failed" before `public-init`. The dashboard test area still works because `turnstile-client` short-circuits any `1x` key.
 * **Config**: The staging backend merges `apphosting.staging.yaml` over `apphosting.yaml` when its Environment name is `staging`. Production App Hosting (`styleflo-ai` / `delightful-kepler-1`, no environment name) reads only `apphosting.yaml`. Production Cloud Run takes the site key from `.github/workflows/deploy.yml`.
@@ -4542,6 +4552,10 @@ Highlighted adjustments in the modal:
 * **Changes**: `.cursor/Dockerfile` (Docker CE, fuse-overlayfs, Node 22), `.cursor/environment.json`, `.cursor/agent-install.sh` (npm ci, Playwright Chromium, warm `supabase@3.2.0` images), `scripts/agent-supabase-up.sh` (retries, local-only `db reset`, `env:local`). `config.toml`: `db.health_timeout` 5m, `edge_runtime` off, `storage.s3_protocol` off (storage service stays on for migrations). Pinned `supabase` 3.2.0 in devDependencies. AGENTS.md + README Cloud Agent section.
 * **Disabled services (local config only)**: Studio, Realtime, Analytics (already off); **edge_runtime** (no `supabase/functions`); **storage.s3_protocol** (Playwright never uses S3 port). **Kept**: Storage API (migration seeds `storage.buckets`), Auth, REST, Postgres, Inbucket/Mailpit (magic-link spec).
 * **VM proof (this agent)**: `scripts/agent-supabase-up.sh` ~39s start+reset+env after image pull; warm re-start ~1s. Use `npm run test:e2e:agent` (docker group / `sg docker` for specs that `docker exec` psql). Pre-push smoke (12 specs) passed. PR #73 Playwright CI on commit `74ee203`: **green** (~6m36s job).
+
+### Session (STYL-231 Google sign-in scopes — 21 Nov 2026)
+* **User**: Remove Calendar scope, `access_type=offline`, and `prompt=consent` from Google sign-in on login, register, and onboard; keep incremental calendar scopes on `/api/integrations/google/authorize`.
+* **Changes**: `tests/styl-231-google-sign-in-scopes.spec.ts` asserts Supabase OAuth and calendar connect URLs.
 
 ### Session (PR 53 merge staging 7b8e407 — Cloud Agent Supabase - 20 Nov 2026)
 * **User**: Merge `origin/staging` at `7b8e407` (PR 73) into PR 53. Keep agent tooling and PR 53 voice/test workflow changes. Green CI; do not merge PR.
