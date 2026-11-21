@@ -2,7 +2,7 @@ import Vapi from '@vapi-ai/web';
 import { buildGreeting, getFirstName, isEchoOfGreeting } from '../lib/greeting';
 import { resolveChatFooter } from '../lib/billing/branding';
 import { resolveTurnstileSiteKey } from './turnstile-config';
-import { voiceUnavailableMessage } from '../lib/voice/voice-user-messages';
+import { voiceUnavailableMessage, webCallFailureMessage } from '../lib/voice/voice-user-messages';
 
 // STYL-241: text-chat gate copy. Voice calls keep globalVoiceDisclaimer.
 const TEXT_CHAT_NOTICE =
@@ -1693,10 +1693,7 @@ const CONNECTING_TIMEOUT_MS = 20000;
           });
           const createBody = await createRes.json().catch(() => ({}));
           if (!createRes.ok || !createBody?.id || !createBody?.webCallUrl) {
-            const code = typeof createBody?.code === 'string' ? createBody.code : '';
-            throw new Error(
-              voiceUnavailableMessage(code) || createBody?.error || 'Could not start the voice call.',
-            );
+            throw new Error(webCallFailureMessage(createBody?.code, createBody?.error));
           }
           await (vapiInstance as any).reconnect({ id: createBody.id, webCallUrl: createBody.webCallUrl });
         } catch (e: any) {

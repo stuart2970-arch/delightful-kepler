@@ -7,6 +7,7 @@ import {
   shouldBlockKnownProductionVapiIds,
 } from '../src/lib/env/vapi-config';
 import { VOICE_ERROR_CODES } from '../src/lib/voice/voice-error-codes';
+import { isKnownVoiceErrorCode, webCallFailureMessage } from '../src/lib/voice/voice-user-messages';
 import { signChatSessionToken } from '../src/lib/chat-session';
 import { POST as webCallPost } from '../src/app/api/voice/web-call/route';
 
@@ -56,6 +57,23 @@ test.describe('STYL-388: voice diagnostics codes', () => {
       VAPI_MASTER_ASSISTANT_ID: PROD_ASSISTANT,
     });
     expect(allowedInProd.allowed).toBe(true);
+  });
+
+  test('webCallFailureMessage keeps rate-limit and auth errors when code is absent or unknown', () => {
+    expect(isKnownVoiceErrorCode('voice_gate_off')).toBe(true);
+    expect(isKnownVoiceErrorCode('')).toBe(false);
+    expect(isKnownVoiceErrorCode(undefined)).toBe(false);
+    expect(isKnownVoiceErrorCode('too_many_requests')).toBe(false);
+
+    expect(webCallFailureMessage(undefined, 'Too many voice call requests. Please try again shortly.')).toBe(
+      'Too many voice call requests. Please try again shortly.',
+    );
+    expect(
+      webCallFailureMessage(null, 'Unauthorized. Valid chat session or Turnstile verification is required.'),
+    ).toBe('Unauthorized. Valid chat session or Turnstile verification is required.');
+    expect(webCallFailureMessage(VOICE_ERROR_CODES.NO_PRIVATE_KEY, 'ignored')).toContain(
+      'Voice is currently unavailable',
+    );
   });
 
   test('publicVoiceFields exposes voiceUnavailableCode when gated', () => {
@@ -134,7 +152,7 @@ test.describe('STYL-388: voice diagnostics codes', () => {
       const src = readFileSync(join(root, rel), 'utf8');
       expect(src).toContain('voiceUnavailableCode');
       expect(src).toContain('voiceUnavailableMessage');
-      expect(src).toContain('createBody?.code');
+      expect(src).toContain('webCallFailureMessage');
     }
 
     const baseHosting = readFileSync(join(root, 'apphosting.yaml'), 'utf8');

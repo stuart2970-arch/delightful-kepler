@@ -21,8 +21,25 @@ const FRIENDLY_BY_CODE: Record<VoiceErrorCode, string> = {
     'Voice is currently unavailable. We could not reach the voice service. Please try again later.',
 };
 
+const KNOWN_VOICE_CODES = new Set<string>(Object.values(VOICE_ERROR_CODES));
+
+export function isKnownVoiceErrorCode(code?: string | null): code is VoiceErrorCode {
+  if (!code || !code.trim()) return false;
+  return KNOWN_VOICE_CODES.has(code.trim());
+}
+
 export function voiceUnavailableMessage(code?: string | null): string {
-  if (!code) return VOICE_UNAVAILABLE_GENERIC;
-  const friendly = FRIENDLY_BY_CODE[code as VoiceErrorCode];
-  return friendly || VOICE_UNAVAILABLE_GENERIC;
+  if (!isKnownVoiceErrorCode(code)) return VOICE_UNAVAILABLE_GENERIC;
+  return FRIENDLY_BY_CODE[code];
+}
+
+/** Web-call failures: mapped copy only for known voice codes; else keep the server error text. */
+export function webCallFailureMessage(code: unknown, serverError?: unknown): string {
+  const codeStr = typeof code === 'string' ? code.trim() : '';
+  if (isKnownVoiceErrorCode(codeStr)) {
+    return voiceUnavailableMessage(codeStr);
+  }
+  const err = typeof serverError === 'string' ? serverError.trim() : '';
+  if (err) return err;
+  return 'Could not start the voice call.';
 }
