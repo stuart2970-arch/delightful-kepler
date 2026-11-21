@@ -399,7 +399,9 @@ export function getAvailableDays(slots: CalculatedSlot[], maxDays: number = 7): 
     }
   }
 
-  return Array.from(dayMap.values()).slice(0, maxDays);
+  return Array.from(dayMap.values())
+    .filter((day) => day.slotsCount > 0)
+    .slice(0, maxDays);
 }
 
 /**

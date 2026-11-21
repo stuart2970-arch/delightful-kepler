@@ -1,6 +1,8 @@
 import { createClient } from '@supabase/supabase-js';
 import formData from 'form-data';
 import Mailgun from 'mailgun.js';
+import { buildBrandedEmailHtml } from '@/lib/email/branded-email-layout';
+import { publicAppPath } from '@/lib/env/public-app-url';
 
 function getSupabaseAdmin() {
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
@@ -46,11 +48,11 @@ export async function sendConsolidatedLeadEmail(params: LeadNotificationParams):
     // 1. Fetch chatbot details & tenant business name
     const [{ data: chatbot }, { data: tenant }] = await Promise.all([
       supabaseAdmin.from('chatbots').select('name, configuration_json').eq('id', chatbotId).single(),
-      supabaseAdmin.from('tenants').select('name').eq('id', tenantId).single(),
+      supabaseAdmin.from('tenants').select('company_name').eq('id', tenantId).single(),
     ]);
 
     const chatbotName = chatbot?.name || 'AI Chatbot';
-    const businessName = tenant?.name || 'StyleFlo Business';
+    const businessName = (tenant as { company_name?: string } | null)?.company_name || 'StyleFlo Business';
     const botConfig = (chatbot?.configuration_json || {}) as Record<string, any>;
 
     // 2. Resolve target admin email address
@@ -221,57 +223,34 @@ Log into your StyleFlo Dashboard to view and manage this conversation.
 ==================================================
 `.trim();
 
-    const htmlBody = `
-<div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; max-width: 650px; margin: 0 auto; border: 1px solid #e5e7eb; border-radius: 12px; overflow: hidden; background-color: #ffffff;">
-  <div style="background: linear-gradient(135deg, #4f46e5 0%, #6366f1 100%); padding: 24px; text-align: center; color: #ffffff;">
-    <h2 style="margin: 0; font-size: 22px; font-weight: 700;">New Lead Captured</h2>
-    <p style="margin: 6px 0 0 0; font-size: 14px; opacity: 0.9;">Chatbot: <strong>${chatbotName}</strong> | Business: <strong>${businessName}</strong></p>
-  </div>
-  
-  <div style="padding: 24px;">
-    <!-- Consolidated Contacts Box -->
+    const dashboardUrl = publicAppPath('/dashboard');
+    const channelLabel = channelType === 'voice' ? 'Voice call' : 'Web chat';
+    const htmlBody = buildBrandedEmailHtml({
+      title: 'New Lead Captured',
+      subtitle: `Chatbot: ${chatbotName} | Business: ${businessName} | ${channelLabel}`,
+      bodyHtml: `
     <div style="background-color: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 18px; margin-bottom: 20px;">
-      <h3 style="margin-top: 0; margin-bottom: 12px; font-size: 16px; color: #1e293b; border-bottom: 1px solid #cbd5e1; padding-bottom: 8px;">
-        📞 Consolidated Contact Details
-      </h3>
+      <h3 style="margin-top: 0; margin-bottom: 12px; font-size: 16px; color: #1e293b;">Consolidated contact details</h3>
       <table style="width: 100%; border-collapse: collapse; font-size: 14px;">
-        ${customerName ? `<tr><td style="padding: 4px 0; color: #64748b; width: 140px;">Customer Name:</td><td style="padding: 4px 0; font-weight: 600; color: #0f172a;">${customerName}</td></tr>` : ''}
+        ${customerName ? `<tr><td style="padding: 4px 0; color: #64748b; width: 140px;">Customer name:</td><td style="padding: 4px 0; font-weight: 600; color: #0f172a;">${customerName}</td></tr>` : ''}
         <tr>
-          <td style="padding: 4px 0; color: #64748b; width: 140px;">Email Address:</td>
+          <td style="padding: 4px 0; color: #64748b; width: 140px;">Email:</td>
           <td style="padding: 4px 0; font-weight: 600; color: #0f172a;">${emailDisplay}</td>
         </tr>
         <tr>
-          <td style="padding: 4px 0; color: #64748b; width: 140px;">Mobile Tel Number:</td>
+          <td style="padding: 4px 0; color: #64748b; width: 140px;">Mobile:</td>
           <td style="padding: 4px 0; font-weight: 600; color: #0f172a;">${phoneDisplay}</td>
         </tr>
       </table>
     </div>
-
-    <!-- Intent Summary Box -->
     <div style="background-color: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 8px; padding: 18px; margin-bottom: 20px;">
-      <h3 style="margin-top: 0; margin-bottom: 8px; font-size: 16px; color: #166534;">
-        🎯 Customer Intent
-      </h3>
       <p style="margin: 0 0 6px 0; font-size: 14px; font-weight: 600; color: #15803d;">Category: ${intentCategory}</p>
       <p style="margin: 0; font-size: 14px; color: #166534; font-style: italic;">"${userIntentSnippet}"</p>
     </div>
-
-    <!-- Full Transcript Box -->
-    <div style="margin-bottom: 20px;">
-      <h3 style="margin-top: 0; margin-bottom: 10px; font-size: 16px; color: #1e293b;">
-        💬 Conversation & Message History
-      </h3>
-      <div style="background-color: #f1f5f9; border-radius: 8px; padding: 16px; font-size: 13px; color: #334155; max-height: 400px; overflow-y: auto; white-space: pre-wrap; font-family: monospace;">${formattedTranscriptLines.length > 0 ? formattedTranscriptLines.join('\n\n') : (voiceTranscript || combinedAllText || 'No transcript text available.')}</div>
-    </div>
-
-
-
-    <div style="text-align: center; margin-top: 28px;">
-      <a href="https://app.styleflo.ai" style="background-color: #4f46e5; color: #ffffff; padding: 12px 24px; border-radius: 6px; text-decoration: none; font-weight: 600; font-size: 14px; display: inline-block;">View in StyleFlo Dashboard</a>
-    </div>
-  </div>
-</div>
-`.trim();
+    <div style="background-color: #f1f5f9; border-radius: 8px; padding: 16px; font-size: 13px; color: #334155; max-height: 400px; overflow-y: auto; white-space: pre-wrap; font-family: monospace;">${formattedTranscriptLines.length > 0 ? formattedTranscriptLines.join('\n\n') : (voiceTranscript || combinedAllText || 'No transcript text available.')}</div>`,
+      ctaHref: dashboardUrl,
+      ctaLabel: 'View in StyleFlo Dashboard',
+    });
 
     await mg.messages.create(process.env.MAILGUN_DOMAIN, {
       from: `${chatbotName} <no-reply@${process.env.MAILGUN_DOMAIN}>`,
