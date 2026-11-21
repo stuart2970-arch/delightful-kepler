@@ -128,7 +128,7 @@ export async function handleProvisionPost(
     const appBaseUrl = appUrlResult.url;
     const webhookSecret = (env.VAPI_WEBHOOK_SECRET || '').trim();
     if (!webhookSecret) {
-      return NextResponse.json({ error: 'VAPI_WEBHOOK_SECRET is not configured.' }, { status: 500 });
+      return NextResponse.json({ error: 'VAPI_WEBHOOK_SECRET is not configured.' }, { status: 503 });
     }
 
     const { data: tenant } = await deps.userSupabase

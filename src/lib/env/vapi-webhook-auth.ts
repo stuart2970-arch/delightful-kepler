@@ -38,8 +38,13 @@ export function verifyVapiWebhookSecret(
     };
   }
 
-  const provided = request.headers.get(VAPI_SECRET_HEADER) || '';
-  if (!safeEqual(provided, expected)) {
+  const headerSecret = (request.headers.get(VAPI_SECRET_HEADER) || '').trim();
+  const authorization = request.headers.get('authorization') || '';
+  const bearer = /^Bearer\s+/i.test(authorization)
+    ? authorization.replace(/^Bearer\s+/i, '').trim()
+    : '';
+  const matches = [headerSecret, bearer].filter(Boolean).some((candidate) => safeEqual(candidate, expected));
+  if (!matches) {
     return {
       ok: false,
       response: NextResponse.json({ error: 'Unauthorized' }, { status: 401 }),
