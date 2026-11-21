@@ -54,10 +54,17 @@ type ActiveAddonRow = {
   price_paid_pence?: number | null;
 };
 
+type TierEntitlementRow = {
+  tier_id: string;
+  feature_id: string;
+  limit_value: number;
+};
+
 function createFakeBillingDb(seed?: {
   tenant?: Partial<TenantRow>;
   catalog?: AddonCatalogRow[];
   activeAddons?: ActiveAddonRow[];
+  tierEntitlements?: TierEntitlementRow[];
   auditInsertError?: { code?: string; message?: string };
   ledgerDeleteError?: { code?: string; message?: string };
   auditDeleteError?: { code?: string; message?: string };
@@ -141,6 +148,10 @@ function createFakeBillingDb(seed?: {
   ];
 
   const activeAddons: ActiveAddonRow[] = [...(seed?.activeAddons || [])];
+  const tierEntitlements: TierEntitlementRow[] = seed?.tierEntitlements ?? [
+    { tier_id: 'base_tier', feature_id: 'voice_minutes', limit_value: 10 },
+    { tier_id: 'foundation', feature_id: 'voice_minutes', limit_value: 10 },
+  ];
   const audit: any[] = [];
   const ledger: any[] = [];
   const rpcCalls: Array<{ name: string; args: any }> = [];
@@ -213,6 +224,9 @@ function createFakeBillingDb(seed?: {
         }
         if (table === 'addon_audit_log') {
           return { data: audit.find((row) => rowMatches(row)) || null, error: null };
+        }
+        if (table === 'tier_entitlements') {
+          return { data: tierEntitlements.find((row) => rowMatches(row)) || null, error: null };
         }
         return { data: null, error: null };
       },
