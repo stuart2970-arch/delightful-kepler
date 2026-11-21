@@ -2,6 +2,11 @@ import { publicAppPath } from '@/lib/env/public-app-url'
 
 export type CalendarPushProvider = 'google' | 'microsoft'
 
+/** Webhook mock payload fields are accepted only in Playwright / test runs. */
+export function calendarPushTestMocksAllowed(env: NodeJS.ProcessEnv = process.env): boolean {
+  return env.PLAYWRIGHT_TEST === 'true' || env.NODE_ENV === 'test'
+}
+
 /** Live channel/subscription registration is staging-only until Stuart approves. */
 export function calendarPushRegistrationAllowed(env: NodeJS.ProcessEnv = process.env): boolean {
   if (env.PLAYWRIGHT_TEST === 'true' || env.NODE_ENV === 'test') {

@@ -4626,3 +4626,8 @@ Highlighted adjustments in the modal:
 * **User**: Package C follow-up to STYL-392 — Google `events.watch` and Microsoft Graph subscriptions with renewal, webhooks that reconcile cancelled/moved events, no live registration until Stuart enables staging.
 * **Changes**: Migration `20261121193000_styl404_calendar_push_subscriptions.sql`; push-sync libs under `src/lib/calendar/push-sync/`; webhooks `POST /api/webhooks/calendar/google|microsoft`; renewal `POST /api/calendar/push-subscriptions/renew` (CRON_SECRET); exported `applyExternalEventStateToAppointment` from `appointment-calendar-sync.ts`; `tests/styl-404-calendar-push-sync.spec.ts`.
 * **Verify**: `bash scripts/agent-supabase-up.sh`; `bash scripts/test-e2e-agent.sh tests/styl-404-calendar-push-sync.spec.ts` — 6 passed; `npm run typecheck` pass.
+
+### Session (STYL-404 OpenClaw review fixes — 21 Nov 2026)
+* **User**: Address PR 102 must-fix — gate Microsoft mock payload fields; verify Graph on delete; renew Google watch before row delete; filter Google reconcile by calendar; per-item Microsoft subscriptionId check.
+* **Changes**: `calendarPushTestMocksAllowed`, `stripMicrosoftNotificationTestFields`, `staff-google-calendar.ts`; `tests/unit/styl-404-calendar-push-sync.spec.ts`.
+* **Verify**: `bash scripts/test-e2e-agent.sh tests/styl-404-calendar-push-sync.spec.ts tests/unit/styl-404-calendar-push-sync.spec.ts` — 11 passed; typecheck pass.

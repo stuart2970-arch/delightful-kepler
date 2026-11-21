@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createAdminClient } from '@/utils/supabase-admin'
+import { calendarPushTestMocksAllowed } from '@/lib/calendar/push-sync/config'
 import { handleGoogleCalendarWebhook } from '@/lib/calendar/push-sync/google-webhook'
 import type { MockGoogleEventPayload } from '@/lib/calendar/push-sync/reconcile'
 
@@ -16,7 +17,7 @@ export async function POST(request: NextRequest) {
     }
 
     let mockEventPayloads: MockGoogleEventPayload[] | undefined
-    if (process.env.PLAYWRIGHT_TEST === 'true' || process.env.NODE_ENV === 'test') {
+    if (calendarPushTestMocksAllowed()) {
       try {
         const body = await request.clone().json()
         if (Array.isArray(body?.mockEventPayloads)) {

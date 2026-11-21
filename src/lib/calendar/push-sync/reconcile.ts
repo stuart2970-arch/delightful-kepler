@@ -7,6 +7,8 @@ import {
 } from '@/lib/booking/appointment-calendar-sync'
 import { APPOINTMENT_STATUS_BOOKED } from '@/lib/booking/appointment-status'
 import type { StaffCalendarTarget } from '@/lib/calendar/provider'
+import { calendarPushTestMocksAllowed } from '@/lib/calendar/push-sync/config'
+import { staffUsesGoogleCalendar } from '@/lib/calendar/push-sync/staff-google-calendar'
 
 const DEFAULT_LOOKBACK_DAYS = 7
 const DEFAULT_LOOKAHEAD_DAYS = 120
@@ -56,6 +58,7 @@ export async function reconcileGoogleCalendarPush(
   for (const row of data || []) {
     const staff = staffById.get(row.staff_id)
     if (!staff) continue
+    if (!staffUsesGoogleCalendar(staff, calendarId)) continue
     const state = await verify(tenantId, staff, row)
     if (state.kind === 'skipped') continue
     await applyExternalEventStateToAppointment({ admin, tenantId, row, state })
@@ -94,19 +97,37 @@ function parseMicrosoftEventId(item: MicrosoftNotificationItem): string | null {
   return match?.[1] ?? null
 }
 
-function stateFromMockMicrosoftPayload(item: MicrosoftNotificationItem): ExternalEventState | null {
-  const mock = item as MicrosoftNotificationItem & {
-    mockState?: ExternalEventState
-    mockCancelled?: boolean
-    mockMovedStart?: string
-    mockMovedEnd?: string
+export type MicrosoftNotificationTestFields = {
+  mockState?: ExternalEventState
+  mockCancelled?: boolean
+  mockMovedStart?: string
+  mockMovedEnd?: string
+}
+
+export function stripMicrosoftNotificationTestFields(
+  item: MicrosoftNotificationItem & MicrosoftNotificationTestFields,
+  env: NodeJS.ProcessEnv = process.env,
+): MicrosoftNotificationItem {
+  if (calendarPushTestMocksAllowed(env)) {
+    return item
   }
-  if (mock.mockState) return mock.mockState
-  if (mock.mockCancelled || item.changeType === 'deleted') {
+  const { mockState: _s, mockCancelled: _c, mockMovedStart: _a, mockMovedEnd: _b, ...rest } = item
+  return rest
+}
+
+function stateFromMockMicrosoftPayload(
+  item: MicrosoftNotificationItem & MicrosoftNotificationTestFields,
+  env: NodeJS.ProcessEnv = process.env,
+): ExternalEventState | null {
+  if (!calendarPushTestMocksAllowed(env)) {
+    return null
+  }
+  if (item.mockState) return item.mockState
+  if (item.mockCancelled) {
     return { kind: 'cancelled' }
   }
-  if (mock.mockMovedStart && mock.mockMovedEnd) {
-    return { kind: 'active', startIso: mock.mockMovedStart, endIso: mock.mockMovedEnd }
+  if (item.mockMovedStart && item.mockMovedEnd) {
+    return { kind: 'active', startIso: item.mockMovedStart, endIso: item.mockMovedEnd }
   }
   return null
 }
@@ -132,13 +153,9 @@ export async function processMicrosoftNotifications(
 
     let state: ExternalEventState | null = stateFromMockMicrosoftPayload(item)
     if (!state) {
-      if (item.changeType === 'deleted') {
-        state = { kind: 'missing' }
-      } else {
-        const staff = staffById.get(row.staff_id)
-        if (!staff) continue
-        state = await verify(tenantId, staff, row)
-      }
+      const staff = staffById.get(row.staff_id)
+      if (!staff) continue
+      state = await verify(tenantId, staff, row)
     }
     if (state.kind === 'skipped' || state.kind === 'error') continue
     await applyExternalEventStateToAppointment({ admin, tenantId, row, state })

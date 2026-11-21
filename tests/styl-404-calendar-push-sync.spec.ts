@@ -207,6 +207,7 @@ test.describe('STYL-404 calendar push sync', () => {
           clientState: msClientState,
           changeType: 'deleted',
           resourceData: { id: msEventId },
+          mockState: { kind: 'missing' },
         }],
       },
     })

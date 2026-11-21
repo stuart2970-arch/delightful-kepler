@@ -48,12 +48,15 @@ async function renewOneSubscription(
   row: CalendarPushSubscriptionRow,
 ): Promise<boolean> {
   if (row.provider === 'google') {
+    const watch = await registerGoogleCalendarWatch(admin, row.tenant_id, row.calendar_id)
+    if (!watch) {
+      return false
+    }
     if (row.resource_id) {
       await stopGoogleCalendarWatch(admin, row.tenant_id, row.channel_id, row.resource_id)
     }
     await deleteCalendarPushSubscription(admin, row.id)
-    const watch = await registerGoogleCalendarWatch(admin, row.tenant_id, row.calendar_id)
-    return Boolean(watch)
+    return true
   }
   if (row.provider === 'microsoft') {
     const expirationIso = await renewMicrosoftCalendarSubscription(admin, row.tenant_id, row.channel_id)
