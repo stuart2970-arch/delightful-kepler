@@ -69,6 +69,32 @@ export function catalogLimitFromRow(
   return Number(row.limit_value);
 }
 
+/**
+ * When a purchased pack is in the ledger but plan-included minutes were never
+ * granted on checkout, add the catalogue allowance to the pack total (read-only).
+ */
+export function buildVoiceMinuteGateBalance(input: {
+  rolloverAllocated: number;
+  consumed: number;
+  catalogLimit: CatalogLimit;
+  planVoiceAllocatedInLedger: number;
+  /** Pack purchases (one_off / invoice_addon grants), not plan_voice rows. */
+  purchasedPackAllocationInLedger: number;
+}): VoiceMinuteBalance {
+  let allocated = Number(input.rolloverAllocated || 0);
+  const catalog = input.catalogLimit;
+  if (
+    allocated > 0
+    && typeof catalog === 'number'
+    && catalog > 0
+    && input.planVoiceAllocatedInLedger <= 0
+    && input.purchasedPackAllocationInLedger > 0
+  ) {
+    allocated += catalog;
+  }
+  return { allocated, consumed: Number(input.consumed || 0) };
+}
+
 export function decideVoiceMinuteGate(input: {
   /** null when the rolling-balance read failed. */
   balance: VoiceMinuteBalance | null;
