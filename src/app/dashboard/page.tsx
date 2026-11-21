@@ -518,6 +518,7 @@ export default async function DashboardPage(props: { searchParams?: Promise<{ [k
         'price_paid_pence',
         'id',
         'addon_catalog_id',
+        'quantity',
         'is_active',
         'activated_at',
         'cancel_at_period_end',
@@ -560,6 +561,7 @@ export default async function DashboardPage(props: { searchParams?: Promise<{ [k
         included_sms: a.addon_catalog?.included_sms || 0,
         included_messages: a.addon_catalog?.included_messages || 0,
         included_data_chunks: a.addon_catalog?.included_data_chunks || 0,
+        quantity: a.quantity ?? 1,
         is_active: a.is_active,
         catalog_is_active: a.addon_catalog?.is_active ?? true,
         activated_at: a.activated_at,
@@ -570,6 +572,11 @@ export default async function DashboardPage(props: { searchParams?: Promise<{ [k
       if (billingData.addons.some((a: any) => a.category === 'microsoft_calendar' || a.addon_catalog_id === 'microsoft_calendar_addon')) {
         initialHasMicrosoftCalendarAddon = true;
       }
+
+      billingData.knowledgeItemsLimit = knowledgeItemsTotal({
+        entitlements: billingData.entitlements,
+        addons: billingData.addons,
+      });
 
       const { data: inclusionRows, error: inclusionError } = await queryClient
         .from('tenant_addon_inclusions')

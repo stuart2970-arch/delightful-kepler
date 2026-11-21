@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { useDashboardStore } from '@/lib/store';
+import { knowledgeItemsTotal } from '@/lib/billing/bolt-on';
 
 export default function BillingView() {
   const { tenantId, isSuperAdmin, billingData } = useDashboardStore();
@@ -10,7 +11,13 @@ export default function BillingView() {
   
   // Usage metrics (safe defaults)
   const messagesUsed = billingData?.usage?.messages || 0;
-  const chunksUsed = billingData?.usage?.chunks || 0;
+  const knowledgeUsed = billingData?.usage?.chunks || 0;
+  const knowledgeLimit =
+    billingData?.knowledgeItemsLimit ??
+    knowledgeItemsTotal({
+      entitlements: billingData?.entitlements,
+      addons: billingData?.addons,
+    });
 
   const [showImpersonateModal, setShowImpersonateModal] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
@@ -96,11 +103,16 @@ export default function BillingView() {
 
             <div>
               <div className="flex justify-between text-xs mb-1">
-                <span className="text-[var(--awb-color6)] font-semibold">Knowledge Items</span>
-                <span className="text-[var(--awb-color8)] font-mono">{chunksUsed.toLocaleString()}</span>
+                <span className="text-[var(--awb-color6)] font-semibold">Knowledge items</span>
+                <span className="text-[var(--awb-color8)] font-mono">
+                  {knowledgeUsed.toLocaleString()} of {knowledgeLimit.toLocaleString()} knowledge items
+                </span>
               </div>
               <div className="w-full bg-[var(--awb-color3)] rounded-full h-2.5 overflow-hidden">
-                <div className="bg-[var(--awb-color4)] h-2.5 rounded-full" style={{ width: `${Math.min((chunksUsed / 500) * 100, 100)}%` }}></div>
+                <div
+                  className="bg-[var(--awb-color4)] h-2.5 rounded-full"
+                  style={{ width: `${Math.min((knowledgeUsed / Math.max(1, knowledgeLimit)) * 100, 100)}%` }}
+                ></div>
               </div>
             </div>
           </div>

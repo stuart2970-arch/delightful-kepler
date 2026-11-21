@@ -4586,6 +4586,11 @@ Highlighted adjustments in the modal:
 * **Changes**: `process-stripe-webhook.ts`, `addon-subscription-status.ts`, `account-ownership.ts`, `dashboard/page.tsx` (select fallback only); migration `20261121180200_styl261_stripe_cancel_event_guard.sql`; tests `styl-261-webhook-cancel-race.spec.ts` + `styl-249` mock `select` on update.
 * **Verify**: `bash scripts/agent-supabase-up.sh` then Playwright `styl-249` / `styl-250` / `styl-261` (15 passed); `NODE_OPTIONS=--max-old-space-size=8192 npm run typecheck`.
 
+### Session (STYL-218 / STYL-381 / STYL-382 knowledge items — 21 Nov 2026)
+* **User**: Package B — Foundation 500 knowledge items, Extra Knowledge packs +500 each (quantity-aware), no customer “chunks” copy; billing UI uses `knowledgeItemsTotal`.
+* **Changes**: `dashboard/page.tsx` sets `knowledgeItemsLimit`; `BillingView` + Subscriptions show “X of Y knowledge items”; `knowledgeItemsTotal` multiplies `quantity`; landing HTML/PHP templates updated; Playwright `styl-218-knowledge-items-billing.spec.ts`.
+* **Verify**: `bash scripts/agent-supabase-up.sh` then `bash scripts/test-e2e-agent.sh tests/styl-218-knowledge-items-billing.spec.ts tests/dashboard-return-tabs.spec.ts tests/unit/bolton-activation.spec.ts` — 42 passed.
+
 ### Session (STYL-219 Meta channel labels — 21 Nov 2026)
 * **User**: WhatsApp/Instagram/Messenger badges must say **Coming soon**, not **Available**, with shared helper to avoid drift.
 * **Changes**: `src/lib/channels/meta-messaging-status.ts`; `WhatsAppMetaView`, `DashboardClient`, `InboxView`; `tests/styl-219-meta-channel-labels.spec.ts`.
