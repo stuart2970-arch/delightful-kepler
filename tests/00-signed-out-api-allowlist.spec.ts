@@ -31,6 +31,7 @@ const PUBLIC_PREFIXES = [
   '/api/chat/public-init',
   '/api/chat/stream',
   '/api/voice/',
+  '/api/public/bookings/manage/',
 ];
 
 const PUBLIC_EXACT = new Set([

@@ -450,6 +450,7 @@ export function formatQuickTimesTag(
     serviceId,
     slots: slots.map((s) => ({
       start: s.start,
+      end: s.end,
       staffId: s.staffId,
       time: s.time,
       staffName: s.staffName,
