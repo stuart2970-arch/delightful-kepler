@@ -2,10 +2,11 @@ import type { Metadata } from "next";
 import { Poppins, Inter } from "next/font/google";
 import "./globals.css";
 
+// Turbopack/next/font allows one weight entry per family (CI Playwright webServer).
 const poppins = Poppins({
   variable: "--font-poppins",
   subsets: ["latin"],
-  weight: ["400", "500", "600", "700"],
+  weight: "400",
   display: "swap",
   preload: false,
 });
@@ -13,7 +14,7 @@ const poppins = Poppins({
 const inter = Inter({
   variable: "--font-inter",
   subsets: ["latin"],
-  weight: ["400", "500", "600", "700"],
+  weight: "400",
   display: "swap",
   preload: false,
 });
@@ -83,7 +84,7 @@ export default function RootLayout({
                   isTopWindow = false;
                 }
 
-                if (isTopWindow) {
+                if (isTopWindow && !${JSON.stringify(process.env.PLAYWRIGHT_TEST === 'true')}) {
                   // Direct visit on app.styleflo.ai: load CookieYes banner
                   var script = document.createElement('script');
                   script.id = 'cookieyes';
