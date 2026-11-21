@@ -1,15 +1,7 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { evaluateVoiceGate } from '@/lib/env/vapi-config';
-import { checkFeatureEntitlement } from '@/lib/entitlements';
-
-const TIERS_WITH_INCLUDED_VOICE = new Set([
-  'base_tier',
-  'foundation',
-  'starter',
-  'premium',
-  'ultimate',
-  'trial',
-]);
+import { INBOUND_MINUTES_EXHAUSTED_MESSAGE } from '@/lib/telephony/voice-minute-gate';
+import { evaluateTenantVoiceMinuteGate } from '@/lib/telephony/tenant-voice-minute-gate';
 
 export type ChatbotVoiceAccess = {
   allowed: boolean;
@@ -18,8 +10,8 @@ export type ChatbotVoiceAccess = {
 };
 
 /**
- * Mirrors public chatbot config: voice is available when the runtime gate is on,
- * the bot has voice enabled, and the tenant still has voice minutes allowance.
+ * Mirrors inbound telephony: voice is available when the runtime gate is on,
+ * the bot has voice enabled, and the tenant is under the voice-minute allowance.
  */
 export async function resolveChatbotVoiceAccess(
   supabase: SupabaseClient,
@@ -38,48 +30,22 @@ export async function resolveChatbotVoiceAccess(
     return { allowed: false, reason: 'Chatbot is not linked to a tenant.', voiceEnabled: false };
   }
 
-  const { data: tenant, error: tenantError } = await supabase
-    .from('tenants')
-    .select('plan_tier')
-    .eq('id', chatbot.tenant_id)
-    .maybeSingle();
-  if (tenantError) {
-    console.warn('[Voice access] Tenant lookup failed', tenantError.message);
-    return { allowed: false, reason: 'Could not verify voice entitlement.', voiceEnabled: true };
+  const minuteGate = await evaluateTenantVoiceMinuteGate(supabase, chatbot.tenant_id);
+  if (!minuteGate.decision.allowed && minuteGate.decision.blockedForAllowance) {
+    return {
+      allowed: false,
+      reason: INBOUND_MINUTES_EXHAUSTED_MESSAGE,
+      voiceEnabled: false,
+    };
   }
 
-  const planTier = tenant?.plan_tier || 'foundation';
-  let hasVoiceAllowance = TIERS_WITH_INCLUDED_VOICE.has(planTier);
-
-  if (!hasVoiceAllowance) {
-    const { data: voiceUsage } = await supabase
-      .from('usage_ledger')
-      .select('quantity, usage_type')
-      .eq('tenant_id', chatbot.tenant_id)
-      .in('feature_id', ['voice_minutes', 'vapi_voice_minutes', 'voice_agent_minutes_web']);
-
-    if (voiceUsage && voiceUsage.length > 0) {
-      const allocated = voiceUsage
-        .filter((row) => row.usage_type === 'allocation')
-        .reduce((sum, row) => sum + Number(row.quantity || 0), 0);
-      const consumed = voiceUsage
-        .filter((row) => row.usage_type === 'consumption')
-        .reduce((sum, row) => sum + Number(row.quantity || 0), 0);
-      hasVoiceAllowance = allocated - consumed > 0;
-    }
+  if (!minuteGate.decision.allowed) {
+    return {
+      allowed: false,
+      reason: 'Voice is not available for this assistant.',
+      voiceEnabled: false,
+    };
   }
 
-  if (!hasVoiceAllowance) {
-    const entitlement = await checkFeatureEntitlement(supabase, chatbot.tenant_id, 'voice_minutes', 1);
-    if (!entitlement.allowed) {
-      return {
-        allowed: false,
-        reason: entitlement.error || 'Voice minutes quota exceeded.',
-        voiceEnabled: true,
-      };
-    }
-    hasVoiceAllowance = true;
-  }
-
-  return { allowed: hasVoiceAllowance, voiceEnabled: true };
+  return { allowed: true, voiceEnabled: true };
 }

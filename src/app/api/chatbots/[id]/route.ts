@@ -8,6 +8,7 @@ import {
   tenantHidesStyleFloBranding,
 } from '@/lib/billing/branding';
 import { getVapiRuntimeConfig, publicVoiceFields } from '@/lib/env/vapi-config';
+import { resolveChatbotVoiceAccess } from '@/lib/voice/chatbot-voice-access';
 
 export const dynamic = 'force-dynamic';
 
@@ -113,29 +114,38 @@ export async function GET(
     }
 
     if (id === 'e0000000-0000-0000-0000-000000000002') {
-      return NextResponse.json({
-        tenantId: 't0000000-0000-0000-0000-000000000002',
-        name: "Bella's Salon Assistant",
-        primaryColor: '#EC4899',
-        agentName: 'Emma',
-        agentRole: 'AI Assistant',
-        agentAvatarUrl: '/avatars/avatar1.png',
-        avatarUrl: '/avatars/avatar1.png',
-        welcomeMessage: '',
-        businessName: "Bella's Salon",
-        brandingHtml: DEFAULT_STYLEFLO_BRANDING_HTML,
-        hideStyleFloBranding: false,
-        brandingUrl: 'https://styleflo.ai',
-        voiceEnabled: true,
-        ...publicVoiceFields(),
-        globalVoiceDisclaimer: '',
-        voiceProvider: '11labs',
-        voiceId: 'bIHbv24MWmeRgasZH58o',
-        backgroundSound: 'salon',
-        fileUploadEnabled: false,
-        requireClientName: true,
-        termsVersion: '1.0',
-      }, { headers: corsHeaders });
+      const supabaseAdmin = getSupabaseAdmin();
+      const { data: dbBot } = await supabaseAdmin
+        .from('chatbots')
+        .select('id')
+        .eq('id', id)
+        .maybeSingle();
+
+      if (!dbBot) {
+        return NextResponse.json({
+          tenantId: 't0000000-0000-0000-0000-000000000002',
+          name: "Bella's Small Business Assistant",
+          primaryColor: '#EC4899',
+          agentName: 'Emma',
+          agentRole: 'AI Assistant',
+          agentAvatarUrl: '/avatars/avatar1.png',
+          avatarUrl: '/avatars/avatar1.png',
+          welcomeMessage: '',
+          businessName: "Bella's",
+          brandingHtml: DEFAULT_STYLEFLO_BRANDING_HTML,
+          hideStyleFloBranding: false,
+          brandingUrl: 'https://styleflo.ai',
+          voiceEnabled: true,
+          ...publicVoiceFields(),
+          globalVoiceDisclaimer: '',
+          voiceProvider: '11labs',
+          voiceId: 'bIHbv24MWmeRgasZH58o',
+          backgroundSound: 'office',
+          fileUploadEnabled: false,
+          requireClientName: true,
+          termsVersion: '1.0',
+        }, { headers: corsHeaders });
+      }
     }
 
     if (id === '9825855e-d478-443f-b75c-6c0d77039ca6') {
@@ -212,54 +222,27 @@ export async function GET(
       }
     }
 
-    let planTier = 'foundation';
     let companyName = '';
     let rwgBusinessName = '';
     
     if (chatbot.tenant_id) {
       const { data: tenantData } = await supabaseAdmin
         .from('tenants')
-        .select('plan_tier, company_name, rwg_business_name')
+        .select('company_name, rwg_business_name')
         .eq('id', chatbot.tenant_id)
         .single();
       
-      planTier = tenantData?.plan_tier || 'foundation';
       companyName = (tenantData?.company_name as string) || '';
       rwgBusinessName = (tenantData?.rwg_business_name as string) || '';
     }
     
-    // Check Voice Entitlement:
-    // B2B modular architecture: Voice is active if:
-    // 1. Tenant has purchased voice minutes (via phone number bolt-ons or minute packs) with remaining balance in usage_ledger
-    // 2. Tenant is on a plan tier that includes voice out-of-the-box
-    // 3. Chatbot has voice explicitly enabled
-    let hasVoiceMinutes = false;
-    let voiceMinutesRemaining = 0;
-
-    if (chatbot.tenant_id) {
-      const { data: voiceUsage } = await supabaseAdmin
-        .from('usage_ledger')
-        .select('quantity, usage_type')
-        .eq('tenant_id', chatbot.tenant_id)
-        .in('feature_id', ['voice_minutes', 'vapi_voice_minutes', 'voice_agent_minutes_web']);
-
-      if (voiceUsage && voiceUsage.length > 0) {
-        const allocated = voiceUsage.filter(u => u.usage_type === 'allocation').reduce((s, u) => s + (u.quantity || 0), 0);
-        const consumed = voiceUsage.filter(u => u.usage_type === 'consumption').reduce((s, u) => s + (u.quantity || 0), 0);
-        voiceMinutesRemaining = Math.max(0, allocated - consumed);
-        if (voiceMinutesRemaining > 0) {
-          hasVoiceMinutes = true;
-        }
-      }
-
-      // Base subscription tiers that inherently include voice minutes
-      const tiersWithIncludedVoice = ['base_tier', 'foundation', 'starter', 'premium', 'ultimate', 'trial'];
-      if (tiersWithIncludedVoice.includes(planTier)) {
-        hasVoiceMinutes = true;
-      }
-    }
-
-    const isVoiceActive = hasVoiceMinutes || Boolean(chatbot.voice_enabled);
+    const voiceAccess = await resolveChatbotVoiceAccess(supabaseAdmin, {
+      id: chatbot.id,
+      tenant_id: chatbot.tenant_id,
+      voice_enabled: chatbot.voice_enabled,
+    });
+    const voiceFields = publicVoiceFields();
+    const isVoiceActive = voiceAccess.voiceEnabled && voiceFields.voiceRuntimeAllowed;
     const voiceProvider = isVoiceActive ? '11labs' : 'none';
 
     const globalBot = chatbots.find(b => b.id === globalSettingsId);
@@ -317,7 +300,6 @@ export async function GET(
     }
 
     const storedBranding = typeof globalConfig.branding_html === 'string' ? globalConfig.branding_html.trim() : '';
-    const voiceFields = publicVoiceFields();
     const storedAssistantId = (typeof config.vapi_assistant_id === 'string' && config.vapi_assistant_id.trim())
       ? config.vapi_assistant_id.trim()
       : getVapiRuntimeConfig().vapiAssistantId;

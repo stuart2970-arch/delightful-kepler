@@ -2,25 +2,21 @@ import { NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import twilio from 'twilio';
 import { evaluateVoiceGate, getVapiMasterAssistantId } from '@/lib/env/vapi-config';
-import { loadCurrentPeriodVoiceConsumption, loadRolloverBalance } from '@/lib/entitlements';
 import {
-  catalogLimitFromRow,
-  decideVoiceMinuteGate,
-  INBOUND_MINUTES_EXHAUSTED_MESSAGE,
-  resolveVoiceAllowance,
-  type CatalogLimit,
-} from '@/lib/telephony/voice-minute-gate';
+  loadCurrentPeriodVoiceConsumption,
+  loadPlanVoiceAllocationInLedger,
+  loadPurchasedPackVoiceAllocationInLedger,
+  loadRolloverBalance,
+} from '@/lib/entitlements';
+import { INBOUND_MINUTES_EXHAUSTED_MESSAGE } from '@/lib/telephony/voice-minute-gate';
+import { evaluateTenantVoiceMinuteGate, type TenantVoiceMinuteSources } from '@/lib/telephony/tenant-voice-minute-gate';
 
 export const dynamic = 'force-dynamic';
 
-export type InboundMinuteSources = {
-  loadBalance: (tenantId: string) => Promise<{ allocated: number; consumed: number; error: string | null }>;
-  loadCatalog: (planTier: string) => Promise<{
-    row: { limit_value: number | null } | null;
-    error: { message: string } | null;
-  }>;
-  loadPeriodConsumption: (tenantId: string) => Promise<{ consumed: number; error: string | null }>;
-};
+export type InboundMinuteSources = Pick<
+  TenantVoiceMinuteSources,
+  'loadBalance' | 'loadCatalog' | 'loadPeriodConsumption' | 'loadPlanVoiceInLedger' | 'loadPurchasedPackInLedger'
+>;
 
 function getSupabaseAdmin() {
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
@@ -57,6 +53,8 @@ export async function handleInboundPost(request: Request, sources?: Partial<Inbo
         return { row: data, error };
       },
       loadPeriodConsumption: (tenantId) => loadCurrentPeriodVoiceConsumption(tenantId, supabase),
+      loadPlanVoiceInLedger: (tenantId) => loadPlanVoiceAllocationInLedger(tenantId, supabase),
+      loadPurchasedPackInLedger: (tenantId) => loadPurchasedPackVoiceAllocationInLedger(tenantId, supabase),
       ...sources,
     };
     const formData = await request.formData();
@@ -100,42 +98,21 @@ export async function handleInboundPost(request: Request, sources?: Partial<Inbo
 
     const planTier = tenantData?.plan_tier || 'foundation';
 
-    const balanceRead = await minuteSources.loadBalance(tenant.id);
-    const entitlementRead = await minuteSources.loadCatalog(planTier);
-    const entitlementError = entitlementRead.error;
-    const entitlement = entitlementRead.row;
-
-    if (balanceRead.error) {
-      console.error(`[Telephony Inbound] usage_ledger read failed for tenant ${tenant.id}; allowing the call.`, balanceRead.error);
-    }
-    if (entitlementError) {
-      console.error(`[Telephony Inbound] voice allowance read failed for tenant ${tenant.id}; allowing the call.`, entitlementError.message);
-    }
-
-    const catalogLimit: CatalogLimit = catalogLimitFromRow(entitlement ?? null, Boolean(entitlementError));
-    let periodError: string | null = null;
-    let currentPeriodConsumed = balanceRead.consumed;
-    if (!balanceRead.error && balanceRead.allocated <= 0 && catalogLimit !== undefined) {
-      const period = await minuteSources.loadPeriodConsumption(tenant.id);
-      if (period.error) {
-        periodError = period.error;
-        console.error(`[Telephony Inbound] usage_ledger read failed for tenant ${tenant.id}; allowing the call.`, period.error);
-      } else {
-        currentPeriodConsumed = period.consumed;
-      }
-    }
-    const comparable = resolveVoiceAllowance({
-      rolloverAllocated: balanceRead.allocated,
-      rolloverConsumed: balanceRead.consumed,
-      planMinutes: typeof catalogLimit === 'number' ? catalogLimit : null,
-      currentPeriodConsumed,
-    });
-    const minuteGate = decideVoiceMinuteGate({
-      balance: balanceRead.error || periodError
-        ? null
-        : { allocated: balanceRead.allocated, consumed: comparable.consumed },
-      catalogLimit,
-    });
+    const gateResult = await evaluateTenantVoiceMinuteGate(
+      supabase,
+      tenant.id,
+      planTier,
+      {
+        loadBalance: minuteSources.loadBalance,
+        loadCatalog: minuteSources.loadCatalog,
+        loadPeriodConsumption: minuteSources.loadPeriodConsumption,
+        ...(minuteSources.loadPlanVoiceInLedger
+          ? { loadPlanVoiceInLedger: minuteSources.loadPlanVoiceInLedger }
+          : {}),
+      },
+      { logPrefix: '[Telephony Inbound]' },
+    );
+    const minuteGate = gateResult.decision;
 
     const VoiceResponse = twilio.twiml.VoiceResponse;
     const twiml = new VoiceResponse();
