@@ -145,7 +145,59 @@ type AddonCancelRow = {
   cancel_at_period_end?: boolean | null;
   cancel_at?: string | null;
   is_active?: boolean | null;
+  stripe_cancel_event_created_at?: string | null;
 };
+
+function stripeEventCreatedToIso(eventCreatedAt: number | null | undefined): string | null {
+  if (eventCreatedAt == null || !Number.isFinite(eventCreatedAt)) return null;
+  return new Date(eventCreatedAt * 1000).toISOString();
+}
+
+function isStaleStripeCancelEvent(
+  storedEventAt: string | null | undefined,
+  eventCreatedAt: number | null | undefined,
+): boolean {
+  const incoming = stripeEventCreatedToIso(eventCreatedAt);
+  if (!incoming || !storedEventAt) return false;
+  const storedMs = Date.parse(storedEventAt);
+  const incomingMs = Date.parse(incoming);
+  if (Number.isNaN(storedMs) || Number.isNaN(incomingMs)) return false;
+  return incomingMs < storedMs;
+}
+
+function isMissingColumnError(error: { code?: string; message?: string } | null | undefined): boolean {
+  if (!error) return false;
+  const code = String(error.code ?? '');
+  const message = String(error.message ?? '');
+  return code === '42703' || code === 'PGRST204' || /column.*does not exist/i.test(message);
+}
+
+function missingColumnFromError(error: { message?: string } | null | undefined): string | null {
+  const message = String(error?.message ?? '');
+  const patterns = [
+    /column\s+[\w.]+\.(\w+)\s+does not exist/i,
+    /Could not find the '(\w+)' column/i,
+  ];
+  for (const pattern of patterns) {
+    const match = message.match(pattern);
+    if (match?.[1]) return match[1];
+  }
+  return null;
+}
+
+function applyOptimisticCancelFilters(query: any, row: AddonCancelRow) {
+  if (row.cancel_at_period_end == null) {
+    query = query.is('cancel_at_period_end', null);
+  } else {
+    query = query.eq('cancel_at_period_end', row.cancel_at_period_end);
+  }
+  if (row.cancel_at == null) {
+    query = query.is('cancel_at', null);
+  } else {
+    query = query.eq('cancel_at', row.cancel_at);
+  }
+  return query;
+}
 
 function cancelFlagsDiffer(stored: unknown, next: boolean): boolean {
   if (stored == null) return true;
@@ -164,22 +216,38 @@ function cancelInstantsDiffer(stored: unknown, next: string | null): boolean {
 async function readActiveAddonRows(
   supabaseAdmin: any,
   filter: { stripeSubscriptionId?: string | null; tenantId?: string | null; addonCatalogId?: string | null },
-): Promise<{ rows: AddonCancelRow[]; error: string | null }> {
-  let query = supabaseAdmin
-    .from('tenant_active_addons')
-    .select('id, addon_catalog_id, tenant_id, is_active, cancel_at_period_end, cancel_at')
-    .eq('is_active', true);
-  if (filter.stripeSubscriptionId) {
-    query = query.eq('stripe_subscription_id', filter.stripeSubscriptionId);
-  } else if (filter.tenantId && filter.addonCatalogId) {
-    query = query.eq('tenant_id', filter.tenantId).eq('addon_catalog_id', filter.addonCatalogId);
-  } else {
-    return { rows: [], error: null };
+): Promise<{ rows: AddonCancelRow[]; error: string | null; cancelEventGuardAvailable: boolean }> {
+  const baseSelect = 'id, addon_catalog_id, tenant_id, is_active, cancel_at_period_end, cancel_at';
+  const guardedSelect = `${baseSelect}, stripe_cancel_event_created_at`;
+
+  const buildQuery = (select: string) => {
+    let query = supabaseAdmin
+      .from('tenant_active_addons')
+      .select(select)
+      .eq('is_active', true);
+    if (filter.stripeSubscriptionId) {
+      query = query.eq('stripe_subscription_id', filter.stripeSubscriptionId);
+    } else if (filter.tenantId && filter.addonCatalogId) {
+      query = query.eq('tenant_id', filter.tenantId).eq('addon_catalog_id', filter.addonCatalogId);
+    }
+    return query;
+  };
+
+  if (!filter.stripeSubscriptionId && !(filter.tenantId && filter.addonCatalogId)) {
+    return { rows: [], error: null, cancelEventGuardAvailable: true };
   }
-  const { data, error } = await query;
-  if (error) return { rows: [], error: error.message || 'Failed to read bolt-on cancel state' };
+
+  let cancelEventGuardAvailable = true;
+  let { data, error } = await buildQuery(guardedSelect);
+  if (error && isMissingColumnError(error) && missingColumnFromError(error) === 'stripe_cancel_event_created_at') {
+    cancelEventGuardAvailable = false;
+    ({ data, error } = await buildQuery(baseSelect));
+  }
+  if (error) {
+    return { rows: [], error: error.message || 'Failed to read bolt-on cancel state', cancelEventGuardAvailable };
+  }
   const rows = (Array.isArray(data) ? data : data ? [data] : []).filter((row) => row?.id && row.is_active !== false);
-  return { rows, error: null };
+  return { rows, error: null, cancelEventGuardAvailable };
 }
 
 /**
@@ -191,7 +259,10 @@ async function readActiveAddonRows(
 export async function syncBoltOnPendingCancellation(
   supabaseAdmin: any,
   dataObject: Record<string, any>,
+  options: { eventCreatedAt?: number | null } = {},
 ): Promise<{ ok: true } | { ok: false; error: string }> {
+  const eventCreatedAt = options.eventCreatedAt ?? null;
+  const eventCreatedIso = stripeEventCreatedToIso(eventCreatedAt);
   const pair = pendingCancelPairFromStripe(dataObject);
   const metadata = dataObject.metadata || {};
   const stripeSubscriptionId = (typeof dataObject.id === 'string' && dataObject.id.startsWith('sub_'))
@@ -206,22 +277,52 @@ export async function syncBoltOnPendingCancellation(
   );
   if (loaded.error) return { ok: false, error: loaded.error };
 
+  let cancelEventGuardAvailable = loaded.cancelEventGuardAvailable;
+
   for (const row of loaded.rows) {
+    if (cancelEventGuardAvailable && isStaleStripeCancelEvent(row.stripe_cancel_event_created_at, eventCreatedAt)) {
+      continue;
+    }
+
     const flagChanged = cancelFlagsDiffer(row.cancel_at_period_end, pair.cancel_at_period_end);
     const atChanged = cancelInstantsDiffer(row.cancel_at, pair.cancel_at);
     if (!flagChanged && !atChanged) continue;
 
-    const wasPending = row.cancel_at_period_end === true;
-    const { error: updateError } = await supabaseAdmin
-      .from('tenant_active_addons')
-      .update({
-        cancel_at_period_end: pair.cancel_at_period_end,
-        cancel_at: pair.cancel_at,
-      })
-      .eq('id', row.id);
+    const wasPending = row.cancel_at_period_end === true || (row.cancel_at != null && row.cancel_at !== '');
+    const updatePayload: Record<string, unknown> = {
+      cancel_at_period_end: pair.cancel_at_period_end,
+      cancel_at: pair.cancel_at,
+    };
+    if (eventCreatedIso && cancelEventGuardAvailable) {
+      updatePayload.stripe_cancel_event_created_at = eventCreatedIso;
+    }
+
+    const runOptimisticUpdate = async (payload: Record<string, unknown>) => {
+      let updateQuery = supabaseAdmin
+        .from('tenant_active_addons')
+        .update(payload)
+        .eq('id', row.id);
+      updateQuery = applyOptimisticCancelFilters(updateQuery, row);
+      return updateQuery.select('id');
+    };
+
+    let { data: updatedRows, error: updateError } = await runOptimisticUpdate(updatePayload);
+    if (
+      updateError
+      && isMissingColumnError(updateError)
+      && missingColumnFromError(updateError) === 'stripe_cancel_event_created_at'
+      && 'stripe_cancel_event_created_at' in updatePayload
+    ) {
+      cancelEventGuardAvailable = false;
+      loaded.cancelEventGuardAvailable = false;
+      const { stripe_cancel_event_created_at: _drop, ...withoutGuard } = updatePayload;
+      ({ data: updatedRows, error: updateError } = await runOptimisticUpdate(withoutGuard));
+    }
     if (updateError) {
       return { ok: false, error: updateError.message || 'Failed to store bolt-on cancel state' };
     }
+    const applied = Array.isArray(updatedRows) ? updatedRows.length > 0 : Boolean(updatedRows);
+    if (!applied) continue;
 
     const movedIntoPending = pair.cancel_at_period_end && (!wasPending || atChanged);
     const movedOutOfPending = wasPending && !pair.cancel_at_period_end;
@@ -273,6 +374,7 @@ export async function syncBoltOnPendingCancellation(
 export type StripeBillingEvent = {
   id?: string;
   type?: string;
+  created?: number;
   data?: { object?: Record<string, any> };
 };
 
@@ -1138,7 +1240,9 @@ async function processStripeBillingEventBody(
         return { status: 500, body: { success: false, error: activated.error || 'Bolt-on fulfilment failed' } };
       }
       if (activated.ok) {
-        const synced = await syncBoltOnPendingCancellation(supabaseAdmin, dataObject);
+        const synced = await syncBoltOnPendingCancellation(supabaseAdmin, dataObject, {
+          eventCreatedAt: event.created ?? null,
+        });
         if (!synced.ok) {
           return { status: 500, body: { success: false, error: synced.error } };
         }
@@ -1154,7 +1258,9 @@ async function processStripeBillingEventBody(
       if (lineItemsResult.retry) {
         return { status: 500, body: { success: false, error: lineItemsResult.error || 'Bolt-on fulfilment failed' } };
       }
-      const synced = await syncBoltOnPendingCancellation(supabaseAdmin, dataObject);
+      const synced = await syncBoltOnPendingCancellation(supabaseAdmin, dataObject, {
+        eventCreatedAt: event.created ?? null,
+      });
       if (!synced.ok) {
         return { status: 500, body: { success: false, error: synced.error } };
       }

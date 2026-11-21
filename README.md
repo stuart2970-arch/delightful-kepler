@@ -4581,6 +4581,11 @@ Highlighted adjustments in the modal:
 * **STYL-271**: Removed widget email pre-fill; `getAvailableDays` filters `slotsCount === 0`; chat “this chat” / voice “this call” prompts; `lead-notifier` uses `buildBrandedEmailHtml` + `publicAppPath('/dashboard')`; rebuilt `public/widget.js` / `embed.js`; `tests/styl-271-widget-channel-lead.spec.ts` + unit lead HTML (5 passed locally).
 * **Branches pushed**: `cursor/styl-389-customer-booking-manage` (`8c2dbc9`), `cursor/styl-271-widget-channel-lead-email` (`1e5607e`). `gh pr create` blocked (integration permissions) — Stuart to open PRs (base #77 stack then staging) or rely on Cursor cloud PR automation.
 
+### Session (STYL-261 billing webhook cancel race — 21 Nov 2026)
+* **User**: STYL-249 follow-ups — optimistic cancel updates, out-of-order Stripe event guard, set-date `cancel_at`, item `current_period_end` fallback, billing select missing-column retry.
+* **Changes**: `process-stripe-webhook.ts`, `addon-subscription-status.ts`, `account-ownership.ts`, `dashboard/page.tsx` (select fallback only); migration `20261121180200_styl261_stripe_cancel_event_guard.sql`; tests `styl-261-webhook-cancel-race.spec.ts` + `styl-249` mock `select` on update.
+* **Verify**: `bash scripts/agent-supabase-up.sh` then Playwright `styl-249` / `styl-250` / `styl-261` (15 passed); `NODE_OPTIONS=--max-old-space-size=8192 npm run typecheck`.
+
 ### Session (STYL-218 / STYL-381 / STYL-382 knowledge items — 21 Nov 2026)
 * **User**: Package B — Foundation 500 knowledge items, Extra Knowledge packs +500 each (quantity-aware), no customer “chunks” copy; billing UI uses `knowledgeItemsTotal`.
 * **Changes**: `dashboard/page.tsx` sets `knowledgeItemsLimit`; `BillingView` + Subscriptions show “X of Y knowledge items”; `knowledgeItemsTotal` multiplies `quantity`; landing HTML/PHP templates updated; Playwright `styl-218-knowledge-items-billing.spec.ts`.
@@ -4600,6 +4605,11 @@ Highlighted adjustments in the modal:
 * **User**: Fix CI failures on homepage-widget STYL-181/Emma mock tests and isolated minute-gate spec; OpenClaw must-forward `loadPurchasedPackInLedger` on inbound; merge `origin/staging` (README both sides); no webpack/font CI bundle.
 * **Changes**: Restored unconditional `e000…000002` demo JSON; inbound forwards ledger override deps; `voiceEnabled` vs web-call `allowed` split; dedicated tenant `f295…0295` + ledger cleanup; `PLAYWRIGHT_TEST` env restore in gate spec; `entitlements` reuses passed Supabase client for rolling voice reads.
 * **Verify**: `styl-295-296-voice-minute-gate.spec.ts` (7), homepage-widget voice intercept + Emma mock grep tests, `npm run typecheck`; push `423a95b` — husky pre-push 195 related specs passed.
+
+### Session (STYL-261 CI + OpenClaw follow-up — 21 Nov 2026)
+* **User**: Merge staging (PRs 93/96); fix cf1b130 Playwright webServer timeout; OpenClaw `cancelEventGuardAvailable` after column fallback; keep `quantity` in billing select.
+* **Changes**: `src/lib/fonts/*` keeps production Poppins/Inter weights 400–700; Playwright-only module uses single weight when `PLAYWRIGHT_TEST=true` (Turbopack webServer); CookieYes skipped in tests; `CapacityThresholdBanner` client + guard fallback; merge staging at 636bce6/ca387d0 (`0918db2`).
+* **Verify**: styl-218/249/250/261 (20 passed); typecheck; husky pre-push 165 passed; CI run 44938835596 green on `5b2fb48`.
 
 ### Session (PR 96 tsconfig hygiene + staging merge — 21 Nov 2026)
 * **User**: Revert `tsconfig.json` churn (not ticket-related); merge `origin/staging` at 631e73e (PRs 90–95); re-run gate + homepage-widget specs.

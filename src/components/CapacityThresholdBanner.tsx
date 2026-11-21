@@ -1,3 +1,5 @@
+'use client';
+
 import React, { useState } from 'react';
 import AddOnUpsellModal, { AddOnCategory } from './AddOnUpsellModal';
 import { usageAlertLevel, type UsageAlertLevel } from '@/lib/usage-alerts';
@@ -22,6 +24,7 @@ interface CapacityThresholdBannerProps {
 }
 
 export default function CapacityThresholdBanner({ thresholds, tenantId }: CapacityThresholdBannerProps) {
+  const setActiveTab = useDashboardStore((state) => state.setActiveTab);
   const [activeUpsellCategory, setActiveUpsellCategory] = useState<AddOnCategory | null>(null);
 
   // Warning from 80%. A separate limit alert from 100%. Nothing below 80%.
@@ -39,7 +42,7 @@ export default function CapacityThresholdBanner({ thresholds, tenantId }: Capaci
   }
 
   const openPlanAndUsage = () => {
-    useDashboardStore.getState().setActiveTab('billing');
+    setActiveTab('billing');
     const url = new URL(window.location.href);
     url.searchParams.set('tab', 'billing');
     window.history.replaceState({}, '', `${url.pathname}${url.search}`);
@@ -91,6 +94,7 @@ export default function CapacityThresholdBanner({ thresholds, tenantId }: Capaci
             </div>
             
             <button
+              type="button"
               onClick={() => (reviewsPlan ? openPlanAndUsage() : handleUpgradeClick(threshold.featureId))}
               className="shrink-0 bg-[#198fd9] hover:bg-[#157ab9] text-white text-xs font-bold py-2 px-4 rounded-[4px] shadow-sm transition-colors w-full sm:w-auto"
             >
