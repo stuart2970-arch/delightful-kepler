@@ -5,6 +5,10 @@ import { useDashboardStore } from '../../lib/store';
 import { browserAuthHeaders } from '@/lib/auth/client-auth-headers';
 import AddOnUpsellModal from '../AddOnUpsellModal';
 import { STARTER_TEMPLATES_EN_GB } from '../../lib/whatsapp-starter-templates';
+import {
+  metaMessagingChannelBadgeLabel,
+  resolveWhatsAppConnectionState,
+} from '@/lib/channels/meta-messaging-status';
 
 interface WhatsAppAccountData {
   id: string;
@@ -506,6 +510,10 @@ export default function WhatsAppMetaView() {
 
   const isConnected = whatsappAccount?.status === 'connected';
   const isVerifying = whatsappAccount?.status === 'verifying' || isOnboarding;
+  const whatsappConnectionState = resolveWhatsAppConnectionState({ isConnected, isVerifying });
+  const whatsappChannelBadge = metaMessagingChannelBadgeLabel('whatsapp', whatsappConnectionState);
+  const instagramChannelBadge = metaMessagingChannelBadgeLabel('instagram');
+  const messengerChannelBadge = metaMessagingChannelBadgeLabel('messenger');
   const isCardMissing = whatsappAccount?.card_missing === true || whatsappAccount?.payment_status === 'card_missing';
   const hasWhatsAppBoltOn = billingData?.channelFlags?.has_whatsapp || isConnected;
 
@@ -551,18 +559,18 @@ export default function WhatsAppMetaView() {
                 ? 'bg-blue-600 text-white animate-pulse'
                 : 'bg-gray-200 text-gray-700'
             }`}>
-              {isConnected ? 'Connected' : isVerifying ? 'Verifying' : 'Available'}
+              {whatsappChannelBadge}
             </span>
           </div>
 
           <div className="px-3 py-1.5 rounded-xl border border-pink-200 bg-pink-50/70 text-pink-700 text-xs font-bold flex items-center gap-1.5 opacity-80">
             <span>📸 Instagram</span>
-            <span className="text-[9px] uppercase tracking-wider font-bold px-1.5 py-0.5 rounded bg-pink-200 text-pink-800">Available</span>
+            <span className="text-[9px] uppercase tracking-wider font-bold px-1.5 py-0.5 rounded bg-pink-200 text-pink-800">{instagramChannelBadge}</span>
           </div>
 
           <div className="px-3 py-1.5 rounded-xl border border-blue-200 bg-blue-50/70 text-blue-700 text-xs font-bold flex items-center gap-1.5 opacity-80">
             <span>⚡ Messenger</span>
-            <span className="text-[9px] uppercase tracking-wider font-bold px-1.5 py-0.5 rounded bg-blue-200 text-blue-800">Available</span>
+            <span className="text-[9px] uppercase tracking-wider font-bold px-1.5 py-0.5 rounded bg-blue-200 text-blue-800">{messengerChannelBadge}</span>
           </div>
         </div>
       </div>
