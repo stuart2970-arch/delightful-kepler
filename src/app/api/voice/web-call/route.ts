@@ -1,6 +1,8 @@
 import { NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import { evaluateVoiceGate, getVapiPrivateKey, requireConfiguredAppUrl } from '@/lib/env/vapi-config';
+import { VOICE_ERROR_CODES } from '@/lib/voice/voice-error-codes';
+import { voiceUnavailableMessage } from '@/lib/voice/voice-user-messages';
 import { checkRateLimit, verifyChatSessionToken } from '@/lib/chat-session';
 import { clientIp } from '@/lib/security/auth-rate-limit';
 import { verifyTurnstileToken } from '@/lib/security/turnstile';
@@ -36,7 +38,10 @@ export async function POST(request: Request) {
   try {
     const voiceGate = evaluateVoiceGate();
     if (!voiceGate.allowed) {
-      return NextResponse.json({ error: voiceGate.reason }, { status: 403, headers: corsHeaders });
+      return NextResponse.json(
+        { error: voiceGate.reason, code: voiceGate.code },
+        { status: 403, headers: corsHeaders },
+      );
     }
 
     const appUrl = requireConfiguredAppUrl();
@@ -45,11 +50,25 @@ export async function POST(request: Request) {
     }
     const secret = (process.env.VAPI_WEBHOOK_SECRET || '').trim();
     if (!secret) {
-      return NextResponse.json({ error: 'VAPI_WEBHOOK_SECRET is not configured.' }, { status: 503, headers: corsHeaders });
+      console.warn('[Web Call] Voice unavailable', { code: VOICE_ERROR_CODES.NO_WEBHOOK_SECRET });
+      return NextResponse.json(
+        {
+          error: voiceUnavailableMessage(VOICE_ERROR_CODES.NO_WEBHOOK_SECRET),
+          code: VOICE_ERROR_CODES.NO_WEBHOOK_SECRET,
+        },
+        { status: 503, headers: corsHeaders },
+      );
     }
     const privateKey = getVapiPrivateKey();
     if (!privateKey) {
-      return NextResponse.json({ error: 'Voice is currently unavailable.' }, { status: 503, headers: corsHeaders });
+      console.warn('[Web Call] Voice unavailable', { code: VOICE_ERROR_CODES.NO_PRIVATE_KEY });
+      return NextResponse.json(
+        {
+          error: voiceUnavailableMessage(VOICE_ERROR_CODES.NO_PRIVATE_KEY),
+          code: VOICE_ERROR_CODES.NO_PRIVATE_KEY,
+        },
+        { status: 503, headers: corsHeaders },
+      );
     }
 
     const body = await request.json().catch(() => null);
@@ -159,8 +178,17 @@ export async function POST(request: Request) {
       signal: AbortSignal.timeout(15000),
     });
     if (!vapiRes.ok) {
-      console.error('[Web Call] Vapi refused to create the call', { status: vapiRes.status, chatbotId });
-      return NextResponse.json({ error: 'Could not start the voice call.' }, { status: 502, headers: corsHeaders });
+      const code =
+        vapiRes.status === 401 ? VOICE_ERROR_CODES.VAPI_401 : VOICE_ERROR_CODES.VAPI_UPSTREAM;
+      console.error('[Web Call] Vapi refused to create the call', {
+        status: vapiRes.status,
+        code,
+        chatbotId,
+      });
+      return NextResponse.json(
+        { error: voiceUnavailableMessage(code), code },
+        { status: 502, headers: corsHeaders },
+      );
     }
     const created = await vapiRes.json().catch(() => null);
     const id = typeof created?.id === 'string' ? created.id : '';

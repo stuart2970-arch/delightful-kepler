@@ -2,8 +2,13 @@
  * STYL-226: Vapi credentials come from env only.
  * Never fall back to the production public key or assistant id.
  * Voice stays off unless VOICE_ENABLED is explicitly on and every Vapi
- * value is a non-placeholder, non-production credential.
+ * value is a non-placeholder, non-production credential (production IDs are
+ * allowed only when APP_ENV / NODE_ENV indicates production — STYL-388).
  */
+
+import { resolveAppEnv } from '@/lib/env/live-supabase-guard';
+import { VOICE_ERROR_CODES, type VoiceErrorCode } from '@/lib/voice/voice-error-codes';
+import { voiceUnavailableMessage } from '@/lib/voice/voice-user-messages';
 
 export const KNOWN_PRODUCTION_VAPI_IDS = [
   '1bb95940-1cb9-4c54-9b16-ba5bc11daae2',
@@ -79,15 +84,22 @@ export function isKnownProductionVapiId(value: string): boolean {
   return KNOWN_PRODUCTION_VAPI_IDS.some((id) => id.toLowerCase() === trimmed);
 }
 
+export function shouldBlockKnownProductionVapiIds(env: NodeJS.ProcessEnv = process.env): boolean {
+  return resolveAppEnv(env) !== 'production';
+}
+
 export function findUnsafeVapiEnvValues(
   env: NodeJS.ProcessEnv = process.env,
 ): { key: string; reason: 'placeholder' | 'production' }[] {
+  const blockProductionIds = shouldBlockKnownProductionVapiIds(env);
   const unsafe: { key: string; reason: 'placeholder' | 'production' }[] = [];
   for (const key of VAPI_ENV_KEYS) {
     const value = (env[key] || '').trim();
     if (!value) continue;
     if (isKnownProductionVapiId(value)) {
-      unsafe.push({ key, reason: 'production' });
+      if (blockProductionIds) {
+        unsafe.push({ key, reason: 'production' });
+      }
     } else if (isPlaceholderVapiValue(value)) {
       unsafe.push({ key, reason: 'placeholder' });
     }
@@ -97,21 +109,32 @@ export function findUnsafeVapiEnvValues(
 
 export type VoiceGateResult =
   | { allowed: true }
-  | { allowed: false; reason: string };
+  | { allowed: false; code: VoiceErrorCode; reason: string };
 
 export function evaluateVoiceGate(env: NodeJS.ProcessEnv = process.env): VoiceGateResult {
   if (!isVoiceFlagEnabled(env)) {
-    return { allowed: false, reason: 'Voice is currently unavailable.' };
+    return {
+      allowed: false,
+      code: VOICE_ERROR_CODES.VOICE_GATE_OFF,
+      reason: voiceUnavailableMessage(VOICE_ERROR_CODES.VOICE_GATE_OFF),
+    };
   }
   const unsafe = findUnsafeVapiEnvValues(env);
   if (unsafe.length > 0) {
     const first = unsafe[0];
+    const code =
+      first.reason === 'production'
+        ? VOICE_ERROR_CODES.VAPI_PRODUCTION_ID_BLOCKED
+        : VOICE_ERROR_CODES.VAPI_PLACEHOLDER;
+    console.warn('[Voice] Voice gate refused', {
+      code,
+      envKey: first.key,
+      reason: first.reason,
+    });
     return {
       allowed: false,
-      reason:
-        first.reason === 'production'
-          ? 'Voice is currently unavailable: a Vapi value matches a known production ID.'
-          : 'Voice is currently unavailable: a Vapi value is a placeholder.',
+      code,
+      reason: voiceUnavailableMessage(code),
     };
   }
   return { allowed: true };
@@ -129,11 +152,21 @@ export function requireConfiguredAppUrl(
 
 export function publicVoiceFields(
   env: NodeJS.ProcessEnv = process.env,
-): { vapiPublicKey: string; vapiAssistantId: string; voiceRuntimeAllowed: boolean } {
+): {
+  vapiPublicKey: string;
+  vapiAssistantId: string;
+  voiceRuntimeAllowed: boolean;
+  voiceUnavailableCode?: VoiceErrorCode;
+} {
   const gate = evaluateVoiceGate(env);
   const config = getVapiRuntimeConfig(env);
   if (!gate.allowed) {
-    return { vapiPublicKey: '', vapiAssistantId: '', voiceRuntimeAllowed: false };
+    return {
+      vapiPublicKey: '',
+      vapiAssistantId: '',
+      voiceRuntimeAllowed: false,
+      voiceUnavailableCode: gate.code,
+    };
   }
   return {
     vapiPublicKey: config.vapiPublicKey,
@@ -148,7 +181,7 @@ export function warnOrRefuseUnsafeVoiceAtStartup(
 ): VoiceGateResult {
   const gate = evaluateVoiceGate(env);
   if (!gate.allowed) {
-    logger.warn(`[Voice] Refusing voice at start-up: ${gate.reason}`);
+    logger.warn(`[Voice] Refusing voice at start-up`, { code: gate.code, reason: gate.reason });
   }
   return gate;
 }

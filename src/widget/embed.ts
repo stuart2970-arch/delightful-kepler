@@ -2,6 +2,7 @@ import Vapi from '@vapi-ai/web';
 import { buildGreeting, getFirstName, isEchoOfGreeting } from '../lib/greeting';
 import { resolveChatFooter } from '../lib/billing/branding';
 import { resolveTurnstileSiteKey } from './turnstile-config';
+import { voiceUnavailableMessage } from '../lib/voice/voice-user-messages';
 
 // STYL-241: text-chat gate copy. Voice calls keep globalVoiceDisclaimer.
 const TEXT_CHAT_NOTICE =
@@ -506,6 +507,7 @@ const CONNECTING_TIMEOUT_MS = 20000;
   let brandingHtml = resolveChatFooter({ hideStyleFloBranding: false, brandingHtml: '' }).html;
   let voiceEnabled = false;
   let voiceRuntimeAllowed = false;
+  let voiceUnavailableCode = '';
   let requireClientName = false;
   let vapiPublicKey = '';
   let vapiAssistantId = '';
@@ -537,6 +539,8 @@ const CONNECTING_TIMEOUT_MS = 20000;
         brandingHtml = footer.html;
         voiceEnabled = config.voiceEnabled || false;
         voiceRuntimeAllowed = Boolean(config.voiceRuntimeAllowed);
+        voiceUnavailableCode =
+          typeof config.voiceUnavailableCode === 'string' ? config.voiceUnavailableCode : '';
         requireClientName = config.requireClientName || false;
         vapiPublicKey = config.vapiPublicKey || '';
         vapiAssistantId = config.vapiAssistantId || '';
@@ -1578,7 +1582,7 @@ const CONNECTING_TIMEOUT_MS = 20000;
         const mockVapi = Boolean((window as any).__STYLEFLO_MOCK_VAPI__);
         if (!voiceRuntimeAllowed && !mockVapi) {
           hideConnecting();
-          appendMessage('bot', 'Voice is currently unavailable.');
+          appendMessage('bot', voiceUnavailableMessage(voiceUnavailableCode));
           return;
         }
         if (!vapiPublicKey && !mockVapi) {
@@ -1689,7 +1693,10 @@ const CONNECTING_TIMEOUT_MS = 20000;
           });
           const createBody = await createRes.json().catch(() => ({}));
           if (!createRes.ok || !createBody?.id || !createBody?.webCallUrl) {
-            throw new Error(createBody?.error || 'Could not start the voice call.');
+            const code = typeof createBody?.code === 'string' ? createBody.code : '';
+            throw new Error(
+              voiceUnavailableMessage(code) || createBody?.error || 'Could not start the voice call.',
+            );
           }
           await (vapiInstance as any).reconnect({ id: createBody.id, webCallUrl: createBody.webCallUrl });
         } catch (e: any) {

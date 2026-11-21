@@ -133,6 +133,12 @@ env:
   # Production App Hosting (styleflo-ai / delightful-kepler-1) reads this base
   # file and does not merge apphosting.staging.yaml. Same RUNTIME secret ref
   # as staging. Name only — the value stays in Secret Manager.
+  # STYL-388: production App Hosting must opt in explicitly; value only (no secret).
+  - variable: VOICE_ENABLED
+    value: "true"
+    availability:
+      - RUNTIME
+
   - variable: VAPI_WEBHOOK_SECRET
     secret: VAPI_WEBHOOK_SECRET
     availability:
