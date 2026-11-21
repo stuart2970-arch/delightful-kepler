@@ -1,5 +1,5 @@
 import { chatConversationSectorTag } from '@/lib/billing/credit-grant-keys';
-import { CHAT_MESSAGE_FEATURE_ID, logMeteredUsage } from '@/lib/entitlements';
+import { CHAT_MESSAGE_FEATURE_ID } from '@/lib/entitlements';
 
 /** A conversation ends after 30 minutes without messages. */
 export const CHAT_CONVERSATION_IDLE_MS = 30 * 60 * 1000;
@@ -60,7 +60,7 @@ export async function hasConversationUsageRow(
 }
 
 export async function meterWebChatConversationOnce(
-  dbClient: Parameters<typeof logMeteredUsage>[0],
+  dbClient: { from: (table: string) => unknown },
   tenantId: string,
   conversationId: string,
 ): Promise<{ logged: boolean; alreadyMetered: boolean }> {
@@ -68,13 +68,33 @@ export async function meterWebChatConversationOnce(
   if (already) {
     return { logged: false, alreadyMetered: true };
   }
-  const logged = await logMeteredUsage(
-    dbClient,
-    tenantId,
-    CHAT_MESSAGE_FEATURE_ID,
-    1,
-    'Web chat conversation',
-    { sectorTag: chatConversationSectorTag(conversationId) },
-  );
-  return { logged, alreadyMetered: false };
+  const sectorTag = chatConversationSectorTag(conversationId);
+  const recordedAt = new Date().toISOString();
+  const ledgerResult = await (dbClient as any).from('usage_ledger').insert({
+    tenant_id: tenantId,
+    feature_id: CHAT_MESSAGE_FEATURE_ID,
+    quantity: 1,
+    usage_type: 'consumption',
+    sector_tag: sectorTag,
+    recorded_at: recordedAt,
+  });
+  if (ledgerResult?.error) {
+    if (String(ledgerResult.error.code ?? '') === '23505') {
+      return { logged: false, alreadyMetered: true };
+    }
+    console.error('[meterWebChatConversationOnce] usage_ledger insert failed', {
+      tenantId,
+      conversationId,
+      code: ledgerResult.error.code,
+      message: ledgerResult.error.message,
+    });
+    return { logged: false, alreadyMetered: false };
+  }
+  await (dbClient as any).from('usage_logs').insert({
+    tenant_id: tenantId,
+    feature_id: CHAT_MESSAGE_FEATURE_ID,
+    amount: 1,
+    description: 'Web chat conversation',
+  });
+  return { logged: true, alreadyMetered: false };
 }

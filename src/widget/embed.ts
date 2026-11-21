@@ -1369,6 +1369,18 @@ const CONNECTING_TIMEOUT_MS = 20000;
     localStorage.setItem(sessionKey, nextSessionId);
   }
 
+    function resetChatTranscriptForNewSession() {
+      while (messagesContainer.children.length > 1) {
+        messagesContainer.lastElementChild?.remove();
+      }
+      if (welcomeTextEl) {
+        welcomeTextEl.textContent = getFormattedWelcomeMessage(storedName);
+      }
+      if (inputField) {
+        inputField.value = '';
+      }
+    }
+
     function closeChatUI() {
       isOpen = false;
       chatWindow.classList.remove('scale-100', 'opacity-100', 'pointer-events-auto');
@@ -1382,6 +1394,7 @@ const CONNECTING_TIMEOUT_MS = 20000;
       renderGateNotice();
       cancelVoiceAttempt();
       endVisitorChatSession();
+      resetChatTranscriptForNewSession();
 
       if (isVapiActive && vapiInstance) {
         vapiInstance.stop();

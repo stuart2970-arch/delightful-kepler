@@ -126,6 +126,14 @@ This runbook documents the key fixes and architecture enhancements implemented d
 
 ### Session Chat History Log
 
+### Session (STYL-310 conversation metering CI fix — 21 Nov 2026)
+* **User / OpenClaw**: PR #105 failed CI because `tests/styl-199-mock-reply-guard.spec.ts` returned 429 after the conversation entitlement gate — the local Supabase stub lacked `tier_entitlements`, `usage_ledger`, and conversation/message reads. Also move the gate before embedding/RAG, fail safe on message lookup errors, treat `23505` on ledger insert as already metered, and reset widget transcript on close.
+* **Merge**: Merged `origin/staging` (includes merged STYL-405 / STYL-309) into `cursor/styl-310-conversation-metering-62fa`.
+* **Stream**: Conversation resolve + `checkFeatureEntitlement` / `meterWebChatConversationOnce` run before `generateEmbedding`; transient `messages` count/activity errors return 503 instead of opening a duplicate session.
+* **Metering**: Direct `usage_ledger` insert with unique `sector_tag`; `23505` → `alreadyMetered` (no warning). STYL-199 stub serves metering tables and Foundation tenant row.
+* **Widget**: `resetChatTranscriptForNewSession()` on close (rebuilt `public/widget.js` / `public/embed.js`).
+* **Tests**: `bash scripts/agent-supabase-up.sh`, affected specs, then Husky pre-push (278 Playwright tests) — passed locally.
+
 ### Session (STYL-401 / STYL-315 dashboard copy — 21 Nov 2026)
 * **User / Jira**: Package B (R3) — WhatsApp and Instagram dashboard cards show **Coming soon** with no price or purchase/activate actions (STYL-401); chat-allowance usage alert must not upsell Extra Knowledge and should point to Subscriptions & Bolt-ons (STYL-315).
 * **STYL-401**: `WhatsAppMetaView` upsell/onboarding replaced with `Coming soon` for disconnected WhatsApp; Instagram setup tab is coming soon only; `DashboardClient` adds a matching Instagram monthly bolt-on placeholder card.

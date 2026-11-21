@@ -567,6 +567,111 @@ Help them specify:
       }
     }
 
+    const targetBotUuid = chatbotId === 'styleflo-onboarding-flobot'
+      ? '00000000-0000-0000-0000-000000000000'
+      : (chatbotRecord?.id || chatbotId);
+
+    // Resolve conversation and billable gate before embedding/RAG (STYL-310).
+    console.log(`[Chat Stream][${requestId}] Resolving conversation session...`);
+    let conversationId: string = '00000000-0000-0000-0000-000000000000';
+    let assistantRepliesInConversation = 0;
+
+    if (chatbotId !== 'styleflo-onboarding-flobot') {
+      const nowMs = Date.now();
+      const { data: latestConversation, error: convError } = await supabaseAdmin
+        .from('conversations')
+        .select('id, created_at')
+        .eq('tenant_id', tenantId)
+        .eq('chatbot_id', targetBotUuid)
+        .eq('user_session_id', sessionId)
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+
+      if (convError) {
+        console.error(`[Chat Stream][${requestId}] Conversation query failed:`, convError);
+        return NextResponse.json({ error: `Conversation query failed: ${convError.message}` }, { status: 200, headers: corsHeaders });
+      }
+
+      let reuseConversationId: string | null = latestConversation?.id ?? null;
+      if (reuseConversationId) {
+        const { data: lastMessage, error: lastMsgError } = await supabaseAdmin
+          .from('messages')
+          .select('created_at')
+          .eq('conversation_id', reuseConversationId)
+          .order('created_at', { ascending: false })
+          .limit(1)
+          .maybeSingle();
+        if (lastMsgError) {
+          console.error(`[Chat Stream][${requestId}] Conversation activity lookup failed:`, lastMsgError);
+          return NextResponse.json(
+            { error: 'Could not verify conversation activity. Please try again.' },
+            { status: 503, headers: corsHeaders },
+          );
+        }
+        const lastActivity = lastMessage?.created_at || latestConversation?.created_at;
+        if (shouldStartNewConversationSession(lastActivity, nowMs)) {
+          reuseConversationId = null;
+        }
+      }
+
+      if (!reuseConversationId) {
+        const { data: newConv, error: createConvError } = await supabaseAdmin
+          .from('conversations')
+          .insert({
+            tenant_id: tenantId,
+            chatbot_id: targetBotUuid,
+            user_session_id: sessionId,
+          })
+          .select('id')
+          .single();
+
+        if (createConvError || !newConv) {
+          console.error(`[Chat Stream][${requestId}] Conversation creation failed:`, createConvError);
+          return NextResponse.json({ error: `Conversation creation failed: ${createConvError?.message}` }, { status: 200, headers: corsHeaders });
+        }
+        conversationId = newConv.id;
+        console.log(`[Chat Stream][${requestId}] Initialized new conversation: ${conversationId}`);
+      } else {
+        conversationId = reuseConversationId;
+        console.log(`[Chat Stream][${requestId}] Found existing conversation: ${conversationId}`);
+      }
+
+      const { count: botCount, error: botCountError } = await supabaseAdmin
+        .from('messages')
+        .select('*', { count: 'exact', head: true })
+        .eq('conversation_id', conversationId)
+        .eq('sender_type', 'bot');
+      if (botCountError) {
+        console.error(`[Chat Stream][${requestId}] Assistant reply count failed:`, botCountError);
+        return NextResponse.json(
+          { error: 'Could not verify conversation usage. Please try again.' },
+          { status: 503, headers: corsHeaders },
+        );
+      }
+      assistantRepliesInConversation = typeof botCount === 'number' ? botCount : 0;
+
+      if (!isPreview && tenantId && tenantId !== '00000000-0000-0000-0000-000000000000') {
+        const alreadyMetered = await hasConversationUsageRow(supabaseAdmin, tenantId, conversationId);
+        if (!alreadyMetered) {
+          const entitlement = await checkFeatureEntitlement(supabaseAdmin, tenantId, CHAT_MESSAGE_FEATURE_ID, 1);
+          if (!entitlement.allowed) {
+            return NextResponse.json(
+              {
+                error: entitlement.error
+                  || 'Your monthly chat conversation allowance has been reached. Please upgrade your plan to continue.',
+              },
+              { status: 429, headers: corsHeaders },
+            );
+          }
+          const metered = await meterWebChatConversationOnce(supabaseAdmin, tenantId, conversationId);
+          if (!metered.alreadyMetered && !metered.logged) {
+            console.warn(`[Chat Stream][${requestId}] Conversation metering failed for ${conversationId}`);
+          }
+        }
+      }
+    }
+
     // 4. Generate user message embedding using central generateEmbedding helper
     let queryEmbedding: number[] = [];
     if (chatbotId !== 'styleflo-onboarding-flobot') {
@@ -577,10 +682,6 @@ Help them specify:
         console.warn(`[Chat Stream][${requestId}] Embedding generation warning:`, embeddingErr);
       }
     }
-
-    const targetBotUuid = chatbotId === 'styleflo-onboarding-flobot' 
-      ? '00000000-0000-0000-0000-000000000000' 
-      : (chatbotRecord?.id || chatbotId);
 
     // 5. Query matching documents using the match_documents RPC (strictly filtered by tenant_id & chatbot_id)
     console.log(`[Chat Stream][${requestId}] Searching similarity index for chatbot ${targetBotUuid}...`);
@@ -755,94 +856,6 @@ Help them specify:
     const businessName = (configData.businessName as string)?.trim() || tenantCompany || chatbotName || agentName || 'our business';
 
     console.log(`[Chat Stream][${requestId}] Retrieved ${matchedDocuments?.length || 0} context documents and calendar config for ${businessName} (Agent: ${agentName}).`);
-
-    // 6. Get or create conversation record
-    console.log(`[Chat Stream][${requestId}] Resolving conversation session...`);
-    let conversationId: string = '00000000-0000-0000-0000-000000000000';
-
-    let assistantRepliesInConversation = 0;
-
-    if (chatbotId !== 'styleflo-onboarding-flobot') {
-      const nowMs = Date.now();
-      const { data: latestConversation, error: convError } = await supabaseAdmin
-        .from('conversations')
-        .select('id, created_at')
-        .eq('tenant_id', tenantId)
-        .eq('chatbot_id', targetBotUuid)
-        .eq('user_session_id', sessionId)
-        .order('created_at', { ascending: false })
-        .limit(1)
-        .maybeSingle();
-
-      if (convError) {
-        console.error(`[Chat Stream][${requestId}] Conversation query failed:`, convError);
-        return NextResponse.json({ error: `Conversation query failed: ${convError.message}` }, { status: 200, headers: corsHeaders });
-      }
-
-      let reuseConversationId: string | null = latestConversation?.id ?? null;
-      if (reuseConversationId) {
-        const { data: lastMessage } = await supabaseAdmin
-          .from('messages')
-          .select('created_at')
-          .eq('conversation_id', reuseConversationId)
-          .order('created_at', { ascending: false })
-          .limit(1)
-          .maybeSingle();
-        const lastActivity = lastMessage?.created_at || latestConversation?.created_at;
-        if (shouldStartNewConversationSession(lastActivity, nowMs)) {
-          reuseConversationId = null;
-        }
-      }
-
-      if (!reuseConversationId) {
-        const { data: newConv, error: createConvError } = await supabaseAdmin
-          .from('conversations')
-          .insert({
-            tenant_id: tenantId,
-            chatbot_id: targetBotUuid,
-            user_session_id: sessionId,
-          })
-          .select('id')
-          .single();
-
-        if (createConvError || !newConv) {
-          console.error(`[Chat Stream][${requestId}] Conversation creation failed:`, createConvError);
-          return NextResponse.json({ error: `Conversation creation failed: ${createConvError?.message}` }, { status: 200, headers: corsHeaders });
-        }
-        conversationId = newConv.id;
-        console.log(`[Chat Stream][${requestId}] Initialized new conversation: ${conversationId}`);
-      } else {
-        conversationId = reuseConversationId;
-        console.log(`[Chat Stream][${requestId}] Found existing conversation: ${conversationId}`);
-      }
-
-      const { count: botCount } = await supabaseAdmin
-        .from('messages')
-        .select('*', { count: 'exact', head: true })
-        .eq('conversation_id', conversationId)
-        .eq('sender_type', 'bot');
-      assistantRepliesInConversation = typeof botCount === 'number' ? botCount : 0;
-
-      if (!isPreview && tenantId && tenantId !== '00000000-0000-0000-0000-000000000000') {
-        const alreadyMetered = await hasConversationUsageRow(supabaseAdmin, tenantId, conversationId);
-        if (!alreadyMetered) {
-          const entitlement = await checkFeatureEntitlement(supabaseAdmin, tenantId, CHAT_MESSAGE_FEATURE_ID, 1);
-          if (!entitlement.allowed) {
-            return NextResponse.json(
-              {
-                error: entitlement.error
-                  || 'Your monthly chat conversation allowance has been reached. Please upgrade your plan to continue.',
-              },
-              { status: 429, headers: corsHeaders },
-            );
-          }
-          const metered = await meterWebChatConversationOnce(supabaseAdmin, tenantId, conversationId);
-          if (!metered.logged) {
-            console.warn(`[Chat Stream][${requestId}] Conversation metering failed for ${conversationId}`);
-          }
-        }
-      }
-    }
 
     // 7. Retrieve chat history (combining DB records + client-passed messages)
     let chatHistory: any[] = [];
