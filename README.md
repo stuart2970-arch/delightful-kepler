@@ -126,6 +126,10 @@ This runbook documents the key fixes and architecture enhancements implemented d
 
 ### Session Chat History Log
 
+### Session (STYL-279 / STYL-385 OpenClaw rework - 21 Nov 2026)
+* **Rework**: `claim_stripe_webhook_event` now locks the existing row with `SELECT … FOR UPDATE` before reclaiming failed/stale `processing` rows; claim RPC errors return HTTP 500 with `retry: true`; added concurrent failed-retry Playwright test.
+* **STYL-385 merge**: Merged updated 279 branch; `grant_one_off_pack` skips `usage_ledger_one_off_grant_key` unique violations per credit; JS duplicate detection uses `isUniqueViolation`.
+
 ### Session (STYL-279 / STYL-385 - Stripe webhook and credit grant idempotency - 21 Nov 2026)
 * **User / Jira**: Package B — record Stripe webhook `event.id` before billing side effects (STYL-279) and make credit grants idempotent per Stripe invoice / checkout session via `sector_tag` keys (STYL-385), stacked PRs targeting `staging`.
 * **STYL-279**: `stripe_webhook_processed_events` table + `claim_stripe_webhook_event` / `complete_stripe_webhook_event` RPCs; `handleStripeBillingEvent` claims the event id first and marks `processed` only after a 2xx–4xx handler result (5xx leaves `failed` for safe retry).
