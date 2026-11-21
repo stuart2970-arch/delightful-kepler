@@ -4560,3 +4560,9 @@ Highlighted adjustments in the modal:
 ### Session (PR 53 merge staging 7b8e407 — Cloud Agent Supabase - 20 Nov 2026)
 * **User**: Merge `origin/staging` at `7b8e407` (PR 73) into PR 53. Keep agent tooling and PR 53 voice/test workflow changes. Green CI; do not merge PR.
 * **Conflicts**: `README.md` session log only — retained all PR 53 notes and the PR 73 Cloud Agent section. Auto-merged: `.cursor/*`, `AGENTS.md`, `package.json` (`supabase@3.2.0`, `test:e2e:agent`), `scripts/agent-supabase-up.sh`, `scripts/test-e2e-agent.sh`, `supabase/config.toml`.
+
+### Session (STYL-389 + STYL-271 stacked on STYL-392 — 21 Nov 2026)
+* **User**: Two stacked branches off `cursor/styl-392-cancelled-slots-freed` (PR #77): STYL-389 customer cancel/reschedule via manage tokens; STYL-271 widget email pre-fill, channel wording, QUICK_DAYS filter, lead email dashboard link.
+* **STYL-389**: Migration `20261121130000_styl389_appointment_manage_tokens.sql`; `manage-token.ts`, public `GET/POST /api/public/bookings/manage/[token]`, `/booking/manage` page, `deleteCalendarEvent`, RULE 6 offers manage/LOOKUP links; `tests/styl-389-booking-manage.spec.ts` (5 passed locally).
+* **STYL-271**: Removed widget email pre-fill; `getAvailableDays` filters `slotsCount === 0`; chat “this chat” / voice “this call” prompts; `lead-notifier` uses `buildBrandedEmailHtml` + `publicAppPath('/dashboard')`; rebuilt `public/widget.js` / `embed.js`; `tests/styl-271-widget-channel-lead.spec.ts` + unit lead HTML (5 passed locally).
+* **Branches pushed**: `cursor/styl-389-customer-booking-manage` (`8c2dbc9`), `cursor/styl-271-widget-channel-lead-email` (`1e5607e`). `gh pr create` blocked (integration permissions) — Stuart to open PRs (base #77 stack then staging) or rely on Cursor cloud PR automation.

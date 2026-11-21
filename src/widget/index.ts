@@ -1156,7 +1156,7 @@ const CONNECTING_TIMEOUT_MS = 20000;
       onboardingContainer.style.setProperty('display', 'flex', 'important');
       
       if (storedName && onboardingName) onboardingName.value = storedName;
-      if (storedEmail && onboardingEmail) onboardingEmail.value = storedEmail;
+      // STYL-271: do not pre-fill email from localStorage — customers enter fresh each session.
       if (acceptCheckbox) acceptCheckbox.checked = false;
       updateSubmitButtonState();
     } else {
