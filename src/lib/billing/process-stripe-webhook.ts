@@ -910,6 +910,29 @@ export function invoiceContainsBasePlanPrice(
   return basePlanPriceIds.some((id) => onInvoice.has(id));
 }
 
+export async function loadTierIncludedVoiceMinutes(
+  supabaseAdmin: { from: (table: string) => any },
+  planTier: string,
+): Promise<number | null> {
+  const tierIds = [...new Set([planTier, ...BASE_PLAN_TIER_IDS])];
+  for (const tierId of tierIds) {
+    const { data: entitlement, error: entitlementError } = await supabaseAdmin
+      .from('tier_entitlements')
+      .select('limit_value')
+      .eq('tier_id', tierId)
+      .eq('feature_id', 'voice_minutes')
+      .maybeSingle();
+    if (entitlementError) {
+      throw new Error(entitlementError.message || 'Could not read the plan voice allowance');
+    }
+    const minutes = entitlement?.limit_value == null ? null : Number(entitlement.limit_value);
+    if (minutes != null && Number.isFinite(minutes) && minutes > 0) {
+      return minutes;
+    }
+  }
+  return null;
+}
+
 async function loadBasePlanStripePriceIds(
   supabaseAdmin: { from: (table: string) => any },
   planTier: string,
@@ -984,17 +1007,8 @@ export async function grantPlanVoiceMinutesForRenewal(
     return { granted: false, minutes: 0, reason: 'no_base_plan_line' };
   }
 
-  const { data: entitlement, error: entitlementError } = await supabaseAdmin
-    .from('tier_entitlements')
-    .select('limit_value')
-    .eq('tier_id', planTier)
-    .eq('feature_id', 'voice_minutes')
-    .maybeSingle();
-  if (entitlementError) {
-    throw new Error(entitlementError.message || 'Could not read the plan voice allowance');
-  }
-  const minutes = entitlement?.limit_value == null ? null : Number(entitlement.limit_value);
-  if (minutes == null || !Number.isFinite(minutes) || minutes <= 0) {
+  const minutes = await loadTierIncludedVoiceMinutes(supabaseAdmin, planTier);
+  if (minutes == null) {
     return { granted: false, minutes: 0, reason: 'no_plan_minutes' };
   }
 
@@ -1509,14 +1523,31 @@ async function processStripeBillingEventBody(
     }
 
     const checkoutSessionId = typeof dataObject.id === 'string' ? dataObject.id.trim() : '';
-    await allocateCreditOrSkipDuplicate(
-      allocateRollingCredits,
-      targetTenantId,
-      'voice_minutes',
-      10,
-      undefined,
-      checkoutSessionId ? { sectorTag: planVoiceCheckoutSectorTag(checkoutSessionId) } : undefined,
-    );
+    let planVoiceMinutes: number;
+    try {
+      const loadedMinutes = await loadTierIncludedVoiceMinutes(supabaseAdmin, planTier);
+      planVoiceMinutes = loadedMinutes ?? 0;
+    } catch (voiceGrantErr: unknown) {
+      const message = voiceGrantErr instanceof Error ? voiceGrantErr.message : 'Could not read the plan voice allowance';
+      return {
+        status: 500,
+        body: {
+          success: false,
+          error: message,
+          tenant_id: targetTenantId,
+        },
+      };
+    }
+    if (planVoiceMinutes > 0) {
+      await allocateCreditOrSkipDuplicate(
+        allocateRollingCredits,
+        targetTenantId,
+        'voice_minutes',
+        planVoiceMinutes,
+        undefined,
+        checkoutSessionId ? { sectorTag: planVoiceCheckoutSectorTag(checkoutSessionId) } : undefined,
+      );
+    }
 
     return {
       status: 200,
