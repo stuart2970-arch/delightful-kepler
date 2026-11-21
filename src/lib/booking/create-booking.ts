@@ -7,6 +7,7 @@ import { getBusy, resolveCalendarProvider, type StaffCalendarTarget } from '@/li
 import {
   fetchOverlappingAppointments,
   resolveBusyAppointmentIntervals,
+  AppointmentOverlapQueryError,
 } from '@/lib/booking/appointment-calendar-sync';
 import { APPOINTMENT_STATUS_BOOKED } from '@/lib/booking/appointment-status';
 
@@ -246,7 +247,15 @@ async function slotIsBusy(
   start: Date,
   end: Date,
 ): Promise<'free' | 'busy' | 'unknown'> {
-  const overlappingRows = await fetchOverlappingAppointments(admin, tenantId, start, end, [staff.id]);
+  let overlappingRows
+  try {
+    overlappingRows = await fetchOverlappingAppointments(admin, tenantId, start, end, [staff.id])
+  } catch (err) {
+    if (err instanceof AppointmentOverlapQueryError) {
+      return 'busy'
+    }
+    throw err
+  }
   const staffById = new Map<string, StaffCalendarTarget>([[staff.id, staff]]);
   const blocking = await resolveBusyAppointmentIntervals({
     admin,
