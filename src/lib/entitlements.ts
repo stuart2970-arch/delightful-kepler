@@ -611,7 +611,7 @@ export async function checkCapacityThresholds(
     { id: 'knowledge_data_chunks', name: 'Knowledge Items' },
     { id: 'voice_minutes', name: 'Shared Voice Minutes' },
     { id: 'sms_messages', name: 'SMS Messages' },
-    { id: 'message_allowance', name: 'Monthly Chat Messages' },
+    { id: 'message_allowance', name: 'Monthly Chat Conversations' },
     { id: 'whatsapp_messages', name: 'WhatsApp Messages' },
   ];
 
