@@ -4615,3 +4615,8 @@ Highlighted adjustments in the modal:
 * **User**: Revert `tsconfig.json` churn (not ticket-related); merge `origin/staging` at 631e73e (PRs 90–95); re-run gate + homepage-widget specs.
 * **Changes**: `tsconfig.json` restored to match `staging` exactly; merge brought STYL-218 billing copy + STYL-400 CI concurrency.
 * **Verify**: typecheck; `styl-295-296-voice-minute-gate.spec.ts` (7); `homepage-widget.spec.ts` (14).
+
+### Session (STYL-404 calendar push sync — 21 Nov 2026)
+* **User**: Package C follow-up to STYL-392 — Google `events.watch` and Microsoft Graph subscriptions with renewal, webhooks that reconcile cancelled/moved events, no live registration until Stuart enables staging.
+* **Changes**: Migration `20261121193000_styl404_calendar_push_subscriptions.sql`; push-sync libs under `src/lib/calendar/push-sync/`; webhooks `POST /api/webhooks/calendar/google|microsoft`; renewal `POST /api/calendar/push-subscriptions/renew` (CRON_SECRET); exported `applyExternalEventStateToAppointment` from `appointment-calendar-sync.ts`; `tests/styl-404-calendar-push-sync.spec.ts`.
+* **Verify**: `bash scripts/agent-supabase-up.sh`; `bash scripts/test-e2e-agent.sh tests/styl-404-calendar-push-sync.spec.ts` — 6 passed; `npm run typecheck` pass.

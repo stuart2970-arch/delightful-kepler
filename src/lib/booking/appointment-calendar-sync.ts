@@ -224,6 +224,58 @@ type RowVerifyPlan = {
   staff: StaffCalendarTarget
 }
 
+/**
+ * Applies cancel/move reconciliation to a single appointment row (webhooks and push sync).
+ * Cancelled or missing events become status cancelled; active events may update start/end.
+ */
+export async function applyExternalEventStateToAppointment(params: {
+  admin: SupabaseClient
+  tenantId: string
+  row: OverlappingAppointmentRow
+  state: ExternalEventState
+}): Promise<void> {
+  const { row, state } = params
+  if (state.kind === 'cancelled' || state.kind === 'missing') {
+    await params.admin
+      .from('appointments')
+      .update({ status: APPOINTMENT_STATUS_CANCELLED })
+      .eq('id', row.id)
+      .eq('tenant_id', params.tenantId)
+    return
+  }
+  if (state.kind === 'active' && state.startIso && state.endIso) {
+    if (state.startIso !== row.start_time || state.endIso !== row.end_time) {
+      await params.admin
+        .from('appointments')
+        .update({
+          start_time: state.startIso,
+          end_time: state.endIso,
+          status: APPOINTMENT_STATUS_BOOKED,
+        })
+        .eq('id', row.id)
+        .eq('tenant_id', params.tenantId)
+    }
+  }
+}
+
+export async function findBookedAppointmentByProviderEvent(
+  admin: SupabaseClient,
+  tenantId: string,
+  provider: 'google' | 'microsoft',
+  eventId: string,
+): Promise<OverlappingAppointmentRow | null> {
+  const column = provider === 'google' ? 'google_event_id' : 'microsoft_event_id'
+  const { data, error } = await admin
+    .from('appointments')
+    .select('id, staff_id, start_time, end_time, status, google_event_id, microsoft_event_id, customer_email')
+    .eq('tenant_id', tenantId)
+    .eq('status', APPOINTMENT_STATUS_BOOKED)
+    .eq(column, eventId)
+    .maybeSingle()
+  if (error || !data) return null
+  return data as OverlappingAppointmentRow
+}
+
 async function applyVerifiedRow(params: {
   admin: SupabaseClient
   tenantId: string
@@ -238,11 +290,12 @@ async function applyVerifiedRow(params: {
   let block = true
 
   if (state.kind === 'cancelled' || state.kind === 'missing') {
-    await params.admin
-      .from('appointments')
-      .update({ status: APPOINTMENT_STATUS_CANCELLED })
-      .eq('id', row.id)
-      .eq('tenant_id', params.tenantId)
+    await applyExternalEventStateToAppointment({
+      admin: params.admin,
+      tenantId: params.tenantId,
+      row,
+      state,
+    })
     return null
   }
 
@@ -251,11 +304,12 @@ async function applyVerifiedRow(params: {
       startIso = state.startIso
       endIso = state.endIso
       if (startIso !== row.start_time || endIso !== row.end_time) {
-        await params.admin
-          .from('appointments')
-          .update({ start_time: startIso, end_time: endIso, status: APPOINTMENT_STATUS_BOOKED })
-          .eq('id', row.id)
-          .eq('tenant_id', params.tenantId)
+        await applyExternalEventStateToAppointment({
+          admin: params.admin,
+          tenantId: params.tenantId,
+          row,
+          state,
+        })
         block = intervalOverlaps(
           new Date(startIso),
           new Date(endIso),
