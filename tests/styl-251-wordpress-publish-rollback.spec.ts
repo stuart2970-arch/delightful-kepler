@@ -123,6 +123,88 @@ test.describe('STYL-251 WordPress publish diagnostics and slug rollback', () => 
     }
   });
 
+  test('concurrent publishes of the same name reserve distinct slugs (STYL-399)', async () => {
+    test.skip(!serviceKey, 'Requires local Supabase service role key');
+
+    const admin = createClient(supabaseUrl, serviceKey, {
+      auth: { persistSession: false, autoRefreshToken: false },
+    });
+
+    const stamp = Date.now();
+    const sharedName = 'Concurrent Coffee';
+    const { data: tenantA, error: errA } = await admin
+      .from('tenants')
+      .insert({ slug: `styl399-a-${stamp}`, company_name: 'Tenant A' })
+      .select('id')
+      .single();
+    const { data: tenantB, error: errB } = await admin
+      .from('tenants')
+      .insert({ slug: `styl399-b-${stamp}`, company_name: 'Tenant B' })
+      .select('id')
+      .single();
+    expect(errA).toBeNull();
+    expect(errB).toBeNull();
+
+    const wpSlugs: string[] = [];
+    const wpServer = createServer((req, res) => {
+      const chunks: Buffer[] = [];
+      req.on('data', (chunk) => chunks.push(chunk as Buffer));
+      req.on('end', () => {
+        const body = Buffer.concat(chunks).toString('utf8');
+        const parsed = JSON.parse(body) as { slug: string };
+        wpSlugs.push(parsed.slug);
+        setTimeout(() => {
+          res.writeHead(200, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ success: true }));
+        }, 40);
+      });
+    });
+
+    const previous = {
+      APP_ENV: process.env.APP_ENV,
+      NEXT_PUBLIC_ENV: process.env.NEXT_PUBLIC_ENV,
+      WORDPRESS_SITE_URL: process.env.WORDPRESS_SITE_URL,
+      STYLEFLO_WP_CREATE_BUSINESS_TOKEN: process.env.STYLEFLO_WP_CREATE_BUSINESS_TOKEN,
+    };
+
+    await new Promise<void>((resolve) => wpServer.listen(0, '127.0.0.1', () => resolve()));
+    const wpPort = (wpServer.address() as AddressInfo).port;
+
+    try {
+      process.env.APP_ENV = 'production';
+      process.env.NEXT_PUBLIC_ENV = 'production';
+      process.env.WORDPRESS_SITE_URL = `http://127.0.0.1:${wpPort}`;
+      process.env.STYLEFLO_WP_CREATE_BUSINESS_TOKEN = 'mock-wp-token';
+
+      const [resultA, resultB] = await Promise.all([
+        publishBusinessPageForTenant(admin, tenantA!.id as string, sharedName),
+        publishBusinessPageForTenant(admin, tenantB!.id as string, sharedName),
+      ]);
+
+      expect(resultA.ok).toBe(true);
+      expect(resultB.ok).toBe(true);
+      if (!resultA.ok || !resultB.ok) return;
+
+      expect(resultA.finalSlug).not.toBe(resultB.finalSlug);
+      expect(new Set(wpSlugs).size).toBe(2);
+      expect(wpSlugs).toEqual(expect.arrayContaining([resultA.finalSlug, resultB.finalSlug]));
+
+      const { count } = await admin
+        .from('tenant_publish_slug_claims')
+        .select('*', { count: 'exact', head: true });
+      expect(count).toBe(0);
+    } finally {
+      await new Promise<void>((resolve, reject) => {
+        wpServer.close((error) => (error ? reject(error) : resolve()));
+      });
+      for (const [key, value] of Object.entries(previous)) {
+        if (value === undefined) delete process.env[key];
+        else process.env[key] = value as string;
+      }
+      await admin.from('tenants').delete().in('id', [tenantA!.id as string, tenantB!.id as string]);
+    }
+  });
+
   test('tenant-created returns classified WordPress error without token leak', async () => {
     const previous = {
       APP_ENV: process.env.APP_ENV,
