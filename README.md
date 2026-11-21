@@ -4615,3 +4615,9 @@ Highlighted adjustments in the modal:
 * **User**: Revert `tsconfig.json` churn (not ticket-related); merge `origin/staging` at 631e73e (PRs 90–95); re-run gate + homepage-widget specs.
 * **Changes**: `tsconfig.json` restored to match `staging` exactly; merge brought STYL-218 billing copy + STYL-400 CI concurrency.
 * **Verify**: typecheck; `styl-295-296-voice-minute-gate.spec.ts` (7); `homepage-widget.spec.ts` (14).
+
+### Session (Package A — STYL-405 / STYL-309 / STYL-310 — 21 Nov 2026)
+* **User**: R3 chat metering and billing grants on `staging`: quoted-column fallbacks, checkout voice grant from `tier_entitlements`, conversation-based chat metering (1,500 Foundation conversations, 30-minute idle, fair-use closing reply).
+* **Changes**: Shared `missing-column-error` helpers; `loadTierIncludedVoiceMinutes` for checkout/renewal; `conversation-metering` + stream route + widget session reset; migration `20261121200000_styl310_chat_conversation_metering.sql`; widget bundles rebuilt.
+* **PRs**: #100 (`fd09b40`), #103 (`a27617a`, stacks on #100 commits), #105 (`85bf6d1f`, stacks on #103). CI pending on #100/#103 at handoff; #105 run starting.
+* **Verify**: `bash scripts/agent-supabase-up.sh`; unit specs 405/309/310; husky pre-push related billing suites green on each push.
