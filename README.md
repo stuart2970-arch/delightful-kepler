@@ -4608,8 +4608,8 @@ Highlighted adjustments in the modal:
 
 ### Session (STYL-261 CI + OpenClaw follow-up — 21 Nov 2026)
 * **User**: Merge staging (PRs 93/96); fix cf1b130 Playwright webServer timeout; OpenClaw `cancelEventGuardAvailable` after column fallback; keep `quantity` in billing select.
-* **Changes**: `layout.tsx` uses single-weight `next/font/google` entries and skips CookieYes when `PLAYWRIGHT_TEST` (Turbopack webServer was timing out on multi-weight fonts); `CapacityThresholdBanner` is a client component so “View plan” hydrates; `syncBoltOnPendingCancellation` sets `loaded.cancelEventGuardAvailable = false` after update fallback; merge staging at 636bce6/ca387d0 (`0918db2`).
-* **Verify**: styl-218/249/250/261 (20 passed); typecheck; husky pre-push 165 passed; head `ec02aee`.
+* **Changes**: `src/lib/fonts/*` keeps production Poppins/Inter weights 400–700; Playwright-only module uses single weight when `PLAYWRIGHT_TEST=true` (Turbopack webServer); CookieYes skipped in tests; `CapacityThresholdBanner` client + guard fallback; merge staging at 636bce6/ca387d0 (`0918db2`).
+* **Verify**: styl-218/249/250/261 (20 passed); typecheck; husky pre-push 165 passed; CI run 44938835596 green on `5b2fb48`.
 
 ### Session (PR 96 tsconfig hygiene + staging merge — 21 Nov 2026)
 * **User**: Revert `tsconfig.json` churn (not ticket-related); merge `origin/staging` at 631e73e (PRs 90–95); re-run gate + homepage-widget specs.

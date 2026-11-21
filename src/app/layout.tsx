@@ -1,23 +1,6 @@
 import type { Metadata } from "next";
-import { Poppins, Inter } from "next/font/google";
+import { rootFontClassName } from "@/lib/fonts";
 import "./globals.css";
-
-// Turbopack/next/font allows one weight entry per family (CI Playwright webServer).
-const poppins = Poppins({
-  variable: "--font-poppins",
-  subsets: ["latin"],
-  weight: "400",
-  display: "swap",
-  preload: false,
-});
-
-const inter = Inter({
-  variable: "--font-inter",
-  subsets: ["latin"],
-  weight: "400",
-  display: "swap",
-  preload: false,
-});
 
 const isStaging =
   (process.env.APP_ENV || process.env.NEXT_PUBLIC_ENV || "")
@@ -47,7 +30,7 @@ export default function RootLayout({
   return (
     <html
       lang="en"
-      className={`${poppins.variable} ${inter.variable} antialiased`}
+      className={rootFontClassName}
     >
       <head>
         {/* 1. Google Consent Mode v2 (default denied, runs before any tag/script both inside and outside frame) */}
