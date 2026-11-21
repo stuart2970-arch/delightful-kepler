@@ -21,6 +21,13 @@ import {
   ServiceConfig,
 } from '@/lib/calendar/availability';
 import { normaliseOpeningHours, staffHoursOverrideAccepted } from '@/lib/opening-hours';
+import {
+  fetchOverlappingAppointments,
+  resolveBusyAppointmentIntervals,
+  AppointmentOverlapQueryError,
+  type VerifyCalendarEvent,
+} from '@/lib/booking/appointment-calendar-sync';
+import { APPOINTMENT_STATUS_BOOKED } from '@/lib/booking/appointment-status';
 
 // Helper to lazily initialize Supabase Admin
 function getSupabaseAdmin() {
@@ -81,6 +88,7 @@ export interface AvailabilityDeps {
   lookup?: BusyLookup;
   log?: (message: string) => void;
   fixture?: AvailabilityFixture;
+  verifyCalendarEvent?: VerifyCalendarEvent;
 }
 
 export interface AvailabilityResult {
@@ -309,18 +317,49 @@ export async function getAvailabilityData(
     // Internal appointments are not on the external calendar until the event
     // exists. Without this, a refused slot is offered again.
     if (!deps?.fixture && succeededIds.size > 0) {
-      const { data: existingAppointments } = await getSupabaseAdmin()
-        .from('appointments')
-        .select('staff_id, start_time, end_time')
-        .eq('tenant_id', tenantId)
-        .in('staff_id', [...succeededIds])
-        .lt('start_time', end.toISOString())
-        .gt('end_time', start.toISOString());
-      for (const appt of existingAppointments || []) {
-        if (!appt.staff_id || !appt.start_time || !appt.end_time) continue;
-        const list = busyMap.get(appt.staff_id) || [];
-        list.push({ start: new Date(appt.start_time), end: new Date(appt.end_time) });
-        busyMap.set(appt.staff_id, list);
+      const admin = getSupabaseAdmin();
+      const staffById = new Map<string, StaffCalendarTarget>();
+      for (const member of reachableStaff) {
+        staffById.set(member.id, {
+          id: member.id,
+          name: member.name,
+          email: member.email ?? undefined,
+          calendar_provider: member.calendar_provider ?? undefined,
+          google_calendar_id: member.google_calendar_id ?? undefined,
+          microsoft_calendar_id: member.microsoft_calendar_id ?? undefined,
+        });
+      }
+      try {
+        const overlappingRows = await fetchOverlappingAppointments(
+          admin,
+          tenantId,
+          start,
+          end,
+          [...succeededIds],
+        );
+        const busyIntervals = await resolveBusyAppointmentIntervals({
+          admin,
+          tenantId,
+          staffById,
+          windowStart: start,
+          windowEnd: end,
+          rows: overlappingRows,
+          verify: deps?.verifyCalendarEvent,
+        });
+        for (const appt of busyIntervals) {
+          if (!appt.staff_id || !appt.start_time || !appt.end_time) continue;
+          const list = busyMap.get(appt.staff_id) || [];
+          list.push({ start: new Date(appt.start_time), end: new Date(appt.end_time) });
+          busyMap.set(appt.staff_id, list);
+        }
+      } catch (err) {
+        if (err instanceof AppointmentOverlapQueryError) {
+          for (const staffId of succeededIds) {
+            busyMap.set(staffId, [{ start, end }]);
+          }
+        } else {
+          throw err;
+        }
       }
     }
 
@@ -539,6 +578,7 @@ export async function bookMeeting(
       .select('id, google_event_id, start_time')
       .eq('tenant_id', tenantId)
       .eq('staff_id', resolvedStaffId)
+      .eq('status', APPOINTMENT_STATUS_BOOKED)
       .eq('customer_email', customerEmail.trim().toLowerCase())
       .gte('start_time', new Date(startUtc.getTime() - 1000).toISOString())
       .lte('start_time', new Date(startUtc.getTime() + 1000).toISOString())
@@ -549,23 +589,6 @@ export async function bookMeeting(
       return `Successfully booked appointment. Confirmation sent to ${customerEmail}.`;
     }
 
-    // 2. Re-check Free/Busy status right before booking to prevent race conditions
-    // Check internal appointments table (excluding any booking by the same customer)
-    const { data: overlappingAppt } = await getSupabaseAdmin()
-      .from('appointments')
-      .select('id')
-      .eq('tenant_id', tenantId)
-      .eq('staff_id', resolvedStaffId)
-      .neq('customer_email', customerEmail.trim().toLowerCase())
-      .lt('start_time', endUtc.toISOString())
-      .gt('end_time', startUtc.toISOString())
-      .maybeSingle();
-
-    if (overlappingAppt) {
-      console.warn(`[Calendar] Race condition: slot ${startTimeStr} was taken in appointments table before booking confirmation.`);
-      return `Error: That time slot is no longer available. Please choose another time.`;
-    }
-
     const staffTarget: StaffCalendarTarget = {
       id: staff.id,
       name: staff.name,
@@ -574,6 +597,43 @@ export async function bookMeeting(
       google_calendar_id: staff.google_calendar_id,
       microsoft_calendar_id: staff.microsoft_calendar_id,
     };
+
+    // 2. Re-check Free/Busy status right before booking to prevent race conditions
+    // Check internal appointments table (excluding any booking by the same customer)
+    const customerNorm = customerEmail.trim().toLowerCase();
+    let blocking: Awaited<ReturnType<typeof resolveBusyAppointmentIntervals>> = [];
+    try {
+      const overlappingRows = await fetchOverlappingAppointments(
+        admin,
+        tenantId,
+        startUtc,
+        endUtc,
+        [resolvedStaffId],
+      );
+      const othersOverlap = overlappingRows.filter(
+        (row) => String(row.customer_email || '').trim().toLowerCase() !== customerNorm,
+      );
+      const staffById = new Map<string, StaffCalendarTarget>([[staff.id, staffTarget]]);
+      blocking = await resolveBusyAppointmentIntervals({
+        admin,
+        tenantId,
+        staffById,
+        windowStart: startUtc,
+        windowEnd: endUtc,
+        rows: othersOverlap,
+      });
+    } catch (err) {
+      if (err instanceof AppointmentOverlapQueryError) {
+        console.warn('[Calendar] Overlap query failed during booking; treating slot as busy.');
+        return `Error: That time slot is no longer available. Please choose another time.`;
+      }
+      throw err;
+    }
+
+    if (blocking.length > 0) {
+      console.warn(`[Calendar] Race condition: slot ${startTimeStr} was taken in appointments table before booking confirmation.`);
+      return `Error: That time slot is no longer available. Please choose another time.`;
+    }
 
     try {
       const busyIntervals = await getBusy(tenantId, staffTarget, startUtc, endUtc);
@@ -623,6 +683,7 @@ export async function bookMeeting(
       customer_phone: customerPhone,
       start_time: startUtc.toISOString(),
       end_time: endUtc.toISOString(),
+      status: APPOINTMENT_STATUS_BOOKED,
       google_event_id: eventResult?.id || null,
     };
 

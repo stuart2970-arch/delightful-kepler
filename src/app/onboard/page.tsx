@@ -35,13 +35,8 @@ function OnboardContent() {
       const { data, error } = await (supabase.auth.signInWithOAuth as any)({
         provider: 'google',
         options: {
-          scopes: 'https://www.googleapis.com/auth/calendar',
           redirectTo: redirectUrl,
           skipBrowserRedirect: true,
-          queryParams: {
-            access_type: 'offline',
-            prompt: 'consent',
-          },
           data: {
             terms_accepted: true,
             terms_accepted_at: new Date().toISOString(),

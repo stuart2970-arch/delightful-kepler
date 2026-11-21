@@ -16,8 +16,8 @@ function redactWordpressBody(text: string): string {
     .replace(/[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/gi, '[redacted-email]')
     .replace(/\b[0-9a-fA-F]{24,}\b/g, '[redacted]')
     .replace(
-      /(["'])(token|authorization|secret|password|api[_-]?key)\1\s*:\s*(["'])[^"']*\3/gi,
-      '$1$2$3:[redacted]$3',
+      /(["'])(token|authorization|secret|password|api[_-]?key)\1\s*:\s*\1[^"']*\1/gi,
+      '$1$2$1:$1[redacted]$1',
     )
     .replace(/(token|authorization|secret|password|api[_-]?key)(\s*[:=]\s*)(\S+)/gi, '$1$2[redacted]')
     .slice(0, 200);
