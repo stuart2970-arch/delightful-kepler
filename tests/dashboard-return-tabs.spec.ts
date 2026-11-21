@@ -92,6 +92,7 @@ test.describe('Dashboard return tabs after checkout', () => {
 
   test('Extra Knowledge bolt-on raises the knowledge items total on Subscriptions', async ({ page }) => {
     await admin.from('tenant_active_addons').delete().eq('tenant_id', GLOBEX).eq('addon_catalog_id', 'data_pack_500');
+    await admin.from('document_chunks').delete().eq('tenant_id', GLOBEX);
     const { error } = await admin.from('tenant_active_addons').insert({
       tenant_id: GLOBEX,
       addon_catalog_id: 'data_pack_500',
@@ -105,7 +106,7 @@ test.describe('Dashboard return tabs after checkout', () => {
       await signIn(page);
       await page.goto('/dashboard?tab=billing');
       await expect(panel(page)).toContainText('Knowledge items', { timeout: 15000 });
-      await expect(panel(page)).toContainText('1000 total');
+      await expect(panel(page)).toContainText('of 1,000 knowledge items');
       await expect(panel(page)).not.toContainText('50 total');
       await expect(panel(page).getByRole('button', { name: '+ Add knowledge items' })).toBeVisible();
     } finally {
@@ -115,6 +116,7 @@ test.describe('Dashboard return tabs after checkout', () => {
 
   test('knowledge items total drops after Extra Knowledge bolt-on cancel', async ({ page }) => {
     await admin.from('tenant_active_addons').delete().eq('tenant_id', GLOBEX).eq('addon_catalog_id', 'data_pack_500');
+    await admin.from('document_chunks').delete().eq('tenant_id', GLOBEX);
     const { error } = await admin.from('tenant_active_addons').insert({
       tenant_id: GLOBEX,
       addon_catalog_id: 'data_pack_500',
@@ -127,7 +129,7 @@ test.describe('Dashboard return tabs after checkout', () => {
     try {
       await signIn(page);
       await page.goto('/dashboard?tab=billing');
-      await expect(panel(page)).toContainText('1000 total', { timeout: 15000 });
+      await expect(panel(page)).toContainText('of 1,000 knowledge items', { timeout: 15000 });
 
       const { error: cancelError } = await admin
         .from('tenant_active_addons')
@@ -138,8 +140,8 @@ test.describe('Dashboard return tabs after checkout', () => {
 
       await page.reload();
       await expect(panel(page)).toContainText('Knowledge items', { timeout: 15000 });
-      await expect(panel(page)).toContainText('500 total');
-      await expect(panel(page)).not.toContainText('1000 total');
+      await expect(panel(page)).toContainText('of 500 knowledge items');
+      await expect(panel(page)).not.toContainText('of 1,000 knowledge items');
     } finally {
       await admin.from('tenant_active_addons').delete().eq('tenant_id', GLOBEX).eq('addon_catalog_id', 'data_pack_500');
     }

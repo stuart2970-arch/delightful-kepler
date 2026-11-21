@@ -1057,19 +1057,37 @@ const globalBotId = '00000000-0000-0000-0000-000000000000';
                       </button>
                     </div>
                     <div className="flex justify-between text-xs text-[var(--awb-color6)] mb-2">
-                      <span>{billingData?.usage?.chunks || 0} used</span>
                       <span>
-                        {knowledgeItemsTotal({
-                          entitlements: billingData?.entitlements,
-                          addons: billingData?.addons,
-                        })} total
+                        {(billingData?.usage?.chunks || 0).toLocaleString()} of{' '}
+                        {(
+                          billingData?.knowledgeItemsLimit ??
+                          knowledgeItemsTotal({
+                            entitlements: billingData?.entitlements,
+                            addons: billingData?.addons,
+                          })
+                        ).toLocaleString()}{' '}
+                        knowledge items
                       </span>
                     </div>
                     <div className="w-full bg-[var(--awb-color3)] rounded-full h-2.5">
-                      <div className="bg-[var(--awb-color4)] h-2.5 rounded-full" style={{ width: `${Math.min(100, ((billingData?.usage?.chunks || 0) / Math.max(1, knowledgeItemsTotal({
-                          entitlements: billingData?.entitlements,
-                          addons: billingData?.addons,
-                        }))) * 100)}%`}}></div>
+                      <div
+                        className="bg-[var(--awb-color4)] h-2.5 rounded-full"
+                        style={{
+                          width: `${Math.min(
+                            100,
+                            ((billingData?.usage?.chunks || 0) /
+                              Math.max(
+                                1,
+                                billingData?.knowledgeItemsLimit ??
+                                  knowledgeItemsTotal({
+                                    entitlements: billingData?.entitlements,
+                                    addons: billingData?.addons,
+                                  }),
+                              )) *
+                              100,
+                          )}%`,
+                        }}
+                      ></div>
                     </div>
                   </div>
 

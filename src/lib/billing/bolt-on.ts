@@ -105,6 +105,7 @@ export function knowledgeItemsTotal(input: {
     category?: string;
     addon_catalog_id?: string;
     included_data_chunks?: number | null;
+    quantity?: number | null;
     is_active?: boolean;
   }> | null;
   baseFallback?: number;
@@ -118,7 +119,11 @@ export function knowledgeItemsTotal(input: {
   const bonus = (input.addons || [])
     .filter((addon) => addon.is_active !== false)
     .filter((addon) => addon.category === 'data_pack' || addon.addon_catalog_id === 'data_pack_500')
-    .reduce((sum, addon) => sum + Number(addon.included_data_chunks || 0), 0);
+    .reduce(
+      (sum, addon) =>
+        sum + Number(addon.included_data_chunks || 0) * Math.max(1, Number(addon.quantity ?? 1)),
+      0,
+    );
   return base + bonus;
 }
 
