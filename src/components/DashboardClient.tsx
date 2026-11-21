@@ -21,6 +21,7 @@ import AddOnUpsellModal, { AddOnCategory } from './AddOnUpsellModal';
 import { useDashboardStore, type ActiveTab } from '../lib/store';
 import { formatAllowanceRange } from '@/lib/addon-text';
 import { knowledgeItemsTotal, resolveCalendarAddonFlags, resolveCheckoutSuccessBanner } from '@/lib/billing/bolt-on';
+import { META_MESSAGING_COMING_SOON_LABEL } from '@/lib/channels/meta-messaging-status';
 import { formatBoltOnCancelLabel } from '@/lib/billing/account-ownership';
 import { publicAppPath } from '@/lib/env/public-app-url';
 
@@ -1056,19 +1057,37 @@ const globalBotId = '00000000-0000-0000-0000-000000000000';
                       </button>
                     </div>
                     <div className="flex justify-between text-xs text-[var(--awb-color6)] mb-2">
-                      <span>{billingData?.usage?.chunks || 0} used</span>
                       <span>
-                        {knowledgeItemsTotal({
-                          entitlements: billingData?.entitlements,
-                          addons: billingData?.addons,
-                        })} total
+                        {(billingData?.usage?.chunks || 0).toLocaleString()} of{' '}
+                        {(
+                          billingData?.knowledgeItemsLimit ??
+                          knowledgeItemsTotal({
+                            entitlements: billingData?.entitlements,
+                            addons: billingData?.addons,
+                          })
+                        ).toLocaleString()}{' '}
+                        knowledge items
                       </span>
                     </div>
                     <div className="w-full bg-[var(--awb-color3)] rounded-full h-2.5">
-                      <div className="bg-[var(--awb-color4)] h-2.5 rounded-full" style={{ width: `${Math.min(100, ((billingData?.usage?.chunks || 0) / Math.max(1, knowledgeItemsTotal({
-                          entitlements: billingData?.entitlements,
-                          addons: billingData?.addons,
-                        }))) * 100)}%`}}></div>
+                      <div
+                        className="bg-[var(--awb-color4)] h-2.5 rounded-full"
+                        style={{
+                          width: `${Math.min(
+                            100,
+                            ((billingData?.usage?.chunks || 0) /
+                              Math.max(
+                                1,
+                                billingData?.knowledgeItemsLimit ??
+                                  knowledgeItemsTotal({
+                                    entitlements: billingData?.entitlements,
+                                    addons: billingData?.addons,
+                                  }),
+                              )) *
+                              100,
+                          )}%`,
+                        }}
+                      ></div>
                     </div>
                   </div>
 
@@ -1267,10 +1286,10 @@ const globalBotId = '00000000-0000-0000-0000-000000000000';
                               <span className="text-xl">💬</span>
                               <h5 className="text-xs font-extrabold text-[var(--awb-color8)]">WhatsApp</h5>
                             </div>
-                            <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded bg-gray-200 text-gray-700">Coming soon</span>
+                            <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded bg-gray-200 text-gray-700">{META_MESSAGING_COMING_SOON_LABEL}</span>
                           </div>
                           <p className="text-[11px] text-[var(--awb-color6)] mb-3 leading-relaxed">
-                            Official Meta WhatsApp integration is coming soon.
+                            Official Meta WhatsApp integration is {META_MESSAGING_COMING_SOON_LABEL.toLowerCase()}.
                           </p>
                         </div>
                         <button
@@ -1278,7 +1297,7 @@ const globalBotId = '00000000-0000-0000-0000-000000000000';
                           disabled
                           className="w-full bg-gray-300 text-gray-500 text-xs font-bold py-2 px-3 rounded-[4px] cursor-not-allowed flex items-center justify-center gap-1.5"
                         >
-                          <span>💬</span> Coming soon
+                          <span>💬</span> {META_MESSAGING_COMING_SOON_LABEL}
                         </button>
                       </div>
                     </div>
