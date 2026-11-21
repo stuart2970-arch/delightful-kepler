@@ -1193,6 +1193,23 @@ test.describe('Bolt-on flags and knowledge totals', () => {
     })).toBe(550);
   });
 
+  test('knowledge items total stacks when quantity is greater than one', () => {
+    expect(
+      knowledgeItemsTotal({
+        entitlements: [{ feature_id: 'knowledge_data_chunks', limit_value: 500 }],
+        addons: [
+          {
+            category: 'data_pack',
+            addon_catalog_id: DATA_PACK_ID,
+            included_data_chunks: 500,
+            quantity: 2,
+            is_active: true,
+          },
+        ],
+      }),
+    ).toBe(1500);
+  });
+
   test('knowledge items total drops when Extra Knowledge is cancelled', () => {
     const entitlements = [{ feature_id: 'knowledge_data_chunks', limit_value: 500 }];
     const active = knowledgeItemsTotal({
