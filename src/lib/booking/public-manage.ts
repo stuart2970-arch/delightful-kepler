@@ -34,7 +34,7 @@ export async function loadManageBooking(appointmentId: string) {
   const { data, error } = await admin
     .from('appointments')
     .select(
-      'id, tenant_id, staff_id, service_id, customer_name, customer_email, start_time, end_time, status, google_event_id, microsoft_event_id, staff(name, email, calendar_provider, google_calendar_id, microsoft_calendar_id), services(name, duration_minutes), tenants(name, timezone)',
+      'id, tenant_id, staff_id, service_id, customer_name, customer_email, start_time, end_time, status, google_event_id, microsoft_event_id, staff(name, email, calendar_provider, google_calendar_id, microsoft_calendar_id), services(name, duration_minutes), tenants(company_name)',
     )
     .eq('id', appointmentId)
     .maybeSingle();
@@ -53,7 +53,7 @@ export async function cancelBookingViaManage(appointmentId: string): Promise<{ o
   const staffRow = Array.isArray(appt.staff) ? appt.staff[0] : appt.staff;
   const serviceRow = Array.isArray(appt.services) ? appt.services[0] : appt.services;
   const tenantRow = Array.isArray(appt.tenants) ? appt.tenants[0] : appt.tenants;
-  const timezone = (tenantRow as { timezone?: string } | null)?.timezone || 'Europe/London';
+  const timezone = 'Europe/London';
 
   const staffTarget: StaffCalendarTarget = {
     id: appt.staff_id as string,
@@ -84,14 +84,19 @@ export async function cancelBookingViaManage(appointmentId: string): Promise<{ o
   }
 
   const formattedStart = new Date(appt.start_time as string).toLocaleString('en-GB', { timeZone: timezone });
-  await sendBusinessBookingCancelledEmail({
-    tenantId: appt.tenant_id as string,
-    customerName: appt.customer_name as string,
-    customerEmail: appt.customer_email as string,
-    serviceName: serviceRow?.name || 'Appointment',
-    staffName: staffRow?.name || 'Colleague',
-    formattedStart,
-  });
+  try {
+    await sendBusinessBookingCancelledEmail({
+      tenantId: appt.tenant_id as string,
+      customerName: appt.customer_name as string,
+      customerEmail: appt.customer_email as string,
+      serviceName: serviceRow?.name || 'Appointment',
+      staffName: staffRow?.name || 'Colleague',
+      formattedStart,
+    });
+  } catch (emailErr: unknown) {
+    const message = emailErr instanceof Error ? emailErr.message : String(emailErr);
+    console.warn('[PublicManage] Business cancel email failed:', message);
+  }
 
   return { ok: true };
 }

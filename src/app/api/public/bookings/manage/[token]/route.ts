@@ -45,8 +45,9 @@ export async function GET(
   const staffRow = Array.isArray(appt.staff) ? appt.staff[0] : appt.staff;
   const serviceRow = Array.isArray(appt.services) ? appt.services[0] : appt.services;
   const tenantRow = Array.isArray(appt.tenants) ? appt.tenants[0] : appt.tenants;
-  const timezone = (tenantRow as { timezone?: string } | null)?.timezone || 'Europe/London';
-  const businessName = (tenantRow as { name?: string } | null)?.name || 'Small business';
+  const timezone = 'Europe/London';
+  const businessName =
+    (tenantRow as { company_name?: string } | null)?.company_name || 'Small business';
 
   let availability: { quickDaysTag?: string; quickTimesTag?: string; text?: string } | null = null;
   if (appt.status === APPOINTMENT_STATUS_BOOKED && appt.staff_id && appt.service_id) {

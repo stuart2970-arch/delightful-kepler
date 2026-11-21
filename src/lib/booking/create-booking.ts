@@ -541,9 +541,9 @@ export async function handleCreateBooking(request: Request): Promise<NextRespons
     const [{ data: svc }, { data: stf }, { data: tenant }] = await Promise.all([
       admin.from('services').select('name').eq('id', fields.serviceId).maybeSingle(),
       admin.from('staff').select('name').eq('id', fields.staffId).maybeSingle(),
-      admin.from('tenants').select('name, timezone').eq('id', auth.tenantId).maybeSingle(),
+      admin.from('tenants').select('company_name').eq('id', auth.tenantId).maybeSingle(),
     ]);
-    const tz = (tenant?.timezone as string | undefined) || 'Europe/London';
+    const tz = 'Europe/London';
     const formattedStart = start.toLocaleString('en-GB', { timeZone: tz });
     await sendBookingConfirmationEmail({
       customerName,
@@ -552,7 +552,7 @@ export async function handleCreateBooking(request: Request): Promise<NextRespons
       staffName: stf?.name || 'Colleague',
       formattedStart,
       manageToken: issued.rawToken,
-      businessName: tenant?.name,
+      businessName: tenant?.company_name,
     });
   } catch (emailErr: unknown) {
     const message = emailErr instanceof Error ? emailErr.message : String(emailErr);

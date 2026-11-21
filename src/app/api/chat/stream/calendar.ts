@@ -704,7 +704,7 @@ export async function bookMeeting(
     try {
       const { data: tenantRow } = await getSupabaseAdmin()
         .from('tenants')
-        .select('name')
+        .select('company_name')
         .eq('id', tenantId)
         .maybeSingle();
       const formattedStart = startUtc.toLocaleString('en-GB', { timeZone: timezone });
@@ -716,7 +716,7 @@ export async function bookMeeting(
           staffName: staff.name || 'Colleague',
           formattedStart,
           manageToken: manageTokenRaw,
-          businessName: tenantRow?.name,
+          businessName: tenantRow?.company_name,
         });
         console.log(`[Calendar] Sent confirmation with manage link to ${customerEmail}`);
       }
