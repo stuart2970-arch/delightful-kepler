@@ -5,13 +5,10 @@ on:
     branches:
       - main
       - staging
-  # Ensure CI runs when head-branch pushes are not delivered as pull_request synchronize (e.g. stuck runs).
-  push:
-    branches:
-      - 'cursor/**'
 
 concurrency:
-  group: playwright-${{ github.workflow }}-${{ github.ref }}
+  # Key on the PR head branch so pull_request and any duplicate triggers share one group (STYL-400).
+  group: playwright-${{ github.workflow }}-${{ github.head_ref || github.ref_name }}
   # Cancel superseded runs so a stuck/failed job does not block the branch for hours.
   cancel-in-progress: true
 
