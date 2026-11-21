@@ -4606,6 +4606,11 @@ Highlighted adjustments in the modal:
 * **Changes**: Restored unconditional `e000…000002` demo JSON; inbound forwards ledger override deps; `voiceEnabled` vs web-call `allowed` split; dedicated tenant `f295…0295` + ledger cleanup; `PLAYWRIGHT_TEST` env restore in gate spec; `entitlements` reuses passed Supabase client for rolling voice reads.
 * **Verify**: `styl-295-296-voice-minute-gate.spec.ts` (7), homepage-widget voice intercept + Emma mock grep tests, `npm run typecheck`; push `423a95b` — husky pre-push 195 related specs passed.
 
+### Session (STYL-261 CI + OpenClaw follow-up — 21 Nov 2026)
+* **User**: Merge staging (PRs 93/96); fix cf1b130 Playwright webServer timeout; OpenClaw `cancelEventGuardAvailable` after column fallback; keep `quantity` in billing select.
+* **Changes**: `test:server` uses `next dev --webpack` (Turbopack + dual `next/font/google` broke CI startup); `syncBoltOnPendingCancellation` toggles guard off after read/update fallback; merge staging.
+* **Verify**: styl-218/249/250/261 (20 passed); typecheck; pre-push.
+
 ### Session (PR 96 tsconfig hygiene + staging merge — 21 Nov 2026)
 * **User**: Revert `tsconfig.json` churn (not ticket-related); merge `origin/staging` at 631e73e (PRs 90–95); re-run gate + homepage-widget specs.
 * **Changes**: `tsconfig.json` restored to match `staging` exactly; merge brought STYL-218 billing copy + STYL-400 CI concurrency.

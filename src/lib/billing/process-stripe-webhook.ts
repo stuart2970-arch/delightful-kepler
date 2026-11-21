@@ -277,8 +277,10 @@ export async function syncBoltOnPendingCancellation(
   );
   if (loaded.error) return { ok: false, error: loaded.error };
 
+  let cancelEventGuardAvailable = loaded.cancelEventGuardAvailable;
+
   for (const row of loaded.rows) {
-    if (loaded.cancelEventGuardAvailable && isStaleStripeCancelEvent(row.stripe_cancel_event_created_at, eventCreatedAt)) {
+    if (cancelEventGuardAvailable && isStaleStripeCancelEvent(row.stripe_cancel_event_created_at, eventCreatedAt)) {
       continue;
     }
 
@@ -291,7 +293,7 @@ export async function syncBoltOnPendingCancellation(
       cancel_at_period_end: pair.cancel_at_period_end,
       cancel_at: pair.cancel_at,
     };
-    if (eventCreatedIso && loaded.cancelEventGuardAvailable) {
+    if (eventCreatedIso && cancelEventGuardAvailable) {
       updatePayload.stripe_cancel_event_created_at = eventCreatedIso;
     }
 
@@ -311,6 +313,8 @@ export async function syncBoltOnPendingCancellation(
       && missingColumnFromError(updateError) === 'stripe_cancel_event_created_at'
       && 'stripe_cancel_event_created_at' in updatePayload
     ) {
+      cancelEventGuardAvailable = false;
+      loaded.cancelEventGuardAvailable = false;
       const { stripe_cancel_event_created_at: _drop, ...withoutGuard } = updatePayload;
       ({ data: updatedRows, error: updateError } = await runOptimisticUpdate(withoutGuard));
     }

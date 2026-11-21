@@ -32,6 +32,7 @@ type Row = Record<string, any>;
 
 type StoreOptions = {
   stripeCancelEventColumnMissing?: boolean;
+  stripeCancelEventColumnMissingOnUpdate?: boolean;
 };
 
 function createStore(addons: Row[] = [], options: StoreOptions = {}) {
@@ -135,9 +136,10 @@ function createStore(addons: Row[] = [], options: StoreOptions = {}) {
           then(resolve: (value: any) => unknown, reject?: (reason: any) => unknown) {
             if (
               name === 'tenant_active_addons'
-              && options.stripeCancelEventColumnMissing
-              && row.stripe_cancel_event_created_at != null
+              && options.stripeCancelEventColumnMissingOnUpdate
+              && pendingUpdate?.stripe_cancel_event_created_at != null
             ) {
+              pendingUpdate = null;
               return Promise.resolve(guardColumnSelectError()).then(resolve, reject);
             }
             const hits = matched();
@@ -328,6 +330,22 @@ test.describe('STYL-261 webhook cancel guard', () => {
     expect(newerCleared).toEqual({ ok: true });
     expect(store.addons[0].cancel_at_period_end).toBe(false);
     expect(store.audit.filter((row) => row.action === 'addon_cancel_unscheduled')).toHaveLength(1);
+  });
+
+  test('disables event guard after update fallback when guard column is missing on write', async () => {
+    const store = createStore([activeRow()], { stripeCancelEventColumnMissingOnUpdate: true });
+    const result = await syncBoltOnPendingCancellation(
+      store,
+      subscriptionObject({
+        cancel_at_period_end: true,
+        cancel_at: CANCEL_UNIX,
+      }),
+      { eventCreatedAt: 1_800_000_100 },
+    );
+    expect(result).toEqual({ ok: true });
+    expect(store.addons[0].cancel_at_period_end).toBe(true);
+    expect(store.addons[0].stripe_cancel_event_created_at).toBeUndefined();
+    expect(store.audit.filter((row) => row.action === 'addon_cancel_scheduled')).toHaveLength(1);
   });
 
   test('syncs cancel state when stripe_cancel_event_created_at is not migrated yet', async () => {
