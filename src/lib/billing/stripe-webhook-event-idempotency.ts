@@ -1,7 +1,8 @@
-export type StripeWebhookClaimAction = 'process' | 'skip' | 'locked' | 'unavailable';
+export type StripeWebhookClaimAction = 'process' | 'skip' | 'locked' | 'unavailable' | 'error';
 
 export type StripeWebhookClaimResult = {
   action: StripeWebhookClaimAction;
+  message?: string;
 };
 
 function isMissingRpc(error: unknown): boolean {
@@ -40,7 +41,8 @@ export async function claimStripeWebhookEvent(
 
   if (error) {
     if (isMissingRpc(error) || isMissingTable(error)) return { action: 'unavailable' };
-    throw new Error((error as { message?: string }).message || 'Could not claim Stripe webhook event');
+    const message = (error as { message?: string }).message || 'Could not claim Stripe webhook event';
+    return { action: 'error', message };
   }
 
   return { action: normalizeClaimAction(data) };

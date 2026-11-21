@@ -912,7 +912,17 @@ export async function handleStripeBillingEvent(
   if (claim.action === 'locked') {
     return {
       status: 500,
-      body: { success: false, error: 'Stripe webhook event is still processing' },
+      body: { success: false, error: 'Stripe webhook event is still processing', retry: true },
+    };
+  }
+  if (claim.action === 'error') {
+    return {
+      status: 500,
+      body: {
+        success: false,
+        error: claim.message || 'Could not claim Stripe webhook event',
+        retry: true,
+      },
     };
   }
 

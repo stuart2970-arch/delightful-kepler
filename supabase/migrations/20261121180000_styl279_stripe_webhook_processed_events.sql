@@ -28,11 +28,11 @@ SET search_path = public, pg_temp
 AS $$
 DECLARE
   v_inserted_id text;
-  v_status text;
-  v_received timestamptz;
+  v_row public.stripe_webhook_processed_events%ROWTYPE;
+  v_stale_cutoff timestamptz := clock_timestamp() - interval '15 minutes';
 BEGIN
   IF coalesce(trim(p_event_id), '') = '' THEN
-  RETURN 'process';
+    RETURN 'process';
   END IF;
 
   INSERT INTO public.stripe_webhook_processed_events (event_id, event_type, status)
@@ -44,17 +44,21 @@ BEGIN
     RETURN 'process';
   END IF;
 
-  SELECT status, received_at
-    INTO v_status, v_received
+  SELECT *
+    INTO v_row
     FROM public.stripe_webhook_processed_events
-   WHERE event_id = p_event_id;
+   WHERE event_id = p_event_id
+     FOR UPDATE;
 
-  IF v_status = 'processed' THEN
+  IF NOT FOUND THEN
+    RETURN 'locked';
+  END IF;
+
+  IF v_row.status = 'processed' THEN
     RETURN 'skip';
   END IF;
 
-  IF v_status = 'processing'
-     AND v_received > clock_timestamp() - interval '15 minutes' THEN
+  IF v_row.status = 'processing' AND v_row.received_at > v_stale_cutoff THEN
     RETURN 'locked';
   END IF;
 
@@ -62,8 +66,7 @@ BEGIN
      SET status = 'processing',
          received_at = clock_timestamp(),
          event_type = coalesce(nullif(trim(p_event_type), ''), event_type)
-   WHERE event_id = p_event_id
-     AND status IN ('processing', 'failed');
+   WHERE event_id = p_event_id;
 
   RETURN 'process';
 END;

@@ -25,6 +25,7 @@ test.describe('STYL-279: Stripe webhook event idempotency', () => {
     expect(sql).toMatch(/REVOKE ALL ON TABLE public\.stripe_webhook_processed_events/);
     expect(sql).toContain('claim_stripe_webhook_event');
     expect(sql).toContain('complete_stripe_webhook_event');
+    expect(sql).toMatch(/FOR UPDATE/);
   });
 
   test('duplicate delivery with the same event id runs billing side effects once', async () => {
@@ -155,6 +156,79 @@ test.describe('STYL-279: Stripe webhook event idempotency', () => {
 
     await admin.from('stripe_webhook_processed_events').delete().eq('event_id', retryEventId);
     await admin.from('usage_ledger').delete().eq('sector_tag', `plan_voice:${invoiceId}`);
+  });
+
+  test('concurrent retries on a failed event claim only one worker', async () => {
+    test.skip(!serviceKey, 'Requires the local Supabase service role key');
+
+    const admin = createClient(supabaseUrl, serviceKey, {
+      auth: { persistSession: false, autoRefreshToken: false },
+    });
+    const concurrentId = 'evt_styl279_concurrent_retry';
+    await admin.from('stripe_webhook_processed_events').delete().eq('event_id', concurrentId);
+    await admin.from('stripe_webhook_processed_events').insert({
+      event_id: concurrentId,
+      event_type: 'invoice.payment_succeeded',
+      status: 'failed',
+      received_at: new Date().toISOString(),
+    });
+
+    const periodStart = Math.floor(Date.now() / 1000);
+    const event = {
+      id: concurrentId,
+      type: 'invoice.payment_succeeded',
+      data: {
+        object: {
+          id: 'in_styl279_concurrent',
+          customer: 'cus_test_globex',
+          billing_reason: 'subscription_cycle',
+          period_start: periodStart,
+          lines: {
+            data: [{
+              period: { start: periodStart, end: periodStart + 2592000 },
+              price: { id: 'price_styl315_foundation' },
+            }],
+          },
+          subscription_details: { metadata: { tenant_id: GLOBEX } },
+        },
+      },
+    };
+
+    await admin
+      .from('subscription_tiers')
+      .update({ stripe_price_id: 'price_styl315_foundation' })
+      .in('id', ['foundation', 'base_tier']);
+
+    let inFlight = 0;
+    let maxInFlight = 0;
+    let billingRuns = 0;
+    const deps = {
+      supabaseAdmin: admin,
+      allocateRollingCredits: async () => {
+        billingRuns += 1;
+        inFlight += 1;
+        maxInFlight = Math.max(maxInFlight, inFlight);
+        await new Promise((resolve) => setTimeout(resolve, 80));
+        inFlight -= 1;
+        return { id: 'concurrent-alloc' };
+      },
+    };
+
+    const results = await Promise.all(
+      Array.from({ length: 4 }, () => handleStripeBillingEvent(event, deps)),
+    );
+
+    const freshSuccesses = results.filter(
+      (row) => row.status === 200 && !row.body.duplicate,
+    );
+    expect(freshSuccesses).toHaveLength(1);
+    expect(billingRuns).toBe(1);
+    expect(maxInFlight).toBe(1);
+    expect(
+      results.filter((row) => row.status === 500 && row.body.retry === true).length,
+    ).toBeGreaterThanOrEqual(1);
+
+    await admin.from('stripe_webhook_processed_events').delete().eq('event_id', concurrentId);
   });
 });
 
