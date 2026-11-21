@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getWordpressPublishConfig } from '@/lib/env/wordpress-publish';
+import { postWordpressCreateBusiness } from '@/lib/wordpress/wordpress-api';
 import { secretsEqual } from '@/lib/security/secrets-equal';
 
 function bearerToken(req: NextRequest): string {
@@ -63,33 +64,23 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ success: false, error: wpConfig.reason }, { status: 200 });
     }
 
-    const wpApiUrl = `${wpConfig.wordpressSiteUrl}/wp-json/styleflo/v1/create-business`;
-
     console.log('[Tenant Created Webhook] Syncing tenant', { slug: loggedSlug });
 
-    const wpResponse = await fetch(wpApiUrl, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        slug,
-        title: name,
-        token: wpConfig.token,
-      }),
-    });
-
+    const wpResponse = await postWordpressCreateBusiness(wpConfig, slug, name);
     if (!wpResponse.ok) {
-      const errText = await wpResponse.text();
       console.error('[Tenant Created Webhook] WordPress creation failed', {
         slug: loggedSlug,
+        kind: wpResponse.kind,
         status: wpResponse.status,
-        detail: redactSensitive(errText),
+        detail: wpResponse.logDetail,
       });
-      return NextResponse.json({ error: 'WordPress creation failed' }, { status: wpResponse.status });
+      return NextResponse.json({
+        error: wpResponse.message,
+        wordpressError: wpResponse.kind,
+      }, { status: wpResponse.status > 0 ? wpResponse.status : 502 });
     }
 
-    const wpResult = await wpResponse.json();
+    const wpResult = wpResponse.data;
     console.log('[Tenant Created Webhook] WordPress page created', { slug: loggedSlug });
     return NextResponse.json({ success: true, wp_data: wpResult }, { status: 200 });
   } catch (error: unknown) {
