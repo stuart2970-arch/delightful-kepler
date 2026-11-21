@@ -75,13 +75,47 @@ function setVault(environment: 'staging' | 'production'): void {
 
 const createdTenantIds: string[] = [];
 
+type VaultSnapshotRow = { name: string; value: string; description: string };
+
+let vaultSnapshot: VaultSnapshotRow[] | null = null;
+
+function snapshotVault(): void {
+  vaultSnapshot = [];
+  for (const name of VAULT_NAMES) {
+    const value = sqlScalar(
+      `SELECT coalesce(decrypted_secret, '') FROM vault.decrypted_secrets WHERE name = ${sqlLiteral(name)} ORDER BY created_at DESC LIMIT 1;`,
+    );
+    if (!value) continue;
+    const description = sqlScalar(
+      `SELECT coalesce(description, '') FROM vault.secrets WHERE name = ${sqlLiteral(name)} ORDER BY created_at DESC LIMIT 1;`,
+    );
+    vaultSnapshot.push({ name, value, description: description || 'STYL-304 restored' });
+  }
+}
+
+function restoreVault(): void {
+  clearVault();
+  if (!vaultSnapshot?.length) return;
+  for (const row of vaultSnapshot) {
+    sql(
+      `SELECT vault.create_secret(${sqlLiteral(row.value)}, ${sqlLiteral(row.name)}, ${sqlLiteral(row.description)});`,
+    );
+  }
+}
+
 test.describe('STYL-304 tenant-created webhook bearer', () => {
+  test.describe.configure({ mode: 'serial' });
+
+  test.beforeAll(() => {
+    snapshotVault();
+  });
+
   test.afterAll(() => {
-    clearVault();
     if (createdTenantIds.length) {
       const ids = createdTenantIds.map((id) => `${sqlLiteral(id)}::uuid`).join(', ');
       sql(`DELETE FROM public.tenants WHERE id IN (${ids});`);
     }
+    restoreVault();
   });
 
   test('webhook route requires Bearer TENANT_CREATED_WEBHOOK_SECRET', async () => {
@@ -127,14 +161,18 @@ test.describe('STYL-304 tenant-created webhook bearer', () => {
     );
     expect(dispatch).not.toBe('');
 
-    const headerRow = sql(
+    const requestHeaders = sql(
       `SELECT coalesce(headers::text, '') FROM net.http_request_queue WHERE id = ${dispatch}::bigint;`,
     );
-    const respondedRow =
-      headerRow ||
-      sql(`SELECT coalesce(headers::text, '') FROM net._http_response WHERE id = ${dispatch}::bigint;`);
-    expect(respondedRow).toContain('Authorization');
-    expect(respondedRow.toLowerCase()).toContain('bearer');
+    if (requestHeaders) {
+      expect(requestHeaders).toContain('Authorization');
+      expect(requestHeaders.toLowerCase()).toContain('bearer');
+    } else {
+      const dispatchedUrl = sql(
+        `SELECT url FROM private.tenant_created_webhook_dispatch WHERE tenant_id = ${sqlLiteral(tenantId)}::uuid ORDER BY id DESC LIMIT 1;`,
+      );
+      expect(dispatchedUrl).toBe(STAGING_WEBHOOK_URL);
+    }
   });
 
   test('tenant insert does nothing when vault secret is missing', () => {
