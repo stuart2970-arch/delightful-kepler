@@ -48,6 +48,16 @@ test.describe('STYL-226: voice switch and unsafe Vapi refuse', () => {
         VAPI_MASTER_ASSISTANT_ID: 'aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee',
       }).allowed,
     ).toBe(true);
+
+    expect(
+      evaluateVoiceGate({
+        NODE_ENV: 'production',
+        VOICE_ENABLED: 'true',
+        VAPI_API_KEY: 'safe-test-vapi-private-key',
+        NEXT_PUBLIC_VAPI_PUBLIC_KEY: PROD_PUBLIC_KEY,
+        VAPI_MASTER_ASSISTANT_ID: PROD_ASSISTANT,
+      }).allowed,
+    ).toBe(true);
   });
 
   test('public chatbot config blanks Vapi keys while voice is gated', async () => {
@@ -67,6 +77,7 @@ test.describe('STYL-226: voice switch and unsafe Vapi refuse', () => {
       );
       const body = await res.json();
       expect(body.voiceRuntimeAllowed).toBe(false);
+      expect(body.voiceUnavailableCode).toBe('voice_gate_off');
       expect(body.vapiPublicKey).toBe('');
       expect(body.vapiAssistantId).toBe('');
       expect(publicVoiceFields({ VOICE_ENABLED: '' }).voiceRuntimeAllowed).toBe(false);
@@ -117,7 +128,7 @@ test.describe('STYL-226: voice switch and unsafe Vapi refuse', () => {
     const widget = readFileSync(join(root, 'src/widget/index.ts'), 'utf8');
     const embed = readFileSync(join(root, 'src/widget/embed.ts'), 'utf8');
     for (const src of [widget, embed]) {
-      expect(src).toContain('Voice is currently unavailable.');
+      expect(src).toContain('voiceUnavailableMessage');
       expect(src).toContain('voiceRuntimeAllowed');
       expect(src).not.toContain("isLocalHost ? 'https://app.styleflo.ai'");
     }

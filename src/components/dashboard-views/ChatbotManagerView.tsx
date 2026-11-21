@@ -362,6 +362,7 @@ export default function ChatbotManagerView() {
 
     return appointments.filter(appt => {
       if (appt.is_blockout) return false;
+      if (appt.status === 'cancelled') return false;
       const apptDate = new Date(appt.start_time);
       return apptDate >= startOfWeek && apptDate < endOfWeek;
     }).length;

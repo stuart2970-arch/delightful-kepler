@@ -338,7 +338,22 @@ select has_column_privilege('anon', 'public.profiles', 'tenant_id', 'UPDATE');  
 -- After the vault rows above, a test sign-up should show only the staging URL:
 select url from private.tenant_created_webhook_dispatch order by id desc limit 5;
 select url from net.http_request_queue order by id desc limit 5;
+-- STYL-304: confirm the trigger sent Authorization Bearer (value is in vault only):
+select d.tenant_id,
+       q.headers ->> 'Authorization' as authorization_header
+from private.tenant_created_webhook_dispatch d
+join net.http_request_queue q on q.id = d.request_id
+order by d.id desc
+limit 5;
 ```
+
+Vault secret **names** (values live in Supabase Vault / Firebase or Cloud Run secrets, never in git):
+
+| Name | Purpose |
+| :--- | :--- |
+| `tenant_created_webhook_url` | Exact tenant-created app URL for this environment |
+| `tenant_created_webhook_secret` | Bearer token; must match `TENANT_CREATED_WEBHOOK_SECRET` on the app host |
+| `tenant_created_webhook_environment` | `staging` or `production` (pairs with URL allow-list) |
 
 #### OpenClaw (optional, still unwired)
 

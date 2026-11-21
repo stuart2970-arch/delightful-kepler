@@ -241,14 +241,19 @@ test.describe('STYL-239: tenant-created webhook requires a shared secret', () =>
   });
 
   test('route checks the webhook secret before create-business and uses secretsEqual', () => {
-    const src = readFileSync(join(root, 'src/app/api/webhooks/tenant-created/route.ts'), 'utf8');
-    expect(src).toContain('TENANT_CREATED_WEBHOOK_SECRET');
-    expect(src).toContain('secretsEqual');
-    expect(src).toContain('getWordpressPublishConfig');
-    expect(src).not.toContain("console.log('[Tenant Created Webhook] Triggered with payload:'");
-    const secretIdx = src.indexOf('TENANT_CREATED_WEBHOOK_SECRET');
-    const createIdx = src.indexOf('create-business');
-    expect(secretIdx).toBeGreaterThan(-1);
-    expect(createIdx).toBeGreaterThan(secretIdx);
+    const routeSrc = readFileSync(join(root, 'src/app/api/webhooks/tenant-created/route.ts'), 'utf8');
+    const wpClientSrc = readFileSync(join(root, 'src/lib/wordpress/wordpress-api.ts'), 'utf8');
+    expect(routeSrc).toContain('TENANT_CREATED_WEBHOOK_SECRET');
+    expect(routeSrc).toContain('secretsEqual');
+    expect(routeSrc).toContain('getWordpressPublishConfig');
+    expect(routeSrc).not.toContain("console.log('[Tenant Created Webhook] Triggered with payload:'");
+    const postHandler = routeSrc.slice(routeSrc.indexOf('export async function POST'));
+    expect(postHandler.indexOf('isTenantCreatedAuthorized')).toBeGreaterThan(-1);
+    const authGateIdx = postHandler.indexOf('isTenantCreatedAuthorized');
+    const publishIdx = postHandler.indexOf('postWordpressCreateBusiness');
+    expect(authGateIdx).toBeGreaterThan(-1);
+    expect(publishIdx).toBeGreaterThan(authGateIdx);
+    expect(wpClientSrc).toContain('create-business');
+    expect(wpClientSrc).not.toContain('getWordpressPublishConfig');
   });
 });

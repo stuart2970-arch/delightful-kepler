@@ -9,8 +9,8 @@ test.describe('STYL-226: widget web calls do not record and use our webhook', ()
   test('widget start payload sets recordingEnabled false and the Vapi webhook URL', () => {
     for (const rel of ['src/widget/index.ts', 'src/widget/embed.ts']) {
       const src = readFileSync(join(root, rel), 'utf8');
-      expect(src).toContain('recordingEnabled: false');
-      expect(src).toContain('artifactPlan');
+      expect(src).toContain('buildWebCallVapiStartFields');
+      expect(src).not.toContain('recordingEnabled: true');
       expect(src).toContain('/api/voice/web-call');
       expect(src).toContain('x-session-token');
       expect(src).not.toContain('serverUrl');
@@ -19,7 +19,8 @@ test.describe('STYL-226: widget web calls do not record and use our webhook', ()
     }
     expect(buildWebCallVapiStartFields('https://staging.styleflo.ai')).toEqual({
       recordingEnabled: false,
-      artifactPlan: { recordingEnabled: false },
+      videoRecordingEnabled: false,
+      artifactPlan: { recordingEnabled: false, videoRecordingEnabled: false },
     });
   });
 });

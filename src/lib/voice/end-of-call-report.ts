@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { createClient, SupabaseClient } from '@supabase/supabase-js';
 import { sendConsolidatedLeadEmail } from '@/lib/lead-notifier';
 import { logMeteredUsage, VOICE_USAGE_FEATURE_ID } from '@/lib/entitlements';
+import { endOfCallReportContainsRecordingArtifact } from '@/lib/voice/vapi-recording-policy';
 
 type AdminClient = SupabaseClient;
 
@@ -156,6 +157,11 @@ export async function handleEndOfCallReport(body: unknown): Promise<NextResponse
     return NextResponse.json({ error: 'Missing call id' }, { status: 400 });
   }
   const callId = String(call.id);
+  if (endOfCallReportContainsRecordingArtifact(message, call)) {
+    console.warn('[Vapi Webhook] Recording artifact present but recordings are disabled; dropping URLs', {
+      callId,
+    });
+  }
   const bags = [
     call.metadata,
     call.assistantOverrides?.metadata,

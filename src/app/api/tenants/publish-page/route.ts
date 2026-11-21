@@ -1,29 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createServerClient } from '@supabase/ssr';
-import { cookies } from 'next/headers';
-import { getWordpressPublishConfig } from '@/lib/env/wordpress-publish';
+import { createClient } from '@supabase/supabase-js';
+import { requireTenantRole } from '@/lib/auth/require-tenant-role';
+import { publishBusinessPageForTenant } from '@/lib/tenants/publish-business-page';
 
 export async function POST(req: NextRequest) {
   try {
-    const cookieStore = await cookies();
-    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.SUPABASE_URL;
-    const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
-
-    if (!supabaseUrl || !serviceRoleKey) {
-      return NextResponse.json({ error: 'Server configuration missing' }, { status: 500 });
-    }
-
-    const supabase = createServerClient(supabaseUrl, serviceRoleKey, {
-      cookies: {
-        getAll() { return cookieStore.getAll(); },
-        setAll() {}
-      }
-    });
-
-    const { data: { user }, error: authErr } = await supabase.auth.getUser();
-    if (authErr || !user) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
+    const auth = await requireTenantRole(req, ['owner', 'admin']);
+    if (!auth.ok) return auth.response;
 
     const body = await req.json();
     const { tenantId, businessName } = body;
@@ -32,83 +15,59 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Tenant ID and Business Name are required.' }, { status: 400 });
     }
 
-    const cleanName = businessName.trim();
-    let baseSlug = cleanName.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
-    if (!baseSlug) baseSlug = 'business';
-
-    // Guarantee uniqueness for the updated slug, appending sequential numbers if needed
-    let finalSlug = baseSlug;
-    let counter = 1;
-    while (true) {
-      const { data: existing } = await supabase
-        .from('tenants')
-        .select('id')
-        .eq('slug', finalSlug)
-        .neq('id', tenantId)
-        .maybeSingle();
-
-      if (!existing) break;
-      finalSlug = `${baseSlug}-${counter}`;
-      counter++;
+    if (String(tenantId) !== auth.tenantId) {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
 
-    // 1. Overwrite placeholder company_name and update slug in Supabase
-    const { error: updateErr } = await supabase
-      .from('tenants')
-      .update({
-        company_name: cleanName,
-        slug: finalSlug
-      })
-      .eq('id', tenantId);
-
-    if (updateErr) {
-      console.error('[Publish Business Page] Supabase update error:', updateErr);
-      return NextResponse.json({ error: updateErr.message }, { status: 500 });
+    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.SUPABASE_URL;
+    const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+    if (!supabaseUrl || !serviceRoleKey) {
+      return NextResponse.json({ error: 'Server configuration missing' }, { status: 500 });
     }
 
-    const wpConfig = getWordpressPublishConfig();
-    if (!wpConfig.enabled) {
+    const supabase = createClient(supabaseUrl, serviceRoleKey, {
+      auth: { persistSession: false, autoRefreshToken: false },
+    });
+
+    const result = await publishBusinessPageForTenant(supabase, String(tenantId), businessName);
+    if (!result.ok) {
+      if (result.wordpressError) {
+        console.error('[Publish Business Page] WordPress rejection', {
+          kind: result.wordpressError,
+          status: result.status,
+        });
+      }
+      return NextResponse.json({
+        error: result.error,
+        wordpressError: result.wordpressError,
+      }, { status: result.status });
+    }
+
+    if (!result.wordpressPublished) {
       return NextResponse.json({
         success: true,
-        slug: finalSlug,
-        company_name: cleanName,
+        slug: result.finalSlug,
+        company_name: result.cleanName,
         wordpressPublished: false,
-        error: wpConfig.reason,
+        error: result.disabledReason,
       }, { status: 200 });
     }
 
-    const wpApiUrl = `${wpConfig.wordpressSiteUrl}/wp-json/styleflo/v1/create-business`;
-    console.log(`[Publish Business Page] Dispatching page creation for "${cleanName}" (${finalSlug}) to WordPress: ${wpApiUrl}`);
-
-    const wpRes = await fetch(wpApiUrl, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        slug: finalSlug,
-        title: cleanName,
-        token: wpConfig.token
-      })
-    });
-
-    if (!wpRes.ok) {
-      const errText = await wpRes.text();
-      console.error('[Publish Business Page] WordPress rejection:', errText);
-      return NextResponse.json({ error: `WordPress rejection: ${errText}` }, { status: wpRes.status });
-    }
-
-    const wpResult = await wpRes.json();
-    const pageUrl = `${wpConfig.wordpressSiteUrl}/business/${finalSlug}`;
+    console.log(
+      `[Publish Business Page] Published "${result.cleanName}" (${result.finalSlug})`,
+    );
 
     return NextResponse.json({
       success: true,
-      slug: finalSlug,
-      company_name: cleanName,
-      pageUrl: pageUrl,
-      wp_data: wpResult
+      slug: result.finalSlug,
+      company_name: result.cleanName,
+      pageUrl: result.pageUrl,
+      wp_data: result.wpData,
     }, { status: 200 });
 
-  } catch (error: any) {
-    console.error('[Publish Business Page] Error:', error);
-    return NextResponse.json({ error: error.message || 'Internal server error' }, { status: 500 });
+  } catch (error: unknown) {
+    const message = error instanceof Error ? error.message : 'Internal server error';
+    console.error('[Publish Business Page] Error:', message);
+    return NextResponse.json({ error: message }, { status: 500 });
   }
 }

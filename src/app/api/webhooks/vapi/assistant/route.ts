@@ -7,6 +7,7 @@ import { verifyVapiWebhookSecret } from '@/lib/env/vapi-webhook-auth';
 import { handleEndOfCallReport, unwrapVapiMessage } from '@/lib/voice/end-of-call-report';
 import { voiceUnavailableAssistantResponse } from '@/lib/voice/unavailable-assistant';
 import { VAPI_SERVER_MESSAGES, vapiEndOfCallServer } from '@/lib/voice/vapi-server';
+import { applyVapiNoRecordingFlags } from '@/lib/voice/vapi-recording-policy';
 
 export const dynamic = 'force-dynamic';
 
@@ -195,17 +196,13 @@ export async function POST(request: Request) {
       resolvedBgSound = 'office';
     }
 
-    const overrides: any = {
+    const overrides: any = applyVapiNoRecordingFlags({
       name: config.agent_name || 'Dynamic Assistant',
       firstMessage: config.welcome_message || 'Hello, how can I help you today?',
       backgroundSound: resolvedBgSound,
       backchannelingEnabled: true,
-      recordingEnabled: false,
       ...(callServer ? { server: callServer } : {}),
       serverMessages: [...VAPI_SERVER_MESSAGES],
-      artifactPlan: {
-        recordingEnabled: false,
-      },
       startSpeakingPlan: {
         waitSeconds: 0.3,
         smartEndpointingEnabled: true,
@@ -234,7 +231,7 @@ export async function POST(request: Request) {
         tenant_id: tenant.id,
         chatbot_id: chatbot.id
       }
-    };
+    });
 
     console.log('[Vapi Assistant Webhook] Returning custom assistant', {
       callId: call.id || null,
