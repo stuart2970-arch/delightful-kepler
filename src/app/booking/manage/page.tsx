@@ -21,6 +21,12 @@ type ManagePayload = {
     quickDaysTag?: string;
     quickTimesTag?: string;
   } | null;
+  rescheduleSlots?: Array<{
+    start: string;
+    end: string;
+    time: string;
+    displayDate: string;
+  }>;
 };
 
 function ManageBookingContent() {
@@ -31,8 +37,7 @@ function ManageBookingContent() {
   const [loading, setLoading] = useState(true);
   const [actionLoading, setActionLoading] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
-  const [rescheduleStart, setRescheduleStart] = useState('');
-  const [rescheduleEnd, setRescheduleEnd] = useState('');
+  const [selectedSlot, setSelectedSlot] = useState<{ start: string; end: string } | null>(null);
 
   const load = useCallback(async () => {
     if (!token) {
@@ -146,21 +151,20 @@ function ManageBookingContent() {
                   Cancel booking
                 </button>
 
-                <RescheduleFields
+                <ReschedulePicker
                   disabled={actionLoading}
-                  start={rescheduleStart}
-                  end={rescheduleEnd}
-                  onStartChange={setRescheduleStart}
-                  onEndChange={setRescheduleEnd}
+                  slots={data.rescheduleSlots || []}
+                  selected={selectedSlot}
+                  onSelect={setSelectedSlot}
                   onSubmit={() => {
-                    if (!rescheduleStart || !rescheduleEnd) {
-                      setMessage('Enter a new start and end time (ISO format from your confirmation email or staff).');
+                    if (!selectedSlot) {
+                      setMessage('Please choose an available time below.');
                       return;
                     }
                     void postAction({
                       action: 'reschedule',
-                      startTime: rescheduleStart,
-                      endTime: rescheduleEnd,
+                      startTime: selectedSlot.start,
+                      endTime: selectedSlot.end,
                     });
                   }}
                 />
@@ -173,41 +177,52 @@ function ManageBookingContent() {
   );
 }
 
-function RescheduleFields(props: {
+function ReschedulePicker(props: {
   disabled: boolean;
-  start: string;
-  end: string;
-  onStartChange: (v: string) => void;
-  onEndChange: (v: string) => void;
+  slots: Array<{ start: string; end: string; time: string; displayDate: string }>;
+  selected: { start: string; end: string } | null;
+  onSelect: (slot: { start: string; end: string } | null) => void;
   onSubmit: () => void;
 }) {
-  return (
-    <div className="border border-slate-200 rounded-xl p-4 space-y-2">
-      <p className="text-sm font-semibold text-slate-800">Reschedule</p>
-      <p className="text-xs text-slate-500">
-        Enter the new slot times in ISO format (as shown in your booking confirmation), or use the chat assistant for interactive times.
+  if (props.slots.length === 0) {
+    return (
+      <p className="text-sm text-slate-600">
+        No alternative slots are available online right now. Please contact the small business or use the chat assistant.
       </p>
-      <input
-        type="text"
-        placeholder="New start (ISO)"
-        value={props.start}
-        onChange={(e) => props.onStartChange(e.target.value)}
-        className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm"
-      />
-      <input
-        type="text"
-        placeholder="New end (ISO)"
-        value={props.end}
-        onChange={(e) => props.onEndChange(e.target.value)}
-        className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm"
-      />
+    );
+  }
+
+  return (
+    <div className="border border-slate-200 rounded-xl p-4 space-y-3">
+      <p className="text-sm font-semibold text-slate-800">Reschedule</p>
+      <p className="text-xs text-slate-500">Choose an available time:</p>
+      <div className="max-h-48 overflow-y-auto flex flex-col gap-2">
+        {props.slots.map((slot) => {
+          const isSelected = props.selected?.start === slot.start && props.selected?.end === slot.end;
+          return (
+            <button
+              key={`${slot.start}-${slot.end}`}
+              type="button"
+              disabled={props.disabled}
+              onClick={() => props.onSelect({ start: slot.start, end: slot.end })}
+              className={`w-full text-left px-3 py-2 rounded-lg border text-sm ${
+                isSelected
+                  ? 'border-indigo-600 bg-indigo-50 text-indigo-900'
+                  : 'border-slate-200 hover:bg-slate-50 text-slate-800'
+              }`}
+            >
+              {slot.displayDate} at {slot.time}
+            </button>
+          );
+        })}
+      </div>
       <button
         type="button"
-        disabled={props.disabled}
+        disabled={props.disabled || !props.selected}
         onClick={props.onSubmit}
         className="w-full py-2.5 rounded-xl bg-indigo-600 text-white text-sm font-semibold disabled:opacity-50"
       >
-        Confirm new time
+        Confirm reschedule
       </button>
     </div>
   );

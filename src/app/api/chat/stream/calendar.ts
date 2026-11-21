@@ -22,10 +22,11 @@ import { normaliseOpeningHours, staffHoursOverrideAccepted } from '@/lib/opening
 import {
   fetchOverlappingAppointments,
   resolveBusyAppointmentIntervals,
+  AppointmentOverlapQueryError,
   type VerifyCalendarEvent,
 } from '@/lib/booking/appointment-calendar-sync';
 import { APPOINTMENT_STATUS_BOOKED } from '@/lib/booking/appointment-status';
-import { issueManageToken, manageBookingUrl } from '@/lib/booking/manage-token';
+import { hasActiveManageToken, issueManageToken } from '@/lib/booking/manage-token';
 import { sendBookingConfirmationEmail } from '@/lib/booking/booking-confirmation-email';
 
 // Helper to lazily initialize Supabase Admin
@@ -328,27 +329,37 @@ export async function getAvailabilityData(
           microsoft_calendar_id: member.microsoft_calendar_id ?? undefined,
         });
       }
-      const overlappingRows = await fetchOverlappingAppointments(
-        admin,
-        tenantId,
-        start,
-        end,
-        [...succeededIds],
-      );
-      const busyIntervals = await resolveBusyAppointmentIntervals({
-        admin,
-        tenantId,
-        staffById,
-        windowStart: start,
-        windowEnd: end,
-        rows: overlappingRows,
-        verify: deps?.verifyCalendarEvent,
-      });
-      for (const appt of busyIntervals) {
-        if (!appt.staff_id || !appt.start_time || !appt.end_time) continue;
-        const list = busyMap.get(appt.staff_id) || [];
-        list.push({ start: new Date(appt.start_time), end: new Date(appt.end_time) });
-        busyMap.set(appt.staff_id, list);
+      try {
+        const overlappingRows = await fetchOverlappingAppointments(
+          admin,
+          tenantId,
+          start,
+          end,
+          [...succeededIds],
+        );
+        const busyIntervals = await resolveBusyAppointmentIntervals({
+          admin,
+          tenantId,
+          staffById,
+          windowStart: start,
+          windowEnd: end,
+          rows: overlappingRows,
+          verify: deps?.verifyCalendarEvent,
+        });
+        for (const appt of busyIntervals) {
+          if (!appt.staff_id || !appt.start_time || !appt.end_time) continue;
+          const list = busyMap.get(appt.staff_id) || [];
+          list.push({ start: new Date(appt.start_time), end: new Date(appt.end_time) });
+          busyMap.set(appt.staff_id, list);
+        }
+      } catch (err) {
+        if (err instanceof AppointmentOverlapQueryError) {
+          for (const staffId of succeededIds) {
+            busyMap.set(staffId, [{ start, end }]);
+          }
+        } else {
+          throw err;
+        }
       }
     }
 
@@ -590,25 +601,34 @@ export async function bookMeeting(
     // 2. Re-check Free/Busy status right before booking to prevent race conditions
     // Check internal appointments table (excluding any booking by the same customer)
     const customerNorm = customerEmail.trim().toLowerCase();
-    const overlappingRows = await fetchOverlappingAppointments(
-      admin,
-      tenantId,
-      startUtc,
-      endUtc,
-      [resolvedStaffId],
-    );
-    const othersOverlap = overlappingRows.filter(
-      (row) => String(row.customer_email || '').trim().toLowerCase() !== customerNorm,
-    );
-    const staffById = new Map<string, StaffCalendarTarget>([[staff.id, staffTarget]]);
-    const blocking = await resolveBusyAppointmentIntervals({
-      admin,
-      tenantId,
-      staffById,
-      windowStart: startUtc,
-      windowEnd: endUtc,
-      rows: othersOverlap,
-    });
+    let blocking: Awaited<ReturnType<typeof resolveBusyAppointmentIntervals>> = [];
+    try {
+      const overlappingRows = await fetchOverlappingAppointments(
+        admin,
+        tenantId,
+        startUtc,
+        endUtc,
+        [resolvedStaffId],
+      );
+      const othersOverlap = overlappingRows.filter(
+        (row) => String(row.customer_email || '').trim().toLowerCase() !== customerNorm,
+      );
+      const staffById = new Map<string, StaffCalendarTarget>([[staff.id, staffTarget]]);
+      blocking = await resolveBusyAppointmentIntervals({
+        admin,
+        tenantId,
+        staffById,
+        windowStart: startUtc,
+        windowEnd: endUtc,
+        rows: othersOverlap,
+      });
+    } catch (err) {
+      if (err instanceof AppointmentOverlapQueryError) {
+        console.warn('[Calendar] Overlap query failed during booking; treating slot as busy.');
+        return `Error: That time slot is no longer available. Please choose another time.`;
+      }
+      throw err;
+    }
 
     if (blocking.length > 0) {
       console.warn(`[Calendar] Race condition: slot ${startTimeStr} was taken in appointments table before booking confirmation.`);
@@ -691,16 +711,16 @@ export async function bookMeeting(
     }
 
     const appointmentId = insertRes.data.id as string;
-    let manageTokenRaw = '';
+    let manageTokenRaw: string | null = null;
     try {
       const issued = await issueManageToken(appointmentId);
       manageTokenRaw = issued.rawToken;
     } catch (tokenErr: unknown) {
       const message = tokenErr instanceof Error ? tokenErr.message : String(tokenErr);
-      console.warn('[Calendar] Manage token issue failed:', message);
+      console.warn('[Calendar] Manage token issue failed; sending confirmation without manage link:', message);
     }
 
-  // 5. Send confirmation email with secure manage link
+    // 5. Send confirmation email (with manage link when token issued)
     try {
       const { data: tenantRow } = await getSupabaseAdmin()
         .from('tenants')
@@ -708,18 +728,16 @@ export async function bookMeeting(
         .eq('id', tenantId)
         .maybeSingle();
       const formattedStart = startUtc.toLocaleString('en-GB', { timeZone: timezone });
-      if (manageTokenRaw) {
-        await sendBookingConfirmationEmail({
-          customerName,
-          customerEmail,
-          serviceName,
-          staffName: staff.name || 'Colleague',
-          formattedStart,
-          manageToken: manageTokenRaw,
-          businessName: tenantRow?.company_name,
-        });
-        console.log(`[Calendar] Sent confirmation with manage link to ${customerEmail}`);
-      }
+      await sendBookingConfirmationEmail({
+        customerName,
+        customerEmail,
+        serviceName,
+        staffName: staff.name || 'Colleague',
+        formattedStart,
+        manageToken: manageTokenRaw,
+        businessName: tenantRow?.company_name,
+      });
+      console.log(`[Calendar] Sent confirmation to ${customerEmail}${manageTokenRaw ? ' (with manage link)' : ''}`);
     } catch (mgErr: unknown) {
       const message = mgErr instanceof Error ? mgErr.message : String(mgErr);
       console.warn('[Calendar] Exception sending confirmation email:', message);
@@ -774,6 +792,7 @@ export async function lookupAppointments(
 
     const validAppointments: string[] = [];
     const manageLinks: string[] = [];
+  let remindExistingEmailLink = false;
     for (const appt of filtered) {
       const displayTime = new Date(appt.start_time).toLocaleString('en-GB', {
         timeZone: timezone,
@@ -787,11 +806,16 @@ export async function lookupAppointments(
       validAppointments.push(
         `- ${serviceName || 'Appointment'} with ${staffName || 'Colleague'} on ${displayTime} (ref: ${appt.id})`,
       );
+      const apptId = appt.id as string;
+      if (await hasActiveManageToken(apptId)) {
+        remindExistingEmailLink = true;
+        continue;
+      }
       try {
-        const issued = await issueManageToken(appt.id as string);
-        manageLinks.push(manageBookingUrl(issued.rawToken));
+        const issued = await issueManageToken(apptId, { replaceExisting: false });
+        manageLinks.push(issued.manageUrl);
       } catch {
-        // omit link if token cannot be issued
+        remindExistingEmailLink = true;
       }
     }
 
@@ -799,6 +823,8 @@ export async function lookupAppointments(
     if (manageLinks.length > 0) {
       output += `\n\nThe customer can cancel or reschedule using their secure manage link(s):\n${manageLinks.join('\n')}`;
       output += '\nPolitely share the manage link in your reply (do not read token hashes aloud on voice).';
+    } else if (remindExistingEmailLink) {
+      output += '\n\nA manage link was already sent in the customer\'s confirmation email. Ask them to use that link to cancel or reschedule (do not issue a new link).';
     }
     return output;
   } catch (error: unknown) {

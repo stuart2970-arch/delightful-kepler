@@ -50,6 +50,7 @@ export async function GET(
     (tenantRow as { company_name?: string } | null)?.company_name || 'Small business';
 
   let availability: { quickDaysTag?: string; quickTimesTag?: string; text?: string } | null = null;
+  let rescheduleSlots: Array<{ start: string; end: string; time: string; displayDate: string }> = [];
   if (appt.status === APPOINTMENT_STATUS_BOOKED && appt.staff_id && appt.service_id) {
     const start = new Date();
     const end = new Date(Date.now() + 14 * 24 * 60 * 60 * 1000);
@@ -67,6 +68,12 @@ export async function GET(
         quickTimesTag: avail.quickTimesTag,
         text: avail.text,
       };
+      rescheduleSlots = avail.slots.slice(0, 48).map((slot) => ({
+        start: slot.start,
+        end: slot.end,
+        time: slot.time,
+        displayDate: slot.displayDate,
+      }));
     }
   }
 
@@ -83,6 +90,7 @@ export async function GET(
       endTime: appt.end_time,
     },
     availability,
+    rescheduleSlots,
     expiresAt: resolved.expiresAt,
   });
 }

@@ -2,6 +2,7 @@ import type { SupabaseClient } from '@supabase/supabase-js'
 import {
   fetchOverlappingAppointments,
   resolveBusyAppointmentIntervals,
+  AppointmentOverlapQueryError,
   type VerifyCalendarEvent,
 } from '@/lib/booking/appointment-calendar-sync'
 import type { StaffCalendarTarget } from '@/lib/calendar/provider'
@@ -21,13 +22,21 @@ export async function staffIdsBlockingSlot(params: {
   const staffIds = [...params.staffById.keys()]
   if (staffIds.length === 0) return new Set()
 
-  const rows = await fetchOverlappingAppointments(
-    params.admin,
-    params.tenantId,
-    params.slotStart,
-    params.slotEnd,
-    staffIds,
-  )
+  let rows
+  try {
+    rows = await fetchOverlappingAppointments(
+      params.admin,
+      params.tenantId,
+      params.slotStart,
+      params.slotEnd,
+      staffIds,
+    )
+  } catch (err) {
+    if (err instanceof AppointmentOverlapQueryError) {
+      return new Set(staffIds)
+    }
+    throw err
+  }
 
   const busy = await resolveBusyAppointmentIntervals({
     admin: params.admin,

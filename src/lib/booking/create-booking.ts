@@ -7,6 +7,7 @@ import { getBusy, resolveCalendarProvider, type StaffCalendarTarget } from '@/li
 import {
   fetchOverlappingAppointments,
   resolveBusyAppointmentIntervals,
+  AppointmentOverlapQueryError,
 } from '@/lib/booking/appointment-calendar-sync';
 import { APPOINTMENT_STATUS_BOOKED } from '@/lib/booking/appointment-status';
 import { issueManageToken } from '@/lib/booking/manage-token';
@@ -248,7 +249,15 @@ async function slotIsBusy(
   start: Date,
   end: Date,
 ): Promise<'free' | 'busy' | 'unknown'> {
-  const overlappingRows = await fetchOverlappingAppointments(admin, tenantId, start, end, [staff.id]);
+  let overlappingRows
+  try {
+    overlappingRows = await fetchOverlappingAppointments(admin, tenantId, start, end, [staff.id])
+  } catch (err) {
+    if (err instanceof AppointmentOverlapQueryError) {
+      return 'busy'
+    }
+    throw err
+  }
   const staffById = new Map<string, StaffCalendarTarget>([[staff.id, staff]]);
   const blocking = await resolveBusyAppointmentIntervals({
     admin,
@@ -536,8 +545,16 @@ export async function handleCreateBooking(request: Request): Promise<NextRespons
     ignoredBodyTenant,
   });
 
+  let manageTokenRaw: string | null = null;
   try {
     const issued = await issueManageToken(appointment.id as string);
+    manageTokenRaw = issued.rawToken;
+  } catch (tokenErr: unknown) {
+    const message = tokenErr instanceof Error ? tokenErr.message : String(tokenErr);
+    console.warn('[CreateBooking] Manage token issue failed; sending confirmation without manage link:', message);
+  }
+
+  try {
     const [{ data: svc }, { data: stf }, { data: tenant }] = await Promise.all([
       admin.from('services').select('name').eq('id', fields.serviceId).maybeSingle(),
       admin.from('staff').select('name').eq('id', fields.staffId).maybeSingle(),
@@ -551,12 +568,12 @@ export async function handleCreateBooking(request: Request): Promise<NextRespons
       serviceName: svc?.name || 'Appointment',
       staffName: stf?.name || 'Colleague',
       formattedStart,
-      manageToken: issued.rawToken,
+      manageToken: manageTokenRaw,
       businessName: tenant?.company_name,
     });
   } catch (emailErr: unknown) {
     const message = emailErr instanceof Error ? emailErr.message : String(emailErr);
-    console.warn('[CreateBooking] Confirmation email skipped:', message);
+    console.warn('[CreateBooking] Confirmation email failed:', message);
   }
 
   return json({
