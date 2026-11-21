@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useDashboardStore, Message } from '../../lib/store';
 import { dashboardFetch } from '@/lib/auth/dashboard-auth-headers';
+import { META_MESSAGING_COMING_SOON_LABEL } from '@/lib/channels/meta-messaging-status';
 
 export type ChannelFilterOption = 'all' | 'chat' | 'sms' | 'web_voice' | 'instagram' | 'whatsapp';
 
@@ -172,7 +173,7 @@ export default function InboxView() {
         <div className="bg-[var(--awb-color1)] border border-[var(--awb-color3)] p-6 rounded-2xl shadow-xl">
           <h3 className="text-lg font-bold text-[var(--awb-color8)] mb-1">Communications Index</h3>
           <p className="text-xs text-[var(--awb-color6)]">
-            Explore and review all customer communications across Web Chat, Web Voice, and SMS. WhatsApp and Instagram channels are coming soon.
+            Explore and review all customer communications across Web Chat, Web Voice, and SMS. WhatsApp and Instagram channels are {META_MESSAGING_COMING_SOON_LABEL.toLowerCase()}.
           </p>
         </div>
 
@@ -196,8 +197,8 @@ export default function InboxView() {
                   <option value="chat">Web Chat ({chatCount})</option>
                   <option value="sms">SMS ({smsCount})</option>
                   <option value="web_voice">Web Voice ({webVoiceCount})</option>
-                  <option value="instagram" disabled className="text-gray-400">Instagram (Coming soon)</option>
-                  <option value="whatsapp" disabled className="text-gray-400">WhatsApp (Coming soon)</option>
+                  <option value="instagram" disabled className="text-gray-400">Instagram ({META_MESSAGING_COMING_SOON_LABEL})</option>
+                  <option value="whatsapp" disabled className="text-gray-400">WhatsApp ({META_MESSAGING_COMING_SOON_LABEL})</option>
                 </select>
 
                 <div className="flex gap-1 shrink-0">

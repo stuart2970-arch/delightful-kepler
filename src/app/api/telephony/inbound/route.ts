@@ -109,6 +109,9 @@ export async function handleInboundPost(request: Request, sources?: Partial<Inbo
         ...(minuteSources.loadPlanVoiceInLedger
           ? { loadPlanVoiceInLedger: minuteSources.loadPlanVoiceInLedger }
           : {}),
+        ...(minuteSources.loadPurchasedPackInLedger
+          ? { loadPurchasedPackInLedger: minuteSources.loadPurchasedPackInLedger }
+          : {}),
       },
       { logPrefix: '[Telephony Inbound]' },
     );

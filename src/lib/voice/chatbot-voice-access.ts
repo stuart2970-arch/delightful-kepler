@@ -22,10 +22,6 @@ export async function resolveChatbotVoiceAccess(
     return { allowed: false, reason: voiceGate.reason, voiceEnabled: false };
   }
 
-  if (!chatbot.voice_enabled) {
-    return { allowed: false, reason: 'Voice is not enabled for this assistant.', voiceEnabled: false };
-  }
-
   if (!chatbot.tenant_id) {
     return { allowed: false, reason: 'Chatbot is not linked to a tenant.', voiceEnabled: false };
   }
@@ -39,11 +35,22 @@ export async function resolveChatbotVoiceAccess(
     };
   }
 
-  if (!minuteGate.decision.allowed) {
+  const underAllowance = minuteGate.decision.allowed;
+  const voiceEnabled = underAllowance;
+
+  if (!underAllowance) {
     return {
       allowed: false,
       reason: 'Voice is not available for this assistant.',
       voiceEnabled: false,
+    };
+  }
+
+  if (chatbot.voice_enabled === false) {
+    return {
+      allowed: false,
+      reason: 'Voice is not enabled for this assistant.',
+      voiceEnabled,
     };
   }
 

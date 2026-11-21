@@ -14,9 +14,12 @@ import { signChatSessionToken } from '../src/lib/chat-session';
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || 'http://127.0.0.1:54321';
 const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY || '';
-const GLOBEX = '10000000-0000-0000-0000-000000000002';
-const GATE_PHONE = '+447700900197';
-const CHATBOT_GLOBEX = 'e0000000-0000-0000-0000-000000000002';
+
+/** Dedicated tenant/chatbot so ledger pollution from parallel specs cannot shift consumed totals. */
+const ISOLATED_TENANT = 'f2950000-0000-4000-8000-000000000295';
+const ISOLATED_CHATBOT = 'f2950000-0000-4000-8000-000000000296';
+const ISOLATED_PHONE = '+447700900295';
+const LEDGER_TAG = 'styl-295-296-isolated';
 
 const VOICE_ENV_KEYS = [
   'VOICE_ENABLED',
@@ -28,6 +31,7 @@ const VOICE_ENV_KEYS = [
   'VAPI_MASTER_ASSISTANT_ID',
   'NEXT_PUBLIC_APP_URL',
   'VAPI_WEBHOOK_SECRET',
+  'PLAYWRIGHT_TEST',
 ] as const;
 
 function enableVoiceEnv(): () => void {
@@ -41,6 +45,7 @@ function enableVoiceEnv(): () => void {
   process.env.VAPI_MASTER_ASSISTANT_ID = 'aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee';
   process.env.NEXT_PUBLIC_APP_URL = 'http://127.0.0.1:3001';
   process.env.VAPI_WEBHOOK_SECRET = 'test-webhook-secret';
+  process.env.PLAYWRIGHT_TEST = 'true';
   return () => {
     for (const key of VOICE_ENV_KEYS) {
       const value = previous[key];
@@ -110,26 +115,41 @@ test.describe('STYL-295 and STYL-296 integration', () => {
 
   let admin: SupabaseClient;
   let restoreEnv: () => void;
-  let savedPhone: string | null;
 
   test.beforeAll(async () => {
     restoreEnv = enableVoiceEnv();
     admin = createClient(supabaseUrl, serviceKey, {
       auth: { persistSession: false, autoRefreshToken: false },
     });
-    const { data: tenant } = await admin.from('tenants').select('twilio_shadow_number').eq('id', GLOBEX).single();
-    savedPhone = tenant?.twilio_shadow_number ?? null;
-    await admin.from('tenants').update({ twilio_shadow_number: GATE_PHONE }).eq('id', GLOBEX);
-    await admin.from('usage_ledger').delete().like('sector_tag', 'one_off:styl-295-296%');
-    await admin.from('usage_ledger').delete().like('sector_tag', 'styl-295-296%');
-    await admin.from('chatbots').update({ voice_enabled: true }).eq('id', CHATBOT_GLOBEX);
+
+    await admin.from('usage_ledger').delete().eq('tenant_id', ISOLATED_TENANT);
+
+    const { error: tenantError } = await admin.from('tenants').upsert({
+      id: ISOLATED_TENANT,
+      tenant_id: ISOLATED_TENANT,
+      company_name: 'STYL-295 Isolated',
+      slug: 'styl-295-isolated',
+      plan_tier: 'foundation',
+      twilio_shadow_number: ISOLATED_PHONE,
+    });
+    expect(tenantError).toBeNull();
+
+    const { error: botError } = await admin.from('chatbots').upsert({
+      id: ISOLATED_CHATBOT,
+      tenant_id: ISOLATED_TENANT,
+      name: 'STYL-295 Gate Bot',
+      primary_color: '#4F46E5',
+      configuration_json: { agent_name: 'Gate Bot' },
+      voice_enabled: true,
+    });
+    expect(botError).toBeNull();
   });
 
   test.afterAll(async () => {
     if (admin) {
-      await admin.from('usage_ledger').delete().like('sector_tag', 'one_off:styl-295-296%');
-      await admin.from('usage_ledger').delete().like('sector_tag', 'styl-295-296%');
-      await admin.from('tenants').update({ twilio_shadow_number: savedPhone }).eq('id', GLOBEX);
+      await admin.from('usage_ledger').delete().eq('tenant_id', ISOLATED_TENANT);
+      await admin.from('chatbots').delete().eq('id', ISOLATED_CHATBOT);
+      await admin.from('tenants').delete().eq('id', ISOLATED_TENANT);
     }
     restoreEnv?.();
   });
@@ -138,13 +158,12 @@ test.describe('STYL-295 and STYL-296 integration', () => {
     const now = new Date();
     const expires = new Date(now);
     expires.setMonth(expires.getMonth() + 2);
-    await admin.from('usage_ledger').delete().like('sector_tag', 'one_off:styl-295-296%');
-    await admin.from('usage_ledger').delete().like('sector_tag', 'styl-295-296%');
+    await admin.from('usage_ledger').delete().eq('tenant_id', ISOLATED_TENANT);
     const rows = [];
-    const packSector = `one_off:styl-295-296-${Date.now()}:voice_minutes`;
+    const packSector = `one_off:${LEDGER_TAG}:${Date.now()}:voice_minutes`;
     if (allocated > 0) {
       rows.push({
-        tenant_id: GLOBEX,
+        tenant_id: ISOLATED_TENANT,
         feature_id: 'voice_minutes',
         quantity: allocated,
         usage_type: 'allocation',
@@ -156,11 +175,11 @@ test.describe('STYL-295 and STYL-296 integration', () => {
     }
     if (consumed > 0) {
       rows.push({
-        tenant_id: GLOBEX,
+        tenant_id: ISOLATED_TENANT,
         feature_id: 'voice_minutes',
         quantity: consumed,
         usage_type: 'consumption',
-        sector_tag: 'styl-295-296-consume',
+        sector_tag: `${LEDGER_TAG}-consume`,
         recorded_at: now.toISOString(),
       });
     }
@@ -172,26 +191,26 @@ test.describe('STYL-295 and STYL-296 integration', () => {
 
   test('included-not-in-ledger plus pack allows calls below the combined allowance', async () => {
     await seedPackOnly(20, 5);
-    const gate = await evaluateTenantVoiceMinuteGate(admin, GLOBEX);
+    const gate = await evaluateTenantVoiceMinuteGate(admin, ISOLATED_TENANT);
     expect(gate.decision).toMatchObject({ allowed: true, allowanceMinutes: 30, consumedMinutes: 5 });
   });
 
   test('at 100% the widget config turns voice off and web-call refuses with the holding message', async () => {
     await seedPackOnly(20, 30);
-    const gate = await evaluateTenantVoiceMinuteGate(admin, GLOBEX);
+    const gate = await evaluateTenantVoiceMinuteGate(admin, ISOLATED_TENANT);
     expect(gate.decision.allowed).toBe(false);
 
     const access = await resolveChatbotVoiceAccess(admin, {
-      id: CHATBOT_GLOBEX,
-      tenant_id: GLOBEX,
+      id: ISOLATED_CHATBOT,
+      tenant_id: ISOLATED_TENANT,
       voice_enabled: true,
     });
     expect(access.voiceEnabled).toBe(false);
     expect(access.reason).toBe(INBOUND_MINUTES_EXHAUSTED_MESSAGE);
 
     const configRes = await getChatbotConfig(
-      new Request(`http://localhost/api/chatbots/${CHATBOT_GLOBEX}`),
-      { params: Promise.resolve({ id: CHATBOT_GLOBEX }) },
+      new Request(`http://localhost/api/chatbots/${ISOLATED_CHATBOT}`),
+      { params: Promise.resolve({ id: ISOLATED_CHATBOT }) },
     );
     const config = await configRes.json();
     expect(config.voiceEnabled).toBe(false);
@@ -199,11 +218,11 @@ test.describe('STYL-295 and STYL-296 integration', () => {
 
   test('at 100% inbound and widget both refuse; below 100% both allow', async () => {
     await seedPackOnly(20, 25);
-    const gateUnder = await evaluateTenantVoiceMinuteGate(admin, GLOBEX);
+    const gateUnder = await evaluateTenantVoiceMinuteGate(admin, ISOLATED_TENANT);
     expect(gateUnder.decision.allowed).toBe(true);
 
     const formUnder = new FormData();
-    formUnder.set('To', GATE_PHONE);
+    formUnder.set('To', ISOLATED_PHONE);
     const inboundUnder = await handleInboundPost(
       new Request('http://localhost/api/telephony/inbound', { method: 'POST', body: formUnder }),
     );
@@ -211,15 +230,15 @@ test.describe('STYL-295 and STYL-296 integration', () => {
 
     await seedPackOnly(20, 30);
     const formBlock = new FormData();
-    formBlock.set('To', GATE_PHONE);
+    formBlock.set('To', ISOLATED_PHONE);
     const inboundBlock = await handleInboundPost(
       new Request('http://localhost/api/telephony/inbound', { method: 'POST', body: formBlock }),
     );
     expect(await inboundBlock.text()).toContain(INBOUND_MINUTES_EXHAUSTED_MESSAGE);
 
     const accessBlock = await resolveChatbotVoiceAccess(admin, {
-      id: CHATBOT_GLOBEX,
-      tenant_id: GLOBEX,
+      id: ISOLATED_CHATBOT,
+      tenant_id: ISOLATED_TENANT,
       voice_enabled: true,
     });
     expect(accessBlock.allowed).toBe(false);
@@ -227,11 +246,10 @@ test.describe('STYL-295 and STYL-296 integration', () => {
   });
 
   test('web-call refuses exhausted allowance without calling Vapi when mock header is set', async () => {
-    process.env.PLAYWRIGHT_TEST = 'true';
     await seedPackOnly(20, 30);
     const sessionId = 'styl-295-296-session';
     const sessionToken = signChatSessionToken({
-      chatbotId: CHATBOT_GLOBEX,
+      chatbotId: ISOLATED_CHATBOT,
       sessionId,
       expiresInSeconds: 3600,
     });
@@ -244,7 +262,7 @@ test.describe('STYL-295 and STYL-296 integration', () => {
         Origin: 'http://localhost:3001',
       },
       body: JSON.stringify({
-        chatbotId: CHATBOT_GLOBEX,
+        chatbotId: ISOLATED_CHATBOT,
         sessionId,
         assistant: { recordingEnabled: false },
       }),

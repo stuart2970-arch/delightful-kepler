@@ -494,13 +494,13 @@ export async function checkFeatureEntitlement(
       currentUsage = balance.voice_minutes_consumed;
       let effectiveLimit = balance.voice_minutes_allocated > 0 ? balance.voice_minutes_allocated : limit;
       if (balance.voice_minutes_allocated > 0) {
-        const adminSupabase = createAdminClient();
-        const { data: tenantRow } = await adminSupabase
+        const rollingClient = dbClient ?? createAdminClient();
+        const { data: tenantRow } = await rollingClient
           .from('tenants')
           .select('plan_tier')
           .eq('id', tenantId)
           .maybeSingle();
-        const { data: tierEnt } = await adminSupabase
+        const { data: tierEnt } = await rollingClient
           .from('tier_entitlements')
           .select('limit_value')
           .eq('tier_id', tenantRow?.plan_tier || 'foundation')
@@ -511,8 +511,8 @@ export async function checkFeatureEntitlement(
             ? null
             : Number(tierEnt.limit_value);
         const [planVoice, purchasedPack] = await Promise.all([
-          loadPlanVoiceAllocationInLedger(tenantId, adminSupabase),
-          loadPurchasedPackVoiceAllocationInLedger(tenantId, adminSupabase),
+          loadPlanVoiceAllocationInLedger(tenantId, rollingClient),
+          loadPurchasedPackVoiceAllocationInLedger(tenantId, rollingClient),
         ]);
         const gateBalance = buildVoiceMinuteGateBalance({
           rolloverAllocated: balance.voice_minutes_allocated,

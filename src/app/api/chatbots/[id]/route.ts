@@ -114,38 +114,29 @@ export async function GET(
     }
 
     if (id === 'e0000000-0000-0000-0000-000000000002') {
-      const supabaseAdmin = getSupabaseAdmin();
-      const { data: dbBot } = await supabaseAdmin
-        .from('chatbots')
-        .select('id')
-        .eq('id', id)
-        .maybeSingle();
-
-      if (!dbBot) {
-        return NextResponse.json({
-          tenantId: 't0000000-0000-0000-0000-000000000002',
-          name: "Bella's Small Business Assistant",
-          primaryColor: '#EC4899',
-          agentName: 'Emma',
-          agentRole: 'AI Assistant',
-          agentAvatarUrl: '/avatars/avatar1.png',
-          avatarUrl: '/avatars/avatar1.png',
-          welcomeMessage: '',
-          businessName: "Bella's",
-          brandingHtml: DEFAULT_STYLEFLO_BRANDING_HTML,
-          hideStyleFloBranding: false,
-          brandingUrl: 'https://styleflo.ai',
-          voiceEnabled: true,
-          ...publicVoiceFields(),
-          globalVoiceDisclaimer: '',
-          voiceProvider: '11labs',
-          voiceId: 'bIHbv24MWmeRgasZH58o',
-          backgroundSound: 'office',
-          fileUploadEnabled: false,
-          requireClientName: true,
-          termsVersion: '1.0',
-        }, { headers: corsHeaders });
-      }
+      return NextResponse.json({
+        tenantId: 't0000000-0000-0000-0000-000000000002',
+        name: "Bella's Salon Assistant",
+        primaryColor: '#EC4899',
+        agentName: 'Emma',
+        agentRole: 'AI Assistant',
+        agentAvatarUrl: '/avatars/avatar1.png',
+        avatarUrl: '/avatars/avatar1.png',
+        welcomeMessage: '',
+        businessName: "Bella's Salon",
+        brandingHtml: DEFAULT_STYLEFLO_BRANDING_HTML,
+        hideStyleFloBranding: false,
+        brandingUrl: 'https://styleflo.ai',
+        voiceEnabled: true,
+        ...publicVoiceFields(),
+        globalVoiceDisclaimer: '',
+        voiceProvider: '11labs',
+        voiceId: 'bIHbv24MWmeRgasZH58o',
+        backgroundSound: 'salon',
+        fileUploadEnabled: false,
+        requireClientName: true,
+        termsVersion: '1.0',
+      }, { headers: corsHeaders });
     }
 
     if (id === '9825855e-d478-443f-b75c-6c0d77039ca6') {
