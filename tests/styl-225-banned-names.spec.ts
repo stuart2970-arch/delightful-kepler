@@ -371,19 +371,12 @@ test.describe('STYL-225 banned words and reserved names', () => {
       const review = page.getByText(REVIEW)
       const finish = page.getByRole('button', { name: 'Finish & Launch Chatbot' })
       const next = page.getByRole('button', { name: 'Next Step', exact: true })
-      for (let step = 0; step < 4; step++) {
-        if (await review.isVisible().catch(() => false)) break
-        if (await finish.isVisible().catch(() => false)) {
-          await finish.click()
-          break
-        }
-        try {
-          await next.click({ timeout: 3000 })
-        } catch {
-          break
-        }
-      }
-      await expect(review).toBeVisible()
+      await expect(async () => {
+        if (await review.isVisible().catch(() => false)) return
+        if (await finish.isVisible().catch(() => false)) await finish.click()
+        else if (await next.isVisible().catch(() => false)) await next.click()
+        if (!(await review.isVisible().catch(() => false))) throw new Error('review message not on screen yet')
+      }).toPass({ timeout: 20000 })
       await expect(page.getByRole('heading', { name: 'Create New Chatbot' })).toHaveCount(0)
       await expect(page.getByRole('heading', { name: 'Bloody', level: 4 })).toBeVisible()
       await page.getByRole('button', { name: 'Edit Agent' }).click()
