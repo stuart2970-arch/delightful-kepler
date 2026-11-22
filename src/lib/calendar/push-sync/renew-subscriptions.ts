@@ -3,6 +3,10 @@ import { calendarPushRegistrationAllowed } from '@/lib/calendar/push-sync/config
 import { registerGoogleCalendarWatch, stopGoogleCalendarWatch } from '@/lib/calendar/push-sync/google-watch'
 import { renewMicrosoftCalendarSubscription } from '@/lib/calendar/push-sync/microsoft-subscription'
 import {
+  backfillMissingCalendarPushSubscriptions,
+  type BackfillCalendarPushResult,
+} from '@/lib/calendar/push-sync/register-lifecycle'
+import {
   deleteCalendarPushSubscription,
   listSubscriptionsExpiringBefore,
   type CalendarPushSubscriptionRow,
@@ -13,6 +17,7 @@ export type RenewCalendarPushResult = {
   renewed: number
   skipped: number
   errors: string[]
+  backfill: BackfillCalendarPushResult
 }
 
 const DEFAULT_RENEW_WITHIN_MS = 24 * 60 * 60 * 1000
@@ -24,11 +29,18 @@ export async function renewCalendarPushSubscriptions(
   const renewWithinMs = options?.renewWithinMs ?? DEFAULT_RENEW_WITHIN_MS
   const cutoff = new Date(Date.now() + renewWithinMs).toISOString()
   const expiring = await listSubscriptionsExpiringBefore(admin, cutoff)
-  const result: RenewCalendarPushResult = { renewed: 0, skipped: 0, errors: [] }
+  const result: RenewCalendarPushResult = {
+    renewed: 0,
+    skipped: 0,
+    errors: [],
+    backfill: { registered: 0, skipped: 0, errors: [] },
+  }
 
   if (!calendarPushRegistrationAllowed()) {
-    return { renewed: 0, skipped: expiring.length, errors: [] }
+    return { ...result, skipped: expiring.length }
   }
+
+  result.backfill = await backfillMissingCalendarPushSubscriptions(admin)
 
   for (const row of expiring) {
     try {

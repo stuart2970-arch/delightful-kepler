@@ -4677,3 +4677,8 @@ Highlighted adjustments in the modal:
 * **Fix**: Keep **inbucket** (and mailpit/smtp) running in `.github/workflows/playwright.yml` trim step (workflow-only).
 * **Out of scope (#109)**: Turbopack/`next/font/google` mitigations — see `docs/ci-playwright-turbopack-fonts-followup.md`.
 * **Verify**: `docker stop supabase_inbucket_workspace` reproduced styl-228 failure; inbucket kept — auth area green on CI.
+
+### Session (STYL-409 calendar push register on connect — 22 Nov 2026)
+* **User**: HIGH — with `CALENDAR_PUSH_REGISTER_ENABLED=true`, renew never created first watch/subscription because registration only ran on existing rows.
+* **Changes**: `register-lifecycle.ts` (OAuth connect, staff calendar change, disconnect teardown, renew backfill); hooks in Google/Microsoft OAuth callbacks, integration DELETE routes, `staff` / `staff/me`; `deleteMicrosoftCalendarSubscription`; `tests/unit/styl-409-calendar-push-register.spec.ts`.
+* **Verify**: `npx playwright test tests/unit/styl-409-calendar-push-register.spec.ts tests/unit/styl-404-calendar-push-sync.spec.ts`; typecheck; husky pre-push on push.

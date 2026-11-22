@@ -18,6 +18,7 @@ export async function POST(request: NextRequest) {
       renewed: result.renewed,
       skipped: result.skipped,
       errors: result.errors,
+      backfill: result.backfill,
       timestamp: new Date().toISOString(),
     })
   } catch (error) {

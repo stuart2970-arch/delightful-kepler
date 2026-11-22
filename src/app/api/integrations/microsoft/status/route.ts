@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import { requireTenantRole, type TenantRole } from '@/lib/auth/require-tenant-role';
+import { teardownMicrosoftCalendarPushForTenant } from '@/lib/calendar/push-sync/register-lifecycle';
 
 function getSupabaseAdmin() {
   return createClient(
@@ -82,8 +83,10 @@ export async function DELETE(request: Request) {
       supabaseAdmin
         .from('tenants')
         .update({ microsoft_refresh_token: null })
-        .eq('id', tenantId)
+        .eq('id', tenantId),
     ]);
+
+    await teardownMicrosoftCalendarPushForTenant(supabaseAdmin, tenantId);
 
     return NextResponse.json({ success: true });
   } catch (err: any) {
