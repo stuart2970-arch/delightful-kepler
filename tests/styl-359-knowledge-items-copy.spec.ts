@@ -92,6 +92,10 @@ test.describe('STYL-359 knowledge items copy', () => {
     expect(customerFeatureLabel('knowledge_data_chunks', 'Knowledge Base Data Chunks')).toBe(
       'Knowledge Items',
     );
+    expect(customerFeatureLabel('knowledge_data_chunks', '')).toBe('Knowledge Items');
+    expect(customerFeatureLabel('knowledge_data_chunks', 'Knowledge Entries')).toBe(
+      'Knowledge Entries',
+    );
     expect(customerFeatureLabel('data_chunks_addon', 'Knowledge Base Data Pack')).toBe(
       'Knowledge Base Data Pack',
     );

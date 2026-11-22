@@ -11,11 +11,12 @@ export type { UsageAlertLevel } from './usage-alerts';
  * Feature ids such as knowledge_data_chunks stay as stored identifiers.
  */
 export function customerFeatureLabel(featureId: string, storedName?: string | null): string {
-  if (featureId === 'knowledge_data_chunks') {
+  const name = (storedName || '').trim();
+  const saysChunks = /\bchunks?\b/i.test(name);
+  if (featureId === 'knowledge_data_chunks' && (!name || saysChunks)) {
     return 'Knowledge Items';
   }
-  const name = (storedName || '').trim();
-  if (/\bchunks?\b/i.test(name)) return 'Knowledge Items';
+  if (saysChunks) return 'Knowledge Items';
   return name;
 }
 
