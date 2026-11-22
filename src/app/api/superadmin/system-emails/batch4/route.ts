@@ -82,17 +82,18 @@ export const POST = withSuperAdmin(async (req, _ctx, admin) => {
     return NextResponse.json(result, { status })
   }
 
-  const data = {
+  const noticeKind = kind as Exclude<Kind, 'terms-end'>
+  const data: Record<string, string> = {
     ...asStrings(body.data),
     ...(typeof body.businessName === 'string' ? { businessName: body.businessName } : {}),
   }
-  if (kind === 'termination') {
+  if (noticeKind === 'termination') {
     data.reason = data.reason === 'Misuse has been confirmed.'
       ? 'Misuse has been confirmed.'
       : 'The breach was not put right within 14 days.'
   }
   const result = await sendBatch4Notice({
-    templateKey: TEMPLATE_BY_KIND[kind],
+    templateKey: TEMPLATE_BY_KIND[noticeKind],
     tenantId,
     to: kind === 'complaint-forward' ? complaintForwardRecipient() : to,
     eventId,
