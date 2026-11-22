@@ -49,7 +49,7 @@ Local development uses the **local Supabase CLI stack** and mock third-party key
    | `admin-superadmin` | Admin & superadmin | 18 |
    | `voice-telephony-vapi` | Voice, telephony & Vapi | 13 |
    | `channels-meta-whatsapp` | Meta / WhatsApp / Twilio channels | 9 |
-   | `misc` | Catch-all (signed-out sweep, release docs, app config) | 20 |
+   | `misc` | Catch-all (signed-out sweep, release docs, app config) | 23 |
 
    **Staging PRs** run only areas touched by the PR. Path → area rules live in **`.github/playwright-area-paths.json`** (source paths per area; each area’s spec list is merged automatically from `ci-playwright-groups.mjs`). **`shared`** paths (migrations, `package.json` / lockfile, Playwright config, test helpers, `.github/`, `apphosting*.yaml`, cross-cutting `src/lib/security|env|fonts|postgres|server`, etc.) or any changed file **not covered** by an area map force **all** areas. Skipped areas still exit success so branch protection’s single check **Typecheck and Playwright** passes.
 
@@ -141,6 +141,15 @@ This runbook documents the key fixes and architecture enhancements implemented d
 ---
 
 ### Session Chat History Log
+
+### Session (STYL-407 / STYL-225 / STYL-412 — 22 Nov 2026)
+* **User / Jira**: StyleFlo R4 package 2. CheckAvailability always returned SERVICE_UNAVAILABLE and had no partner auth (STYL-407). Sign-up, salon, slug, and persona names need banned-word and reserved-name checks with the agreed messages (STYL-225). Production `staff` is missing columns staging already has, and `appointments` differs (STYL-412).
+* **STYL-407**: `POST /api/v3/CheckAvailability` authenticates with HTTP Basic from `RWG_BOOKING_SERVER_USERNAME` / `RWG_BOOKING_SERVER_PASSWORD` and fails closed (503 when unset, 401 otherwise). The service row is `id = service_id` and `tenant_id = merchant_id`.
+* **STYL-225**: Server checks (API plus database triggers) and the register, login, and persona forms share the block, review, reserved, and emoji sentences. Visitor chat is flagged, not blocked. Superadmin allow/deny is `POST /api/superadmin/moderation-terms`.
+* **STYL-412**: `supabase/migrations/20261122150000_styl412_staff_appointments_catchup.sql` adds the missing staff columns and `appointments.is_blockout` / `blockout_reason`. Appointment nullability is unchanged. Production is not applied from this session.
+* **Tests**: Local Supabase reset, then Playwright `tests/styl-407-rwg-check-availability.spec.ts`, `tests/styl-225-banned-names.spec.ts`, the signed-out allow-list, and `tests/styl-251-wordpress-publish-rollback.spec.ts` — 24 passed. `npm run typecheck` passed.
+* **OpenClaw follow-up**: The persona review sentence stays on the Agent page after the wizard closes, and slug suggestions use the same superadmin term list as the requested slug. A later clean save clears that sentence. `check-slug` returns 503 when the service role key is missing.
+* **Ops follow-up**: `supabase/migrations/20261122153000_styl412_staff_token_grants.sql` adds `staff.google_connected` and grants signed-in users SELECT on every staff column except the Google token columns. User-client staff reads list those columns. `flag_visitor_message` swallows its own errors. The house tenant (`slug` styleflo, or a row in `moderation_house_allowlist`) can keep that slug and brand chatbots such as StyleFlo Support.
 
 ### Session (STYL-310 conversation metering CI fix — 21 Nov 2026)
 * **User / OpenClaw**: PR #105 failed CI because `tests/styl-199-mock-reply-guard.spec.ts` returned 429 after the conversation entitlement gate — the local Supabase stub lacked `tier_entitlements`, `usage_ledger`, and conversation/message reads. Also move the gate before embedding/RAG, fail safe on message lookup errors, treat `23505` on ledger insert as already metered, and reset widget transcript on close.
@@ -4700,3 +4709,10 @@ Highlighted adjustments in the modal:
 * **User**: Legacy `ultimate` (and other retired tiers) must not get unlimited inbound voice; map to Foundation catalogue cap. Stripe checkout/invoices must show WP-123 T/A STYLEFLO LTD and a “No VAT to add” line (env-configurable, test mode only).
 * **Changes**: `plan-tier-catalog.ts`, `voice-catalog-limit.ts`, gate/entitlement/webhook/checkout updates; `stripe-invoice-presentation.ts`; migration `20261122130000_styl312_legacy_voice_cap.sql` (commented tenant normalisation for prod review); tests `styl-312-legacy-voice-cap.spec.ts`, `styl-142-stripe-invoice-presentation.spec.ts`.
 * **Verify**: Playwright specs above + STYL-197 minute-gate grep; typecheck with raised Node heap; local Supabase via `scripts/agent-supabase-up.sh`.
+
+### Session (R4 package 3 chores — STYL-408, STYL-410, STYL-359 — 22 Nov 2026)
+* **User**: One PR into `staging`. CI Turbopack `next/font/google` flakes on parallel Playwright area jobs; fix `globMatch` so a double-star between slashes does not require a subdirectory. Revert the accidental `tsconfig.json` include `.next/dev/dev/types/**` from PR 110. Replace the word "chunks" with "knowledge items" in the user-facing app UI. Leave internal and database names. Keep the aggregate check name "Typecheck and Playwright". Merge commits only. Never `--no-verify` or `supabase db push`.
+* **STYL-408**: `deterministicCiFontsEnabled` is true for `PLAYWRIGHT_TEST` or `CI` unless `NODE_ENV=production`. `next.config.ts` then aliases `@/lib/fonts` to `src/lib/fonts/ci-font-entry.ts`, which does not import `next/font/google`. Production builds keep `turbopack: {}` and the multi-weight Google fonts in `root-fonts-production.ts`. `globMatch` selects both `src/components/ServiceEditor.tsx` and nested `BillingView.tsx`.
+* **STYL-410**: `tsconfig.json` restored to the pre-PR-110 formatting and include list.
+* **STYL-359**: Superadmin feature-type examples say "knowledge items". Usage meters and limit banners use `customerFeatureLabel`. A stored name that says chunks, or an empty name on `knowledge_data_chunks`, displays as "Knowledge Items". A superadmin rename that does not say chunks is kept. Migration `20261122160000_styl359_knowledge_items_label.sql` updates the stored display name and leaves the id. The SMS prompt fallback says "knowledge items". A source scan covers app string literals. Database columns such as `included_data_chunks` are unchanged.
+* **Verify**: `npm run typecheck`; `npx playwright test tests/styl-408-ci-font-and-area-glob.spec.ts tests/styl-359-knowledge-items-copy.spec.ts` — 6 passed, including the Playwright server rendering `font-ci-poppins` / `font-ci-inter`.

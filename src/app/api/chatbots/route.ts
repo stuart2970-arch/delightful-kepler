@@ -1,6 +1,8 @@
 import { NextResponse } from 'next/server';
 import { createServerClient } from '@supabase/ssr';
 import { cookies } from 'next/headers';
+import { assessPersonaNames, recordNameDecision, tenantIsHouse } from '@/lib/moderation/assess-stored-name';
+import { knownNamePolicyMessage } from '@/lib/moderation/messages';
 
 export const dynamic = 'force-dynamic';
 
@@ -78,6 +80,23 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Forbidden: You do not own this tenant' }, { status: 403 });
     }
 
+    let personaDecision;
+    try {
+      const house = await tenantIsHouse(adminClient, tenant_id);
+      personaDecision = await assessPersonaNames(adminClient, name, configuration_json, { house });
+    } catch {
+      return NextResponse.json({ error: 'Name check is unavailable.' }, { status: 503 });
+    }
+    if (personaDecision.action === 'block' || personaDecision.action === 'reserved' || personaDecision.action === 'emoji') {
+      await recordNameDecision(adminClient, {
+        context: 'persona',
+        decision: personaDecision,
+        value: typeof name === 'string' ? name : '',
+        tenantId: tenant_id,
+      });
+      return NextResponse.json({ error: personaDecision.message }, { status: 400 });
+    }
+
     const { data: chatbot, error } = await adminClient
       .from('chatbots')
       .insert({
@@ -93,10 +112,20 @@ export async function POST(request: Request) {
 
     if (error) {
       console.error('[Chatbots POST API] Error inserting chatbot:', error);
+      const policyMessage = knownNamePolicyMessage(error.message);
+      if (policyMessage) {
+        return NextResponse.json({ error: policyMessage }, { status: 400 });
+      }
       return NextResponse.json({ error: error.message }, { status: 500 });
     }
 
-    return NextResponse.json({ success: true, chatbot });
+    return NextResponse.json({
+      success: true,
+      chatbot,
+      nameReview: personaDecision.action === 'review'
+        ? { action: 'review', message: personaDecision.message }
+        : null,
+    });
   } catch (err: any) {
     console.error('[Chatbots POST API] Unexpected failure:', err);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });

@@ -4,6 +4,7 @@ import { useDashboardStore, Chatbot } from '../../lib/store';
 import ReceptionistPreview from './ReceptionistPreview';
 import { getDashboardAuthHeaders } from '../../lib/auth/dashboard-auth-headers';
 import { hasSupabaseBrowserEnv } from '../../lib/supabase-browser';
+import { NAME_POLICY_MESSAGES } from '../../lib/moderation/messages';
 
 
 
@@ -36,6 +37,7 @@ export default function ChatbotManagerView() {
   const [showDeleteModal, setShowDeleteModal] = useState<string | null>(null);
   const [isDeletingBot, setIsDeletingBot] = useState(false);
   const [showVoiceNoticeModal, setShowVoiceNoticeModal] = useState(false);
+  const [namePolicyMessage, setNamePolicyMessage] = useState<string | null>(null);
   
   const generatedAvatars = [
     '/avatars/robot_waiter_1.png',
@@ -142,6 +144,7 @@ export default function ChatbotManagerView() {
     e.preventDefault();
     if (!newBotName.trim()) return;
 
+    setNamePolicyMessage(null);
     setIsCreatingBot(true);
     let successfullySaved = false;
     const newId = crypto.randomUUID();
@@ -186,16 +189,19 @@ export default function ChatbotManagerView() {
           configuration_json: configPayload,
         }),
       });
+      const payload = await response.json().catch(() => ({}));
       if (!response.ok) {
-        const errData = await response.json();
-        throw new Error(errData.error || response.statusText);
+        throw new Error(payload.error || response.statusText);
       }
+      if (payload.nameReview?.message) setNamePolicyMessage(payload.nameReview.message);
       successfullySaved = true;
     } catch (err: any) {
       console.error('Failed to save chatbot to database:', err);
       if (!supabaseConfigured) {
         console.warn('Operating in visual-only mode, mockup saving locally.');
         successfullySaved = true;
+      } else if (Object.values(NAME_POLICY_MESSAGES).includes(err.message)) {
+        setNamePolicyMessage(err.message);
       } else {
         alert(`Failed to save to database: ${err.message}`);
       }
@@ -231,6 +237,7 @@ export default function ChatbotManagerView() {
     e.preventDefault();
     if (!editingBotId || !newBotName.trim()) return;
 
+    setNamePolicyMessage(null);
     setIsCreatingBot(true);
     let successfullySaved = false;
 
@@ -264,16 +271,19 @@ export default function ChatbotManagerView() {
           configuration_json: updatedConfig,
         }),
       });
+      const payload = await response.json().catch(() => ({}));
       if (!response.ok) {
-        const errData = await response.json();
-        throw new Error(errData.error || response.statusText);
+        throw new Error(payload.error || response.statusText);
       }
+      if (payload.nameReview?.message) setNamePolicyMessage(payload.nameReview.message);
       successfullySaved = true;
     } catch (err: any) {
       console.error('Failed to update chatbot in database:', err);
       if (!supabaseConfigured) {
         console.warn('Operating in visual-only mode, mockup saving locally.');
         successfullySaved = true;
+      } else if (Object.values(NAME_POLICY_MESSAGES).includes(err.message)) {
+        setNamePolicyMessage(err.message);
       } else {
         alert(`Failed to save to database: ${err.message}`);
       }
@@ -413,6 +423,16 @@ export default function ChatbotManagerView() {
                   </div>
                 </div>
               </div>
+              {namePolicyMessage && (
+                <div
+                  role={namePolicyMessage === NAME_POLICY_MESSAGES.review ? 'status' : 'alert'}
+                  className={namePolicyMessage === NAME_POLICY_MESSAGES.review
+                    ? 'mb-4 p-4 bg-amber-50 border border-amber-200 text-amber-900 rounded-xl text-xs font-medium leading-relaxed'
+                    : 'mb-4 p-4 bg-rose-50 border border-rose-200 text-rose-800 rounded-xl text-xs font-medium leading-relaxed'}
+                >
+                  {namePolicyMessage}
+                </div>
+              )}
               {/* Create / Edit Chatbot Form Card (Only shown if 0 chatbots exist or if editing an existing chatbot) */}
               {(!chatbots.filter(b => b.id !== globalBotId).length || editingBotId) && (
                 <div className="bg-[var(--awb-color1)] border border-[var(--awb-color3)] p-6 rounded-2xl shadow-sm">
@@ -528,6 +548,7 @@ export default function ChatbotManagerView() {
                             type="text"
                             placeholder="e.g. Emma (AI assistant)"
                             value={newAgentName}
+                            aria-label="Agent Display Name"
                             onChange={(e) => setNewAgentName(e.target.value)}
                             className="w-full h-[50px] bg-[var(--awb-color1)] border border-[var(--awb-color3)] rounded-[6px] px-3.5 py-2 text-sm text-[var(--awb-color8)] focus:outline-none focus:border-[var(--awb-color4)]"
                           />
@@ -762,6 +783,7 @@ export default function ChatbotManagerView() {
                           <button
                             type="button"
                             onClick={() => {
+                              setNamePolicyMessage(null);
                               setEditingBotId(null);
                               setWizardStep(1);
                               setNewBotName('');
@@ -847,6 +869,7 @@ export default function ChatbotManagerView() {
                           <button
                             onClick={() => {
                               const config = bot.configuration_json || {};
+                              setNamePolicyMessage(null);
                               setEditingBotId(bot.id);
                               setWizardStep(1);
                               setNewBotName(bot.name);
