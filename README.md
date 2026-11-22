@@ -4748,3 +4748,9 @@ Highlighted adjustments in the modal:
 * **Review**: With the flag off, `/api/rwg/feeds/merchants`, `/services` and `/availability` still listed tenants that already had `is_rwg_enabled`. Production has rows in that state, and the settings API will not turn them off.
 * **Change**: Each of those GET handlers returns `[]` before opening a database client when `RWG_UI_ENABLED` is off. `/api/rwg/feeds/cron` still returns 401 without its bearer token. With a valid token and the flag off, it returns the disabled message and does not run the aggregation. With the flag on, the same handlers still build the feeds. Booking server routes and secrets are unchanged.
 * **Tests**: `tests/styl-416-rwg-feeds-disabled.spec.ts`.
+
+### Session (R5 package 5a — STYL-264 legal mass notices — 22 Nov 2026)
+* **User**: Batch 3 of the system emails, split into two ordinary PRs into `staging`. This commit is 5a: templates and the admin send tool for notices #24–#31. `SYSTEM_EMAILS_BATCH3_ENABLED` stays off. No live Mailgun. Facts only from the Terms, Privacy Policy and DPA redrafts on STYL-171. British English. Exactly once per notice id.
+* **Changes**: `src/lib/email/system/templates/batch-3.ts` holds the eight notices (sub-processor, service change, urgent change, Terms, DPA, Privacy Policy, VAT registration, transfer of the contract). `POST /api/superadmin/system-emails/notices` dry-runs the recipient list or, with an explicit confirm and the flag on, sends through the shared layer. The idempotency key is `b3n:{noticeId}:{tenantId}`. The Legal notices panel sits on the existing System emails tab. Previews are in `docs/system-emails/batch-3-previews.md`.
+* **Verify**: `npm run typecheck`. Playwright `tests/styl-264-mass-notices.spec.ts` — 7 passed on local Supabase. Mailgun client was not constructed.
+* **Left for 5b**: breach, DSAR, deletion and Meta data-deletion emails, the retention setting, and the rest of the preview file. No migration in 5a.
