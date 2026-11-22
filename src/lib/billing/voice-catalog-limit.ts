@@ -1,5 +1,5 @@
-import { foundationVoiceMinutesCap } from '@/lib/billing/plan-tier-catalog';
-import type { CatalogLimit } from '@/lib/telephony/voice-minute-gate';
+import { foundationVoiceMinutesCap } from './plan-tier-catalog';
+import type { CatalogLimit } from '../telephony/voice-minute-gate';
 
 export type VoiceEntitlementRow = { limit_value: number | null } | null;
 
