@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { createServerClient } from '@supabase/ssr';
 import { cookies } from 'next/headers';
 import { APPOINTMENT_STATUS_BOOKED } from '@/lib/booking/appointment-status';
+import { STAFF_PUBLIC_COLUMNS, type StaffPublicRow } from '@/lib/staff/public-columns';
 
 export const dynamic = 'force-dynamic';
 
@@ -31,7 +32,8 @@ export async function GET(request: Request) {
     const tenantIds = tenants.map(t => t.id);
     if (tenantIds.length === 0) return NextResponse.json([]);
 
-    const { data: staffData } = await supabase.from('staff').select('*').in('tenant_id', tenantIds);
+    const { data: staffRows } = await supabase.from('staff').select(STAFF_PUBLIC_COLUMNS).in('tenant_id', tenantIds);
+    const staffData = (staffRows ?? []) as unknown as StaffPublicRow[];
     const { data: servicesData } = await supabase.from('services').select('*').in('tenant_id', tenantIds);
     const { data: appointmentsData } = await supabase.from('appointments')
       .select('*')
@@ -66,7 +68,9 @@ export async function GET(request: Request) {
 
           for (const service of tenantServices) {
             // For both AM and PM shifts if configured
-            const shifts = [daySchedule.am, daySchedule.pm].filter(Boolean);
+            const shifts = [daySchedule.am, daySchedule.pm].filter(
+              (shift): shift is { start?: string; end?: string } => Boolean(shift),
+            );
             
             for (const shift of shifts) {
               if (!shift.start || !shift.end) continue;

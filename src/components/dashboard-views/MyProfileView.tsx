@@ -139,7 +139,7 @@ export default function MyProfileView() {
     }
   };
 
-  const isGoogleConnected = !!(staffData?.google_access_token || staffData?.google_refresh_token);
+  const isGoogleConnected = staffData?.google_connected === true;
   const canSyncGoogle = hasGoogleCalendarAddon || Boolean(staffData?.tenant?.has_google_calendar);
 
   if (loading) {

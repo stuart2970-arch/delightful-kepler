@@ -7,6 +7,7 @@ import {
   runCalendarPushSideEffect,
   tenantHasGoogleCalendar,
 } from '@/lib/calendar/push-sync/register-lifecycle';
+import { STAFF_PUBLIC_COLUMNS, type StaffPublicRow } from '@/lib/staff/public-columns';
 
 function getSupabaseAdmin() {
   return createClient(
@@ -50,7 +51,7 @@ export async function GET(request: Request) {
     const supabaseAdmin = getSupabaseAdmin();
     const { data, error } = await supabaseAdmin
       .from('staff')
-      .select('*')
+      .select(STAFF_PUBLIC_COLUMNS)
       .eq('tenant_id', tenantId)
       .order('created_at', { ascending: true });
 
@@ -97,7 +98,7 @@ export async function POST(request: Request) {
         specialist_product,
         bio,
       })
-      .select()
+      .select(STAFF_PUBLIC_COLUMNS)
       .single();
 
     if (error) throw error;
@@ -107,7 +108,7 @@ export async function POST(request: Request) {
         await ensureGoogleCalendarPushWatch(
           supabaseAdmin,
           auth.tenantId,
-          data.google_calendar_id || 'primary',
+          (data as unknown as StaffPublicRow | null)?.google_calendar_id || 'primary',
         );
       }
     });
@@ -163,7 +164,7 @@ export async function PUT(request: Request) {
       })
       .eq('id', id)
       .eq('tenant_id', auth.isSuperAdmin ? existing.tenant_id : auth.tenantId)
-      .select()
+      .select(STAFF_PUBLIC_COLUMNS)
       .single();
 
     if (error) throw error;
@@ -175,7 +176,7 @@ export async function PUT(request: Request) {
           supabaseAdmin,
           tenantId,
           existing.google_calendar_id,
-          data.google_calendar_id,
+          (data as unknown as StaffPublicRow | null)?.google_calendar_id,
         ),
       );
     }
