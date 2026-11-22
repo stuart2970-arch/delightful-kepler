@@ -2,6 +2,7 @@ import { createClient } from '@supabase/supabase-js';
 import formData from 'form-data';
 import Mailgun from 'mailgun.js';
 import { buildBrandedEmailHtml } from '@/lib/email/branded-email-layout';
+import { isEnquiryDetailsEmailEnabled } from '@/lib/email/tenant-email-toggles';
 import { resolveServerPublicAppOrigin } from '@/lib/env/public-app-url';
 import { escapeHtml } from '@/lib/email/escape-html';
 
@@ -259,6 +260,12 @@ export async function sendConsolidatedLeadEmail(params: LeadNotificationParams):
 
     if (!adminEmail) {
       console.warn(`[Lead Notifier] No admin email address found for tenant ${tenantId} / chatbot ${chatbotId}`);
+      return false;
+    }
+
+    const enquiryEmailOn = await isEnquiryDetailsEmailEnabled(tenantId);
+    if (!enquiryEmailOn) {
+      console.log(`[Lead Notifier] Enquiry details email is turned off for tenant ${tenantId}.`);
       return false;
     }
 

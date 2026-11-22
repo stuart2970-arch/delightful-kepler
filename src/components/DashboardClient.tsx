@@ -24,6 +24,7 @@ import { knowledgeItemsTotal, resolveCalendarAddonFlags, resolveCheckoutSuccessB
 import { META_MESSAGING_COMING_SOON_LABEL } from '@/lib/channels/meta-messaging-status';
 import { formatBoltOnCancelLabel } from '@/lib/billing/account-ownership';
 import { publicAppPath } from '@/lib/env/public-app-url';
+import EmailDeliveryToggles from './dashboard/EmailDeliveryToggles';
 
 const BILLING_CATEGORIES: AddOnCategory[] = [
   'landline', 'mobile', 'whatsapp', 'voice_pack', 'sms_pack', 'data_pack', 'google_calendar', 'microsoft_calendar', 'remove_branding',
@@ -1405,6 +1406,7 @@ const globalBotId = '00000000-0000-0000-0000-000000000000';
                   <h3 className="text-lg font-bold text-[var(--awb-color8)]">Account Settings</h3>
                   <p className="text-xs text-[var(--awb-color6)] mt-0.5">Manage your workspace account preferences and login security.</p>
                 </div>
+                <EmailDeliveryToggles accountEmail={userEmail} />
 
                 {/* Password & Security Card */}
                 <div className="bg-white border border-[#f2f3f5] p-6 rounded-xl space-y-4 shadow-sm">

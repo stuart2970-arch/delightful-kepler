@@ -110,6 +110,7 @@ export const CI_PLAYWRIGHT_GROUPS = [
       /tests\/styl-225-banned-names\.spec\.ts$/,
       /tests\/crypto\.spec\.ts$/,
       /tests\/styl-228-magic-link-auth\.spec\.ts$/,
+      /tests\/styl-265-batch4a-toggles\.spec\.ts$/,
       /tests\/styl-228-turnstile-site-key\.spec\.ts$/,
       /tests\/styl-231-google-sign-in-scopes\.spec\.ts$/,
       /tests\/styl-239-tenant-created-auth\.spec\.ts$/,

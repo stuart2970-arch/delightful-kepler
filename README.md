@@ -4748,3 +4748,10 @@ Highlighted adjustments in the modal:
 * **Review**: With the flag off, `/api/rwg/feeds/merchants`, `/services` and `/availability` still listed tenants that already had `is_rwg_enabled`. Production has rows in that state, and the settings API will not turn them off.
 * **Change**: Each of those GET handlers returns `[]` before opening a database client when `RWG_UI_ENABLED` is off. `/api/rwg/feeds/cron` still returns 401 without its bearer token. With a valid token and the flag off, it returns the disabled message and does not run the aggregation. With the flag on, the same handlers still build the feeds. Booking server routes and secrets are unchanged.
 * **Tests**: `tests/styl-416-rwg-feeds-disabled.spec.ts`.
+
+### Session (R5 package 6a — STYL-265 email toggles, booking from-name, auth templates — 22 Nov 2026)
+* **User**: Batch 4 split into two ordinary pull requests into `staging`. This part is the toggles plus enquiry details (#41), booking confirmation (#45) and auth templates (#42–#44). Admin notices are the other pull request. Do not stack them.
+* **#41 / #45**: `tenants.enquiry_details_email_enabled` and `tenants.booking_confirmation_email_enabled` default on (migration `20261123130000_email_toggles.sql`). The account tab shows the dashboard address with both switches. Enquiry emails and booking confirmations keep their existing Mailgun path. Turning one off skips that send. Booking from-name is `<business name> via StyleFlo`.
+* **#42–#44**: StyleFlo HTML templates in `supabase/templates/` for confirmation, magic link and password reset. `config.toml` points local Auth at those files. Hosted SMTP is not set in the repo.
+* **Left out of this part**: breach, suspension, termination, ending the Terms, complaints, fair-use, channel launch, maintenance and human follow-up. Those wait on `SYSTEM_EMAILS_BATCH4_ENABLED`. No automatic refund.
+* **Verify**: `npm run typecheck`. `tests/styl-265-batch4a-toggles.spec.ts` and `tests/styl-292-lead-email-columns.spec.ts` on local Supabase.
