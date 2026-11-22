@@ -54,8 +54,8 @@ const PUBLIC_EXACT = new Set([
   'GET /api/billing/session-details',
   // Plan signup starts before a salon session exists. POST stays authenticated.
   'GET /api/billing/checkout',
-  'POST /api/v3/CheckAvailability',
   'POST /api/v3/CreateBooking',
+  'POST /api/moderation/check-name',
   'GET /api/config/public',
   'GET /api/rwg/feeds/availability',
   'GET /api/rwg/feeds/services',

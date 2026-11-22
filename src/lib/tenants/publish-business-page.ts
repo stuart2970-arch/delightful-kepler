@@ -1,9 +1,21 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { getWordpressPublishConfig } from '@/lib/env/wordpress-publish';
+import { assessStoredName } from '@/lib/moderation/assess-stored-name';
+import { stricterDecision } from '@/lib/moderation/assess-name';
+import { NAME_POLICY_MESSAGES, type NamePolicyDecision } from '@/lib/moderation/messages';
 import { postWordpressCreateBusiness } from '@/lib/wordpress/wordpress-api';
 
 export type PublishBusinessPageResult =
-  | { ok: true; finalSlug: string; cleanName: string; wordpressPublished: boolean; pageUrl?: string; wpData?: unknown; disabledReason?: string }
+  | {
+      ok: true
+      finalSlug: string
+      cleanName: string
+      wordpressPublished: boolean
+      pageUrl?: string
+      wpData?: unknown
+      disabledReason?: string
+      nameReview?: { action: 'review'; message: string }
+    }
   | { ok: false; status: number; error: string; wordpressError?: string };
 
 async function persistTenantRename(
@@ -12,8 +24,13 @@ async function persistTenantRename(
   cleanName: string,
   finalSlug: string,
   wordpressOrphanContext?: { wpPageCreated: boolean },
+  pagePublished?: boolean,
 ): Promise<{ ok: true } | { ok: false; error: string }> {
-  const payload = { company_name: cleanName, slug: finalSlug };
+  const payload: { company_name: string; slug: string; page_published?: boolean } = {
+    company_name: cleanName,
+    slug: finalSlug,
+  };
+  if (typeof pagePublished === 'boolean') payload.page_published = pagePublished;
 
   const attemptUpdate = () =>
     supabase.from('tenants').update(payload).eq('id', tenantId).select('id').maybeSingle();
@@ -118,6 +135,29 @@ export async function publishBusinessPageForTenant(
   let baseSlug = cleanName.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
   if (!baseSlug) baseSlug = 'business';
 
+  let nameDecision: NamePolicyDecision;
+  try {
+    nameDecision = stricterDecision(
+      await assessStoredName(supabase, cleanName, 'salon'),
+      await assessStoredName(supabase, baseSlug, 'slug'),
+    );
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'Name check is unavailable.';
+    return { ok: false, status: 503, error: message };
+  }
+
+  if (nameDecision.action === 'block' || nameDecision.action === 'reserved' || nameDecision.action === 'emoji') {
+    return {
+      ok: false,
+      status: 400,
+      error: nameDecision.message || NAME_POLICY_MESSAGES.block,
+    };
+  }
+
+  const nameReview = nameDecision.action === 'review' && nameDecision.message
+    ? { action: 'review' as const, message: nameDecision.message }
+    : undefined;
+
   const reserved = await reservePublishSlug(supabase, tenantId, baseSlug);
   if (!reserved.ok) {
     return { ok: false, status: 500, error: reserved.error };
@@ -125,8 +165,40 @@ export async function publishBusinessPageForTenant(
   const { finalSlug } = reserved;
 
   const wpConfig = getWordpressPublishConfig();
+  if (nameReview) {
+    const persisted = await persistTenantRename(
+      supabase,
+      tenantId,
+      cleanName,
+      finalSlug,
+      undefined,
+      false,
+    );
+    if (!persisted.ok) {
+      await releasePublishSlugClaim(supabase, tenantId, finalSlug);
+      return { ok: false, status: 500, error: persisted.error };
+    }
+
+    await releasePublishSlugClaim(supabase, tenantId, finalSlug);
+
+    return {
+      ok: true,
+      finalSlug,
+      cleanName,
+      wordpressPublished: false,
+      nameReview,
+    };
+  }
+
   if (!wpConfig.enabled) {
-    const persisted = await persistTenantRename(supabase, tenantId, cleanName, finalSlug);
+    const persisted = await persistTenantRename(
+      supabase,
+      tenantId,
+      cleanName,
+      finalSlug,
+      undefined,
+      true,
+    );
     if (!persisted.ok) {
       await releasePublishSlugClaim(supabase, tenantId, finalSlug);
       return { ok: false, status: 500, error: persisted.error };
@@ -156,7 +228,7 @@ export async function publishBusinessPageForTenant(
 
   const persisted = await persistTenantRename(supabase, tenantId, cleanName, finalSlug, {
     wpPageCreated: true,
-  });
+  }, true);
   if (!persisted.ok) {
     return { ok: false, status: 500, error: persisted.error };
   }

@@ -142,6 +142,13 @@ This runbook documents the key fixes and architecture enhancements implemented d
 
 ### Session Chat History Log
 
+### Session (STYL-407 / STYL-225 / STYL-412 — 22 Nov 2026)
+* **User / Jira**: StyleFlo R4 package 2. CheckAvailability always returned SERVICE_UNAVAILABLE and had no partner auth (STYL-407). Sign-up, salon, slug, and persona names need banned-word and reserved-name checks with the agreed messages (STYL-225). Production `staff` is missing columns staging already has, and `appointments` differs (STYL-412).
+* **STYL-407**: `POST /api/v3/CheckAvailability` authenticates with HTTP Basic from `RWG_BOOKING_SERVER_USERNAME` / `RWG_BOOKING_SERVER_PASSWORD` and fails closed (503 when unset, 401 otherwise). The service row is `id = service_id` and `tenant_id = merchant_id`.
+* **STYL-225**: Server checks (API plus database triggers) and the register, login, and persona forms share the block, review, reserved, and emoji sentences. Visitor chat is flagged, not blocked. Superadmin allow/deny is `POST /api/superadmin/moderation-terms`.
+* **STYL-412**: `supabase/migrations/20261122150000_styl412_staff_appointments_catchup.sql` adds the missing staff columns and `appointments.is_blockout` / `blockout_reason`. Appointment nullability is unchanged. Production is not applied from this session.
+* **Tests**: Local Supabase reset, then Playwright `tests/styl-407-rwg-check-availability.spec.ts`, `tests/styl-225-banned-names.spec.ts`, the signed-out allow-list, and `tests/styl-251-wordpress-publish-rollback.spec.ts` — 24 passed. `npm run typecheck` passed.
+
 ### Session (STYL-310 conversation metering CI fix — 21 Nov 2026)
 * **User / OpenClaw**: PR #105 failed CI because `tests/styl-199-mock-reply-guard.spec.ts` returned 429 after the conversation entitlement gate — the local Supabase stub lacked `tier_entitlements`, `usage_ledger`, and conversation/message reads. Also move the gate before embedding/RAG, fail safe on message lookup errors, treat `23505` on ledger insert as already metered, and reset widget transcript on close.
 * **Merge**: Merged `origin/staging` (includes merged STYL-405 / STYL-309) into `cursor/styl-310-conversation-metering-62fa`.

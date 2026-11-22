@@ -9,6 +9,8 @@ import {
 } from '@/lib/billing/branding';
 import { getVapiRuntimeConfig, publicVoiceFields } from '@/lib/env/vapi-config';
 import { resolveChatbotVoiceAccess } from '@/lib/voice/chatbot-voice-access';
+import { assessPersonaNames, recordNameDecision } from '@/lib/moderation/assess-stored-name';
+import { knownNamePolicyMessage, type NamePolicyDecision } from '@/lib/moderation/messages';
 
 export const dynamic = 'force-dynamic';
 
@@ -410,6 +412,24 @@ export async function PATCH(
       }
     }
 
+    let personaDecision: NamePolicyDecision = { action: 'allow', message: null, term: null };
+    if (typeof name === 'string' || (configuration_json && typeof configuration_json === 'object')) {
+      try {
+        personaDecision = await assessPersonaNames(adminClient, name, configuration_json);
+      } catch {
+        return NextResponse.json({ error: 'Name check is unavailable.' }, { status: 503 });
+      }
+      if (personaDecision.action === 'block' || personaDecision.action === 'reserved' || personaDecision.action === 'emoji') {
+        await recordNameDecision(adminClient, {
+          context: 'persona',
+          decision: personaDecision,
+          value: typeof name === 'string' ? name : '',
+          tenantId: profile.tenant_id,
+        });
+        return NextResponse.json({ error: personaDecision.message }, { status: 400 });
+      }
+    }
+
     const { data: chatbot, error: chatbotError } = await adminClient
       .from('chatbots')
       .update({
@@ -424,10 +444,20 @@ export async function PATCH(
 
     if (chatbotError) {
       console.error('[Chatbot Config PATCH API] Error updating chatbot:', chatbotError);
+      const policyMessage = knownNamePolicyMessage(chatbotError.message);
+      if (policyMessage) {
+        return NextResponse.json({ error: policyMessage }, { status: 400 });
+      }
       return NextResponse.json({ error: chatbotError.message }, { status: 500 });
     }
 
-    return NextResponse.json({ success: true, chatbot });
+    return NextResponse.json({
+      success: true,
+      chatbot,
+      nameReview: personaDecision.action === 'review'
+        ? { action: 'review', message: personaDecision.message }
+        : null,
+    });
   } catch (err: any) {
     console.error('[Chatbot Config PATCH API] Unexpected failure:', err);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });

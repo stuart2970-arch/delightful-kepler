@@ -22,6 +22,7 @@ export const CI_PLAYWRIGHT_GROUPS = [
       /tests\/styl-244-rota-roundtrip\.spec\.ts$/,
       /tests\/styl-245-opening-hours\.spec\.ts$/,
       /tests\/styl-266-create-booking-auth\.spec\.ts$/,
+      /tests\/styl-407-rwg-check-availability\.spec\.ts$/,
       /tests\/styl-289-integration-status-auth\.spec\.ts$/,
       /tests\/styl-293-evening-slot-booking\.spec\.ts$/,
       /tests\/styl-389-booking-manage\.spec\.ts$/,
@@ -97,6 +98,7 @@ export const CI_PLAYWRIGHT_GROUPS = [
     label: 'Auth & session',
     matchers: [
       /tests\/auth\.spec\.ts$/,
+      /tests\/styl-225-banned-names\.spec\.ts$/,
       /tests\/crypto\.spec\.ts$/,
       /tests\/styl-228-magic-link-auth\.spec\.ts$/,
       /tests\/styl-228-turnstile-site-key\.spec\.ts$/,

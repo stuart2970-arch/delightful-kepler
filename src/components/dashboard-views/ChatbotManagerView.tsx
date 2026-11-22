@@ -4,6 +4,7 @@ import { useDashboardStore, Chatbot } from '../../lib/store';
 import ReceptionistPreview from './ReceptionistPreview';
 import { getDashboardAuthHeaders } from '../../lib/auth/dashboard-auth-headers';
 import { hasSupabaseBrowserEnv } from '../../lib/supabase-browser';
+import { NAME_POLICY_MESSAGES } from '../../lib/moderation/messages';
 
 
 
@@ -36,6 +37,7 @@ export default function ChatbotManagerView() {
   const [showDeleteModal, setShowDeleteModal] = useState<string | null>(null);
   const [isDeletingBot, setIsDeletingBot] = useState(false);
   const [showVoiceNoticeModal, setShowVoiceNoticeModal] = useState(false);
+  const [namePolicyMessage, setNamePolicyMessage] = useState(null);
   
   const generatedAvatars = [
     '/avatars/robot_waiter_1.png',
@@ -186,16 +188,19 @@ export default function ChatbotManagerView() {
           configuration_json: configPayload,
         }),
       });
+      const payload = await response.json().catch(() => ({}));
       if (!response.ok) {
-        const errData = await response.json();
-        throw new Error(errData.error || response.statusText);
+        throw new Error(payload.error || response.statusText);
       }
+      if (payload.nameReview?.message) setNamePolicyMessage(payload.nameReview.message);
       successfullySaved = true;
     } catch (err: any) {
       console.error('Failed to save chatbot to database:', err);
       if (!supabaseConfigured) {
         console.warn('Operating in visual-only mode, mockup saving locally.');
         successfullySaved = true;
+      } else if (Object.values(NAME_POLICY_MESSAGES).includes(err.message)) {
+        setNamePolicyMessage(err.message);
       } else {
         alert(`Failed to save to database: ${err.message}`);
       }
@@ -264,16 +269,19 @@ export default function ChatbotManagerView() {
           configuration_json: updatedConfig,
         }),
       });
+      const payload = await response.json().catch(() => ({}));
       if (!response.ok) {
-        const errData = await response.json();
-        throw new Error(errData.error || response.statusText);
+        throw new Error(payload.error || response.statusText);
       }
+      if (payload.nameReview?.message) setNamePolicyMessage(payload.nameReview.message);
       successfullySaved = true;
     } catch (err: any) {
       console.error('Failed to update chatbot in database:', err);
       if (!supabaseConfigured) {
         console.warn('Operating in visual-only mode, mockup saving locally.');
         successfullySaved = true;
+      } else if (Object.values(NAME_POLICY_MESSAGES).includes(err.message)) {
+        setNamePolicyMessage(err.message);
       } else {
         alert(`Failed to save to database: ${err.message}`);
       }
@@ -528,9 +536,16 @@ export default function ChatbotManagerView() {
                             type="text"
                             placeholder="e.g. Emma (AI assistant)"
                             value={newAgentName}
-                            onChange={(e) => setNewAgentName(e.target.value)}
+                            aria-label="Agent Display Name"
+                            onChange={(e) => {
+                              setNewAgentName(e.target.value);
+                              setNamePolicyMessage(null);
+                            }}
                             className="w-full h-[50px] bg-[var(--awb-color1)] border border-[var(--awb-color3)] rounded-[6px] px-3.5 py-2 text-sm text-[var(--awb-color8)] focus:outline-none focus:border-[var(--awb-color4)]"
                           />
+                          {namePolicyMessage && (
+                            <p role="alert" className="mt-2 text-xs text-rose-700">{namePolicyMessage}</p>
+                          )}
                         </div>
                         <div>
                           <label className="block text-xs font-semibold text-[var(--awb-color7)] mb-1.5">Agent Role Subtitle</label>
