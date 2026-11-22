@@ -4662,6 +4662,11 @@ Highlighted adjustments in the modal:
 * **Changes**: `calendarPushTestMocksAllowed`, `stripMicrosoftNotificationTestFields`, `staff-google-calendar.ts`; `tests/unit/styl-404-calendar-push-sync.spec.ts`.
 * **Verify**: `bash scripts/test-e2e-agent.sh tests/styl-404-calendar-push-sync.spec.ts tests/unit/styl-404-calendar-push-sync.spec.ts` — 11 passed; typecheck pass.
 
+### Session (STYL-404 enablement — App Hosting flags — 22 Nov 2026)
+* **User**: Stuart approved config-only enablement for live calendar push sync.
+* **Changes**: `CALENDAR_PUSH_REGISTER_ENABLED=true` (RUNTIME) in `apphosting.yaml` and `apphosting.staging.yaml`; production `apphosting.yaml` adds `CRON_SECRET` secret binding (same format as staging) for renewal cron.
+* **Verify**: `npm run check:apphosting-yaml`; husky pre-push on push.
+
 ### Session (CI Playwright runner shutdowns — 22 Nov 2026)
 * **User**: GitHub-hosted runners on `ubuntu-latest` (26.04) exit 143 mid-suite (~818 tests); pin 24.04, parallel **areas** (not `--shard`), staging path filters, full suite on PRs to `main`, aggregate **Typecheck and Playwright** check; trim optional Supabase containers in CI.
 * **Changes**: `.github/workflows/playwright.yml`, `scripts/ci-playwright-groups.mjs`, `scripts/ci-playwright-paths.mjs`, `.github/playwright-area-paths.json`, `tests/styl-356-prepush-related-specs.spec.ts`, README CI table.
