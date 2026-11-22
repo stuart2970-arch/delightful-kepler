@@ -2,7 +2,7 @@ import { test, expect } from '@playwright/test';
 import { spawnSync } from 'node:child_process';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { useDeterministicCiFonts } from '@/lib/fonts/ci-font-mode';
+import { deterministicCiFontsEnabled } from '@/lib/fonts/ci-font-mode';
 
 function areasFor(file: string) {
   const result = spawnSync(
@@ -45,12 +45,12 @@ test.describe('STYL-408 CI fonts and area globs', () => {
   });
 
   test('deterministic fonts turn on for Playwright or CI and stay off for production builds', () => {
-    expect(useDeterministicCiFonts({ NODE_ENV: 'development' })).toBe(false);
-    expect(useDeterministicCiFonts({ NODE_ENV: 'development', PLAYWRIGHT_TEST: 'true' })).toBe(true);
-    expect(useDeterministicCiFonts({ NODE_ENV: 'test', CI: 'true' })).toBe(true);
-    expect(useDeterministicCiFonts({ CI: '1' })).toBe(true);
+    expect(deterministicCiFontsEnabled({ NODE_ENV: 'development' })).toBe(false);
+    expect(deterministicCiFontsEnabled({ NODE_ENV: 'development', PLAYWRIGHT_TEST: 'true' })).toBe(true);
+    expect(deterministicCiFontsEnabled({ NODE_ENV: 'test', CI: 'true' })).toBe(true);
+    expect(deterministicCiFontsEnabled({ CI: '1' })).toBe(true);
     expect(
-      useDeterministicCiFonts({ NODE_ENV: 'production', CI: 'true', PLAYWRIGHT_TEST: 'true' }),
+      deterministicCiFontsEnabled({ NODE_ENV: 'production', CI: 'true', PLAYWRIGHT_TEST: 'true' }),
     ).toBe(false);
   });
 
@@ -65,7 +65,7 @@ test.describe('STYL-408 CI fonts and area globs', () => {
     expect(production).toContain("weight: ['400', '500', '600', '700']");
     expect(barrel).toContain("from './root-fonts-production'");
     expect(ciEntry).not.toMatch(/from ['"]next\/font\/google['"]/);
-    expect(nextConfig).toContain('useDeterministicCiFonts()');
+    expect(nextConfig).toContain('deterministicCiFontsEnabled()');
     expect(nextConfig).toContain('"@/lib/fonts": "./src/lib/fonts/ci-font-entry.ts"');
     expect(nextConfig).toContain(': {},');
   });

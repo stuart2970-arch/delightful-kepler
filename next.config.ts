@@ -1,5 +1,4 @@
-import type { NextConfig } from "next";
-import { useDeterministicCiFonts } from "./src/lib/fonts/ci-font-mode";
+import { deterministicCiFontsEnabled } from "./src/lib/fonts/ci-font-mode";
 
 const isStaging =
   (process.env.APP_ENV || process.env.NEXT_PUBLIC_ENV || "")
@@ -35,7 +34,7 @@ const nextConfig: any = {
   // STYL-408: Playwright / non-production CI dev servers alias the font barrel
   // to a stub that does not import next/font/google. Production builds
   // (NODE_ENV=production) keep turbopack: {} and the real Google fonts.
-  turbopack: useDeterministicCiFonts()
+  turbopack: deterministicCiFontsEnabled()
     ? {
         resolveAlias: {
           "@/lib/fonts": "./src/lib/fonts/ci-font-entry.ts",

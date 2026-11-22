@@ -20,7 +20,7 @@ Those work but touch **app/runtime** code and `next.config.ts`.
 
 ## Implemented (STYL-408)
 
-When `PLAYWRIGHT_TEST=true` or `CI` is set, and `NODE_ENV` is not `production`, `next.config.ts` aliases `@/lib/fonts` to `src/lib/fonts/ci-font-entry.ts`. That entry does not import `next/font/google`. Production builds keep `turbopack: {}` and `src/lib/fonts/index.ts` (multi-weight Inter and Poppins).
+When `PLAYWRIGHT_TEST=true` or `CI` is set, and `NODE_ENV` is not `production`, `deterministicCiFontsEnabled()` in `next.config.ts` aliases `@/lib/fonts` to `src/lib/fonts/ci-font-entry.ts`. That entry does not import `next/font/google`. Production builds keep `turbopack: {}` and `src/lib/fonts/index.ts` (multi-weight Inter and Poppins).
 
 `globMatch` in `scripts/ci-playwright-paths.mjs` treats a double-star between slashes as zero or more directories, so `src/components/ServiceEditor.tsx` selects the booking area.
 

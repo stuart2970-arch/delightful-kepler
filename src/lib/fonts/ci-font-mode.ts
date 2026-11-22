@@ -6,7 +6,7 @@
  * Production `next build` sets NODE_ENV=production (Docker and App Hosting).
  * That path keeps the real font module even if a runner also exports CI.
  */
-export const useDeterministicCiFonts = (
+export const deterministicCiFontsEnabled = (
   env: NodeJS.ProcessEnv = process.env,
 ): boolean => {
   if (env.NODE_ENV === 'production') return false
