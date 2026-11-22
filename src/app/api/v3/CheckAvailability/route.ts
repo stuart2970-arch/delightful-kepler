@@ -1,67 +1,104 @@
 import { NextResponse } from 'next/server';
-import { createServerClient } from '@supabase/ssr';
-import { cookies } from 'next/headers';
+import { createClient } from '@supabase/supabase-js';
 import { staffIdsBlockingSlot } from '@/lib/booking/rwg-slot-busy';
+import { verifyRwgBookingServerAuth } from '@/lib/booking/rwg-booking-auth';
 import type { StaffCalendarTarget } from '@/lib/calendar/provider';
 
 export const dynamic = 'force-dynamic';
 
+function serviceRoleClient() {
+  const supabaseUrl = process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  if (!supabaseUrl || !serviceRoleKey) {
+    throw new Error('Supabase admin environment variables are missing');
+  }
+  return createClient(supabaseUrl, serviceRoleKey, {
+    auth: { persistSession: false, autoRefreshToken: false },
+  });
+}
+
+function asRecord(value: unknown): Record<string, unknown> | null {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return null;
+  return value as Record<string, unknown>;
+}
+
+function text(value: unknown): string {
+  if (typeof value === 'string') return value.trim();
+  if (typeof value === 'number' && Number.isFinite(value)) return String(value);
+  return '';
+}
+
+function startSeconds(value: unknown): number | null {
+  if (typeof value === 'number' && Number.isFinite(value)) return value;
+  if (typeof value === 'string' && value.trim()) {
+    const parsed = Number.parseInt(value.trim(), 10);
+    return Number.isFinite(parsed) ? parsed : null;
+  }
+  return null;
+}
+
+/**
+ * POST /api/v3/CheckAvailability
+ * Reserve with Google Booking Server. Google authenticates with HTTP Basic
+ * (Actions Center username and password). The service row is the service id
+ * scoped to the merchant, not both filters on id.
+ */
 export async function POST(request: Request) {
+  const auth = verifyRwgBookingServerAuth(request);
+  if (!auth.ok) return auth.response;
+
   try {
-    const payload = await request.json();
-    const { slot } = payload;
-    
-    if (!slot || !slot.merchant_id || !slot.service_id || !slot.start_time_sec) {
+    const payload = asRecord(await request.json());
+    const slot = asRecord(payload?.slot);
+    const merchantId = text(slot?.merchant_id);
+    const serviceId = text(slot?.service_id);
+    const startSec = startSeconds(slot?.start_time_sec);
+
+    if (!merchantId || !serviceId || startSec == null || startSec <= 0) {
       return NextResponse.json({ error: 'Invalid Payload' }, { status: 400 });
     }
 
-    const cookieStore = await cookies();
-    const supabaseUrl = process.env.SUPABASE_URL || process.env['NEXT_PUBLIC_SUPABASE_URL'] || '';
-    const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_ANON_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || '';
+    const supabase = serviceRoleClient();
 
-    const supabase = createServerClient(supabaseUrl, supabaseKey, {
-      cookies: {
-        getAll() { return cookieStore.getAll(); },
-        setAll(cookiesToSet) {
-          try { cookiesToSet.forEach(({ name, value, options }) => cookieStore.set(name, value, options)); } catch {}
-        },
-      },
-    });
-
-    // 1. Fetch Service to know duration
-    const { data: service } = await supabase
+    const { data: service, error: serviceError } = await supabase
       .from('services')
       .select('duration_minutes, buffer_minutes')
-      .eq('id', slot.merchant_id) // Wait, service_id might be the ID. Let's fix this.
-      .eq('id', slot.service_id)
-      .single();
+      .eq('id', serviceId)
+      .eq('tenant_id', merchantId)
+      .maybeSingle();
+
+    if (serviceError) {
+      console.error('[RwG CheckAvailability] Service lookup failed:', serviceError.message);
+      return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 });
+    }
 
     if (!service) {
-      return NextResponse.json({ 
+      return NextResponse.json({
         error: 'SERVICE_UNAVAILABLE',
-        description: 'The requested service does not exist.'
+        description: 'The requested service does not exist.',
       });
     }
 
     const durationMs = (service.duration_minutes + (service.buffer_minutes || 0)) * 60000;
-    const startMs = parseInt(slot.start_time_sec) * 1000;
+    const startMs = startSec * 1000;
     const endMs = startMs + durationMs;
-
     const startIso = new Date(startMs).toISOString();
     const endIso = new Date(endMs).toISOString();
 
-    // 2. Look for any overlapping appointments for this merchant
-    // A more rigorous check would map staff working days, but for CheckAvailability we just ensure
-    // that at least ONE staff member is not double-booked at this time.
-    const { data: staffData } = await supabase
+    const { data: staffData, error: staffError } = await supabase
       .from('staff')
       .select('id, name, email, calendar_provider, google_calendar_id, microsoft_calendar_id')
-      .eq('tenant_id', slot.merchant_id);
-      
+      .eq('tenant_id', merchantId);
+
+    if (staffError) {
+      console.error('[RwG CheckAvailability] Staff lookup failed:', staffError.message);
+      return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 });
+    }
+
     if (!staffData || staffData.length === 0) {
-      return NextResponse.json({ 
+      return NextResponse.json({
         error: 'SLOT_UNAVAILABLE',
-        description: 'No staff available for this merchant.'
+        description: 'No staff available for this merchant.',
       });
     }
 
@@ -79,28 +116,25 @@ export async function POST(request: Request) {
 
     const bookedStaffIds = await staffIdsBlockingSlot({
       admin: supabase,
-      tenantId: slot.merchant_id,
+      tenantId: merchantId,
       slotStart: new Date(startIso),
       slotEnd: new Date(endIso),
       staffById,
     });
-    const availableStaff = staffData.filter(s => !bookedStaffIds.has(s.id));
+    const availableStaff = staffData.filter((member) => !bookedStaffIds.has(member.id));
 
     if (availableStaff.length === 0) {
-      // Slot sniped locally
       return NextResponse.json({
         slot_available: false,
         error: 'SLOT_UNAVAILABLE',
-        description: 'This time slot was just booked locally and is no longer available.'
+        description: 'This time slot was just booked locally and is no longer available.',
       });
     }
 
-    // It's empty, slot is available
     return NextResponse.json({
       slot_available: true,
-      duration_sec: service.duration_minutes * 60
+      duration_sec: service.duration_minutes * 60,
     });
-
   } catch (error) {
     console.error('[RwG CheckAvailability] Exception:', error);
     return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 });
