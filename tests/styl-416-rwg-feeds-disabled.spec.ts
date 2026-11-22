@@ -109,7 +109,13 @@ test.describe('STYL-416 Reserve with Google feeds stay empty while the flag is o
       expect(serialised).not.toContain(serviceId)
     }
 
-    const cron = await request.get('/api/rwg/feeds/cron')
+    const cronDenied = await request.get('/api/rwg/feeds/cron')
+    expect(cronDenied.status()).toBe(401)
+
+    const cronSecret = process.env.CRON_SECRET || 'mock_cron_secret_for_local_testing'
+    const cron = await request.get('/api/rwg/feeds/cron', {
+      headers: { Authorization: `Bearer ${cronSecret}` },
+    })
     expect(cron.status()).toBe(200)
     const cronBody = await cron.json()
     expect(cronBody.success).toBe(true)

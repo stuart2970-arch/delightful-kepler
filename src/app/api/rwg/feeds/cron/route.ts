@@ -4,10 +4,6 @@ import { disabledRwgCronBody, isRwgUiEnabled } from '../../../../../lib/rwg-ui';
 export const dynamic = 'force-dynamic';
 
 export async function GET(request: NextRequest) {
-  if (!isRwgUiEnabled()) {
-    return NextResponse.json(disabledRwgCronBody());
-  }
-
   try {
     const authHeader = request.headers.get('authorization') || request.headers.get('Authorization');
     const cronSecret = process.env.CRON_SECRET || process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -19,6 +15,10 @@ export async function GET(request: NextRequest) {
     const token = authHeader.substring(7).trim();
     if (!cronSecret || token !== cronSecret) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
+    if (!isRwgUiEnabled()) {
+      return NextResponse.json(disabledRwgCronBody());
     }
 
     console.log('[RwG Cron] Executing daily data aggregation pipeline...');

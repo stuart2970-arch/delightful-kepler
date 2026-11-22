@@ -4,8 +4,8 @@
  * secret: the server reads it and passes a boolean to the client.
  *
  * While this flag is off, /api/rwg/feeds/merchants, /services and /availability
- * return an empty list and /api/rwg/feeds/cron does no work. None of them
- * query the database. The tenant settings API also ignores RwG writes.
+ * return an empty list before any database query. /api/rwg/feeds/cron still
+ * requires its bearer token, then returns without running the aggregation.
  */
 const ENABLED_VALUES = new Set(['1', 'true', 'yes', 'on'])
 
