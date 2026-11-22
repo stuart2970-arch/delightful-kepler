@@ -16,6 +16,7 @@ import {
   attachGuestSubscriptionCustomerByEmail,
   ensureTenantStripeCustomerForSubscription,
 } from '@/lib/billing/stripe-tenant-customer';
+import { lookupHasActiveFoundationSubscription } from '@/lib/billing/foundation-subscription';
 import {
   billingCheckoutRateLimit,
   billingClientIp,
@@ -250,6 +251,7 @@ export async function GET(req: Request) {
 
     const sessionMetadata: Record<string, string> = {
       plan_tier: 'base_tier',
+      plan: 'foundation',
     };
     if (selectedAddonIds.length > 0) {
       sessionMetadata.selected_addons = selectedAddonIds.join(',');
@@ -701,6 +703,7 @@ export async function POST(req: Request) {
       const sessionMetadata: Record<string, string> = {
         tenant_id: tenantId || '',
         plan_tier: 'base_tier',
+        plan: 'foundation',
       };
       if (selectedAddonIds.length > 0) {
         sessionMetadata.selected_addons = selectedAddonIds.join(',');
@@ -728,6 +731,20 @@ export async function POST(req: Request) {
         .select('stripe_customer_id')
         .eq('id', tenantId)
         .maybeSingle();
+
+      if (plan === 'foundation') {
+        const hasActiveFoundationSubscription = await lookupHasActiveFoundationSubscription({
+          supabase,
+          stripeCustomerId: billingTenant?.stripe_customer_id,
+          stripe,
+        });
+        if (hasActiveFoundationSubscription === true) {
+          return NextResponse.json({
+            error: 'This workspace already has a Foundation subscription.',
+            code: 'foundation_subscription_exists',
+          }, { status: 409, headers: corsHeaders(req) });
+        }
+      }
 
       withCheckoutInvoicePresentation(sessionParams);
       await prepareSubscriptionCheckoutCustomer(stripe, apiKey, supabase, sessionParams, {

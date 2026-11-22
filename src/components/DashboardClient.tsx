@@ -15,6 +15,7 @@ import PlatformSettingsView from './dashboard-views/PlatformSettingsView';
 import MyProfileView from './dashboard-views/MyProfileView';
 import OpenClawMonitorView from './dashboard-views/OpenClawMonitorView';
 import WhatsAppMetaView from './dashboard-views/WhatsAppMetaView';
+import RetentionPeriodCard from './dashboard-views/RetentionPeriodCard';
 import SetPasswordBanner from './SetPasswordBanner';
 import CapacityThresholdBanner from './CapacityThresholdBanner';
 import AddOnUpsellModal, { AddOnCategory } from './AddOnUpsellModal';
@@ -349,6 +350,8 @@ export default function DashboardClient({
   const [checkoutNotification, setCheckoutNotification] = useState<{ type: 'success' | 'cancelled'; message: string } | null>(null);
   const [isOpeningPortal, setIsOpeningPortal] = useState(false);
   const [billingMessage, setBillingMessage] = useState<string | null>(null);
+  const [hasActiveFoundationSubscription, setHasActiveFoundationSubscription] = useState<boolean | null | undefined>(undefined);
+  const [isStartingFoundationCheckout, setIsStartingFoundationCheckout] = useState(false);
   const [billingUpsellCategory, setBillingUpsellCategory] = useState<AddOnCategory | null>(null);
 
   const openBillingPortal = async () => {
@@ -645,6 +648,67 @@ const globalBotId = '00000000-0000-0000-0000-000000000000';
     }
     return headers;
   };
+
+  const handleSubscribeFoundation = async () => {
+    setIsStartingFoundationCheckout(true);
+    setBillingMessage(null);
+    try {
+      const headers = await getAuthHeaders({ 'Content-Type': 'application/json' });
+      const res = await fetch('/api/billing/checkout', {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({ plan: 'foundation' }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (res.ok && typeof data.url === 'string' && data.url) {
+        if (typeof window !== 'undefined' && window.top && window.top !== window) {
+          window.top.location.href = data.url;
+        } else {
+          window.location.href = data.url;
+        }
+        return;
+      }
+      setBillingMessage(
+        typeof data.error === 'string' && data.error
+          ? data.error
+          : 'We could not open checkout. Please try again.',
+      );
+      setIsStartingFoundationCheckout(false);
+    } catch (err: any) {
+      console.error('Foundation checkout error:', err);
+      setBillingMessage('We could not open checkout. Please try again.');
+      setIsStartingFoundationCheckout(false);
+    }
+  };
+
+  useEffect(() => {
+    if (activeTab !== 'billing') return;
+    let cancelled = false;
+    setHasActiveFoundationSubscription(undefined);
+    const loadFoundationSubscription = async () => {
+      try {
+        const headers = await getAuthHeaders({ Accept: 'application/json' });
+        const res = await fetch('/api/billing/account', { headers, cache: 'no-store' });
+        if (!res.ok) {
+          if (!cancelled) setHasActiveFoundationSubscription(null);
+          return;
+        }
+        const data = await res.json();
+        const flag = data?.hasActiveFoundationSubscription;
+        if (cancelled) return;
+        if (flag === true) setHasActiveFoundationSubscription(true);
+        else if (flag === false) setHasActiveFoundationSubscription(false);
+        else setHasActiveFoundationSubscription(null);
+      } catch (err) {
+        console.error('Foundation subscription lookup failed:', err);
+        if (!cancelled) setHasActiveFoundationSubscription(null);
+      }
+    };
+    void loadFoundationSubscription();
+    return () => {
+      cancelled = true;
+    };
+  }, [activeTab]);
 
   // Auto-select first real chatbot for crawler if available
   useEffect(() => {
@@ -1023,17 +1087,47 @@ const globalBotId = '00000000-0000-0000-0000-000000000000';
                       Manage your usage limits, active bolt-ons, and allowances.
                     </p>
                   </div>
-                  <button
-                    type="button"
-                    onClick={() => { void openBillingPortal(); }}
-                    disabled={isOpeningPortal}
-                    className="w-full sm:w-auto bg-[#198fd9] hover:bg-[#157ab9] disabled:bg-[#198fd9]/60 text-white text-xs font-bold py-2.5 px-5 rounded-[4px] shadow-sm transition-colors whitespace-nowrap flex items-center justify-center gap-2 cursor-pointer"
+                  <div
+                    className="flex flex-col sm:flex-row sm:items-center gap-2 w-full sm:w-auto"
+                    data-testid="foundation-subscription-state"
+                    data-state={
+                      hasActiveFoundationSubscription === undefined
+                        ? 'loading'
+                        : hasActiveFoundationSubscription === null
+                          ? 'unknown'
+                          : hasActiveFoundationSubscription
+                            ? 'active'
+                            : 'inactive'
+                    }
                   >
-                    {isOpeningPortal && (
-                      <div className="w-3 h-3 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                    {hasActiveFoundationSubscription === false && (
+                      <button
+                        type="button"
+                        data-testid="subscribe-foundation"
+                        onClick={() => { void handleSubscribeFoundation(); }}
+                        disabled={isStartingFoundationCheckout}
+                        aria-busy={isStartingFoundationCheckout}
+                        aria-label="Subscribe to Foundation"
+                        className="w-full sm:w-auto bg-[#198fd9] hover:bg-[#157ab9] disabled:bg-[#198fd9]/60 text-white text-xs font-bold py-2.5 px-5 rounded-[4px] shadow-sm transition-colors whitespace-nowrap flex items-center justify-center gap-2 cursor-pointer"
+                      >
+                        {isStartingFoundationCheckout && (
+                          <div className="w-3 h-3 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                        )}
+                        {isStartingFoundationCheckout ? 'Opening checkout...' : 'Subscribe to Foundation'}
+                      </button>
                     )}
-                    {isOpeningPortal ? 'Connecting to Stripe...' : 'Billing Receipts & Invoices'}
-                  </button>
+                    <button
+                      type="button"
+                      onClick={() => { void openBillingPortal(); }}
+                      disabled={isOpeningPortal}
+                      className="w-full sm:w-auto bg-[#198fd9] hover:bg-[#157ab9] disabled:bg-[#198fd9]/60 text-white text-xs font-bold py-2.5 px-5 rounded-[4px] shadow-sm transition-colors whitespace-nowrap flex items-center justify-center gap-2 cursor-pointer"
+                    >
+                      {isOpeningPortal && (
+                        <div className="w-3 h-3 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                      )}
+                      {isOpeningPortal ? 'Connecting to Stripe...' : 'Billing Receipts & Invoices'}
+                    </button>
+                  </div>
                 </div>
 
                 {billingMessage && (
@@ -1405,6 +1499,7 @@ const globalBotId = '00000000-0000-0000-0000-000000000000';
                   <h3 className="text-lg font-bold text-[var(--awb-color8)]">Account Settings</h3>
                   <p className="text-xs text-[var(--awb-color6)] mt-0.5">Manage your workspace account preferences and login security.</p>
                 </div>
+                <RetentionPeriodCard />
 
                 {/* Password & Security Card */}
                 <div className="bg-white border border-[#f2f3f5] p-6 rounded-xl space-y-4 shadow-sm">
