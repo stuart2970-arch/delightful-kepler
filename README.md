@@ -148,6 +148,7 @@ This runbook documents the key fixes and architecture enhancements implemented d
 * **STYL-225**: Server checks (API plus database triggers) and the register, login, and persona forms share the block, review, reserved, and emoji sentences. Visitor chat is flagged, not blocked. Superadmin allow/deny is `POST /api/superadmin/moderation-terms`.
 * **STYL-412**: `supabase/migrations/20261122150000_styl412_staff_appointments_catchup.sql` adds the missing staff columns and `appointments.is_blockout` / `blockout_reason`. Appointment nullability is unchanged. Production is not applied from this session.
 * **Tests**: Local Supabase reset, then Playwright `tests/styl-407-rwg-check-availability.spec.ts`, `tests/styl-225-banned-names.spec.ts`, the signed-out allow-list, and `tests/styl-251-wordpress-publish-rollback.spec.ts` — 24 passed. `npm run typecheck` passed.
+* **OpenClaw follow-up**: The persona review sentence stays on the Agent page after the wizard closes, and slug suggestions use the same superadmin term list as the requested slug.
 
 ### Session (STYL-310 conversation metering CI fix — 21 Nov 2026)
 * **User / OpenClaw**: PR #105 failed CI because `tests/styl-199-mock-reply-guard.spec.ts` returned 429 after the conversation entitlement gate — the local Supabase stub lacked `tier_entitlements`, `usage_ledger`, and conversation/message reads. Also move the gate before embedding/RAG, fail safe on message lookup errors, treat `23505` on ledger insert as already metered, and reset widget transcript on close.

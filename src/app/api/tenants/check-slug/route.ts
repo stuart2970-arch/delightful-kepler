@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
-import { assessName } from '@/lib/moderation/assess-name';
-import { assessStoredName } from '@/lib/moderation/assess-stored-name';
+import { assessName, type NameOverride } from '@/lib/moderation/assess-name';
+import { loadNameOverrides } from '@/lib/moderation/assess-stored-name';
 
 export const dynamic = 'force-dynamic';
 
@@ -40,16 +40,17 @@ export async function GET(request: Request) {
     const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.SUPABASE_URL!;
     const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
     const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
-    const dbClient = createClient(supabaseUrl, anonKey);
-    let nameDecision: { action: string; message: string | null } = { action: 'allow', message: null };
-    if (serviceRoleKey) {
-      const admin = createClient(supabaseUrl, serviceRoleKey, {
+    const anonClient = createClient(supabaseUrl, anonKey);
+    const reader = serviceRoleKey
+      ? createClient(supabaseUrl, serviceRoleKey, {
         auth: { persistSession: false, autoRefreshToken: false },
-      });
-      nameDecision = await assessStoredName(admin, baseSlug, 'slug');
-    } else {
-      nameDecision = assessName(baseSlug, 'slug');
+      })
+      : anonClient;
+    let overrides: NameOverride[] = [];
+    if (serviceRoleKey) {
+      overrides = await loadNameOverrides(reader);
     }
+    const nameDecision = assessName(baseSlug, 'slug', overrides);
 
     if (nameDecision.action === 'reserved' || nameDecision.action === 'block' || nameDecision.action === 'emoji') {
       return NextResponse.json({
@@ -63,7 +64,7 @@ export async function GET(request: Request) {
     }
 
     // Fetch matching existing slugs
-    const { data: existingTenants, error } = await dbClient
+    const { data: existingTenants, error } = await reader
       .from('tenants')
       .select('slug')
       .ilike('slug', `${baseSlug}%`);
@@ -90,7 +91,7 @@ export async function GET(request: Request) {
       ];
 
       for (const candidate of candidates) {
-        const candidateDecision = assessName(candidate, 'slug');
+        const candidateDecision = assessName(candidate, 'slug', overrides);
         const candidateAllowed = candidateDecision.action === 'allow' || candidateDecision.action === 'review';
         if (!existingSlugs.has(candidate) && candidateAllowed && suggestions.length < 3) {
           suggestions.push(candidate);

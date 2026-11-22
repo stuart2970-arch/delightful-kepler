@@ -300,6 +300,89 @@ test.describe('STYL-225 banned words and reserved names', () => {
     await admin.from('messages').delete().eq('id', data!.id)
   })
 
+  test('slug suggestions omit a suffix a superadmin has reserved', async ({ request }) => {
+    const superadmin = await createTestSuperadminUser()
+    const admin = adminClient()
+    const baseSlug = `suggest${Date.now()}`
+    const blocked = `${baseSlug}-official`
+    const storedTerm = blocked.replace(/[^a-z0-9]/g, '')
+    try {
+      const { error } = await admin.from('tenants').insert({
+        company_name: 'Suggest Salon',
+        slug: baseSlug,
+      })
+      expect(error).toBeNull()
+      const reserved = await request.post('/api/superadmin/moderation-terms', {
+        headers: { Authorization: `Bearer ${superadmin.token}` },
+        data: { term: blocked, kind: 'reserved', action: 'reserved' },
+      })
+      expect(reserved.status()).toBe(200)
+      const response = await request.get(`/api/tenants/check-slug?name=${encodeURIComponent(baseSlug)}`)
+      expect(response.status()).toBe(200)
+      const body = await response.json()
+      expect(body.available).toBe(false)
+      expect(body.suggestions).not.toContain(blocked)
+      expect(body.suggestions.length).toBeGreaterThan(0)
+    } finally {
+      await admin.from('moderation_terms').delete().eq('term', storedTerm).eq('kind', 'reserved')
+      await admin.from('tenants').delete().eq('slug', baseSlug)
+      await superadmin.cleanup()
+    }
+  })
+
+  test('a saved review-tier persona keeps the review message on screen', async ({ page }) => {
+    test.setTimeout(60000)
+    const admin = adminClient()
+    const email = `persona-review-${suffix()}@test.styleflo.ai`
+    const slug = `persona-review-${suffix()}`
+    const created = await admin.auth.admin.createUser({
+      email,
+      password: 'Password123!',
+      email_confirm: true,
+      user_metadata: {
+        full_name: 'Pat Hancock',
+        company_name: 'Penistone Studio',
+        slug,
+      },
+    })
+    expect(created.error).toBeNull()
+    const userId = created.data.user!.id
+    const { data: tenant } = await admin.from('tenants').select('id').eq('slug', slug).single()
+    try {
+      await page.goto('/login')
+      await page.locator('input[type="email"]').fill(email)
+      await page.locator('input[type="password"]').fill('Password123!')
+      await page.locator('form button[type="submit"]').click()
+      await expect(page).toHaveURL(/\/dashboard/, { timeout: 20000 })
+      await expect(page.getByRole('heading', { name: 'Create New Chatbot' })).toBeVisible()
+      await page.getByPlaceholder('e.g. FloChat Assistant').fill('Bloody')
+      const review = page.getByText('We need to check this name quickly')
+      const finish = page.getByRole('button', { name: 'Finish & Launch Chatbot' })
+      const next = page.getByRole('button', { name: 'Next Step', exact: true })
+      for (let step = 0; step < 4; step++) {
+        if (await review.isVisible().catch(() => false)) break
+        if (await finish.isVisible().catch(() => false)) {
+          await finish.click()
+          break
+        }
+        try {
+          await next.click({ timeout: 3000 })
+        } catch {
+          break
+        }
+      }
+      await expect(review).toBeVisible()
+      await expect(page.getByRole('heading', { name: 'Create New Chatbot' })).toHaveCount(0)
+      await expect(page.getByRole('heading', { name: 'Bloody', level: 4 })).toBeVisible()
+    } finally {
+      if (tenant?.id) {
+        await admin.from('chatbots').delete().eq('tenant_id', tenant.id)
+        await admin.from('tenants').delete().eq('id', tenant.id)
+      }
+      await admin.auth.admin.deleteUser(userId)
+    }
+  })
+
   test('a normal member cannot write the moderation list', async ({ request }) => {
     const member = await createTestUser({ role: 'member' })
     try {

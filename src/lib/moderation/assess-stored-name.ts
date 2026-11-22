@@ -2,7 +2,7 @@ import type { SupabaseClient } from '@supabase/supabase-js'
 import { assessName, stricterDecision, type NameOverride } from '@/lib/moderation/assess-name'
 import type { NamePolicyContext, NamePolicyDecision } from '@/lib/moderation/messages'
 
-async function loadOverrides(admin: SupabaseClient): Promise<NameOverride[]> {
+export async function loadNameOverrides(admin: SupabaseClient): Promise<NameOverride[]> {
   const { data, error } = await admin
     .from('moderation_terms')
     .select('term, kind, severity, action')
@@ -18,7 +18,7 @@ export async function assessStoredName(
   value: string,
   context: NamePolicyContext,
 ): Promise<NamePolicyDecision> {
-  const overrides = await loadOverrides(admin)
+  const overrides = await loadNameOverrides(admin)
   return assessName(value, context, overrides)
 }
 
@@ -27,7 +27,7 @@ export async function assessPersonaNames(
   name: unknown,
   configuration: unknown,
 ): Promise<NamePolicyDecision> {
-  const overrides = await loadOverrides(admin)
+  const overrides = await loadNameOverrides(admin)
   const config = configuration && typeof configuration === 'object'
     ? configuration as Record<string, unknown>
     : {}

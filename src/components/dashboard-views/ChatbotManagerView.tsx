@@ -37,7 +37,7 @@ export default function ChatbotManagerView() {
   const [showDeleteModal, setShowDeleteModal] = useState<string | null>(null);
   const [isDeletingBot, setIsDeletingBot] = useState(false);
   const [showVoiceNoticeModal, setShowVoiceNoticeModal] = useState(false);
-  const [namePolicyMessage, setNamePolicyMessage] = useState(null);
+  const [namePolicyMessage, setNamePolicyMessage] = useState<string | null>(null);
   
   const generatedAvatars = [
     '/avatars/robot_waiter_1.png',
@@ -421,6 +421,16 @@ export default function ChatbotManagerView() {
                   </div>
                 </div>
               </div>
+              {namePolicyMessage && (
+                <div
+                  role={namePolicyMessage === NAME_POLICY_MESSAGES.review ? 'status' : 'alert'}
+                  className={namePolicyMessage === NAME_POLICY_MESSAGES.review
+                    ? 'mb-4 p-4 bg-amber-50 border border-amber-200 text-amber-900 rounded-xl text-xs font-medium leading-relaxed'
+                    : 'mb-4 p-4 bg-rose-50 border border-rose-200 text-rose-800 rounded-xl text-xs font-medium leading-relaxed'}
+                >
+                  {namePolicyMessage}
+                </div>
+              )}
               {/* Create / Edit Chatbot Form Card (Only shown if 0 chatbots exist or if editing an existing chatbot) */}
               {(!chatbots.filter(b => b.id !== globalBotId).length || editingBotId) && (
                 <div className="bg-[var(--awb-color1)] border border-[var(--awb-color3)] p-6 rounded-2xl shadow-sm">
@@ -537,15 +547,9 @@ export default function ChatbotManagerView() {
                             placeholder="e.g. Emma (AI assistant)"
                             value={newAgentName}
                             aria-label="Agent Display Name"
-                            onChange={(e) => {
-                              setNewAgentName(e.target.value);
-                              setNamePolicyMessage(null);
-                            }}
+                            onChange={(e) => setNewAgentName(e.target.value)}
                             className="w-full h-[50px] bg-[var(--awb-color1)] border border-[var(--awb-color3)] rounded-[6px] px-3.5 py-2 text-sm text-[var(--awb-color8)] focus:outline-none focus:border-[var(--awb-color4)]"
                           />
-                          {namePolicyMessage && (
-                            <p role="alert" className="mt-2 text-xs text-rose-700">{namePolicyMessage}</p>
-                          )}
                         </div>
                         <div>
                           <label className="block text-xs font-semibold text-[var(--awb-color7)] mb-1.5">Agent Role Subtitle</label>
@@ -777,6 +781,7 @@ export default function ChatbotManagerView() {
                           <button
                             type="button"
                             onClick={() => {
+                              setNamePolicyMessage(null);
                               setEditingBotId(null);
                               setWizardStep(1);
                               setNewBotName('');
@@ -862,6 +867,7 @@ export default function ChatbotManagerView() {
                           <button
                             onClick={() => {
                               const config = bot.configuration_json || {};
+                              setNamePolicyMessage(null);
                               setEditingBotId(bot.id);
                               setWizardStep(1);
                               setNewBotName(bot.name);
