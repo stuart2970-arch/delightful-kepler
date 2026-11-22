@@ -15,10 +15,16 @@ export interface BookingConfirmationEmailParams {
   tenantId?: string | null;
 }
 
-/** From-name required by STYL-265 #45. */
+/** Quoted display name so a comma or @ in the business name is not a second address. */
 export function bookingConfirmationFromName(businessName?: string | null): string {
-  const business = (businessName || 'the small business').replace(/[\r\n<>"]/g, ' ').replace(/\s+/g, ' ').trim() || 'the small business';
-  return `${business} via StyleFlo`;
+  const cleaned = (businessName || '')
+    .replace(/[\u0000-\u001f\u007f\u2028\u2029]/g, ' ')
+    .replace(/[<>]/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+  const business = cleaned || 'the small business';
+  const escaped = business.replace(/\\/g, '\\\\').replace(/"/g, '\\"');
+  return `"${escaped}" via StyleFlo`;
 }
 
 export async function sendBookingConfirmationEmail(

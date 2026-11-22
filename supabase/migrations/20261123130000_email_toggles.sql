@@ -1,6 +1,7 @@
 -- STYL-265: business on/off controls for enquiry details (#41) and booking confirmation (#45).
 -- Both default on so existing sends keep going. Additive and idempotent.
--- Apply on the local Supabase CLI stack only. Do not apply this file to a hosted project.
+-- Use this on the local Supabase CLI stack for development and tests.
+-- Stuart applies this named migration to staging. Do not apply it to the live project from a developer machine.
 
 ALTER TABLE public.tenants
   ADD COLUMN IF NOT EXISTS enquiry_details_email_enabled boolean NOT NULL DEFAULT true;

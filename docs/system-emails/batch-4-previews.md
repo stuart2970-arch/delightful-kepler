@@ -40,7 +40,7 @@ HTML uses the existing branded lead layout (`New Lead Captured`, contact table, 
 
 ## #45 Booking confirmation
 
-From: `Harbour Salon via StyleFlo <no-reply@MAILGUN_DOMAIN>`
+From: `"Harbour Salon" via StyleFlo <no-reply@MAILGUN_DOMAIN>`
 
 Subject: `Booking Confirmed: Cut with Sam`
 

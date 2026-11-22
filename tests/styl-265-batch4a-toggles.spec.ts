@@ -162,8 +162,10 @@ test.describe('STYL-265 batch 4a email toggles and auth templates', () => {
   })
 
   test('booking confirmation uses the business name and can be turned off', async () => {
-    expect(bookingConfirmationFromName('Harbour Salon')).toBe('Harbour Salon via StyleFlo')
-    expect(bookingConfirmationFromName('  ')).toBe('the small business via StyleFlo')
+    expect(bookingConfirmationFromName('Harbour Salon')).toBe('"Harbour Salon" via StyleFlo')
+    expect(bookingConfirmationFromName('Smith, Jones & Co')).toBe('"Smith, Jones & Co" via StyleFlo')
+    expect(bookingConfirmationFromName('  ')).toBe('"the small business" via StyleFlo')
+    expect(bookingConfirmationFromName('Bad <name>\n"quote"\\')).toBe('"Bad name \\"quote\\"\\\\" via StyleFlo')
     expect(bookingConfirmationFromName('Bad <name>\n')).not.toContain('<')
     expect(bookingConfirmationFromName('Bad <name>\n')).not.toContain('\n')
 
