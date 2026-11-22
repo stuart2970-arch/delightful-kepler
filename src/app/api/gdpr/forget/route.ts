@@ -84,6 +84,7 @@ export async function POST(req: NextRequest) {
         to: user.email || '',
         phase: 'confirmation',
         requestSummary: cleanQuery,
+        eventId: crypto.randomUUID(),
       });
 
       return NextResponse.json({
@@ -274,6 +275,7 @@ export async function POST(req: NextRequest) {
         phase: 'outcome',
         requestSummary: cleanQuery,
         outcomeSummary: `${totalErased} matching records were deleted`,
+        eventId: crypto.randomUUID(),
       });
 
       return NextResponse.json({

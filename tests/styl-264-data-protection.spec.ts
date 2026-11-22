@@ -7,6 +7,7 @@ import { batch3Templates } from '../src/lib/email/system/templates/batch-3'
 import {
   readSystemEmailTestDeliveries,
   resetSystemEmailTestState,
+  setSystemEmailTransportForTests,
   wasMailgunClientCreated,
 } from '../src/lib/email/system/deliver'
 import { runBreachNotice, ticketTargetForSalonBreach, SALON_BREACH_TICKET_TARGET_HOURS } from '../src/lib/email/system/triggers/batch3/incidents'
@@ -248,7 +249,7 @@ test.describe('STYL-264 breach, data rights and retention', () => {
     expect(wasMailgunClientCreated()).toBe(false)
   })
 
-  test('the salon GDPR confirmation is sent once for the same request', async () => {
+  test('the salon GDPR confirmation is sent once per event, including a later request with the same text', async () => {
     process.env.SYSTEM_EMAILS_BATCH3_ENABLED = 'true'
     process.env.APP_ENV = 'production'
     const input = {
@@ -257,13 +258,66 @@ test.describe('STYL-264 breach, data rights and retention', () => {
       to: owner.user.email,
       phase: 'confirmation' as const,
       requestSummary: 'customer example',
+      eventId: crypto.randomUUID(),
     }
     const first = await notifySalonGdprRequest(input)
     const second = await notifySalonGdprRequest(input)
     expect(first.sent).toBe(true)
     expect(second.sent).toBe(false)
-    expect(readSystemEmailTestDeliveries()).toHaveLength(1)
+    const later = await notifySalonGdprRequest({ ...input, eventId: crypto.randomUUID() })
+    expect(later.sent).toBe(true)
+    expect(readSystemEmailTestDeliveries()).toHaveLength(2)
     expect(readSystemEmailTestDeliveries()[0].text).toContain('not the outcome')
+  })
+
+  test('a failed breach send is retried and the incident stays open until every send succeeds', async () => {
+    process.env.SYSTEM_EMAILS_BATCH3_ENABLED = 'true'
+    process.env.APP_ENV = 'production'
+    const incidentId = crypto.randomUUID()
+    const input = {
+      incidentId,
+      kind: 'salon' as const,
+      tenantId,
+      ...breachFacts,
+      dryRun: false,
+      createdBy: owner.user.id,
+    }
+    setSystemEmailTransportForTests(async () => {
+      throw new Error('provider down')
+    })
+    const first = await runBreachNotice(input)
+    expect(first.ok).toBe(true)
+    if (!first.ok) return
+    expect(first.failed).toBe(1)
+    expect(first.sent).toBe(0)
+    const { data: open } = await service()
+      .from('personal_data_incidents')
+      .select('notified_at')
+      .eq('id', incidentId)
+      .single()
+    expect(open?.notified_at).toBeNull()
+
+    resetSystemEmailTestState()
+    process.env.PLAYWRIGHT_TEST = 'true'
+    process.env.SYSTEM_EMAILS_BATCH3_ENABLED = 'true'
+    process.env.APP_ENV = 'production'
+    const second = await runBreachNotice(input)
+    expect(second.ok).toBe(true)
+    if (!second.ok) return
+    expect(second.sent).toBe(1)
+    expect(second.failed).toBe(0)
+    expect(readSystemEmailTestDeliveries()).toHaveLength(1)
+    const { data: closed } = await service()
+      .from('personal_data_incidents')
+      .select('notified_at')
+      .eq('id', incidentId)
+      .single()
+    expect(closed?.notified_at).toBeTruthy()
+
+    const third = await runBreachNotice(input)
+    expect(third.ok).toBe(true)
+    if (third.ok) expect(third.duplicates).toBe(1)
+    expect(readSystemEmailTestDeliveries()).toHaveLength(1)
   })
 
   test('retention starts at 12 months and 90 days and can only be shortened', async () => {

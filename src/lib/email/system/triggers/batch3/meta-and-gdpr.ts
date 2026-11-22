@@ -1,7 +1,8 @@
 import { isSystemEmailAddress, isSystemEmailTenantId } from '../../data'
 import { sendSystemEmail } from '../../send-system-email'
-import { hashGdprQuery } from './data-rights'
 import { isSystemEmailsBatch3Enabled } from './enabled'
+
+const EVENT_ID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 
 export type MetaDeletionPhase = 'received' | 'deleted'
 
@@ -43,11 +44,15 @@ export async function notifySalonGdprRequest(input: {
   phase: 'confirmation' | 'outcome'
   requestSummary: string
   outcomeSummary?: string
+  eventId: string
 }): Promise<{ sent: boolean }> {
   try {
     if (!isSystemEmailsBatch3Enabled()) return { sent: false }
     const to = input.to.trim().toLowerCase()
-    if (!isSystemEmailAddress(to) || !isSystemEmailTenantId(input.tenantId)) return { sent: false }
+    const eventId = input.eventId?.trim() || ''
+    if (!isSystemEmailAddress(to) || !isSystemEmailTenantId(input.tenantId) || !EVENT_ID_PATTERN.test(eventId)) {
+      return { sent: false }
+    }
     const summary = input.requestSummary.trim().slice(0, 500)
     if (!summary) return { sent: false }
     const result = await sendSystemEmail({
@@ -61,7 +66,7 @@ export async function notifySalonGdprRequest(input: {
         requestSummary: summary,
         outcomeSummary: (input.outcomeSummary || '').trim().slice(0, 500),
       },
-      idempotencyKey: `b3gdpr:${input.phase}:${input.tenantId}:${hashGdprQuery(summary)}`,
+      idempotencyKey: `b3gdpr:${input.phase}:${input.tenantId}:${eventId}`,
     })
     return { sent: result.ok && !result.duplicate }
   } catch {

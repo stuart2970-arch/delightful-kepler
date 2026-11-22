@@ -44,6 +44,42 @@ const emailKey = (incidentId: string, recipient: string): string => {
   return `b3inc:${incidentId}:${digest}`
 }
 
+/**
+ * A failed provider attempt keeps its idempotency key in the shared log.
+ * The next run uses a new key for that recipient. A sent row is never repeated.
+ */
+async function deliverBreachEmail(input: {
+  incidentId: string
+  templateKey: string
+  tenantId: string | null
+  to: string
+  data: Record<string, string>
+}): Promise<'sent' | 'duplicate' | 'failed'> {
+  const admin = createSystemEmailAdmin()
+  const base = emailKey(input.incidentId, input.to)
+  const { data: rows } = await admin
+    .from('system_email_log')
+    .select('status, idempotency_key')
+    .like('idempotency_key', `${base}%`)
+  const related = (rows ?? []).filter((row) => {
+    const key = String(row.idempotency_key || '')
+    return key === base || key.startsWith(`${base}:r`)
+  })
+  if (related.some((row) => row.status === 'sent')) return 'duplicate'
+  const failedCount = related.filter((row) => row.status === 'failed').length
+  const idempotencyKey = failedCount === 0 ? base : `${base}:r${failedCount}`
+  const result = await sendSystemEmail({
+    templateKey: input.templateKey,
+    tenantId: input.tenantId,
+    to: input.to,
+    data: input.data,
+    idempotencyKey,
+  })
+  if (!result.ok) return 'failed'
+  if (result.duplicate) return result.status === 'failed' ? 'failed' : 'duplicate'
+  return 'sent'
+}
+
 export const ticketTargetForSalonBreach = (awarenessAt: Date): Date => {
   return new Date(awarenessAt.getTime() + SALON_BREACH_TICKET_TARGET_HOURS * 60 * 60 * 1000)
 }
@@ -172,22 +208,24 @@ export async function runBreachNotice(input: BreachNoticeInput): Promise<BreachN
   let duplicates = 0
   let failed = 0
   for (const delivery of deliveries) {
-    const result = await sendSystemEmail({
+    const outcome = await deliverBreachEmail({
+      incidentId: input.incidentId,
       templateKey: delivery.templateKey,
       tenantId: delivery.tenantId,
       to: delivery.to,
       data: delivery.data,
-      idempotencyKey: emailKey(input.incidentId, delivery.to),
     })
-    if (!result.ok) failed += 1
-    else if (result.duplicate) duplicates += 1
+    if (outcome === 'failed') failed += 1
+    else if (outcome === 'duplicate') duplicates += 1
     else sent += 1
   }
 
-  await admin
-    .from('personal_data_incidents')
-    .update({ notified_at: new Date().toISOString() })
-    .eq('id', input.incidentId)
+  if (failed === 0) {
+    await admin
+      .from('personal_data_incidents')
+      .update({ notified_at: new Date().toISOString() })
+      .eq('id', input.incidentId)
+  }
 
   return {
     ok: true,
