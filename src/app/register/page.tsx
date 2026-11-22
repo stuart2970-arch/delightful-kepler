@@ -122,17 +122,19 @@ function RegisterContent() {
     const timer = setTimeout(async () => {
       try {
         const res = await fetch(`/api/tenants/check-slug?name=${encodeURIComponent(nameToCheck)}`);
-        if (res.ok) {
-          const data = await res.json();
+        const data = await res.json().catch(() => ({}));
+        if (res.ok || typeof data?.message === 'string') {
           setSlugStatus({
             checking: false,
-            available: data.available,
-            slug: data.slug,
-            url: data.url,
+            available: data.available === true,
+            slug: data.slug || '',
+            url: data.url || '',
             suggestions: data.suggestions || [],
             message: typeof data.message === 'string' ? data.message : null,
             code: typeof data.code === 'string' ? data.code : null,
           });
+        } else {
+          setSlugStatus((prev) => (prev ? { ...prev, checking: false } : null));
         }
       } catch (e) {
         console.error('Slug check failed', e);
@@ -567,7 +569,7 @@ function RegisterContent() {
                     </span>
                   ) : (
                     <span className="inline-flex items-center gap-1 text-[10px] bg-rose-100 text-rose-800 px-2 py-0.5 rounded-full font-sans font-bold">
-                      {slugStatus.code === 'reserved' || slugStatus.code === 'block' || slugStatus.code === 'emoji' ? '✕ Not available' : '✕ Already Taken'}
+                      {slugStatus.code === 'reserved' || slugStatus.code === 'block' || slugStatus.code === 'emoji' || slugStatus.code === 'tooShort' ? '✕ Not available' : '✕ Already Taken'}
                     </span>
                   )}
                 </div>

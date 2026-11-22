@@ -2,12 +2,13 @@
 export const NAME_POLICY_MESSAGES = {
   block: "Sorry, that name can't be used. Please choose a different one.",
   review:
-    "Thanks! We need to check this name quickly. You can carry on setting up, and we'll be in touch within one working day.",
+    "Thanks! We need to check this name. You can carry on setting up, and we'll review it shortly.",
   reserved: 'That web address is reserved. Try adding your town, e.g. glamour-puss-leeds.',
   emoji: 'Please use letters and numbers only.',
+  tooShort: 'Web addresses need at least 3 characters.',
 } as const
 
-export type NamePolicyAction = 'allow' | 'block' | 'review' | 'reserved' | 'emoji' | 'flag'
+export type NamePolicyAction = 'allow' | 'block' | 'review' | 'reserved' | 'emoji' | 'tooShort' | 'flag'
 
 export type NamePolicyContext = 'owner' | 'salon' | 'slug' | 'persona' | 'chat'
 
@@ -52,7 +53,7 @@ export async function checkSignupNames(input: {
 }
 
 export function hardNameRejection(results: CheckedName[]): string | null {
-  const hard = results.find((row) => row.action === 'block' || row.action === 'reserved' || row.action === 'emoji')
+  const hard = results.find((row) => row.action === 'block' || row.action === 'reserved' || row.action === 'emoji' || row.action === 'tooShort')
   return hard?.message || null
 }
 

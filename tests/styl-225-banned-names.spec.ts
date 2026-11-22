@@ -9,7 +9,8 @@ import { createTestSuperadminUser, createTestUser } from './test-auth-helper'
 dotenv.config({ path: path.resolve(__dirname, '../.env.test'), override: true })
 
 const BLOCK = "Sorry, that name can't be used. Please choose a different one."
-const REVIEW = "Thanks! We need to check this name quickly. You can carry on setting up, and we'll be in touch within one working day."
+const REVIEW = "Thanks! We need to check this name. You can carry on setting up, and we'll review it shortly."
+const TOO_SHORT = 'Web addresses need at least 3 characters.'
 const RESERVED = 'That web address is reserved. Try adding your town, e.g. glamour-puss-leeds.'
 const EMOJI = 'Please use letters and numbers only.'
 
@@ -367,22 +368,15 @@ test.describe('STYL-225 banned words and reserved names', () => {
       await expect(page).toHaveURL(/\/dashboard/, { timeout: 20000 })
       await expect(page.getByRole('heading', { name: 'Create New Chatbot' })).toBeVisible()
       await page.getByPlaceholder('e.g. FloChat Assistant').fill('Bloody')
-      const review = page.getByText('We need to check this name quickly')
+      const review = page.getByText(REVIEW)
       const finish = page.getByRole('button', { name: 'Finish & Launch Chatbot' })
       const next = page.getByRole('button', { name: 'Next Step', exact: true })
-      for (let step = 0; step < 4; step++) {
-        if (await review.isVisible().catch(() => false)) break
-        if (await finish.isVisible().catch(() => false)) {
-          await finish.click()
-          break
-        }
-        try {
-          await next.click({ timeout: 3000 })
-        } catch {
-          break
-        }
-      }
-      await expect(review).toBeVisible()
+      await expect(async () => {
+        if (await review.isVisible().catch(() => false)) return
+        if (await finish.isVisible().catch(() => false)) await finish.click()
+        else if (await next.isVisible().catch(() => false)) await next.click()
+        if (!(await review.isVisible().catch(() => false))) throw new Error('review message not on screen yet')
+      }).toPass({ timeout: 20000 })
       await expect(page.getByRole('heading', { name: 'Create New Chatbot' })).toHaveCount(0)
       await expect(page.getByRole('heading', { name: 'Bloody', level: 4 })).toBeVisible()
       await page.getByRole('button', { name: 'Edit Agent' }).click()
@@ -391,7 +385,7 @@ test.describe('STYL-225 banned words and reserved names', () => {
       await page.getByLabel('Agent Display Name').fill('Emma')
       await page.getByRole('button', { name: 'Save Changes' }).click()
       await expect(page.getByRole('heading', { name: 'Emma', level: 4 })).toBeVisible()
-      await expect(page.getByText('We need to check this name quickly')).toHaveCount(0)
+      await expect(page.getByText(REVIEW)).toHaveCount(0)
     } finally {
       if (tenant?.id) {
         await admin.from('chatbots').delete().eq('tenant_id', tenant.id)
@@ -509,6 +503,157 @@ test.describe('STYL-225 banned words and reserved names', () => {
     )
     expect(source).toContain('EXCEPTION WHEN OTHERS THEN')
     expect(source).toContain('RETURN NEW')
+  })
+
+  test('slugs of 1 or 2 characters are rejected and a 3 character slug is allowed', async ({ page, request }) => {
+    for (const name of ['a', 'ab']) {
+      const response = await request.get(`/api/tenants/check-slug?name=${encodeURIComponent(name)}`)
+      expect(response.status(), name).toBe(400)
+      const body = await response.json()
+      expect(body.available, name).toBe(false)
+      expect(body.code).toBe('tooShort')
+      expect(body.message).toBe(TOO_SHORT)
+      expect(body.slug).toBe(name)
+    }
+
+    const reservedShort = await request.get('/api/tenants/check-slug?name=ad')
+    expect(reservedShort.status()).toBe(200)
+    const reservedBody = await reservedShort.json()
+    expect(reservedBody.available).toBe(false)
+    expect(reservedBody.code).toBe('reserved')
+    expect(reservedBody.message).toBe(RESERVED)
+
+    const three = await request.get('/api/tenants/check-slug?name=k9q')
+    expect(three.status()).toBe(200)
+    const threeBody = await three.json()
+    expect(threeBody.slug).toBe('k9q')
+    expect(threeBody.message).toBeUndefined()
+    expect(threeBody.available).toBe(true)
+
+    for (const slug of ['a', 'ab']) {
+      const checked = await request.post('/api/moderation/check-name', { data: { slug } })
+      expect(checked.status(), slug).toBe(200)
+      const body = await checked.json()
+      expect(body.results[0], slug).toMatchObject({ field: 'slug', action: 'tooShort', message: TOO_SHORT })
+    }
+    const checkedThree = await request.post('/api/moderation/check-name', { data: { slug: 'k9q' } })
+    expect(checkedThree.status()).toBe(200)
+    const checkedThreeBody = await checkedThree.json()
+    expect(checkedThreeBody.results[0]).toMatchObject({ action: 'allow', message: null })
+
+    const admin = adminClient()
+    for (const slug of ['a', 'ab']) {
+      const { data, error, status } = await admin
+        .from('tenants')
+        .insert({ company_name: 'Penistone Studio', slug })
+        .select('id')
+      expect(data, slug).toBeNull()
+      expect(error, slug).toBeTruthy()
+      expect(status, slug).toBeGreaterThanOrEqual(400)
+      expect(error?.message || '', slug).toContain(TOO_SHORT)
+      const { data: rows } = await admin.from('tenants').select('id').eq('slug', slug)
+      expect(rows, slug).toEqual([])
+    }
+
+    const { data: saved, error: savedError } = await admin
+      .from('tenants')
+      .insert({ company_name: 'Penistone Studio', slug: 'k9q' })
+      .select('id, slug, name_review_status')
+      .single()
+    expect(savedError).toBeNull()
+    expect(saved).toMatchObject({ slug: 'k9q', name_review_status: 'clear' })
+    if (saved?.id) await admin.from('tenants').delete().eq('id', saved.id)
+
+    await page.goto('/register')
+    await page.getByPlaceholder('e.g. StyleFlo Beauty Lounge').fill('AB')
+    await expect(page.getByText(TOO_SHORT)).toBeVisible()
+  })
+
+  test('company names AB, AAA, and 111 at sign-up get padded slugs', async () => {
+    const admin = adminClient()
+    const cases = [
+      { company: 'AB', pattern: /^ab-1$/ },
+      { company: 'AAA', pattern: /^aaa-\d+$/ },
+      { company: '111', pattern: /^111-\d+$/ },
+    ]
+    const createdUsers: string[] = []
+    const createdTenants: string[] = []
+    try {
+      for (const { company, pattern } of cases) {
+        const email = `short-salon-${company.toLowerCase()}-${suffix()}@test.styleflo.ai`
+        const created = await admin.auth.admin.createUser({
+          email,
+          password: 'Password123!',
+          email_confirm: true,
+          user_metadata: {
+            full_name: 'Alex Dickson',
+            company_name: company,
+          },
+        })
+        expect(created.error, company).toBeNull()
+        const userId = created.data.user!.id
+        createdUsers.push(userId)
+        const { data: profile } = await admin.from('profiles').select('tenant_id').eq('id', userId).single()
+        const { data: tenant } = await admin
+          .from('tenants')
+          .select('id, company_name, slug')
+          .eq('id', profile!.tenant_id)
+          .single()
+        expect(tenant?.company_name, company).toBe(company)
+        expect(tenant?.slug, company).toMatch(pattern)
+        expect(tenant?.slug, company).not.toBe(company.toLowerCase())
+        const { data: decision, error: decisionError } = await admin.rpc('classify_moderated_name', {
+          p_value: tenant!.slug,
+          p_context: 'slug',
+        })
+        expect(decisionError, company).toBeNull()
+        expect(decision?.[0]?.action, `${company} ${tenant?.slug}`).toBe('allow')
+        if (tenant?.id) createdTenants.push(tenant.id)
+      }
+    } finally {
+      for (const tenantId of createdTenants) await admin.from('tenants').delete().eq('id', tenantId)
+      for (const userId of createdUsers) await admin.auth.admin.deleteUser(userId)
+    }
+  })
+
+  test('a tenant update that changes neither name nor slug does not re-run moderation', async () => {
+    const admin = adminClient()
+    const slug = `early-return-${suffix()}`
+    const { data, error } = await admin
+      .from('tenants')
+      .insert({ company_name: 'Bloody Cuts', slug })
+      .select('id, name_review_status')
+      .single()
+    expect(error).toBeNull()
+    const tenantId = data!.id
+    try {
+      expect(data?.name_review_status).toBe('pending')
+      const { count: before } = await admin
+        .from('moderation_events')
+        .select('id', { count: 'exact', head: true })
+        .eq('tenant_id', tenantId)
+      const domain = `early-${suffix()}.example`
+      const { error: updateError } = await admin.from('tenants').update({ domain }).eq('id', tenantId)
+      expect(updateError).toBeNull()
+      const { data: saved } = await admin
+        .from('tenants')
+        .select('domain, company_name, slug, name_review_status')
+        .eq('id', tenantId)
+        .single()
+      expect(saved).toMatchObject({
+        domain,
+        company_name: 'Bloody Cuts',
+        slug,
+        name_review_status: 'pending',
+      })
+      const { count: after } = await admin
+        .from('moderation_events')
+        .select('id', { count: 'exact', head: true })
+        .eq('tenant_id', tenantId)
+      expect(after).toBe(before)
+    } finally {
+      await admin.from('tenants').delete().eq('id', tenantId)
+    }
   })
 
   test('a normal member cannot write the moderation list', async ({ request }) => {

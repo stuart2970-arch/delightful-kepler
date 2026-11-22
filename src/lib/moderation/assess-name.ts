@@ -278,6 +278,7 @@ export function assessName(
     if (reservedHit && !options.house) {
       return decide('reserved', slugKey)
     }
+    if (slugKey.length < 3) return decide('tooShort', slugKey)
     if (severe) return decide('block', severe.term)
     if (mild) return decide('review', mild.term)
     return allow()
@@ -299,6 +300,7 @@ export function assessName(
 }
 
 const ACTION_RANK: Record<NamePolicyAction, number> = {
+  tooShort: 6,
   block: 5,
   emoji: 4,
   reserved: 3,

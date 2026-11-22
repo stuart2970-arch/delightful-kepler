@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import { assessName, type NameOverride } from '@/lib/moderation/assess-name';
 import { loadNameOverrides } from '@/lib/moderation/assess-stored-name';
+import { NAME_POLICY_MESSAGES } from '@/lib/moderation/messages';
 
 export const dynamic = 'force-dynamic';
 
@@ -46,17 +47,31 @@ export async function GET(request: Request) {
       auth: { persistSession: false, autoRefreshToken: false },
     });
     const overrides: NameOverride[] = await loadNameOverrides(reader);
+    const slugUrl = `${process.env.NEXT_PUBLIC_APP_URL || 'https://styleflo.ai'}/business/${baseSlug}`;
+    if (baseSlug.length < 3) {
+      const shortDecision = assessName(baseSlug, 'slug', overrides);
+      if (shortDecision.action !== 'reserved') {
+        return NextResponse.json({
+          available: false,
+          slug: baseSlug,
+          url: slugUrl,
+          suggestions: [],
+          code: 'tooShort',
+          message: NAME_POLICY_MESSAGES.tooShort,
+        }, { status: 400 });
+      }
+    }
     const nameDecision = assessName(baseSlug, 'slug', overrides);
 
-    if (nameDecision.action === 'reserved' || nameDecision.action === 'block' || nameDecision.action === 'emoji') {
+    if (nameDecision.action === 'reserved' || nameDecision.action === 'block' || nameDecision.action === 'emoji' || nameDecision.action === 'tooShort') {
       return NextResponse.json({
         available: false,
         slug: baseSlug,
-        url: `${process.env.NEXT_PUBLIC_APP_URL || 'https://styleflo.ai'}/business/${baseSlug}`,
+        url: slugUrl,
         suggestions: [],
         code: nameDecision.action,
         message: nameDecision.message,
-      });
+      }, { status: nameDecision.action === 'tooShort' ? 400 : 200 });
     }
 
     // Fetch matching existing slugs
