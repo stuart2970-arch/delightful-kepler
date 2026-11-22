@@ -37,7 +37,23 @@ Local development uses the **local Supabase CLI stack** and mock third-party key
 
 6. **What runs before a push, and what CI runs**:
    The Husky pre-push hook (`.husky/pre-push`, STYL-356) lints the changed TypeScript and JavaScript files, runs `npm run typecheck`, and runs only the Playwright specs related to the commits being pushed. `scripts/prepush-related-specs.mjs` picks those specs. If none match, it runs a small smoke set: `tests/addon-text.spec.ts` and `tests/styl-226-release-source.spec.ts`. It does not run the full suite. A full `npm run lint` still reports more than a thousand existing errors, including in files a small change has to touch, so ESLint is printed and does not by itself fail the push. Typecheck and the related specs do.
-   Every pull request to `main` or `staging` still runs the **full** Playwright suite in `.github/workflows/playwright.yml` (`npm run test:e2e`, no file filter), plus the typecheck. Do not narrow that workflow to the related-spec list.
+
+   **Playwright CI (`.github/workflows/playwright.yml`)** runs on `ubuntu-24.04` in parallel **areas** (see `scripts/ci-playwright-groups.mjs`). Each `tests/**/*.spec.ts` file belongs to exactly one area; CI fails in job `Playwright spec map` if a spec is missing or double-assigned.
+
+   | Area id | Label | Spec files (approx.) |
+   | :--- | :--- | :--- |
+   | `booking-calendar` | Booking & calendar (incl. STYL-404 push sync) | 20 |
+   | `chat-widget` | Chat & widget (incl. metering) | 21 |
+   | `billing-stripe-entitlements` | Billing, Stripe & entitlements | 21 |
+   | `auth` | Auth & session | 12 |
+   | `admin-superadmin` | Admin & superadmin | 18 |
+   | `voice-telephony-vapi` | Voice, telephony & Vapi | 13 |
+   | `channels-meta-whatsapp` | Meta / WhatsApp / Twilio channels | 9 |
+   | `misc` | Catch-all (signed-out sweep, release docs, app config) | 20 |
+
+   **Staging PRs** run only areas touched by the PR. Path → area rules live in **`.github/playwright-area-paths.json`** (source paths per area; each area’s spec list is merged automatically from `ci-playwright-groups.mjs`). **`shared`** paths (migrations, `package.json` / lockfile, Playwright config, test helpers, `.github/`, `apphosting*.yaml`, cross-cutting `src/lib/security|env|fonts|postgres|server`, etc.) or any changed file **not covered** by an area map force **all** areas. Skipped areas still exit success so branch protection’s single check **Typecheck and Playwright** passes.
+
+   **Release PRs into `main`** always run **every** area (full suite). Typecheck and STYL-203 config checks run once in `Playwright spec map`; each area job boots local Supabase and the test web server when it runs.
 
 ### Cursor Cloud Agents (local Supabase on agent VMs)
 
@@ -4650,3 +4666,14 @@ Highlighted adjustments in the modal:
 * **User**: Stuart approved config-only enablement for live calendar push sync.
 * **Changes**: `CALENDAR_PUSH_REGISTER_ENABLED=true` (RUNTIME) in `apphosting.yaml` and `apphosting.staging.yaml`; production `apphosting.yaml` adds `CRON_SECRET` secret binding (same format as staging) for renewal cron.
 * **Verify**: `npm run check:apphosting-yaml`; husky pre-push on push.
+
+### Session (CI Playwright runner shutdowns — 22 Nov 2026)
+* **User**: GitHub-hosted runners on `ubuntu-latest` (26.04) exit 143 mid-suite (~818 tests); pin 24.04, parallel **areas** (not `--shard`), staging path filters, full suite on PRs to `main`, aggregate **Typecheck and Playwright** check; trim optional Supabase containers in CI.
+* **Changes**: `.github/workflows/playwright.yml`, `scripts/ci-playwright-groups.mjs`, `scripts/ci-playwright-paths.mjs`, `.github/playwright-area-paths.json`, `tests/styl-356-prepush-related-specs.spec.ts`, README CI table.
+* **Verify**: `node scripts/ci-playwright-groups.mjs validate`; PR #109 CI (8 area jobs + validate + aggregate).
+
+### Session (CI auth magic-link / inbucket — 22 Nov 2026)
+* **Root cause**: CI container trim stopped `supabase_inbucket_*` (local email capture on port 54324); GoTrue could not dispatch magic-link mail — `styl-228-magic-link-auth` inbox test timed out.
+* **Fix**: Keep **inbucket** (and mailpit/smtp) running in `.github/workflows/playwright.yml` trim step (workflow-only).
+* **Out of scope (#109)**: Turbopack/`next/font/google` mitigations — see `docs/ci-playwright-turbopack-fonts-followup.md`.
+* **Verify**: `docker stop supabase_inbucket_workspace` reproduced styl-228 failure; inbucket kept — auth area green on CI.

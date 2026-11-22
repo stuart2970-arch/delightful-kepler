@@ -13,11 +13,39 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  playwright:
-    name: Typecheck and Playwright
-    runs-on: ubuntu-latest
-    timeout-minutes: 60
+  playwright-changes:
+    name: Playwright area selection
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    outputs:
+      force_all: ${{ steps.paths.outputs.force_all }}
+      area_booking_calendar: ${{ steps.paths.outputs.area_booking_calendar }}
+      area_chat_widget: ${{ steps.paths.outputs.area_chat_widget }}
+      area_billing_stripe_entitlements: ${{ steps.paths.outputs.area_billing_stripe_entitlements }}
+      area_auth: ${{ steps.paths.outputs.area_auth }}
+      area_admin_superadmin: ${{ steps.paths.outputs.area_admin_superadmin }}
+      area_voice_telephony_vapi: ${{ steps.paths.outputs.area_voice_telephony_vapi }}
+      area_channels_meta_whatsapp: ${{ steps.paths.outputs.area_channels_meta_whatsapp }}
+      area_misc: ${{ steps.paths.outputs.area_misc }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
+      - name: Map PR paths to Playwright areas
+        id: paths
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          BASE_BRANCH: ${{ github.event.pull_request.base.ref }}
+          PLAYWRIGHT_CI_FORCE_ALL: ${{ github.event.pull_request.base.ref == 'main' && '1' || '0' }}
+        run: node scripts/ci-playwright-paths.mjs github-output >> "$GITHUB_OUTPUT"
+
+  playwright-validate:
+    name: Playwright spec map
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -25,27 +53,14 @@ jobs:
       - name: Set up Node.js
         uses: actions/setup-node@v4
         with:
-          # Node 22+: supabase-js Realtime needs native WebSocket (or the `ws` package on Node 20).
           node-version: 22
           cache: 'npm'
 
       - name: Install Dependencies
         run: npm ci
 
-      - name: Install Playwright Chromium
-        run: npx playwright install --with-deps chromium
-
-      - name: Boot local Supabase and seed
-        run: |
-          # Local-only stack. Never use live Supabase URLs or live keys in CI.
-          # --ignore-health-check avoids flaky optional service probes (studio/realtime disabled in config).
-          npx supabase start --ignore-health-check
-          npx supabase db reset --yes
-
-      - name: Write .env.local / .env.test from local Supabase
-        run: |
-          # Local-only stack with mock third-party keys (STYL-210). Never live credentials.
-          npm run env:local
+      - name: Every spec belongs to exactly one CI area
+        run: node scripts/ci-playwright-groups.mjs validate
 
       - name: STYL-203 — validate apphosting*.yaml schema
         run: npm run check:apphosting-yaml
@@ -58,12 +73,130 @@ jobs:
         env:
           NODE_OPTIONS: --max-old-space-size=8192
 
-      # STYL-356: every pull request to main or staging runs the full suite.
-      # The local pre-push hook only runs specs related to the change.
-      # Do not add a file filter to this step.
-      - name: Run Playwright suite
-        run: npm run test:e2e
+  playwright-area:
+    name: Playwright (${{ matrix.area }})
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    if: ${{ always() && !cancelled() && needs.playwright-changes.result == 'success' && needs.playwright-validate.result != 'failure' }}
+    needs:
+      - playwright-changes
+      - playwright-validate
+    strategy:
+      fail-fast: false
+      matrix:
+        area:
+          - booking-calendar
+          - chat-widget
+          - billing-stripe-entitlements
+          - auth
+          - admin-superadmin
+          - voice-telephony-vapi
+          - channels-meta-whatsapp
+          - misc
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Decide whether this area runs
+        id: gate
+        env:
+          FORCE_ALL: ${{ needs.playwright-changes.outputs.force_all }}
+          AREA_BOOKING: ${{ needs.playwright-changes.outputs.area_booking_calendar }}
+          AREA_CHAT: ${{ needs.playwright-changes.outputs.area_chat_widget }}
+          AREA_BILLING: ${{ needs.playwright-changes.outputs.area_billing_stripe_entitlements }}
+          AREA_AUTH: ${{ needs.playwright-changes.outputs.area_auth }}
+          AREA_ADMIN: ${{ needs.playwright-changes.outputs.area_admin_superadmin }}
+          AREA_VOICE: ${{ needs.playwright-changes.outputs.area_voice_telephony_vapi }}
+          AREA_CHANNELS: ${{ needs.playwright-changes.outputs.area_channels_meta_whatsapp }}
+          AREA_MISC: ${{ needs.playwright-changes.outputs.area_misc }}
+        run: |
+          should_run=false
+          case "${{ matrix.area }}" in
+            booking-calendar) [[ "$AREA_BOOKING" == "true" || "$FORCE_ALL" == "true" ]] && should_run=true ;;
+            chat-widget) [[ "$AREA_CHAT" == "true" || "$FORCE_ALL" == "true" ]] && should_run=true ;;
+            billing-stripe-entitlements) [[ "$AREA_BILLING" == "true" || "$FORCE_ALL" == "true" ]] && should_run=true ;;
+            auth) [[ "$AREA_AUTH" == "true" || "$FORCE_ALL" == "true" ]] && should_run=true ;;
+            admin-superadmin) [[ "$AREA_ADMIN" == "true" || "$FORCE_ALL" == "true" ]] && should_run=true ;;
+            voice-telephony-vapi) [[ "$AREA_VOICE" == "true" || "$FORCE_ALL" == "true" ]] && should_run=true ;;
+            channels-meta-whatsapp) [[ "$AREA_CHANNELS" == "true" || "$FORCE_ALL" == "true" ]] && should_run=true ;;
+            misc) [[ "$AREA_MISC" == "true" || "$FORCE_ALL" == "true" ]] && should_run=true ;;
+          esac
+          echo "run=$should_run" >> "$GITHUB_OUTPUT"
+          if [[ "$should_run" != "true" ]]; then
+            echo "Skipping Playwright area ${{ matrix.area }} (no matching paths on this staging PR)."
+          fi
+
+      - name: Skipped area (success)
+        if: steps.gate.outputs.run != 'true'
+        run: echo "No changed paths for area ${{ matrix.area }} — reported success without running tests."
+
+      - name: Set up Node.js
+        if: steps.gate.outputs.run == 'true'
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: 'npm'
+
+      - name: Install Dependencies
+        if: steps.gate.outputs.run == 'true'
+        run: npm ci
+
+      - name: Install Playwright Chromium
+        if: steps.gate.outputs.run == 'true'
+        run: npx playwright install --with-deps chromium
+
+      - name: Boot local Supabase and seed
+        if: steps.gate.outputs.run == 'true'
+        run: |
+          npx supabase start --ignore-health-check
+          npx supabase db reset --yes
+
+      - name: Trim optional Supabase containers (CI memory)
+        if: steps.gate.outputs.run == 'true'
+        run: |
+          docker ps --format '{{.Names}}' | while read -r name; do
+            case "$name" in
+              *mailpit*|*smtp*)
+                continue
+                ;;
+            esac
+            if echo "$name" | grep -qi supabase && echo "$name" | grep -qiE 'studio|imgproxy|edge-runtime'; then
+              docker stop "$name" || true
+            fi
+          done
+
+      - name: Write .env.local / .env.test from local Supabase
+        if: steps.gate.outputs.run == 'true'
+        run: npm run env:local
+
+      - name: Run Playwright area suite
+        if: steps.gate.outputs.run == 'true'
+        run: |
+          set -euo pipefail
+          FILES=$(node scripts/ci-playwright-groups.mjs list-files "${{ matrix.area }}")
+          npm run test:e2e -- $FILES
         env:
           CI: true
+          CI_MAILBOX_WAIT_MS: 60000
           NODE_OPTIONS: --max-old-space-size=8192
 
+  playwright-result:
+    name: Typecheck and Playwright
+    runs-on: ubuntu-24.04
+    needs:
+      - playwright-validate
+      - playwright-area
+    if: ${{ always() }}
+    timeout-minutes: 5
+    steps:
+      - name: Require validation and area jobs
+        run: |
+          if [ "${{ needs.playwright-validate.result }}" != "success" ]; then
+            echo "Playwright spec map validation failed"
+            exit 1
+          fi
+          if [ "${{ needs.playwright-area.result }}" != "success" ]; then
+            echo "One or more Playwright area jobs failed"
+            exit 1
+          fi
+          echo "All required Playwright checks passed."
