@@ -4748,3 +4748,10 @@ Highlighted adjustments in the modal:
 * **Review**: With the flag off, `/api/rwg/feeds/merchants`, `/services` and `/availability` still listed tenants that already had `is_rwg_enabled`. Production has rows in that state, and the settings API will not turn them off.
 * **Change**: Each of those GET handlers returns `[]` before opening a database client when `RWG_UI_ENABLED` is off. `/api/rwg/feeds/cron` still returns 401 without its bearer token. With a valid token and the flag off, it returns the disabled message and does not run the aggregation. With the flag on, the same handlers still build the feeds. Booking server routes and secrets are unchanged.
 * **Tests**: `tests/styl-416-rwg-feeds-disabled.spec.ts`.
+
+### Session (R5 package 6b — STYL-265 admin and service notices — 22 Nov 2026)
+* **User**: Second ordinary pull request into `staging` for STYL-265. Not stacked on the toggle pull request. Covers breach, suspension, termination, StyleFlo ending the Terms, complaint forward and acknowledgement, fair-use, channel launch, planned maintenance, and human follow-up.
+* **Changes**: Templates in `src/lib/email/system/templates/batch-4.ts`. Triggers under `src/lib/email/system/triggers/batch4/`. `SYSTEM_EMAILS_BATCH4_ENABLED` defaults off, so nothing is sent until it is set to `true`. Each event uses one idempotency key on the shared sending layer. Ending the Terms requires at least one month of notice and does not start a refund. A chat message labelled as a complaint, or a request to speak to a person, is the app trigger. Superadmins can send the admin notices from `POST /api/superadmin/system-emails/batch4`.
+* **Previews**: `docs/system-emails/batch-4-previews.md`.
+* **Left out**: enquiry and booking toggles, auth templates, health-information redirect, automatic refunds, and the existing superadmin notices screen.
+* **Verify**: `npm run typecheck`. `tests/styl-265-batch4-notices.spec.ts` and `tests/system-email-layer.spec.ts` on local Supabase. Mailgun stayed mocked.
