@@ -1,5 +1,6 @@
 'use client';
 import { useState, useEffect } from 'react';
+import { customerFeatureLabel } from '@/lib/entitlements';
 
 type Feature = {
   id: string;
@@ -169,7 +170,7 @@ export default function SuperAdminEntitlementsView() {
   const handleStartEdit = (feature: Feature) => {
     setEditingFeatureId(feature.id);
     setEditForm({
-      name: feature.name,
+      name: customerFeatureLabel(feature.id, feature.name),
       value_type: feature.value_type || 'numeric'
     });
   };
@@ -414,7 +415,7 @@ export default function SuperAdminEntitlementsView() {
                           <span className="text-gray-500 hover:text-gray-300 mt-0.5">⋮⋮</span>
                           <div>
                             <div className="flex items-center gap-2">
-                              <span className="font-medium text-gray-200">{feature.name}</span>
+                              <span className="font-medium text-gray-200">{customerFeatureLabel(feature.id, feature.name)}</span>
                               <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full border ${
                                 isBoolean 
                                   ? 'bg-purple-500/10 text-purple-300 border-purple-500/30' 
@@ -437,7 +438,7 @@ export default function SuperAdminEntitlementsView() {
                             ✏️
                           </button>
                           <button
-                            onClick={() => handleDeleteFeature(feature.id, feature.name)}
+                            onClick={() => handleDeleteFeature(feature.id, customerFeatureLabel(feature.id, feature.name))}
                             title="Delete feature permanently"
                             className="p-1 hover:bg-red-500/20 text-gray-400 hover:text-red-400 rounded transition-colors"
                           >

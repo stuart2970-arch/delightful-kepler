@@ -4,7 +4,7 @@ import { createClient } from '@supabase/supabase-js';
 import { cookies } from 'next/headers';
 import DashboardClient from '@/components/DashboardClient';
 import { redirect } from 'next/navigation';
-import { getTenantChannelFlags, isVoiceConsumptionFeature, sumVoiceConsumption, VOICE_CONSUMPTION_FEATURE_IDS } from '@/lib/entitlements';
+import { customerFeatureLabel, getTenantChannelFlags, isVoiceConsumptionFeature, sumVoiceConsumption, VOICE_CONSUMPTION_FEATURE_IDS } from '@/lib/entitlements';
 import { usageAlertLevel } from '@/lib/usage-alerts';
 import { resolveVoiceAllowance } from '@/lib/telephony/voice-minute-gate';
 import { applyPublicAddonFilter } from '@/lib/addons/public-catalogue';
@@ -673,7 +673,7 @@ export default async function DashboardPage(props: { searchParams?: Promise<{ [k
           if (ent.feature_id === 'message_allowance') {
             thresholds.push({
               featureId: ent.feature_id,
-              featureName: ent.features?.name || 'Monthly Chat Conversations',
+              featureName: customerFeatureLabel(ent.feature_id, ent.features?.name) || 'Monthly Chat Conversations',
               percentUsed,
               currentUsage,
               limit,
@@ -694,7 +694,7 @@ export default async function DashboardPage(props: { searchParams?: Promise<{ [k
 
             thresholds.push({
               featureId: ent.feature_id,
-              featureName: ent.features?.name || ent.feature_id,
+              featureName: customerFeatureLabel(ent.feature_id, ent.features?.name) || ent.feature_id,
               percentUsed,
               currentUsage,
               limit,

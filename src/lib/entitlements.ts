@@ -6,6 +6,19 @@ import { usageAlertLevel, type UsageAlertLevel } from './usage-alerts';
 export { USAGE_ALERT_LIMIT_PERCENT, USAGE_ALERT_WARNING_PERCENT, usageAlertLevel } from './usage-alerts';
 export type { UsageAlertLevel } from './usage-alerts';
 
+/**
+ * Label shown on usage meters, limit banners, and the entitlements table.
+ * Feature ids such as knowledge_data_chunks stay as stored identifiers.
+ */
+export function customerFeatureLabel(featureId: string, storedName?: string | null): string {
+  if (featureId === 'knowledge_data_chunks') {
+    return 'Knowledge Items';
+  }
+  const name = (storedName || '').trim();
+  if (/\bchunks?\b/i.test(name)) return 'Knowledge Items';
+  return name;
+}
+
 // =========================================================================
 // Admin Client
 // =========================================================================
