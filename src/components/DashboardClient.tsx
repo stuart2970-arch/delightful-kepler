@@ -15,6 +15,7 @@ import PlatformSettingsView from './dashboard-views/PlatformSettingsView';
 import MyProfileView from './dashboard-views/MyProfileView';
 import OpenClawMonitorView from './dashboard-views/OpenClawMonitorView';
 import WhatsAppMetaView from './dashboard-views/WhatsAppMetaView';
+import RetentionPeriodCard from './dashboard-views/RetentionPeriodCard';
 import SetPasswordBanner from './SetPasswordBanner';
 import CapacityThresholdBanner from './CapacityThresholdBanner';
 import AddOnUpsellModal, { AddOnCategory } from './AddOnUpsellModal';
@@ -1405,6 +1406,7 @@ const globalBotId = '00000000-0000-0000-0000-000000000000';
                   <h3 className="text-lg font-bold text-[var(--awb-color8)]">Account Settings</h3>
                   <p className="text-xs text-[var(--awb-color6)] mt-0.5">Manage your workspace account preferences and login security.</p>
                 </div>
+                <RetentionPeriodCard />
 
                 {/* Password & Security Card */}
                 <div className="bg-white border border-[#f2f3f5] p-6 rounded-xl space-y-4 shadow-sm">

@@ -3,6 +3,7 @@ import { createServerClient } from '@supabase/ssr';
 import { cookies } from 'next/headers';
 import { createClient } from '@supabase/supabase-js';
 import { sendGdprErasureRequestEmail } from '@/lib/lead-notifier';
+import { notifySalonGdprRequest } from '@/lib/email/system/triggers/batch3/meta-and-gdpr';
 
 export const dynamic = 'force-dynamic';
 
@@ -75,6 +76,14 @@ export async function POST(req: NextRequest) {
         tenantSlug: tenant?.slug || '',
         customerIdentifier: cleanQuery,
         requestedByEmail: user.email || 'B2B Admin',
+      });
+
+      await notifySalonGdprRequest({
+        tenantId,
+        businessName: tenant?.company_name || 'Your business',
+        to: user.email || '',
+        phase: 'confirmation',
+        requestSummary: cleanQuery,
       });
 
       return NextResponse.json({
@@ -257,6 +266,15 @@ export async function POST(req: NextRequest) {
 
       const deletedApptsCount = deletedAppts ? deletedAppts.length : 0;
       const totalErased = deletedApptsCount + deletedConvsCount + deletedMsgsCount + deletedWaMsgsCount + deletedWaContactsCount;
+
+      await notifySalonGdprRequest({
+        tenantId,
+        businessName: tenant?.company_name || 'Your business',
+        to: user.email || '',
+        phase: 'outcome',
+        requestSummary: cleanQuery,
+        outcomeSummary: `${totalErased} matching records were deleted`,
+      });
 
       return NextResponse.json({
         success: true,
