@@ -4645,3 +4645,8 @@ Highlighted adjustments in the modal:
 * **User**: Address PR 102 must-fix — gate Microsoft mock payload fields; verify Graph on delete; renew Google watch before row delete; filter Google reconcile by calendar; per-item Microsoft subscriptionId check.
 * **Changes**: `calendarPushTestMocksAllowed`, `stripMicrosoftNotificationTestFields`, `staff-google-calendar.ts`; `tests/unit/styl-404-calendar-push-sync.spec.ts`.
 * **Verify**: `bash scripts/test-e2e-agent.sh tests/styl-404-calendar-push-sync.spec.ts tests/unit/styl-404-calendar-push-sync.spec.ts` — 11 passed; typecheck pass.
+
+### Session (STYL-404 enablement — App Hosting flags — 22 Nov 2026)
+* **User**: Stuart approved config-only enablement for live calendar push sync.
+* **Changes**: `CALENDAR_PUSH_REGISTER_ENABLED=true` (RUNTIME) in `apphosting.yaml` and `apphosting.staging.yaml`; production `apphosting.yaml` adds `CRON_SECRET` secret binding (same format as staging) for renewal cron.
+* **Verify**: `npm run check:apphosting-yaml`; husky pre-push on push.
