@@ -4645,3 +4645,8 @@ Highlighted adjustments in the modal:
 * **User**: Address PR 102 must-fix — gate Microsoft mock payload fields; verify Graph on delete; renew Google watch before row delete; filter Google reconcile by calendar; per-item Microsoft subscriptionId check.
 * **Changes**: `calendarPushTestMocksAllowed`, `stripMicrosoftNotificationTestFields`, `staff-google-calendar.ts`; `tests/unit/styl-404-calendar-push-sync.spec.ts`.
 * **Verify**: `bash scripts/test-e2e-agent.sh tests/styl-404-calendar-push-sync.spec.ts tests/unit/styl-404-calendar-push-sync.spec.ts` — 11 passed; typecheck pass.
+
+### Session (CI Playwright runner shutdowns — 22 Nov 2026)
+* **User**: GitHub-hosted runners on `ubuntu-latest` (26.04) exit 143 mid-suite (~818 tests); pin 24.04, shard Playwright 1/3, aggregate job keeps **Typecheck and Playwright** check name; trim optional Supabase containers in CI.
+* **Changes**: `.github/workflows/playwright.yml` only — matrix `playwright-shard` with `--shard=n/3`, `playwright-result` aggregate, `ubuntu-24.04`, post-start docker stop for studio/imgproxy/inbucket/edge-runtime (mailpit kept).
+* **Verify**: PR CI on the workflow branch (3 parallel shards + aggregate).

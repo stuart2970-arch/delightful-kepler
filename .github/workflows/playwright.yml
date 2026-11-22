@@ -13,10 +13,14 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  playwright:
-    name: Typecheck and Playwright
-    runs-on: ubuntu-latest
+  playwright-shard:
+    name: Playwright shard ${{ matrix.shard }}/3
+    runs-on: ubuntu-24.04
     timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1, 2, 3]
 
     steps:
       - name: Checkout
@@ -42,6 +46,21 @@ jobs:
           npx supabase start --ignore-health-check
           npx supabase db reset --yes
 
+      - name: Trim optional Supabase containers (CI memory)
+        run: |
+          # studio, edge_runtime, and analytics are off in supabase/config.toml; stop anything
+          # that still starts (imgproxy, legacy inbucket, etc.). Keep mailpit/smtp (STYL-228).
+          docker ps --format '{{.Names}}' | while read -r name; do
+            case "$name" in
+              *mailpit*|*smtp*)
+                continue
+                ;;
+            esac
+            if echo "$name" | grep -qi supabase && echo "$name" | grep -qiE 'studio|imgproxy|inbucket|edge-runtime'; then
+              docker stop "$name" || true
+            fi
+          done
+
       - name: Write .env.local / .env.test from local Supabase
         run: |
           # Local-only stack with mock third-party keys (STYL-210). Never live credentials.
@@ -62,8 +81,23 @@ jobs:
       # The local pre-push hook only runs specs related to the change.
       # Do not add a file filter to this step.
       - name: Run Playwright suite
-        run: npm run test:e2e
+        run: npm run test:e2e -- --shard=${{ matrix.shard }}/3
         env:
           CI: true
           NODE_OPTIONS: --max-old-space-size=8192
 
+  playwright-result:
+    # Single required check for branch protection (was one monolithic job).
+    name: Typecheck and Playwright
+    runs-on: ubuntu-24.04
+    needs: playwright-shard
+    if: ${{ always() }}
+    timeout-minutes: 5
+    steps:
+      - name: Require all Playwright shards
+        run: |
+          if [ "${{ needs.playwright-shard.result }}" != "success" ]; then
+            echo "Playwright shards did not all succeed (aggregate result: ${{ needs.playwright-shard.result }})"
+            exit 1
+          fi
+          echo "All Playwright shards passed."
