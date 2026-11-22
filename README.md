@@ -4669,5 +4669,5 @@ Highlighted adjustments in the modal:
 
 ### Session (CI auth magic-link / inbucket — 22 Nov 2026)
 * **Root cause**: CI container trim stopped `supabase_inbucket_*` (local email capture on port 54324); GoTrue could not dispatch magic-link mail — `styl-228-magic-link-auth` inbox test timed out.
-* **Fix**: Keep **inbucket** (and mailpit/smtp) running in `.github/workflows/playwright.yml` trim step; log GoTrue `error.message` on magic-link dispatch failure.
-* **Verify**: Reproduced by `docker stop supabase_inbucket_workspace` locally; auth area 78 passed with inbucket up; push and await PR #109 **Playwright (auth)** green.
+* **Fix**: Keep **inbucket** (and mailpit/smtp) running in `.github/workflows/playwright.yml` trim step; log GoTrue `error.message` on magic-link dispatch failure. Playwright fonts stub no longer uses `next/font/google` (avoids Turbopack resolve flakes in billing area).
+* **Verify**: Reproduced by `docker stop supabase_inbucket_workspace` locally; auth area 78 passed with inbucket up; billing area 172 passed locally after font stub; CI on `61f7a34` — auth green, billing failed on Turbopack font (addressed in follow-up commit).
