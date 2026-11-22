@@ -1,5 +1,10 @@
 import { allocateRollingCredits as allocateRollingCreditsDefault } from '@/lib/entitlements';
 import {
+  foundationCatalogTierIds,
+  foundationVoiceMinutesCap,
+  resolveEntitlementCatalogTierId,
+} from '@/lib/billing/plan-tier-catalog';
+import {
   claimStripeWebhookEvent,
   completeStripeWebhookEvent,
 } from '@/lib/billing/stripe-webhook-event-idempotency';
@@ -899,7 +904,7 @@ async function activateBoltOnByCatalogId(options: {
 
 const PLAN_VOICE_GRANT_PREFIX = 'plan_voice:';
 
-const BASE_PLAN_TIER_IDS = ['foundation', 'base_tier'] as const;
+const BASE_PLAN_TIER_IDS = foundationCatalogTierIds();
 
 export function invoiceContainsBasePlanPrice(
   invoice: Record<string, any>,
@@ -914,7 +919,8 @@ export async function loadTierIncludedVoiceMinutes(
   supabaseAdmin: { from: (table: string) => any },
   planTier: string,
 ): Promise<number | null> {
-  const tierIds = [...new Set([planTier, ...BASE_PLAN_TIER_IDS])];
+  const catalogTier = resolveEntitlementCatalogTierId(planTier);
+  const tierIds = [...new Set([catalogTier, ...BASE_PLAN_TIER_IDS])];
   for (const tierId of tierIds) {
     const { data: entitlement, error: entitlementError } = await supabaseAdmin
       .from('tier_entitlements')
@@ -925,12 +931,14 @@ export async function loadTierIncludedVoiceMinutes(
     if (entitlementError) {
       throw new Error(entitlementError.message || 'Could not read the plan voice allowance');
     }
-    const minutes = entitlement?.limit_value == null ? null : Number(entitlement.limit_value);
-    if (minutes != null && Number.isFinite(minutes) && minutes > 0) {
+    const raw = entitlement?.limit_value;
+    const minutes =
+      raw === null || raw === undefined ? foundationVoiceMinutesCap() : Number(raw);
+    if (Number.isFinite(minutes) && minutes >= 0) {
       return minutes;
     }
   }
-  return null;
+  return foundationVoiceMinutesCap();
 }
 
 async function loadBasePlanStripePriceIds(

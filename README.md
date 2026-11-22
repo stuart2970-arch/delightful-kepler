@@ -4687,3 +4687,8 @@ Highlighted adjustments in the modal:
 * **User**: Disconnect teardown before credential delete; renew backfill after renewal + expired purge; multi-row Google teardown.
 * **Changes**: `disconnectGoogleCalendarIntegration` / `disconnectMicrosoftCalendarIntegration`; `purgeExpiredCalendarPushSubscriptions`; expanded `styl-409` unit specs.
 * **Verify**: 11 unit specs in `styl-409-calendar-push-register.spec.ts`; husky pre-push on push.
+
+### Session (StyleFlo R4 package 1 — STYL-312 & STYL-142 — 22 Nov 2026)
+* **User**: Legacy `ultimate` (and other retired tiers) must not get unlimited inbound voice; map to Foundation catalogue cap. Stripe checkout/invoices must show WP-123 T/A STYLEFLO LTD and a “No VAT to add” line (env-configurable, test mode only).
+* **Changes**: `plan-tier-catalog.ts`, `voice-catalog-limit.ts`, gate/entitlement/webhook/checkout updates; `stripe-invoice-presentation.ts`; migration `20261122130000_styl312_legacy_voice_cap.sql` (commented tenant normalisation for prod review); tests `styl-312-legacy-voice-cap.spec.ts`, `styl-142-stripe-invoice-presentation.spec.ts`.
+* **Verify**: Playwright specs above + STYL-197 minute-gate grep; typecheck with raised Node heap; local Supabase via `scripts/agent-supabase-up.sh`.
