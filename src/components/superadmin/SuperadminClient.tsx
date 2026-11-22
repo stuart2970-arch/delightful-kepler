@@ -12,6 +12,7 @@ import SuperAdminGdprView from './SuperAdminGdprView';
 import ConnectedAccountsView from './ConnectedAccountsView';
 import SuperAdminWhatsAppView from './SuperAdminWhatsAppView';
 import SystemEmailsView from './SystemEmailsView';
+import SystemEmailDataProtectionView from './SystemEmailDataProtectionView';
 import IncludeOnAccountView from './IncludeOnAccountView';
 
 
@@ -221,7 +222,7 @@ export default function SuperadminClient({
   const [newHoliday, setNewHoliday] = useState({ countries: ['UK'], date: new Date().toISOString().split('T')[0], name: '' });
   const [isSavingHoliday, setIsSavingHoliday] = useState(false);
 
-  const [activeTab, setActiveTab] = useState<'overview' | 'pricing' | 'holidays' | 'settings' | 'voices' | 'gateways' | 'flobot' | 'gdpr' | 'accounts' | 'whatsapp' | 'emails'>('overview');
+  const [activeTab, setActiveTab] = useState<'overview' | 'pricing' | 'holidays' | 'settings' | 'voices' | 'gateways' | 'flobot' | 'gdpr' | 'accounts' | 'whatsapp' | 'emails' | 'protection'>('overview');
   const [pricingSubTab, setPricingSubTab] = useState<'sliding' | 'tiers' | 'include'>('sliding');
 
   const [globalBrandingHtml, setGlobalBrandingHtml] = useState(initialGlobalBrandingHtml || '<span style="opacity: 0.6; font-size: 11px;">⚡ Powered by <strong>StyleFlo</strong></span>');
@@ -475,7 +476,20 @@ export default function SuperadminClient({
         >
           System emails
         </button>
+        <button
+          type="button"
+          onClick={() => setActiveTab('protection')}
+          className={`flex-1 py-2.5 text-sm font-medium rounded-lg transition-colors ${activeTab === 'protection' ? 'bg-indigo-600 text-white shadow' : 'text-gray-400 hover:text-white hover:bg-gray-800'}`}
+        >
+          Data protection
+        </button>
       </div>
+
+      {activeTab === 'protection' && (
+        <div className="mt-6">
+          <SystemEmailDataProtectionView />
+        </div>
+      )}
 
       {activeTab === 'emails' && (
         <div className="mt-6">
