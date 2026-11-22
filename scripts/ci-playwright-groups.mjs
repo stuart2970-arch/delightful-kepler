@@ -89,6 +89,7 @@ export const CI_PLAYWRIGHT_GROUPS = [
       /tests\/styl-312-legacy-voice-cap\.spec\.ts$/,
       /tests\/styl-261-webhook-cancel-race\.spec\.ts$/,
       /tests\/styl-279-stripe-webhook-event-idempotency\.spec\.ts$/,
+      /tests\/styl-274-failed-payment-state\.spec\.ts$/,
       /tests\/styl-385-credit-grant-idempotency\.spec\.ts$/,
       /tests\/styl-226-addon-subscription-status\.spec\.ts$/,
       /tests\/styl-226-stripe-webhook-signature\.spec\.ts$/,

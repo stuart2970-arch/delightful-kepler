@@ -343,7 +343,7 @@ test.describe('Billing checkout source audits (no live services)', () => {
     expect(upsell).not.toMatch(/addonCatalogId,\s*tenantId/);
   });
 
-  test('every /api/billing/* POST handler uses requireTenantRole or withSuperAdmin and does not take tenantId from the body', () => {
+  test('every /api/billing/* POST handler is gated and does not take tenantId from the body', () => {
     const billingDir = path.resolve(__dirname, '../src/app/api/billing');
     const routes: string[] = [];
     const walk = (dir: string) => {
@@ -362,7 +362,9 @@ test.describe('Billing checkout source audits (no live services)', () => {
     for (const file of postRoutes) {
       const src = fs.readFileSync(file, 'utf8');
       const rel = path.relative(process.cwd(), file);
-      const gated = src.includes('requireTenantRole') || src.includes('withSuperAdmin');
+      const gated = src.includes('requireTenantRole')
+        || src.includes('withSuperAdmin')
+        || src.includes('isFailedPaymentSweepAuthorized');
       expect(gated, `${rel} POST is not gated`).toBe(true);
       expect(src, rel).not.toMatch(/const\s*\{[^}]*\btenantId\b[^}]*\}\s*=\s*body/);
       expect(src, rel).not.toMatch(/tenantId\s*=\s*body\.tenantId/);
