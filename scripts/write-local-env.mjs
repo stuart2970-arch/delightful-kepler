@@ -84,6 +84,8 @@ function buildEnvFile({ apiUrl, anon, service, appUrl, appEnv, playwright }) {
           'VOICE_ENABLED=false',
         ]),
     'VAPI_WEBHOOK_SECRET=test-vapi-webhook-secret',
+    'RWG_BOOKING_SERVER_USERNAME=styleflo-rwg-test',
+    'RWG_BOOKING_SERVER_PASSWORD=styleflo-rwg-test-password',
     'STRIPE_WEBHOOK_SECRET=whsec_test_local_mock_secret',
     'TWILIO_ACCOUNT_SID=ACmocktwilioaccountsid000000000000',
     'TWILIO_AUTH_TOKEN=mock_twilio_auth_token',

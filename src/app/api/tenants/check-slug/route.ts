@@ -1,5 +1,8 @@
 import { NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
+import { assessName, type NameOverride } from '@/lib/moderation/assess-name';
+import { loadNameOverrides } from '@/lib/moderation/assess-stored-name';
+import { NAME_POLICY_MESSAGES } from '@/lib/moderation/messages';
 
 export const dynamic = 'force-dynamic';
 
@@ -35,12 +38,44 @@ export async function GET(request: Request) {
       });
     }
 
-    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.SUPABASE_URL!;
-    const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
-    const dbClient = createClient(supabaseUrl, anonKey);
+    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.SUPABASE_URL;
+    const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+    if (!supabaseUrl || !serviceRoleKey) {
+      return NextResponse.json({ error: 'Name check is unavailable.' }, { status: 503 });
+    }
+    const reader = createClient(supabaseUrl, serviceRoleKey, {
+      auth: { persistSession: false, autoRefreshToken: false },
+    });
+    const overrides: NameOverride[] = await loadNameOverrides(reader);
+    const slugUrl = `${process.env.NEXT_PUBLIC_APP_URL || 'https://styleflo.ai'}/business/${baseSlug}`;
+    if (baseSlug.length < 3) {
+      const shortDecision = assessName(baseSlug, 'slug', overrides);
+      if (shortDecision.action !== 'reserved') {
+        return NextResponse.json({
+          available: false,
+          slug: baseSlug,
+          url: slugUrl,
+          suggestions: [],
+          code: 'tooShort',
+          message: NAME_POLICY_MESSAGES.tooShort,
+        }, { status: 400 });
+      }
+    }
+    const nameDecision = assessName(baseSlug, 'slug', overrides);
+
+    if (nameDecision.action === 'reserved' || nameDecision.action === 'block' || nameDecision.action === 'emoji' || nameDecision.action === 'tooShort') {
+      return NextResponse.json({
+        available: false,
+        slug: baseSlug,
+        url: slugUrl,
+        suggestions: [],
+        code: nameDecision.action,
+        message: nameDecision.message,
+      }, { status: nameDecision.action === 'tooShort' ? 400 : 200 });
+    }
 
     // Fetch matching existing slugs
-    const { data: existingTenants, error } = await dbClient
+    const { data: existingTenants, error } = await reader
       .from('tenants')
       .select('slug')
       .ilike('slug', `${baseSlug}%`);
@@ -67,7 +102,9 @@ export async function GET(request: Request) {
       ];
 
       for (const candidate of candidates) {
-        if (!existingSlugs.has(candidate) && suggestions.length < 3) {
+        const candidateDecision = assessName(candidate, 'slug', overrides);
+        const candidateAllowed = candidateDecision.action === 'allow' || candidateDecision.action === 'review';
+        if (!existingSlugs.has(candidate) && candidateAllowed && suggestions.length < 3) {
           suggestions.push(candidate);
         }
       }
@@ -78,9 +115,14 @@ export async function GET(request: Request) {
       slug: baseSlug,
       url: `${baseUrl}/business/${baseSlug}`,
       suggestions,
+      code: nameDecision.action === 'allow' ? undefined : nameDecision.action,
+      message: nameDecision.action === 'allow' ? undefined : nameDecision.message,
     });
   } catch (err: any) {
     console.error('[check-slug API] Unexpected error:', err);
+    if (err?.message === 'Name check is unavailable.') {
+      return NextResponse.json({ error: 'Name check is unavailable.' }, { status: 503 });
+    }
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }

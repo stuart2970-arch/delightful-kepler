@@ -50,6 +50,7 @@ export async function POST(req: NextRequest) {
         company_name: result.cleanName,
         wordpressPublished: false,
         error: result.disabledReason,
+        nameReview: result.nameReview ?? null,
       }, { status: 200 });
     }
 

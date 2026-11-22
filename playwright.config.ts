@@ -44,6 +44,8 @@ export default defineConfig({
       STRIPE_PORTAL_CONFIG_ADMIN: process.env.STRIPE_PORTAL_CONFIG_ADMIN || 'bpc_test_admin',
       STRIPE_SECRET_KEY: process.env.STRIPE_SECRET_KEY || 'sk_test_mock',
       CRON_SECRET: process.env.CRON_SECRET || 'mock_cron_secret_for_local_testing',
+      RWG_BOOKING_SERVER_USERNAME: process.env.RWG_BOOKING_SERVER_USERNAME || 'styleflo-rwg-test',
+      RWG_BOOKING_SERVER_PASSWORD: process.env.RWG_BOOKING_SERVER_PASSWORD || 'styleflo-rwg-test-password',
     },
   },
 });

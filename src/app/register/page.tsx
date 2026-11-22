@@ -7,6 +7,7 @@ import { trackSignUp, trackVisitorNotSignedUp, trackLeadIntent } from '@/lib/ana
 import { getSupabaseBrowserClient } from '@/lib/supabase-browser';
 import { getBrowserTurnstileToken } from '@/lib/turnstile-client';
 import { publicAppPath } from '@/lib/env/public-app-url';
+import { checkSignupNames, hardNameRejection, reviewNameMessage } from '@/lib/moderation/messages';
 
 function RegisterContent() {
   const router = useRouter();
@@ -90,12 +91,15 @@ function RegisterContent() {
   const [magicLinkSent, setMagicLinkSent] = useState(false);
 
   const [customSlug, setCustomSlug] = useState('');
+  const [nameNotice, setNameNotice] = useState<string | null>(null);
   const [slugStatus, setSlugStatus] = useState<{
     checking: boolean;
     available: boolean;
     slug: string;
     url: string;
     suggestions: string[];
+    message: string | null;
+    code: string | null;
   } | null>(null);
 
   useEffect(() => {
@@ -110,21 +114,27 @@ function RegisterContent() {
       available: prev?.available ?? true,
       slug: prev?.slug ?? '',
       url: prev?.url ?? '',
-      suggestions: prev?.suggestions ?? []
+      suggestions: prev?.suggestions ?? [],
+      message: prev?.message ?? null,
+      code: prev?.code ?? null,
     }));
 
     const timer = setTimeout(async () => {
       try {
         const res = await fetch(`/api/tenants/check-slug?name=${encodeURIComponent(nameToCheck)}`);
-        if (res.ok) {
-          const data = await res.json();
+        const data = await res.json().catch(() => ({}));
+        if (res.ok || typeof data?.message === 'string') {
           setSlugStatus({
             checking: false,
-            available: data.available,
-            slug: data.slug,
-            url: data.url,
+            available: data.available === true,
+            slug: data.slug || '',
+            url: data.url || '',
             suggestions: data.suggestions || [],
+            message: typeof data.message === 'string' ? data.message : null,
+            code: typeof data.code === 'string' ? data.code : null,
           });
+        } else {
+          setSlugStatus((prev) => (prev ? { ...prev, checking: false } : null));
         }
       } catch (e) {
         console.error('Slug check failed', e);
@@ -242,16 +252,31 @@ function RegisterContent() {
     }
     setLoading(true);
     setError(null);
+    setNameNotice(null);
     setSuccessMessage(null);
     setDuplicateEmailDetected(false);
     setMagicLinkSent(false);
 
     try {
       if (slugStatus && !slugStatus.available) {
-        throw new Error(`The URL slug "${slugStatus.slug}" is already registered by another business. Please pick one of the available suggestions below.`);
+        throw new Error(slugStatus.message || `The URL slug "${slugStatus.slug}" is already registered by another business. Please pick one of the available suggestions below.`);
       }
 
       const finalSlug = slugStatus?.slug || companyName.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
+
+      const nameResults = await checkSignupNames({
+        ownerName: fullName,
+        salonName: companyName,
+        slug: finalSlug,
+      });
+      const rejectedName = hardNameRejection(nameResults);
+      if (rejectedName) {
+        setError(rejectedName);
+        setLoading(false);
+        return;
+      }
+      const reviewNotice = reviewNameMessage(nameResults);
+      if (reviewNotice) setNameNotice(reviewNotice);
 
       const redirectUrl = publicAppPath('/auth/callback?next=/dashboard');
 
@@ -360,8 +385,14 @@ function RegisterContent() {
         </div>
 
         {error && (
-          <div className="mb-6 p-4 bg-rose-50 border border-rose-200 text-rose-800 rounded-xl text-xs font-medium leading-relaxed">
+          <div role="alert" className="mb-6 p-4 bg-rose-50 border border-rose-200 text-rose-800 rounded-xl text-xs font-medium leading-relaxed">
             {error}
+          </div>
+        )}
+
+        {nameNotice && (
+          <div role="status" className="mb-6 p-4 bg-amber-50 border border-amber-200 text-amber-900 rounded-xl text-xs font-medium leading-relaxed">
+            {nameNotice}
           </div>
         )}
 
@@ -538,10 +569,13 @@ function RegisterContent() {
                     </span>
                   ) : (
                     <span className="inline-flex items-center gap-1 text-[10px] bg-rose-100 text-rose-800 px-2 py-0.5 rounded-full font-sans font-bold">
-                      ✕ Already Taken
+                      {slugStatus.code === 'reserved' || slugStatus.code === 'block' || slugStatus.code === 'emoji' || slugStatus.code === 'tooShort' ? '✕ Not available' : '✕ Already Taken'}
                     </span>
                   )}
                 </div>
+                {!slugStatus.checking && slugStatus.message && (
+                  <p role="alert" className="mt-2 font-sans">{slugStatus.message}</p>
+                )}
 
                 {/* Suggestions list when URL is taken */}
                 {!slugStatus.checking && !slugStatus.available && slugStatus.suggestions.length > 0 && (

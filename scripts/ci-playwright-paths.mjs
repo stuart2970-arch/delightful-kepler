@@ -13,17 +13,22 @@ import {
 } from './ci-playwright-groups.mjs';
 
 /**
+ * Glob match for staging Playwright area paths.
+ * A double-star between slashes matches zero or more directories, so a file
+ * directly under the prefix is selected as well as files in subfolders.
  * @param {string} file
  * @param {string} pattern
  */
-function globMatch(file, pattern) {
+export function globMatch(file, pattern) {
   const re = pattern
     .replace(/\\/g, '/')
     .replace(/[.+^${}()|[\]\\]/g, '\\$&')
+    .replace(/\/\*\*\//g, '§SLASHGLOB§')
     .replace(/\*\*/g, '§GLOBSTAR§')
     .replace(/\*/g, '[^/]*')
+    .replace(/\?/g, '.')
     .replace(/§GLOBSTAR§/g, '.*')
-    .replace(/\?/g, '.');
+    .replace(/§SLASHGLOB§/g, '/(?:[^/]+/)*');
   return new RegExp(`^${re}$`).test(file.replace(/\\/g, '/'));
 }
 

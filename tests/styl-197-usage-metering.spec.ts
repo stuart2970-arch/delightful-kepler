@@ -183,7 +183,7 @@ test.describe('STYL-197 usage metering and allowances', () => {
         balance: { allocated: 0, consumed: 100 },
         catalogLimit: null,
       }),
-    ).toMatchObject({ allowed: true, reason: 'fail_open' });
+    ).toMatchObject({ allowed: false, reason: 'at_allowance', blockedForAllowance: true, allowanceMinutes: 0 });
 
     expect(
       decideVoiceMinuteGate({ balance: null, catalogLimit: 10 }),

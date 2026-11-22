@@ -4,7 +4,7 @@ import { createClient } from '@supabase/supabase-js';
 import { cookies } from 'next/headers';
 import DashboardClient from '@/components/DashboardClient';
 import { redirect } from 'next/navigation';
-import { getTenantChannelFlags, isVoiceConsumptionFeature, sumVoiceConsumption, VOICE_CONSUMPTION_FEATURE_IDS } from '@/lib/entitlements';
+import { customerFeatureLabel, getTenantChannelFlags, isVoiceConsumptionFeature, sumVoiceConsumption, VOICE_CONSUMPTION_FEATURE_IDS } from '@/lib/entitlements';
 import { usageAlertLevel } from '@/lib/usage-alerts';
 import { resolveVoiceAllowance } from '@/lib/telephony/voice-minute-gate';
 import { applyPublicAddonFilter } from '@/lib/addons/public-catalogue';
@@ -12,6 +12,7 @@ import { buildAccountOwnership } from '@/lib/billing/account-ownership';
 import { knowledgeItemsTotal } from '@/lib/billing/bolt-on';
 import type { CatalogAddon, InclusionRecord, PurchaseRecord } from '@/lib/billing/account-ownership';
 import { TENANT_PROFILE_SELECT, salonNameFromTenant } from '@/lib/tenant-profile';
+import { STAFF_PUBLIC_COLUMNS } from '@/lib/staff/public-columns';
 import {
   isPostgresMissingColumnError,
   missingPostgresColumnName,
@@ -357,7 +358,7 @@ export default async function DashboardPage(props: { searchParams?: Promise<{ [k
       const { data: srvs } = await queryClient.from('services').select('*, staff_services(*)').eq(queryFilter.key, queryFilter.value).order('created_at', { ascending: false });
       services = srvs || [];
 
-      const { data: stff } = await queryClient.from('staff').select('*').eq(queryFilter.key, queryFilter.value).order('created_at', { ascending: false });
+      const { data: stff } = await queryClient.from('staff').select(STAFF_PUBLIC_COLUMNS).eq(queryFilter.key, queryFilter.value).order('created_at', { ascending: false });
       staff = stff || [];
 
       const { data: appts } = await queryClient.from('appointments').select('*').eq(queryFilter.key, queryFilter.value).order('created_at', { ascending: false });
@@ -673,7 +674,7 @@ export default async function DashboardPage(props: { searchParams?: Promise<{ [k
           if (ent.feature_id === 'message_allowance') {
             thresholds.push({
               featureId: ent.feature_id,
-              featureName: ent.features?.name || 'Monthly Chat Conversations',
+              featureName: customerFeatureLabel(ent.feature_id, ent.features?.name) || 'Monthly Chat Conversations',
               percentUsed,
               currentUsage,
               limit,
@@ -694,7 +695,7 @@ export default async function DashboardPage(props: { searchParams?: Promise<{ [k
 
             thresholds.push({
               featureId: ent.feature_id,
-              featureName: ent.features?.name || ent.feature_id,
+              featureName: customerFeatureLabel(ent.feature_id, ent.features?.name) || ent.feature_id,
               percentUsed,
               currentUsage,
               limit,

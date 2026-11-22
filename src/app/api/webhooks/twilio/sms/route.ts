@@ -317,7 +317,7 @@ STAFF / TEAM MEMBERS:
 ${staffText || 'No specific staff table entries.'}
 
 ADDITIONAL KNOWLEDGE BASE CONTENT:
-${docChunksText || 'No additional file chunks.'}
+${docChunksText || 'No additional knowledge items.'}
 `.trim();
 
     // Load Last 10 conversation messages for historical context

@@ -26,6 +26,7 @@
   "dependencies": {
     "@ai-sdk/google": "^3.0.82",
     "@ai-sdk/openai": "^3.0.71",
+    "@dsojevic/profanity-list": "^1.0.0",
     "@google/genai": "^2.8.0",
     "@langchain/textsplitters": "^1.0.1",
     "@supabase/auth-ui-react": "^0.4.7",
@@ -33,6 +34,10 @@
     "@supabase/ssr": "^0.12.0",
     "@supabase/supabase-js": "^2.108.2",
     "@tailwindcss/postcss": "^4",
+    "@types/node": "^20",
+    "@types/pdf-parse": "^1.1.5",
+    "@types/react": "^19",
+    "@types/react-dom": "^19",
     "@vapi-ai/web": "^2.6.1",
     "ai": "^6.0.206",
     "cheerio": "^1.2.0",
@@ -42,6 +47,7 @@
     "jwt-decode": "^4.0.0",
     "mailgun.js": "^13.2.0",
     "next": "^16.3.5",
+    "obscenity": "^0.4.6",
     "openai": "^6.42.0",
     "pdf-parse": "^2.4.5",
     "react": "19.2.4",
@@ -51,11 +57,7 @@
     "twilio": "^6.0.2",
     "typescript": "^5",
     "zod": "^4.4.3",
-    "zustand": "^5.0.14",
-    "@types/node": "^20",
-    "@types/pdf-parse": "^1.1.5",
-    "@types/react": "^19",
-    "@types/react-dom": "^19"
+    "zustand": "^5.0.14"
   },
   "devDependencies": {
     "@playwright/test": "^1.62.0",

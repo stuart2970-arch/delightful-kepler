@@ -5,8 +5,9 @@ import {
   loadPurchasedPackVoiceAllocationInLedger,
   loadRolloverBalance,
 } from '@/lib/entitlements';
+import { resolveEntitlementCatalogTierId } from '@/lib/billing/plan-tier-catalog';
+import { resolveVoiceCatalogLimit } from '@/lib/billing/voice-catalog-limit';
 import {
-  catalogLimitFromRow,
   decideVoiceMinuteGate,
   buildVoiceMinuteGateBalance,
   resolveVoiceAllowance,
@@ -36,10 +37,11 @@ function defaultSources(supabase: SupabaseClient): TenantVoiceMinuteSources {
       };
     },
     loadCatalog: async (planTier) => {
+      const catalogTierId = resolveEntitlementCatalogTierId(planTier);
       const { data, error } = await supabase
         .from('tier_entitlements')
         .select('limit_value')
-        .eq('tier_id', planTier)
+        .eq('tier_id', catalogTierId)
         .eq('feature_id', 'voice_minutes')
         .maybeSingle();
       return { row: data, error };
@@ -90,7 +92,11 @@ export async function evaluateTenantVoiceMinuteGate(
       entitlementRead.error.message,
     );
   }
-  const catalogLimit: CatalogLimit = catalogLimitFromRow(entitlementRead.row ?? null, Boolean(entitlementRead.error));
+  const catalogLimit: CatalogLimit = resolveVoiceCatalogLimit({
+    row: entitlementRead.row ?? null,
+    lookupFailed: Boolean(entitlementRead.error),
+    planTier,
+  });
 
   let periodError: string | null = null;
   let currentPeriodConsumed = balanceRead.consumed;

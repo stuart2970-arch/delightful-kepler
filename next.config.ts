@@ -1,4 +1,4 @@
-import type { NextConfig } from "next";
+import { deterministicCiFontsEnabled } from "./src/lib/fonts/ci-font-mode";
 
 const isStaging =
   (process.env.APP_ENV || process.env.NEXT_PUBLIC_ENV || "")
@@ -31,7 +31,18 @@ const nextConfig: any = {
   // config keeps App Hosting on Turbopack, which is what previously shipped.
   // The Firebase adapter spreads this object and only sets images.unoptimized,
   // so this key is still present when that overlay runs.
-  turbopack: {},
+  // STYL-408: Playwright / non-production CI dev servers alias the font barrel
+  // to a stub that does not import next/font/google. Production builds
+  // (NODE_ENV=production) keep turbopack: {} and the real Google fonts.
+  turbopack: deterministicCiFontsEnabled()
+    ? {
+        resolveAlias: {
+          "@/lib/fonts": "./src/lib/fonts/ci-font-entry.ts",
+          "@/lib/fonts/index": "./src/lib/fonts/ci-font-entry.ts",
+          "@/lib/fonts/index.ts": "./src/lib/fonts/ci-font-entry.ts",
+        },
+      }
+    : {},
   webpack: (config: { devtool?: false | string; cache?: false | object }, { dev }: { dev: boolean }) => {
     if (dev && playwrightServer) {
       config.devtool = false;

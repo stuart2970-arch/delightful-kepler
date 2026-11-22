@@ -9,6 +9,14 @@ import { billingCorsHeaders } from '@/lib/billing/app-origin-cors';
 import { portalEnvFromRequest, resolvePortalConfigurationId } from '@/lib/billing/portal-config';
 import { publicAppPath, safePublicReturnUrl } from '@/lib/env/public-app-url';
 import {
+  applyStripeCheckoutInvoicePresentation,
+  buildStripeCustomerInvoiceSettings,
+} from '@/lib/billing/stripe-invoice-presentation';
+import {
+  attachGuestSubscriptionCustomerByEmail,
+  ensureTenantStripeCustomerForSubscription,
+} from '@/lib/billing/stripe-tenant-customer';
+import {
   billingCheckoutRateLimit,
   billingClientIp,
   billingPortalRateLimit,
@@ -80,6 +88,53 @@ function planCheckoutCancelUrl(returnUrl: string | undefined | null): string {
 
 function isPlaywrightStripeMock(apiKey: string): boolean {
   return process.env.PLAYWRIGHT_TEST === 'true' && apiKey === 'sk_test_mock';
+}
+
+function withCheckoutInvoicePresentation(
+  sessionParams: Stripe.Checkout.SessionCreateParams,
+): Stripe.Checkout.SessionCreateParams {
+  applyStripeCheckoutInvoicePresentation(sessionParams);
+  return sessionParams;
+}
+
+type SubscriptionCheckoutCustomerHints = {
+  tenantId?: string;
+  customerId?: string | null;
+  email?: string | null;
+};
+
+async function prepareSubscriptionCheckoutCustomer(
+  stripe: Stripe,
+  apiKey: string,
+  supabase: ReturnType<typeof getSupabase>,
+  sessionParams: Stripe.Checkout.SessionCreateParams,
+  hints: SubscriptionCheckoutCustomerHints,
+): Promise<void> {
+  if (sessionParams.mode !== 'subscription' || isPlaywrightStripeMock(apiKey)) {
+    return;
+  }
+  const email =
+    hints.email ||
+    (typeof sessionParams.customer_email === 'string' ? sessionParams.customer_email : undefined);
+
+  let customerId: string | undefined;
+  if (hints.tenantId) {
+    customerId = await ensureTenantStripeCustomerForSubscription(stripe, supabase, {
+      tenantId: hints.tenantId,
+      stripeCustomerId:
+        hints.customerId ||
+        (typeof sessionParams.customer === 'string' ? sessionParams.customer : undefined),
+      email,
+    });
+  } else {
+    await attachGuestSubscriptionCustomerByEmail(stripe, sessionParams, email);
+    return;
+  }
+
+  if (customerId) {
+    sessionParams.customer = customerId;
+    delete sessionParams.customer_email;
+  }
 }
 
 export async function OPTIONS(req: Request) {
@@ -204,7 +259,7 @@ export async function GET(req: Request) {
     const targetSuccessUrl = safePublicReturnUrl(returnUrl, defaultConfirmedUrl);
     const targetCancelUrl = planCheckoutCancelUrl(returnUrl);
 
-    const session = await stripe.checkout.sessions.create({
+    const getSessionParams: Stripe.Checkout.SessionCreateParams = {
       mode: 'subscription',
       payment_method_types: ['card'],
       customer_email: customerEmail || undefined,
@@ -215,7 +270,13 @@ export async function GET(req: Request) {
       metadata: sessionMetadata,
       success_url: appendQueryParams(targetSuccessUrl, 'checkout_status=success&session_id={CHECKOUT_SESSION_ID}'),
       cancel_url: appendQueryParams(targetCancelUrl, 'checkout_status=cancelled'),
+    };
+    withCheckoutInvoicePresentation(getSessionParams);
+    await prepareSubscriptionCheckoutCustomer(stripe, apiKey, supabase, getSessionParams, {
+      email: customerEmail || undefined,
     });
+
+    const session = await stripe.checkout.sessions.create(getSessionParams);
 
     return NextResponse.redirect(session.url || '/dashboard', 303);
   } catch (err: any) {
@@ -489,6 +550,15 @@ export async function POST(req: Request) {
       }
 
       // The local suite uses a placeholder key. A real Stripe test key still creates a live session.
+      withCheckoutInvoicePresentation(sessionConfig);
+      await prepareSubscriptionCheckoutCustomer(stripe, apiKey, supabase, sessionConfig, {
+        tenantId,
+        customerId: tenant?.stripe_customer_id,
+        email:
+          sessionConfig.customer_email ||
+          (typeof customerEmail === 'string' ? customerEmail : undefined),
+      });
+
       if (isPlaywrightStripeMock(apiKey)) {
         return NextResponse.json({
           url: 'https://checkout.stripe.com/c/pay/cs_test_mock',
@@ -498,6 +568,8 @@ export async function POST(req: Request) {
           cancel_url: sessionConfig.cancel_url,
           metadata: sessionConfig.metadata,
           subscription_data: sessionConfig.subscription_data,
+          invoice_creation: sessionConfig.invoice_creation,
+          customer_invoice_settings: buildStripeCustomerInvoiceSettings(),
         }, { headers: corsHeaders(req) });
       }
 
@@ -651,6 +723,19 @@ export async function POST(req: Request) {
         cancel_url: appendQueryParams(targetCancelUrl, 'checkout_status=cancelled'),
       };
 
+      const { data: billingTenant } = await supabase
+        .from('tenants')
+        .select('stripe_customer_id')
+        .eq('id', tenantId)
+        .maybeSingle();
+
+      withCheckoutInvoicePresentation(sessionParams);
+      await prepareSubscriptionCheckoutCustomer(stripe, apiKey, supabase, sessionParams, {
+        tenantId,
+        customerId: billingTenant?.stripe_customer_id,
+        email: customerEmail || undefined,
+      });
+
       if (isPlaywrightStripeMock(apiKey)) {
         return NextResponse.json({
           url: 'https://checkout.stripe.com/c/pay/cs_test_mock',
@@ -659,6 +744,8 @@ export async function POST(req: Request) {
           cancel_url: sessionParams.cancel_url,
           metadata: sessionParams.metadata,
           subscription_data: sessionParams.subscription_data,
+          invoice_creation: sessionParams.invoice_creation,
+          customer_invoice_settings: buildStripeCustomerInvoiceSettings(),
         }, { headers: corsHeaders(req) });
       }
 
