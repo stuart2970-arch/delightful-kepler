@@ -37,19 +37,15 @@ export async function GET(request: Request) {
       });
     }
 
-    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.SUPABASE_URL!;
-    const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
+    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.SUPABASE_URL;
     const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
-    const anonClient = createClient(supabaseUrl, anonKey);
-    const reader = serviceRoleKey
-      ? createClient(supabaseUrl, serviceRoleKey, {
-        auth: { persistSession: false, autoRefreshToken: false },
-      })
-      : anonClient;
-    let overrides: NameOverride[] = [];
-    if (serviceRoleKey) {
-      overrides = await loadNameOverrides(reader);
+    if (!supabaseUrl || !serviceRoleKey) {
+      return NextResponse.json({ error: 'Name check is unavailable.' }, { status: 503 });
     }
+    const reader = createClient(supabaseUrl, serviceRoleKey, {
+      auth: { persistSession: false, autoRefreshToken: false },
+    });
+    const overrides: NameOverride[] = await loadNameOverrides(reader);
     const nameDecision = assessName(baseSlug, 'slug', overrides);
 
     if (nameDecision.action === 'reserved' || nameDecision.action === 'block' || nameDecision.action === 'emoji') {

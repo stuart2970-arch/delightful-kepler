@@ -144,6 +144,7 @@ export default function ChatbotManagerView() {
     e.preventDefault();
     if (!newBotName.trim()) return;
 
+    setNamePolicyMessage(null);
     setIsCreatingBot(true);
     let successfullySaved = false;
     const newId = crypto.randomUUID();
@@ -236,6 +237,7 @@ export default function ChatbotManagerView() {
     e.preventDefault();
     if (!editingBotId || !newBotName.trim()) return;
 
+    setNamePolicyMessage(null);
     setIsCreatingBot(true);
     let successfullySaved = false;
 

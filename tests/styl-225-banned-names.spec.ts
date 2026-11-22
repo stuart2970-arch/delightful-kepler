@@ -1,4 +1,6 @@
 import { test, expect } from '@playwright/test'
+import { readFileSync } from 'node:fs'
+import { join } from 'node:path'
 import { createClient, type SupabaseClient } from '@supabase/supabase-js'
 import path from 'path'
 import dotenv from 'dotenv'
@@ -32,6 +34,15 @@ test.describe('STYL-225 banned words and reserved names', () => {
   test.beforeAll(() => {
     expect(serviceRoleKey, 'local service role key').not.toEqual('')
     expect(supabaseUrl).not.toContain('tkoasyjvrgaglofpzduq')
+  })
+
+  test('check-slug fails closed when the service role key is missing', () => {
+    const source = readFileSync(join(process.cwd(), 'src/app/api/tenants/check-slug/route.ts'), 'utf8')
+    expect(source).toContain('if (!supabaseUrl || !serviceRoleKey)')
+    expect(source).toContain("error: 'Name check is unavailable.'")
+    expect(source).toContain('status: 503')
+    expect(source).not.toContain('anonClient')
+    expect(source).not.toContain('NEXT_PUBLIC_SUPABASE_ANON_KEY')
   })
 
   test('reserved slugs admin and StyleFlo return the reserved message for every casing', async ({ request }) => {
@@ -331,7 +342,7 @@ test.describe('STYL-225 banned words and reserved names', () => {
   })
 
   test('a saved review-tier persona keeps the review message on screen', async ({ page }) => {
-    test.setTimeout(60000)
+    test.setTimeout(90000)
     const admin = adminClient()
     const email = `persona-review-${suffix()}@test.styleflo.ai`
     const slug = `persona-review-${suffix()}`
@@ -374,6 +385,13 @@ test.describe('STYL-225 banned words and reserved names', () => {
       await expect(review).toBeVisible()
       await expect(page.getByRole('heading', { name: 'Create New Chatbot' })).toHaveCount(0)
       await expect(page.getByRole('heading', { name: 'Bloody', level: 4 })).toBeVisible()
+      await page.getByRole('button', { name: 'Edit Agent' }).click()
+      await page.getByPlaceholder('e.g. FloChat Assistant').fill('Emma')
+      await page.getByRole('button', { name: '2 Persona' }).click()
+      await page.getByLabel('Agent Display Name').fill('Emma')
+      await page.getByRole('button', { name: 'Save Changes' }).click()
+      await expect(page.getByRole('heading', { name: 'Emma', level: 4 })).toBeVisible()
+      await expect(page.getByText('We need to check this name quickly')).toHaveCount(0)
     } finally {
       if (tenant?.id) {
         await admin.from('chatbots').delete().eq('tenant_id', tenant.id)
