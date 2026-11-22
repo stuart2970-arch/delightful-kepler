@@ -49,13 +49,19 @@ test.describe('STYL-356 pre-push selects related specs only', () => {
     ]);
   });
 
-  test('CI still runs the full Playwright suite on every pull request', () => {
+  test('CI runs Playwright by area with staging path filters and full suite on main', () => {
     const workflow = readFileSync(join(process.cwd(), '.github/workflows/playwright.yml'), 'utf8');
+    const pathMap = readFileSync(join(process.cwd(), '.github/playwright-area-paths.json'), 'utf8');
     expect(workflow).toMatch(/pull_request:/);
     expect(workflow).toContain('- main');
     expect(workflow).toContain('- staging');
-    expect(workflow).toMatch(/run:\s*npm run test:e2e\s*$/m);
-    expect(workflow).not.toMatch(/run:\s*npm run test:e2e --/);
+    expect(workflow).toContain('ci-playwright-groups.mjs validate');
+    expect(workflow).toContain('ci-playwright-paths.mjs');
+    expect(workflow).toContain('PLAYWRIGHT_CI_FORCE_ALL');
+    expect(workflow).toMatch(/list-files/);
+    expect(workflow).not.toMatch(/--shard=/);
+    expect(pathMap).toContain('"shared"');
+    expect(pathMap).toContain('booking-calendar');
     const hook = readFileSync(join(process.cwd(), '.husky/pre-push'), 'utf8');
     expect(hook).toContain('npx eslint');
     expect(hook).toContain('npm run typecheck');

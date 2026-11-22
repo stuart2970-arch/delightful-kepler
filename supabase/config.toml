@@ -198,7 +198,7 @@ password_requirements = ""
 [auth.rate_limit]
 # Number of emails that can be sent per hour. Requires auth.email.smtp to be enabled.
 # Local mailbox only. Hosted Auth rate limits are unchanged.
-email_sent = 30
+email_sent = 10000
 # Number of SMS messages that can be sent per hour. Requires auth.sms to be enabled.
 sms_sent = 30
 # Number of anonymous sign-ins that can be made per hour per IP address. Requires enable_anonymous_sign_ins = true.
