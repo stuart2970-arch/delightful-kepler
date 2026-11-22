@@ -48,8 +48,6 @@ export default function SystemEmailsView() {
   const [isPreviewing, setIsPreviewing] = useState(false)
 
   const loadLog = useCallback(async () => {
-    setIsLoading(true)
-    setErrorMessage(null)
     try {
       const response = await fetch('/api/superadmin/system-emails', { cache: 'no-store' })
       const body = await response.json().catch(() => ({}))
@@ -58,6 +56,7 @@ export default function SystemEmailsView() {
       }
       setEmails(Array.isArray(body.emails) ? body.emails : [])
       setTemplates(Array.isArray(body.templates) ? body.templates : [])
+      setErrorMessage(null)
     } catch (error) {
       setErrorMessage(error instanceof Error ? error.message : 'Could not load system emails.')
     } finally {
@@ -66,11 +65,14 @@ export default function SystemEmailsView() {
   }, [])
 
   useEffect(() => {
+    // Fetch when the tab mounts. setState happens after the response, as in the other superadmin tabs.
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- server log is not available during render
     void loadLog()
   }, [loadLog])
 
   const handleResend = async (logId: string) => {
     setResendingId(logId)
+    setIsLoading(true)
     setNotice(null)
     setErrorMessage(null)
     try {
