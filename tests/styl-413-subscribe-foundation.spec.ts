@@ -8,6 +8,7 @@ import {
   listStripeCustomerSubscriptions,
   loadFoundationStripePriceIds,
   lookupHasActiveFoundationSubscription,
+  metadataMarksFoundationPlan,
   subscriptionListHasActiveFoundation,
   writePlaywrightFoundationSubscriptionFixture,
   type FoundationSubscriptionSummary,
@@ -103,6 +104,39 @@ test.describe('Foundation subscription matcher', () => {
     expect(subscriptionListHasActiveFoundation([
       foundationSubscription('active', FOUNDATION_PRICE),
     ], [])).toBe(false);
+    expect(subscriptionListHasActiveFoundation([
+      {
+        status: 'active',
+        metadata: { plan: 'foundation', plan_tier: 'base_tier' },
+        items: { data: [{ price: { id: 'price_adhoc_checkout' } }] },
+      },
+    ], [])).toBe(true);
+    expect(subscriptionListHasActiveFoundation([
+      {
+        status: 'active',
+        metadata: { plan_tier: 'base_tier', tenant_id: 'tenant' },
+        items: { data: [{ price: { id: 'price_adhoc_checkout' } }] },
+      },
+    ], [])).toBe(true);
+    expect(subscriptionListHasActiveFoundation([
+      {
+        status: 'canceled',
+        metadata: { plan: 'foundation' },
+        items: { data: [{ price: { id: 'price_adhoc_checkout' } }] },
+      },
+    ], [])).toBe(false);
+    expect(subscriptionListHasActiveFoundation([
+      {
+        status: 'active',
+        metadata: { is_addon: 'true', addon_catalog_id: 'google_calendar_addon' },
+        items: { data: [{ price: { id: 'price_adhoc_addon' } }] },
+      },
+    ], [])).toBe(false);
+    expect(metadataMarksFoundationPlan({
+      plan_tier: 'base_tier',
+      tier: 'base_tier',
+      type: 'subscription',
+    })).toBe(true);
   });
 
   test('lists the customer subscriptions with status all and limit 20', async () => {
@@ -342,6 +376,9 @@ test.describe('STYL-413 Subscribe to Foundation', () => {
     const checkoutBody = await checkout.json();
     expect(checkoutBody.url).toContain('checkout.stripe.com');
     expect(checkoutBody.metadata?.tenant_id).toBe(GLOBEX);
+    expect(checkoutBody.metadata?.plan).toBe('foundation');
+    expect(checkoutBody.subscription_data?.metadata?.plan).toBe('foundation');
+    expect(checkoutBody.subscription_data?.metadata?.plan_tier).toBe('base_tier');
 
     await loginWithPassword(page, email);
     await openBillingTab(page);
@@ -372,6 +409,56 @@ test.describe('STYL-413 Subscribe to Foundation', () => {
     await expect(page.getByTestId('foundation-subscription-state')).toHaveAttribute('data-state', 'unknown');
     await expect(page.getByTestId('subscribe-foundation')).toHaveCount(0);
     expect(pageErrors).toEqual([]);
+  });
+
+  test('a checkout-shaped Foundation subscription hides the button and checkout returns 409', async ({ page, request }) => {
+    const customerId = 'cus_styl413_adhoc';
+    const { error } = await admin.from('tenants').update({ stripe_customer_id: customerId }).eq('id', GLOBEX);
+    expect(error).toBeNull();
+    writePlaywrightFoundationSubscriptionFixture({
+      [customerId]: {
+        subscriptions: [{
+          status: 'active',
+          metadata: {
+            tenant_id: GLOBEX,
+            plan_tier: 'base_tier',
+            plan: 'foundation',
+          },
+          items: {
+            data: [{
+              price: {
+                id: 'price_adhoc_from_checkout',
+                product: 'prod_adhoc_from_checkout',
+              },
+            }],
+          },
+        }],
+      },
+    });
+
+    const account = await request.get('/api/billing/account', {
+      headers: { Authorization: `Bearer ${owner.token}` },
+    });
+    expect(account.status()).toBe(200);
+    expect((await account.json()).hasActiveFoundationSubscription).toBe(true);
+
+    const checkout = await request.post('/api/billing/checkout', {
+      headers: {
+        Authorization: `Bearer ${owner.token}`,
+        'Content-Type': 'application/json',
+      },
+      data: { plan: 'foundation' },
+    });
+    expect(checkout.status()).toBe(409);
+    const checkoutBody = await checkout.json();
+    expect(checkoutBody.code).toBe('foundation_subscription_exists');
+    expect(checkoutBody.url).toBeUndefined();
+
+    await loginWithPassword(page, email);
+    const ui = await openBillingTab(page);
+    expect(ui.hasActiveFoundationSubscription).toBe(true);
+    await expect(page.getByTestId('foundation-subscription-state')).toHaveAttribute('data-state', 'active');
+    await expect(page.getByTestId('subscribe-foundation')).toHaveCount(0);
   });
 
   test('an active subscription on another price still shows the button', async ({ page }) => {

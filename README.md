@@ -148,6 +148,7 @@ This runbook documents the key fixes and architecture enhancements implemented d
 * **Checkout**: `{ plan: 'foundation' }` returns 409 `foundation_subscription_exists` only when the flag is true. The tenant id is the session tenant. Customer creation still uses the `cust-${tenantId}` idempotency key.
 * **Tests**: `tests/styl-413-subscribe-foundation.spec.ts` in the billing Stripe entitlements group. Local Supabase and the Playwright Stripe fixture only.
 * **Left out**: No new Stripe prices, no webhook changes, and the Jira ticket was not moved.
+* **Follow-up**: Checkout builds the Foundation line with `price_data`, so the price id is ad hoc and never equals `subscription_tiers.stripe_price_id`. Detection also matches subscription metadata `plan=foundation` (now written on `subscription_data.metadata`) and the existing `plan_tier=base_tier` marker. A subscription with that shape hides the button and checkout returns 409. Amounts are unchanged.
 
 ### Session (STYL-225 slug minimum and review wording — 22 Nov 2026)
 * **User / Stuart**: Small PR into staging. Replace the review sentence that promised a reply within one working day with "Thanks! We need to check this name. You can carry on setting up, and we'll review it shortly." Web addresses need at least 3 characters. Do not edit already-applied migrations and do not touch production.

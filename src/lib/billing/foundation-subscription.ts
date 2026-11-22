@@ -15,13 +15,20 @@ export const ACTIVE_FOUNDATION_SUBSCRIPTION_STATUSES = ['active', 'trialing', 'p
 
 const ACTIVE_STATUS = new Set<string>(ACTIVE_FOUNDATION_SUBSCRIPTION_STATUSES);
 
+export type FoundationMetadata = Record<string, string | boolean | null | undefined> | null | undefined;
+
 export type FoundationSubscriptionItem = {
-  price?: { id?: string | null } | string | null;
+  price?: {
+    id?: string | null;
+    metadata?: FoundationMetadata;
+    product?: string | { id?: string | null; metadata?: FoundationMetadata } | null;
+  } | string | null;
   plan?: { id?: string | null } | null;
 };
 
 export type FoundationSubscriptionSummary = {
   status?: string | null;
+  metadata?: FoundationMetadata;
   items?: { data?: FoundationSubscriptionItem[] } | null;
 };
 
@@ -62,9 +69,43 @@ export function subscriptionItemPriceId(item: FoundationSubscriptionItem | null 
   return planId || null;
 }
 
+const FOUNDATION_PLAN_TIERS = new Set(['foundation', 'base_tier', 'basic']);
+
+function metadataValue(metadata: FoundationMetadata, key: string): string {
+  const raw = metadata?.[key];
+  return typeof raw === 'string' ? raw.trim().toLowerCase() : '';
+}
+
 /**
- * True when a listed subscription is still billable and one of its items uses
- * a Foundation price id. Product names are ignored.
+ * Checkout creates the Foundation line with price_data, so the price id is new
+ * every time. The stable marker is subscription metadata: plan=foundation,
+ * which checkout writes, and plan_tier=base_tier, which it already wrote.
+ * Product names are ignored. Bolt-on subscriptions set is_addon and are not Foundation.
+ */
+export function metadataMarksFoundationPlan(metadata: FoundationMetadata): boolean {
+  if (!metadata) return false;
+  if (metadataValue(metadata, 'plan') === 'foundation') return true;
+  if (metadata.is_addon === true || metadataValue(metadata, 'is_addon') === 'true') return false;
+  if (FOUNDATION_PLAN_TIERS.has(metadataValue(metadata, 'plan_tier'))) return true;
+  const type = metadataValue(metadata, 'type');
+  const tier = metadataValue(metadata, 'tier');
+  return type === 'subscription' && FOUNDATION_PLAN_TIERS.has(tier);
+}
+
+function itemMarksFoundationPlan(item: FoundationSubscriptionItem, prices: ReadonlySet<string>): boolean {
+  const priceId = subscriptionItemPriceId(item);
+  if (priceId && prices.has(priceId)) return true;
+  const price = item.price;
+  if (!price || typeof price !== 'object') return false;
+  if (metadataMarksFoundationPlan(price.metadata)) return true;
+  const product = price.product;
+  if (product && typeof product === 'object') return metadataMarksFoundationPlan(product.metadata);
+  return false;
+}
+
+/**
+ * True when a listed subscription is still billable and is Foundation: a
+ * catalogue price id, or the marker checkout stores on the subscription.
  */
 export function subscriptionListHasActiveFoundation(
   subscriptions: readonly FoundationSubscriptionSummary[],
@@ -73,16 +114,13 @@ export function subscriptionListHasActiveFoundation(
   const prices = new Set(
     foundationPriceIds.map((id) => id.trim()).filter((id) => id.length > 0),
   );
-  if (prices.size === 0) return false;
 
   return subscriptions.some((subscription) => {
     const status = (subscription.status || '').trim();
     if (!ACTIVE_STATUS.has(status)) return false;
+    if (metadataMarksFoundationPlan(subscription.metadata)) return true;
     const items = subscription.items?.data || [];
-    return items.some((item) => {
-      const priceId = subscriptionItemPriceId(item);
-      return Boolean(priceId && prices.has(priceId));
-    });
+    return items.some((item) => itemMarksFoundationPlan(item, prices));
   });
 }
 

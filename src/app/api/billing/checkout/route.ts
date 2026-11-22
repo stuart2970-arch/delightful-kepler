@@ -251,6 +251,7 @@ export async function GET(req: Request) {
 
     const sessionMetadata: Record<string, string> = {
       plan_tier: 'base_tier',
+      plan: 'foundation',
     };
     if (selectedAddonIds.length > 0) {
       sessionMetadata.selected_addons = selectedAddonIds.join(',');
@@ -702,6 +703,7 @@ export async function POST(req: Request) {
       const sessionMetadata: Record<string, string> = {
         tenant_id: tenantId || '',
         plan_tier: 'base_tier',
+        plan: 'foundation',
       };
       if (selectedAddonIds.length > 0) {
         sessionMetadata.selected_addons = selectedAddonIds.join(',');
