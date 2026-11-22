@@ -148,6 +148,7 @@ export const CI_PLAYWRIGHT_GROUPS = [
       /tests\/styl-226-wordpress-disabled-on-staging\.spec\.ts$/,
       /tests\/system-email-.*\.spec\.ts$/,
       /tests\/styl-265-batch4-notices\.spec\.ts$/,
+      /tests\/styl-263-.*\.spec\.ts$/,
       /tests\/styl-264-.*\.spec\.ts$/,
     ],
   },
