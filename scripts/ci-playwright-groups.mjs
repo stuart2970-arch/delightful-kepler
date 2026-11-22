@@ -93,6 +93,7 @@ export const CI_PLAYWRIGHT_GROUPS = [
       /tests\/unit\/bolton-activation\.spec\.ts$/,
       /tests\/unit\/styl-309-tier-voice-grant\.spec\.ts$/,
       /tests\/unit\/styl-142-checkout-invoice-presentation\.spec\.ts$/,
+      /tests\/unit\/styl-142-stripe-checkout-customer\.spec\.ts$/,
     ],
   },
   {

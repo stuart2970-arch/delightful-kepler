@@ -4688,6 +4688,10 @@ Highlighted adjustments in the modal:
 * **Changes**: `disconnectGoogleCalendarIntegration` / `disconnectMicrosoftCalendarIntegration`; `purgeExpiredCalendarPushSubscriptions`; expanded `styl-409` unit specs.
 * **Verify**: 11 unit specs in `styl-409-calendar-push-register.spec.ts`; husky pre-push on push.
 
+### Session (Ops PR 113 — Stripe customer dedup — 22 Nov 2026)
+* **Ops**: `stripe-tenant-customer.ts` searches metadata/email, creates with `cust-${tenantId}` idempotency, links `tenants.stripe_customer_id` when null; GET checkout email reuse only. Webhook `setStripeCustomerIdOnTenantIfEmpty` never overwrites existing ids.
+* **Tests**: `styl-142-stripe-checkout-customer.spec.ts`, bolton webhook guard.
+
 ### Session (OpenClaw PR 113 fixes — STYL-142 invoice mode — 22 Nov 2026)
 * **Review**: `invoice_creation` only on `payment` Checkout; subscriptions use Customer `invoice_settings` via `ensureStripeCheckoutCustomerForSubscription`. `loadTierIncludedVoiceMinutes` walks tier candidates before cap fallback.
 * **Tests**: `tests/unit/styl-142-checkout-invoice-presentation.spec.ts`, updated STYL-142 e2e mock assertions.

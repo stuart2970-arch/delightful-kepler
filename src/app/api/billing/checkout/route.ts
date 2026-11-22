@@ -11,8 +11,11 @@ import { publicAppPath, safePublicReturnUrl } from '@/lib/env/public-app-url';
 import {
   applyStripeCheckoutInvoicePresentation,
   buildStripeCustomerInvoiceSettings,
-  ensureStripeCheckoutCustomerForSubscription,
 } from '@/lib/billing/stripe-invoice-presentation';
+import {
+  attachGuestSubscriptionCustomerByEmail,
+  ensureTenantStripeCustomerForSubscription,
+} from '@/lib/billing/stripe-tenant-customer';
 import {
   billingCheckoutRateLimit,
   billingClientIp,
@@ -95,6 +98,7 @@ function withCheckoutInvoicePresentation(
 }
 
 type SubscriptionCheckoutCustomerHints = {
+  tenantId?: string;
   customerId?: string | null;
   email?: string | null;
 };
@@ -102,6 +106,7 @@ type SubscriptionCheckoutCustomerHints = {
 async function prepareSubscriptionCheckoutCustomer(
   stripe: Stripe,
   apiKey: string,
+  supabase: ReturnType<typeof getSupabase>,
   sessionParams: Stripe.Checkout.SessionCreateParams,
   hints: SubscriptionCheckoutCustomerHints,
 ): Promise<void> {
@@ -111,10 +116,21 @@ async function prepareSubscriptionCheckoutCustomer(
   const email =
     hints.email ||
     (typeof sessionParams.customer_email === 'string' ? sessionParams.customer_email : undefined);
-  const customerId = await ensureStripeCheckoutCustomerForSubscription(stripe, {
-    customerId: hints.customerId || (typeof sessionParams.customer === 'string' ? sessionParams.customer : undefined),
-    email,
-  });
+
+  let customerId: string | undefined;
+  if (hints.tenantId) {
+    customerId = await ensureTenantStripeCustomerForSubscription(stripe, supabase, {
+      tenantId: hints.tenantId,
+      stripeCustomerId:
+        hints.customerId ||
+        (typeof sessionParams.customer === 'string' ? sessionParams.customer : undefined),
+      email,
+    });
+  } else {
+    await attachGuestSubscriptionCustomerByEmail(stripe, sessionParams, email);
+    return;
+  }
+
   if (customerId) {
     sessionParams.customer = customerId;
     delete sessionParams.customer_email;
@@ -256,7 +272,7 @@ export async function GET(req: Request) {
       cancel_url: appendQueryParams(targetCancelUrl, 'checkout_status=cancelled'),
     };
     withCheckoutInvoicePresentation(getSessionParams);
-    await prepareSubscriptionCheckoutCustomer(stripe, apiKey, getSessionParams, {
+    await prepareSubscriptionCheckoutCustomer(stripe, apiKey, supabase, getSessionParams, {
       email: customerEmail || undefined,
     });
 
@@ -535,7 +551,8 @@ export async function POST(req: Request) {
 
       // The local suite uses a placeholder key. A real Stripe test key still creates a live session.
       withCheckoutInvoicePresentation(sessionConfig);
-      await prepareSubscriptionCheckoutCustomer(stripe, apiKey, sessionConfig, {
+      await prepareSubscriptionCheckoutCustomer(stripe, apiKey, supabase, sessionConfig, {
+        tenantId,
         customerId: tenant?.stripe_customer_id,
         email:
           sessionConfig.customer_email ||
@@ -706,8 +723,16 @@ export async function POST(req: Request) {
         cancel_url: appendQueryParams(targetCancelUrl, 'checkout_status=cancelled'),
       };
 
+      const { data: billingTenant } = await supabase
+        .from('tenants')
+        .select('stripe_customer_id')
+        .eq('id', tenantId)
+        .maybeSingle();
+
       withCheckoutInvoicePresentation(sessionParams);
-      await prepareSubscriptionCheckoutCustomer(stripe, apiKey, sessionParams, {
+      await prepareSubscriptionCheckoutCustomer(stripe, apiKey, supabase, sessionParams, {
+        tenantId,
+        customerId: billingTenant?.stripe_customer_id,
         email: customerEmail || undefined,
       });
 

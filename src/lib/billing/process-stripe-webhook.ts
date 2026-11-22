@@ -915,6 +915,20 @@ export function invoiceContainsBasePlanPrice(
   return basePlanPriceIds.some((id) => onInvoice.has(id));
 }
 
+export async function setStripeCustomerIdOnTenantIfEmpty(
+  supabaseAdmin: { from: (table: string) => any },
+  tenantId: string,
+  stripeCustomerId: string | null | undefined,
+): Promise<void> {
+  const id = typeof stripeCustomerId === 'string' ? stripeCustomerId.trim() : '';
+  if (!id) return;
+  await supabaseAdmin
+    .from('tenants')
+    .update({ stripe_customer_id: id })
+    .eq('id', tenantId)
+    .is('stripe_customer_id', null);
+}
+
 export async function loadTierIncludedVoiceMinutes(
   supabaseAdmin: { from: (table: string) => any },
   planTier: string,
@@ -1406,12 +1420,7 @@ async function processStripeBillingEventBody(
 
     if (isBoltOnMetadata(sessionMetadata)) {
       const addonCatalogId = sessionMetadata.addon_catalog_id;
-      if (stripeCustomerId) {
-        await supabaseAdmin
-          .from('tenants')
-          .update({ stripe_customer_id: stripeCustomerId })
-          .eq('id', targetTenantId);
-      }
+      await setStripeCustomerIdOnTenantIfEmpty(supabaseAdmin, targetTenantId, stripeCustomerId);
 
       if (!addonCatalogId) {
         console.error('[Stripe Webhook] Bolt-on checkout is missing addon_catalog_id; leaving plan_tier and minutes unchanged');
@@ -1469,14 +1478,13 @@ async function processStripeBillingEventBody(
       };
     }
 
-    const updatePayload: any = {
+    await setStripeCustomerIdOnTenantIfEmpty(supabaseAdmin, targetTenantId, stripeCustomerId);
+
+    const updatePayload: Record<string, unknown> = {
       plan_tier: planTier,
       is_active: true,
       subscription_status: 'active',
     };
-    if (stripeCustomerId) {
-      updatePayload.stripe_customer_id = stripeCustomerId;
-    }
 
     const { error: updateError } = await supabaseAdmin
       .from('tenants')

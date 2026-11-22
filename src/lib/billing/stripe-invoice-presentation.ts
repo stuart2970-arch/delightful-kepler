@@ -102,27 +102,3 @@ export async function syncStripeCustomerInvoicePresentation(
  * Ensures subscription Checkout has a customer id with invoice_settings applied.
  * Creates a customer when only an email is available.
  */
-export async function ensureStripeCheckoutCustomerForSubscription(
-  stripe: Stripe,
-  input: { customerId?: string | null; email?: string | null },
-  env: NodeJS.ProcessEnv = process.env,
-): Promise<string | undefined> {
-  const invoiceSettings = buildStripeCustomerInvoiceSettings(env);
-
-  if (input.customerId) {
-    if (invoiceSettings) {
-      await syncStripeCustomerInvoicePresentation(stripe, input.customerId, env);
-    }
-    return input.customerId;
-  }
-
-  const email = (input.email || '').trim();
-  if (!email) return undefined;
-
-  const createParams: Stripe.CustomerCreateParams = { email };
-  if (invoiceSettings) {
-    createParams.invoice_settings = invoiceSettings;
-  }
-  const customer = await stripe.customers.create(createParams);
-  return customer.id;
-}

@@ -672,6 +672,33 @@ test.describe('Bolt-on webhook detection and fulfilment', () => {
     expect(db.state.activeAddons.find((row) => row.addon_catalog_id === GOOGLE_CAL_ID)?.is_active).toBe(true);
   });
 
+  test('base-plan checkout.session.completed does not replace an existing stripe_customer_id', async () => {
+    const db = createFakeBillingDb({
+      tenant: { plan_tier: 'trial', is_active: false, subscription_status: 'incomplete', stripe_customer_id: 'cus_keep' },
+    });
+
+    const result = await handleStripeBillingEvent(
+      {
+        type: 'checkout.session.completed',
+        data: {
+          object: {
+            id: 'cs_base_keep_cus',
+            customer: 'cus_other',
+            customer_details: { email: 'owner@example.com' },
+            metadata: { tenant_id: TENANT_ID, plan_tier: 'base_tier' },
+          },
+        },
+      },
+      {
+        supabaseAdmin: db,
+        allocateRollingCredits: async () => undefined,
+      },
+    );
+
+    expect(result.status).toBe(200);
+    expect(db.state.tenants[0].stripe_customer_id).toBe('cus_keep');
+  });
+
   test('base-plan checkout.session.completed still sets plan_tier and allocates 10 voice minutes', async () => {
     const db = createFakeBillingDb({
       tenant: { plan_tier: 'trial', is_active: false, subscription_status: 'incomplete' },
