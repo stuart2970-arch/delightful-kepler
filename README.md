@@ -142,6 +142,8 @@ This runbook documents the key fixes and architecture enhancements implemented d
 
 ### Session Chat History Log
 
+* **22 Nov 2026**: STYL-407 binds `RWG_BOOKING_SERVER_USERNAME` and `RWG_BOOKING_SERVER_PASSWORD` as RUNTIME secrets in `apphosting.yaml` and `apphosting.staging.yaml`.
+
 ### Session (STYL-407 / STYL-225 / STYL-412 — 22 Nov 2026)
 * **User / Jira**: StyleFlo R4 package 2. CheckAvailability always returned SERVICE_UNAVAILABLE and had no partner auth (STYL-407). Sign-up, salon, slug, and persona names need banned-word and reserved-name checks with the agreed messages (STYL-225). Production `staff` is missing columns staging already has, and `appointments` differs (STYL-412).
 * **STYL-407**: `POST /api/v3/CheckAvailability` authenticates with HTTP Basic from `RWG_BOOKING_SERVER_USERNAME` / `RWG_BOOKING_SERVER_PASSWORD` and fails closed (503 when unset, 401 otherwise). The service row is `id = service_id` and `tenant_id = merchant_id`.
