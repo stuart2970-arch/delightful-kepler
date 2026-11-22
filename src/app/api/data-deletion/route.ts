@@ -3,6 +3,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 import { verifyMetaSignedRequest } from '@/lib/meta-signed-request';
 import { eraseMetaUserAcrossSalons } from '@/lib/meta-data-erasure';
+import { notifyMetaDataDeletion } from '@/lib/email/system/triggers/batch3/meta-and-gdpr';
 
 export const dynamic = 'force-dynamic';
 
@@ -72,6 +73,14 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 });
   }
 
+  const deletionStatusUrl = statusUrl(request, confirmationCode);
+  await notifyMetaDataDeletion({
+    confirmationCode,
+    statusUrl: deletionStatusUrl,
+    email: null,
+    phase: 'received',
+  });
+
   try {
     await eraseMetaUserAcrossSalons(supabase, verified.userId);
   } catch (error) {
@@ -95,8 +104,15 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 });
   }
 
+  await notifyMetaDataDeletion({
+    confirmationCode,
+    statusUrl: deletionStatusUrl,
+    email: null,
+    phase: 'deleted',
+  });
+
   return NextResponse.json({
-    url: statusUrl(request, confirmationCode),
+    url: deletionStatusUrl,
     confirmation_code: confirmationCode,
   });
 }
