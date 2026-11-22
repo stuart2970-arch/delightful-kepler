@@ -214,6 +214,16 @@ env:
     availability:
       - RUNTIME
 
+  - variable: RWG_BOOKING_SERVER_USERNAME
+    secret: RWG_BOOKING_SERVER_USERNAME
+    availability:
+      - RUNTIME
+
+  - variable: RWG_BOOKING_SERVER_PASSWORD
+    secret: RWG_BOOKING_SERVER_PASSWORD
+    availability:
+      - RUNTIME
+
   - variable: GOOGLE_CLIENT_ID
     secret: GOOGLE_CLIENT_ID
     availability:
