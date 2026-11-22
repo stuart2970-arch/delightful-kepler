@@ -14,6 +14,7 @@ import {
   resolveFailedPaymentStripeClient,
   type FailedPaymentStripeClient,
 } from '@/lib/billing/failed-payment/stripe-client';
+import type { SupabaseClient } from '@supabase/supabase-js';
 
 export type FailedPaymentCaseRow = {
   id: string;
@@ -46,10 +47,7 @@ type ClaimAction = 'process' | 'skip' | 'locked';
 
 type DbError = { message?: string; code?: string } | null;
 
-type FailedPaymentDb = {
-  rpc: (name: string, args: Record<string, unknown>) => PromiseLike<{ data: unknown; error: DbError }>;
-  from: (table: string) => any;
-};
+type FailedPaymentDb = SupabaseClient;
 
 function dbError(error: DbError, fallback: string): Error {
   return new Error(error?.message || fallback);
