@@ -4,8 +4,9 @@
  * Allocated and consumed minutes come from the dashboard rolling balance
  * (getRolloverBalance / loadRolloverBalance). Expired allocations and usage
  * outside that window are not counted. With no allocation in the window, the
- * plan catalogue is the allowance. A missing entitlement, or a failed read,
- * never blocks the call. At or over a known allowance the caller hears the
+ * plan catalogue is the allowance. Legacy tiers inherit the Foundation voice cap
+ * (STYL-312). A failed entitlement read never blocks the call; a known finite
+ * allowance does. At or over allowance the caller hears the
  * holding line below. Final wording is still with the solicitor.
  */
 
@@ -132,11 +133,11 @@ export function decideVoiceMinuteGate(input: {
 
   if (catalog === null && allocated <= 0) {
     return {
-      allowed: true,
-      blockedForAllowance: false,
-      allowanceMinutes: null,
+      allowed: false,
+      blockedForAllowance: true,
+      allowanceMinutes: 0,
       consumedMinutes: consumed,
-      reason: 'fail_open',
+      reason: 'at_allowance',
     };
   }
 

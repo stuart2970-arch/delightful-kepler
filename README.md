@@ -4697,6 +4697,19 @@ Highlighted adjustments in the modal:
 * **Changes**: `disconnectGoogleCalendarIntegration` / `disconnectMicrosoftCalendarIntegration`; `purgeExpiredCalendarPushSubscriptions`; expanded `styl-409` unit specs.
 * **Verify**: 11 unit specs in `styl-409-calendar-push-register.spec.ts`; husky pre-push on push.
 
+### Session (Ops PR 113 — Stripe customer dedup — 22 Nov 2026)
+* **Ops**: `stripe-tenant-customer.ts` searches metadata/email, creates with `cust-${tenantId}` idempotency, links `tenants.stripe_customer_id` when null; GET checkout email reuse only. Webhook `setStripeCustomerIdOnTenantIfEmpty` never overwrites existing ids.
+* **Tests**: `styl-142-stripe-checkout-customer.spec.ts`, bolton webhook guard.
+
+### Session (OpenClaw PR 113 fixes — STYL-142 invoice mode — 22 Nov 2026)
+* **Review**: `invoice_creation` only on `payment` Checkout; subscriptions use Customer `invoice_settings` via `ensureStripeCheckoutCustomerForSubscription`. `loadTierIncludedVoiceMinutes` walks tier candidates before cap fallback.
+* **Tests**: `tests/unit/styl-142-checkout-invoice-presentation.spec.ts`, updated STYL-142 e2e mock assertions.
+
+### Session (StyleFlo R4 package 1 — STYL-312 & STYL-142 — 22 Nov 2026)
+* **User**: Legacy `ultimate` (and other retired tiers) must not get unlimited inbound voice; map to Foundation catalogue cap. Stripe checkout/invoices must show WP-123 T/A STYLEFLO LTD and a “No VAT to add” line (env-configurable, test mode only).
+* **Changes**: `plan-tier-catalog.ts`, `voice-catalog-limit.ts`, gate/entitlement/webhook/checkout updates; `stripe-invoice-presentation.ts`; migration `20261122130000_styl312_legacy_voice_cap.sql` (commented tenant normalisation for prod review); tests `styl-312-legacy-voice-cap.spec.ts`, `styl-142-stripe-invoice-presentation.spec.ts`.
+* **Verify**: Playwright specs above + STYL-197 minute-gate grep; typecheck with raised Node heap; local Supabase via `scripts/agent-supabase-up.sh`.
+
 ### Session (R4 package 3 chores — STYL-408, STYL-410, STYL-359 — 22 Nov 2026)
 * **User**: One PR into `staging`. CI Turbopack `next/font/google` flakes on parallel Playwright area jobs; fix `globMatch` so a double-star between slashes does not require a subdirectory. Revert the accidental `tsconfig.json` include `.next/dev/dev/types/**` from PR 110. Replace the word "chunks" with "knowledge items" in the user-facing app UI. Leave internal and database names. Keep the aggregate check name "Typecheck and Playwright". Merge commits only. Never `--no-verify` or `supabase db push`.
 * **STYL-408**: `deterministicCiFontsEnabled` is true for `PLAYWRIGHT_TEST` or `CI` unless `NODE_ENV=production`. `next.config.ts` then aliases `@/lib/fonts` to `src/lib/fonts/ci-font-entry.ts`, which does not import `next/font/google`. Production builds keep `turbopack: {}` and the multi-weight Google fonts in `root-fonts-production.ts`. `globMatch` selects both `src/components/ServiceEditor.tsx` and nested `BillingView.tsx`.

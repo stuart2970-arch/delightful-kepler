@@ -315,10 +315,13 @@ test.describe('Billing checkout source audits (no live services)', () => {
     expect(billingPortalRateLimit()).toBeGreaterThan(0);
   });
 
-  test('route never lists Stripe customers by email or writes stripe_customer_id', () => {
+  test('checkout delegates Stripe customer reuse to stripe-tenant-customer', () => {
     const src = fs.readFileSync(path.resolve(__dirname, '../src/app/api/billing/checkout/route.ts'), 'utf8');
-    expect(src).not.toContain('customers.list');
-    expect(src).not.toContain("update({ stripe_customer_id");
+    const lib = fs.readFileSync(path.resolve(__dirname, '../src/lib/billing/stripe-tenant-customer.ts'), 'utf8');
+    expect(src).toContain('ensureTenantStripeCustomerForSubscription');
+    expect(src).not.toContain('stripe.customers.create');
+    expect(lib).toContain('idempotencyKey: `cust-${input.tenantId}`');
+    expect(lib).toContain("linkStripeCustomerToTenant");
     expect(src).toContain('requireTenantRole');
     expect(src).toContain('safePublicReturnUrl');
     expect(src).toContain('no_billing_account');

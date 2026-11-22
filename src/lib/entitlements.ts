@@ -1,4 +1,9 @@
 import { createClient } from '@supabase/supabase-js';
+import {
+  foundationVoiceMinutesCap,
+  resolveEntitlementCatalogTierId,
+} from './billing/plan-tier-catalog';
+import { resolveVoiceCatalogLimit } from './billing/voice-catalog-limit';
 import { buildVoiceMinuteGateBalance, resolveVoiceAllowance } from './telephony/voice-minute-gate';
 import { PLAN_VOICE_PREFIX } from './billing/credit-grant-keys';
 import { usageAlertLevel, type UsageAlertLevel } from './usage-alerts';
@@ -457,20 +462,35 @@ export async function getTenantEffectiveLimit(tenantId: string, featureId: strin
     lookupFeatureId = 'whatsapp_messages';
   }
 
+  const catalogTierId = resolveEntitlementCatalogTierId(tenant?.plan_tier || 'foundation');
   const { data: entitlement } = await supabase
     .from('tier_entitlements')
     .select('limit_value')
-    .eq('tier_id', tenant?.plan_tier || 'base_tier')
+    .eq('tier_id', catalogTierId)
     .eq('feature_id', lookupFeatureId)
-    .single();
+    .maybeSingle();
 
   if (!entitlement) {
+    if (lookupFeatureId === 'voice_minutes') {
+      const cap = foundationVoiceMinutesCap();
+      return cap + addonBonus;
+    }
     return addonBonus > 0 ? addonBonus : 0;
   }
 
   const baseLimit = entitlement.limit_value;
 
-  // If base limit is null (unlimited), it stays unlimited.
+  if (lookupFeatureId === 'voice_minutes') {
+    const cap = resolveVoiceCatalogLimit({
+      row: entitlement,
+      lookupFailed: false,
+      planTier: tenant?.plan_tier || 'foundation',
+    });
+    if (typeof cap === 'number') return cap + addonBonus;
+    return addonBonus > 0 ? addonBonus : 0;
+  }
+
+  // If base limit is null (unlimited), it stays unlimited for non-voice features.
   if (baseLimit === null) return null;
   return baseLimit + addonBonus;
 }
@@ -514,16 +534,18 @@ export async function checkFeatureEntitlement(
           .select('plan_tier')
           .eq('id', tenantId)
           .maybeSingle();
+        const catalogTierId = resolveEntitlementCatalogTierId(tenantRow?.plan_tier || 'foundation');
         const { data: tierEnt } = await rollingClient
           .from('tier_entitlements')
           .select('limit_value')
-          .eq('tier_id', tenantRow?.plan_tier || 'foundation')
+          .eq('tier_id', catalogTierId)
           .eq('feature_id', 'voice_minutes')
           .maybeSingle();
-        const catalogLimit =
-          tierEnt?.limit_value === null || tierEnt?.limit_value === undefined
-            ? null
-            : Number(tierEnt.limit_value);
+        const catalogLimit = resolveVoiceCatalogLimit({
+          row: tierEnt ?? null,
+          lookupFailed: false,
+          planTier: tenantRow?.plan_tier || 'foundation',
+        });
         const [planVoice, purchasedPack] = await Promise.all([
           loadPlanVoiceAllocationInLedger(tenantId, rollingClient),
           loadPurchasedPackVoiceAllocationInLedger(tenantId, rollingClient),
@@ -652,13 +674,19 @@ export async function checkCapacityThresholds(
         const { consumed: monthVoice } = await loadCurrentPeriodVoiceConsumption(tenantId, supabase);
         const { data: tenant } = await supabase.from('tenants').select('plan_tier').eq('id', tenantId).maybeSingle();
         const planTier = tenant?.plan_tier || 'foundation';
+        const catalogTierId = resolveEntitlementCatalogTierId(planTier);
         const { data: tierEnt } = await supabase
           .from('tier_entitlements')
           .select('limit_value')
-          .eq('tier_id', planTier)
+          .eq('tier_id', catalogTierId)
           .eq('feature_id', 'voice_minutes')
           .maybeSingle();
-        const planMinutes = tierEnt?.limit_value != null ? Number(tierEnt.limit_value) : null;
+        const resolvedCap = resolveVoiceCatalogLimit({
+          row: tierEnt ?? null,
+          lookupFailed: false,
+          planTier,
+        });
+        const planMinutes = typeof resolvedCap === 'number' ? resolvedCap : null;
         const resolved = resolveVoiceAllowance({
           rolloverAllocated: balance.voice_minutes_allocated,
           rolloverConsumed: balance.voice_minutes_consumed,
