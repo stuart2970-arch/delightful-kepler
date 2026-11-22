@@ -142,6 +142,13 @@ This runbook documents the key fixes and architecture enhancements implemented d
 
 ### Session Chat History Log
 
+### Session (STYL-225 slug minimum and review wording — 22 Nov 2026)
+* **User / Stuart**: Small PR into staging. Replace the review sentence that promised a reply within one working day with "Thanks! We need to check this name. You can carry on setting up, and we'll review it shortly." Web addresses need at least 3 characters. Do not edit already-applied migrations and do not touch production.
+* **Wording**: `NAME_POLICY_MESSAGES.review` and the Playwright `REVIEW` constant use the new sentence. New migration `supabase/migrations/20261122170000_styl225_slug_min_and_review_wording.sql` replaces `classify_moderated_name` and `moderation_profanity_decision` with the same bodies and the new sentence. The earlier migration files stay as applied history, so a text search still finds the old sentence there.
+* **Slug minimum**: App action `tooShort` is a hard rejection with "Web addresses need at least 3 characters." `check-slug` returns HTTP 400 and `available: false` for a slug under 3 characters, and the register page shows that sentence. A reserved slug such as `ad` still returns the reserved sentence. The database function returns `action = 'block'` for a normalised slug under 3 characters after the reserved check, so `enforce_tenant_name_policy` raises. That trigger is not redefined; an update that changes neither name nor slug still returns first.
+* **Sign-up**: `handle_new_user` keeps the owner-name check. A derived slug under 3 characters is saved as `base_slug || '-' || counter` (company `AB` becomes `ab-1`, or the next free number). An empty derived slug stays `my-workspace`. An explicit slug is left as sent.
+* **Tests**: `tests/styl-225-banned-names.spec.ts` covers 1, 2, and 3 character slugs through check-slug, check-name, and a direct tenants insert, the padded `AB` sign-up, the register message, and an unrelated tenant update that must not add another moderation event.
+
 ### Session (STYL-407 / STYL-225 / STYL-412 — 22 Nov 2026)
 * **User / Jira**: StyleFlo R4 package 2. CheckAvailability always returned SERVICE_UNAVAILABLE and had no partner auth (STYL-407). Sign-up, salon, slug, and persona names need banned-word and reserved-name checks with the agreed messages (STYL-225). Production `staff` is missing columns staging already has, and `appointments` differs (STYL-412).
 * **STYL-407**: `POST /api/v3/CheckAvailability` authenticates with HTTP Basic from `RWG_BOOKING_SERVER_USERNAME` / `RWG_BOOKING_SERVER_PASSWORD` and fails closed (503 when unset, 401 otherwise). The service row is `id = service_id` and `tenant_id = merchant_id`.
