@@ -570,6 +570,7 @@ export async function handleCreateBooking(request: Request): Promise<NextRespons
       formattedStart,
       manageToken: manageTokenRaw,
       businessName: tenant?.company_name,
+      tenantId: auth.tenantId,
     });
   } catch (emailErr: unknown) {
     const message = emailErr instanceof Error ? emailErr.message : String(emailErr);
