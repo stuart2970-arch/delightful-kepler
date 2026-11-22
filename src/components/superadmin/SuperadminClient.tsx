@@ -12,6 +12,7 @@ import SuperAdminGdprView from './SuperAdminGdprView';
 import ConnectedAccountsView from './ConnectedAccountsView';
 import SuperAdminWhatsAppView from './SuperAdminWhatsAppView';
 import SystemEmailsView from './SystemEmailsView';
+import SystemEmailNoticesView from './SystemEmailNoticesView';
 import SystemEmailDataProtectionView from './SystemEmailDataProtectionView';
 import IncludeOnAccountView from './IncludeOnAccountView';
 
@@ -492,8 +493,9 @@ export default function SuperadminClient({
       )}
 
       {activeTab === 'emails' && (
-        <div className="mt-6">
+        <div className="mt-6 space-y-10">
           <SystemEmailsView />
+          <SystemEmailNoticesView />
         </div>
       )}
 
