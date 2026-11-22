@@ -169,6 +169,19 @@ jobs:
         if: steps.gate.outputs.run == 'true'
         run: npm run env:local
 
+      - name: Wait for local mailpit (STYL-228)
+        if: steps.gate.outputs.run == 'true'
+        run: |
+          for _ in $(seq 1 90); do
+            if curl -sf "http://127.0.0.1:54324/api/v1/messages" >/dev/null; then
+              echo "Mailpit is ready"
+              exit 0
+            fi
+            sleep 1
+          done
+          echo "Mailpit did not become ready in time"
+          exit 1
+
       - name: Run Playwright area suite
         if: steps.gate.outputs.run == 'true'
         run: |
@@ -177,6 +190,7 @@ jobs:
           npm run test:e2e -- $FILES
         env:
           CI: true
+          CI_MAILBOX_WAIT_MS: 60000
           NODE_OPTIONS: --max-old-space-size=8192
 
   playwright-result:
