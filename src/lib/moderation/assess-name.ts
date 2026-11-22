@@ -192,6 +192,31 @@ function reservedOverride(slugKey: string, overrides: NameOverride[]): 'reserved
   return null
 }
 
+function brandPhrase(spaced: string): boolean {
+  return spaced.split(' ').some((token) => BRAND_TOKENS.has(token))
+}
+
+/** Brand token, or an impersonation phrase that contains one (StyleFlo Support). */
+function personaBrandHit(spaced: string, tokens: string[], overrides: NameOverride[]): boolean {
+  const allowed = new Set(
+    overrides.filter((row) => row.action === 'allow').map((row) => moderationSlugKey(row.term)),
+  )
+  if (tokens.some((token) => BRAND_TOKENS.has(token) && !allowed.has(token))) return true
+  if (IMPERSONATION_EXACT.has(spaced) && brandPhrase(spaced) && !allowed.has(spaced.replace(/ /g, ''))) return true
+  for (const row of overrides) {
+    if (row.action === 'allow') continue
+    const term = normalizeModerationText(row.term).replace(/[^a-z0-9]+/g, ' ').trim()
+    if (!term) continue
+    if (row.kind === 'brand_token' && tokens.includes(term.replace(/ /g, '')) && !allowed.has(term.replace(/ /g, ''))) {
+      return true
+    }
+    if (row.kind === 'impersonation' && spaced === term && brandPhrase(term) && !allowed.has(term.replace(/ /g, ''))) {
+      return true
+    }
+  }
+  return false
+}
+
 function personaImpersonation(spaced: string, tokens: string[], overrides: NameOverride[]): boolean {
   const allowed = new Set(
     overrides.filter((row) => row.action === 'allow').map((row) => moderationSlugKey(row.term)),
@@ -215,10 +240,15 @@ function personaImpersonation(spaced: string, tokens: string[], overrides: NameO
  * Penistone and Dickson. UK terms come from @dsojevic/profanity-list.
  * Superadmin rows override the built-in lists.
  */
+export type AssessNameOptions = {
+  house?: boolean
+}
+
 export function assessName(
   value: string,
   context: NamePolicyContext,
   overrides: NameOverride[] = [],
+  options: AssessNameOptions = {},
 ): NamePolicyDecision {
   const raw = typeof value === 'string' ? value : ''
   if (!raw.trim()) return allow()
@@ -244,7 +274,8 @@ export function assessName(
 
   if (context === 'slug') {
     const reservedDecision = reservedOverride(slugKey, overrides)
-    if (reservedDecision === 'reserved' || (reservedDecision !== 'allow' && RESERVED.has(slugKey))) {
+    const reservedHit = reservedDecision === 'reserved' || (reservedDecision !== 'allow' && RESERVED.has(slugKey))
+    if (reservedHit && !options.house) {
       return decide('reserved', slugKey)
     }
     if (severe) return decide('block', severe.term)
@@ -258,7 +289,8 @@ export function assessName(
   }
 
   if (context === 'persona' && personaImpersonation(spaced, tokens, overrides)) {
-    return decide('block', spaced)
+    const houseBrand = options.house && personaBrandHit(spaced, tokens, overrides)
+    if (!houseBrand) return decide('block', spaced)
   }
 
   if (severe) return decide('block', severe.term)

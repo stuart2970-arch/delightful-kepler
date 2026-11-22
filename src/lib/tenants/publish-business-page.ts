@@ -1,6 +1,6 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { getWordpressPublishConfig } from '@/lib/env/wordpress-publish';
-import { assessStoredName } from '@/lib/moderation/assess-stored-name';
+import { assessStoredName, tenantIsHouse } from '@/lib/moderation/assess-stored-name';
 import { stricterDecision } from '@/lib/moderation/assess-name';
 import { NAME_POLICY_MESSAGES, type NamePolicyDecision } from '@/lib/moderation/messages';
 import { postWordpressCreateBusiness } from '@/lib/wordpress/wordpress-api';
@@ -137,10 +137,13 @@ export async function publishBusinessPageForTenant(
 
   let nameDecision: NamePolicyDecision;
   try {
-    nameDecision = stricterDecision(
-      await assessStoredName(supabase, cleanName, 'salon'),
-      await assessStoredName(supabase, baseSlug, 'slug'),
-    );
+    const house = await tenantIsHouse(supabase, tenantId);
+    const salonDecision = await assessStoredName(supabase, cleanName, 'salon');
+    let slugDecision = await assessStoredName(supabase, baseSlug, 'slug', { house });
+    if (house && slugDecision.action === 'reserved') {
+      slugDecision = { action: 'allow', message: null, term: null };
+    }
+    nameDecision = stricterDecision(salonDecision, slugDecision);
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Name check is unavailable.';
     return { ok: false, status: 503, error: message };

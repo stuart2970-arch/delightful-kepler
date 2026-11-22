@@ -23,6 +23,7 @@ export const CI_PLAYWRIGHT_GROUPS = [
       /tests\/styl-245-opening-hours\.spec\.ts$/,
       /tests\/styl-266-create-booking-auth\.spec\.ts$/,
       /tests\/styl-407-rwg-check-availability\.spec\.ts$/,
+      /tests\/styl-412-staff-token-grants\.spec\.ts$/,
       /tests\/styl-289-integration-status-auth\.spec\.ts$/,
       /tests\/styl-293-evening-slot-booking\.spec\.ts$/,
       /tests\/styl-389-booking-manage\.spec\.ts$/,

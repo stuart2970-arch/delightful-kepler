@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { createServerClient } from '@supabase/ssr';
 import { cookies } from 'next/headers';
-import { assessPersonaNames, recordNameDecision } from '@/lib/moderation/assess-stored-name';
+import { assessPersonaNames, recordNameDecision, tenantIsHouse } from '@/lib/moderation/assess-stored-name';
 import { knownNamePolicyMessage } from '@/lib/moderation/messages';
 
 export const dynamic = 'force-dynamic';
@@ -82,7 +82,8 @@ export async function POST(request: Request) {
 
     let personaDecision;
     try {
-      personaDecision = await assessPersonaNames(adminClient, name, configuration_json);
+      const house = await tenantIsHouse(adminClient, tenant_id);
+      personaDecision = await assessPersonaNames(adminClient, name, configuration_json, { house });
     } catch {
       return NextResponse.json({ error: 'Name check is unavailable.' }, { status: 503 });
     }

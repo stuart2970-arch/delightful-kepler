@@ -5,6 +5,9 @@ import {
   onStaffGoogleCalendarIdChanged,
   runCalendarPushSideEffect,
 } from '@/lib/calendar/push-sync/register-lifecycle';
+import { STAFF_PUBLIC_COLUMNS, type StaffPublicRow } from '@/lib/staff/public-columns';
+
+const STAFF_ME_SELECT = `${STAFF_PUBLIC_COLUMNS}, tenant:tenants(company_name)`;
 
 export async function GET(request: NextRequest) {
   try {
@@ -16,31 +19,36 @@ export async function GET(request: NextRequest) {
     // Fetch the logged-in colleague's profile and linked staff data in a single request
     let { data, error } = await supabase
       .from('staff')
-      .select('*, tenant:tenants(company_name)')
+      .select(STAFF_ME_SELECT)
       .eq('user_id', user.id)
       .maybeSingle();
+    let staffRow = data as StaffPublicRow | null;
 
-    if (!data && user.email) {
-      const { data: emailData } = await supabase
+    if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+
+    if (!staffRow && user.email) {
+      const { data: emailData, error: emailError } = await supabase
         .from('staff')
-        .select('*, tenant:tenants(company_name)')
+        .select(STAFF_ME_SELECT)
         .eq('email', user.email)
         .maybeSingle();
+      if (emailError) return NextResponse.json({ error: emailError.message }, { status: 500 });
 
-      if (emailData) {
-        data = emailData;
+      const emailRow = emailData as StaffPublicRow | null;
+      if (emailRow) {
+        staffRow = emailRow;
         await supabase
           .from('staff')
           .update({ user_id: user.id })
-          .eq('id', emailData.id);
+          .eq('id', emailRow.id);
       }
     }
 
-    if (!data) {
+    if (!staffRow) {
       return NextResponse.json({ error: 'Colleague record not found' }, { status: 404 });
     }
 
-    return NextResponse.json(data);
+    return NextResponse.json(staffRow);
   } catch (err: any) {
     return NextResponse.json({ error: err.message }, { status: 500 });
   }
@@ -77,8 +85,9 @@ export async function PATCH(request: NextRequest) {
       .from('staff')
       .update(safePayload)
       .eq('user_id', user.id)
-      .select()
+      .select(STAFF_PUBLIC_COLUMNS)
       .single();
+    const updated = data as StaffPublicRow | null;
 
     if (error) return NextResponse.json({ error: error.message }, { status: 400 });
 
@@ -90,12 +99,12 @@ export async function PATCH(request: NextRequest) {
           admin,
           tenantId,
           before.google_calendar_id,
-          data.google_calendar_id,
+          updated?.google_calendar_id,
         ),
       );
     }
 
-    return NextResponse.json(data);
+    return NextResponse.json(updated);
   } catch (err: any) {
     return NextResponse.json({ error: err.message }, { status: 500 });
   }

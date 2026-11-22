@@ -9,7 +9,7 @@ import {
 } from '@/lib/billing/branding';
 import { getVapiRuntimeConfig, publicVoiceFields } from '@/lib/env/vapi-config';
 import { resolveChatbotVoiceAccess } from '@/lib/voice/chatbot-voice-access';
-import { assessPersonaNames, recordNameDecision } from '@/lib/moderation/assess-stored-name';
+import { assessPersonaNames, recordNameDecision, tenantIsHouse } from '@/lib/moderation/assess-stored-name';
 import { knownNamePolicyMessage, type NamePolicyDecision } from '@/lib/moderation/messages';
 
 export const dynamic = 'force-dynamic';
@@ -415,7 +415,13 @@ export async function PATCH(
     let personaDecision: NamePolicyDecision = { action: 'allow', message: null, term: null };
     if (typeof name === 'string' || (configuration_json && typeof configuration_json === 'object')) {
       try {
-        personaDecision = await assessPersonaNames(adminClient, name, configuration_json);
+        const { data: namedBot } = await adminClient
+          .from('chatbots')
+          .select('tenant_id')
+          .eq('id', id)
+          .maybeSingle();
+        const house = await tenantIsHouse(adminClient, namedBot?.tenant_id || profile.tenant_id);
+        personaDecision = await assessPersonaNames(adminClient, name, configuration_json, { house });
       } catch {
         return NextResponse.json({ error: 'Name check is unavailable.' }, { status: 503 });
       }

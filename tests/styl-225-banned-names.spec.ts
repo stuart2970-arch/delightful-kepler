@@ -401,6 +401,116 @@ test.describe('STYL-225 banned words and reserved names', () => {
     }
   })
 
+  test('the house tenant can keep slug styleflo and its StyleFlo chatbots', async ({ request }) => {
+    const admin = adminClient()
+    const safeSlug = `house-safe-${suffix()}`
+    const { data: created, error: createError } = await admin
+      .from('tenants')
+      .insert({ company_name: 'Penistone Studio', slug: safeSlug })
+      .select('id')
+      .single()
+    expect(createError).toBeNull()
+    const houseId = created!.id
+    const otherSlug = `house-other-${suffix()}`
+    const { data: other, error: otherError } = await admin
+      .from('tenants')
+      .insert({ company_name: 'Cockburn Beauty', slug: otherSlug })
+      .select('id')
+      .single()
+    expect(otherError).toBeNull()
+    const otherId = other!.id
+    const botId = crypto.randomUUID()
+    const session = await createTestUser({ tenantId: houseId, role: 'owner' })
+    try {
+      const { error: allowError } = await admin.from('moderation_house_allowlist').insert({
+        tenant_id: houseId,
+        note: 'test house tenant',
+      })
+      expect(allowError).toBeNull()
+
+      const { error: slugError } = await admin
+        .from('tenants')
+        .update({ slug: 'styleflo', company_name: 'StyleFlo' })
+        .eq('id', houseId)
+      expect(slugError).toBeNull()
+
+      const { error: botError } = await admin.from('chatbots').insert({
+        id: botId,
+        tenant_id: houseId,
+        name: 'StyleFlo Support',
+        configuration_json: { agent_name: 'StyleFlo Homepage Assistant' },
+      })
+      expect(botError).toBeNull()
+
+      const { error: editError } = await admin
+        .from('chatbots')
+        .update({
+          name: 'StyleFlo Homepage Assistant',
+          configuration_json: { agent_name: 'StyleFlo Support' },
+        })
+        .eq('id', botId)
+      expect(editError).toBeNull()
+
+      const { error: swearError } = await admin
+        .from('chatbots')
+        .update({ name: 'Twat' })
+        .eq('id', botId)
+      expect(swearError?.message || '').toContain(BLOCK)
+
+      const { error: stolenSlug } = await admin
+        .from('tenants')
+        .update({ slug: 'styleflo' })
+        .eq('id', otherId)
+      expect(stolenSlug?.message || '').toContain(RESERVED)
+
+      const { error: stolenBot } = await admin.from('chatbots').insert({
+        id: crypto.randomUUID(),
+        tenant_id: otherId,
+        name: 'StyleFlo Support',
+        configuration_json: { agent_name: 'StyleFlo Homepage Assistant' },
+      })
+      expect(stolenBot?.message || '').toContain(BLOCK)
+
+      const createdBot = await request.post('/api/chatbots', {
+        headers: { Authorization: `Bearer ${session.token}` },
+        data: {
+          id: crypto.randomUUID(),
+          tenant_id: houseId,
+          name: 'StyleFlo Support',
+          primary_color: '#4F46E5',
+          voice_enabled: false,
+          configuration_json: { agent_name: 'StyleFlo Homepage Assistant' },
+        },
+      })
+      expect(createdBot.status()).toBe(200)
+
+      const editedBot = await request.patch(`/api/chatbots/${botId}`, {
+        headers: { Authorization: `Bearer ${session.token}` },
+        data: {
+          name: 'StyleFlo Support',
+          configuration_json: { agent_name: 'StyleFlo Homepage Assistant' },
+        },
+      })
+      expect(editedBot.status()).toBe(200)
+    } finally {
+      await session.cleanup()
+      await admin.from('chatbots').delete().eq('tenant_id', houseId)
+      await admin.from('chatbots').delete().eq('tenant_id', otherId)
+      await admin.from('moderation_house_allowlist').delete().eq('tenant_id', houseId)
+      await admin.from('tenants').delete().eq('id', houseId)
+      await admin.from('tenants').delete().eq('id', otherId)
+    }
+  })
+
+  test('a moderation failure cannot block a visitor message', () => {
+    const source = readFileSync(
+      join(process.cwd(), 'supabase/migrations/20261122153000_styl412_staff_token_grants.sql'),
+      'utf8',
+    )
+    expect(source).toContain('EXCEPTION WHEN OTHERS THEN')
+    expect(source).toContain('RETURN NEW')
+  })
+
   test('a normal member cannot write the moderation list', async ({ request }) => {
     const member = await createTestUser({ role: 'member' })
     try {
