@@ -5,7 +5,11 @@ export type StaffPublicRow = {
   name?: string
   google_calendar_id?: string | null
   google_connected?: boolean
-  working_days?: Record<string, any> | null
+  working_days?: Record<string, {
+    unavailable?: boolean
+    am?: { start?: string; end?: string } | null
+    pm?: { start?: string; end?: string } | null
+  }> | null
 }
 
 export const STAFF_PUBLIC_COLUMNS = [

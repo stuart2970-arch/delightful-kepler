@@ -17,7 +17,7 @@ export async function GET(request: NextRequest) {
     if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
     // Fetch the logged-in colleague's profile and linked staff data in a single request
-    let { data, error } = await supabase
+    const { data, error } = await supabase
       .from('staff')
       .select(STAFF_ME_SELECT)
       .eq('user_id', user.id)

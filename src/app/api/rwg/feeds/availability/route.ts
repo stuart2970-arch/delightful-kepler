@@ -68,7 +68,9 @@ export async function GET(request: Request) {
 
           for (const service of tenantServices) {
             // For both AM and PM shifts if configured
-            const shifts = [daySchedule.am, daySchedule.pm].filter(Boolean);
+            const shifts = [daySchedule.am, daySchedule.pm].filter(
+              (shift): shift is { start?: string; end?: string } => Boolean(shift),
+            );
             
             for (const shift of shifts) {
               if (!shift.start || !shift.end) continue;
