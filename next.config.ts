@@ -3,8 +3,8 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 const repoRoot = path.dirname(fileURLToPath(import.meta.url));
-const fontsProduction = path.join(repoRoot, "src/lib/fonts/root-fonts-production.ts");
-const fontsPlaywright = path.join(repoRoot, "src/lib/fonts/root-fonts-playwright.ts");
+const fontsEntry = path.join(repoRoot, "src/lib/fonts/index.ts");
+const fontsEntryPlaywright = path.join(repoRoot, "src/lib/fonts/index.playwright.ts");
 
 const isStaging =
   (process.env.APP_ENV || process.env.NEXT_PUBLIC_ENV || "")
@@ -39,9 +39,9 @@ const nextConfig: any = {
   // so this key is still present when that overlay runs.
   turbopack: playwrightServer
     ? {
-        // CI Playwright dev server: never compile multi-weight production google fonts.
+        // CI Playwright dev server: never import next/font/google (Turbopack flakes on CI).
         resolveAlias: {
-          [fontsProduction]: fontsPlaywright,
+          [fontsEntry]: fontsEntryPlaywright,
         },
       }
     : {},
