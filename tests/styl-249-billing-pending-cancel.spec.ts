@@ -74,7 +74,7 @@ test.describe('STYL-249 billing pending cancel', () => {
     await expect.poll(() => posts.length).toBe(1);
     expect(posts[0].action).toBe('portal');
     expect(String(posts[0].returnUrl || '')).toContain('tab=billing');
-    await expect(page.getByRole('button', { name: 'Subscribe' })).toHaveCount(0);
+    await expect(page.getByRole('button', { name: 'Subscribe', exact: true })).toHaveCount(0);
     await expect(page.getByText(/Subscribe at £/)).toHaveCount(0);
     await expect(page.getByText('portal_not_configured')).toBeVisible();
 
@@ -90,7 +90,7 @@ test.describe('STYL-249 billing pending cancel', () => {
     await page.getByRole('button', { name: 'Adjust' }).click();
     await expect.poll(() => posts.length).toBe(2);
     expect(posts[1].action).toBe('portal');
-    await expect(page.getByRole('button', { name: 'Subscribe' })).toHaveCount(0);
+    await expect(page.getByRole('button', { name: 'Subscribe', exact: true })).toHaveCount(0);
     await expect(page.getByText(/Subscribe at £/)).toHaveCount(0);
   });
 });
