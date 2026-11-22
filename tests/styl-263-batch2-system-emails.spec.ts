@@ -111,24 +111,43 @@ test.describe('STYL-263 batch 2 templates', () => {
     }
 
     const declined = batch2Templates.find((template) => template.key === BATCH2_SIGNUP_DECLINED)!
-    expect(declined.render(declined.sampleData).text).toContain('We will refund everything you have paid (£9.99).')
+    expect(declined.render(declined.sampleData).text).toContain('We have started a refund of everything you have paid (£9.99).')
+    expect(declined.render(declined.sampleData).text).toContain('re_batch2_decline')
     expect(declined.render(declined.sampleData).text).toContain("We can't verify your business.")
+    const bareDecline = declined.render({
+      businessName: 'Harbour Salon',
+      reasonCode: 'business_unverified',
+      amountPaidPence: '999',
+    })
+    expect(bareDecline.text.toLowerCase()).not.toContain('refund')
 
     const closed = batch2Templates.find((template) => template.key === BATCH2_ACCOUNT_CLOSED)!
     expect(closed.render(closed.sampleData).text).toContain('not being used for a business')
     expect(closed.render(closed.sampleData).text).toContain('30 days')
+    expect(closed.render(closed.sampleData).text).toContain('re_batch2_close')
+    const bareClose = closed.render({
+      businessName: 'Harbour Salon',
+      unusedPeriodPence: '499',
+      unusedPeriodEnds: '2027-04-01',
+    })
+    expect(bareClose.text).not.toContain('We have closed')
+    expect(bareClose.text).not.toContain('30 days')
+    expect(bareClose.text.toLowerCase()).not.toContain('refund')
 
     const annual = batch2Templates.find((template) => template.key === BATCH2_ANNUAL_PRICE_RISE)!
     const annualText = annual.render(annual.sampleData).text
     expect(annualText).toContain('1 April 2027')
     expect(annualText).toContain('£9.99 to £10.51')
     expect(annualText).toContain('60 days')
+    expect(annualText.toLowerCase()).not.toContain('dashboard')
     const notice = annualPriceRiseDashboardNotice(annual.sampleData)
     expect(annualText.startsWith(notice)).toBe(true)
     expect(notice).not.toContain('Reply to this email')
 
     const other = batch2Templates.find((template) => template.key === BATCH2_OTHER_PRICE_RISE)!
-    expect(other.render(other.sampleData).text.startsWith(otherPriceRiseDashboardNotice(other.sampleData))).toBe(true)
+    const otherText = other.render(other.sampleData).text
+    expect(otherText.startsWith(otherPriceRiseDashboardNotice(other.sampleData))).toBe(true)
+    expect(otherText.toLowerCase()).not.toContain('dashboard')
 
     const escaped = declined.render({ ...declined.sampleData, businessName: '<b>Harbour</b>' })
     expect(escaped.html).toContain('&lt;b&gt;Harbour&lt;/b&gt;')
@@ -190,14 +209,24 @@ test.describe('STYL-263 batch 2 triggers', () => {
   })
 
   test('the flag stops a decline email, and one admin action sends it once', async () => {
-    const held = await declineSignup({
+    const missing = await declineSignup({
       tenantId,
       reasonCode: 'number_unavailable',
       amountPaidPence: 999,
     })
+    expect(missing.ok).toBe(false)
+    expect(readSystemEmailTestDeliveries()).toHaveLength(0)
+
+    const held = await declineSignup({
+      tenantId,
+      reasonCode: 'number_unavailable',
+      amountPaidPence: 999,
+      refundRecorded: true,
+      refundReference: 're_batch2_decline',
+    })
     expect(held.ok).toBe(true)
     if (!held.ok) return
-    expect(held.refund).toBe('not_run')
+    expect(held.refund).toBe('recorded')
     expect(held.email).toEqual({ ok: true, skipped: true, reason: 'disabled' })
     expect(readSystemEmailTestDeliveries()).toHaveLength(0)
     expect(wasMailgunClientCreated()).toBe(false)
@@ -207,17 +236,23 @@ test.describe('STYL-263 batch 2 triggers', () => {
       tenantId,
       reasonCode: 'number_unavailable',
       amountPaidPence: 999,
+      refundRecorded: true,
+      refundReference: 're_batch2_decline',
     })
     const second = await declineSignup({
       tenantId,
       reasonCode: 'pricing_mistake',
       amountPaidPence: 999,
+      refundRecorded: true,
+      refundReference: 're_batch2_decline',
     })
     expect(first.ok && first.email.ok && !first.email.skipped && first.email.duplicate).toBe(false)
     expect(second.ok && second.email.ok && !second.email.skipped && second.email.duplicate).toBe(true)
     expect(readSystemEmailTestDeliveries()).toHaveLength(1)
     expect(readSystemEmailTestDeliveries()[0]?.to).toBe(INBOX)
     expect(readSystemEmailTestDeliveries()[0]?.text).toContain("Our telecoms provider can't supply a number you have chosen.")
+    expect(readSystemEmailTestDeliveries()[0]?.text).toContain('We have started a refund')
+    expect(readSystemEmailTestDeliveries()[0]?.text).toContain('re_batch2_decline')
     expect(wasMailgunClientCreated()).toBe(false)
 
     if (!first.ok || !first.email.ok || first.email.skipped) return
@@ -242,20 +277,38 @@ test.describe('STYL-263 batch 2 triggers', () => {
 
   test('closing an account that is not a business emails once and does not refund a card', async () => {
     process.env.SYSTEM_EMAILS_BATCH2_ENABLED = 'true'
-    const closed = await closeAccountNotABusiness({
+    const unrecorded = await closeAccountNotABusiness({
       tenantId,
       unusedPeriodPence: 499,
       unusedPeriodEnds: '2027-04-01',
     })
+    expect(unrecorded.ok).toBe(false)
+
+    const closed = await closeAccountNotABusiness({
+      tenantId,
+      accountClosed: true,
+      unusedPeriodPence: 499,
+      unusedPeriodEnds: '2027-04-01',
+      refundRecorded: true,
+      refundReference: 're_batch2_close',
+    })
     expect(closed.ok).toBe(true)
     if (!closed.ok) return
-    expect(closed.refund).toBe('not_run')
+    expect(closed.refund).toBe('recorded')
     expect(closed.email.ok && !closed.email.skipped).toBe(true)
-    const again = await closeAccountNotABusiness({ tenantId, unusedPeriodPence: 100 })
+    const again = await closeAccountNotABusiness({
+      tenantId,
+      accountClosed: true,
+      unusedPeriodPence: 100,
+      refundRecorded: true,
+      refundReference: 're_batch2_close',
+    })
     expect(again.ok && again.email.ok && !again.email.skipped && again.email.duplicate).toBe(true)
     const delivery = readSystemEmailTestDeliveries().find((message) => message.text.includes('not being used for a business'))
     expect(delivery?.text).toContain('£4.99')
     expect(delivery?.text).toContain('1 April 2027')
+    expect(delivery?.text).toContain('We have started a refund')
+    expect(delivery?.text).toContain('30 days')
 
     const admin = service()
     const { data } = await admin.from('system_email_log').select('template_key').eq('tenant_id', tenantId).eq('template_key', BATCH2_ACCOUNT_CLOSED)
@@ -410,7 +463,14 @@ test.describe('STYL-263 batch 2 admin routes', () => {
   })
 
   test('decline, close and price notices are superadmin only and do not send while the flag is off', async ({ request }) => {
-    const body = { action: 'decline-signup', tenantId: ACME, reasonCode: 'business_unverified', amountPaidPence: 999 }
+    const body = {
+      action: 'decline-signup',
+      tenantId: ACME,
+      reasonCode: 'business_unverified',
+      amountPaidPence: 999,
+      refundRecorded: true,
+      refundReference: 're_batch2_decline',
+    }
     const unauth = await request.post('/api/superadmin/account-actions', { data: body })
     expect(unauth.status()).toBe(401)
     const forbidden = await request.post('/api/superadmin/account-actions', {
@@ -425,12 +485,25 @@ test.describe('STYL-263 batch 2 admin routes', () => {
     })
     expect(declined.status()).toBe(200)
     const declinedBody = await declined.json()
-    expect(declinedBody.refund).toBe('not_run')
+    expect(declinedBody.refund).toBe('recorded')
+    const unrecorded = await request.post('/api/superadmin/account-actions', {
+      headers: { Authorization: `Bearer ${superadmin.token}` },
+      data: { action: 'decline-signup', tenantId: ACME, reasonCode: 'business_unverified', amountPaidPence: 999 },
+    })
+    expect(unrecorded.status()).toBe(400)
     expect(declinedBody.email).toEqual({ ok: true, skipped: true, reason: 'disabled' })
 
     const closed = await request.post('/api/superadmin/account-actions', {
       headers: { Authorization: `Bearer ${superadmin.token}` },
-      data: { action: 'close-not-a-business', tenantId: ACME, unusedPeriodPence: 100, unusedPeriodEnds: '2027-04-01' },
+      data: {
+        action: 'close-not-a-business',
+        tenantId: ACME,
+        accountClosed: true,
+        unusedPeriodPence: 100,
+        unusedPeriodEnds: '2027-04-01',
+        refundRecorded: true,
+        refundReference: 're_batch2_close',
+      },
     })
     expect(closed.status()).toBe(200)
     expect((await closed.json()).email.reason).toBe('disabled')

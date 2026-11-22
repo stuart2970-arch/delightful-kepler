@@ -115,7 +115,6 @@ export function annualPriceRiseParagraphs(data: Record<string, string>): string[
     ...priceLines(data),
     clean(data.capExplanation),
     CANCEL_RIGHTS,
-    'The same notice is shown in your dashboard.',
   ]
 }
 
@@ -128,7 +127,6 @@ export function otherPriceRiseParagraphs(data: Record<string, string>): string[]
     clean(data.howWorkedOut) ? `How this was worked out: ${clean(data.howWorkedOut)}` : '',
     CANCEL_RIGHTS,
     'Changing your plan, or adding a bolt-on or a pack, is not a price increase.',
-    'The same notice is shown in your dashboard.',
   ]
 }
 
@@ -140,11 +138,21 @@ export function otherPriceRiseDashboardNotice(data: Record<string, string>): str
   return otherPriceRiseParagraphs(data).filter((paragraph) => paragraph.trim()).join('\n\n')
 }
 
+function refundReference(data: Record<string, string>): string {
+  if (clean(data.refundRecorded) !== 'true') return ''
+  const reference = clean(data.refundReference)
+  if (!/^re_[A-Za-z0-9_]{4,80}$/.test(reference)) return ''
+  return reference
+}
+
 function signupDeclined(data: Record<string, string>): SystemEmailContent {
+  const reference = refundReference(data)
   const amount = formatBatch2Pence(data.amountPaidPence)
-  const refund = amount
-    ? `We will refund everything you have paid (${amount}).`
-    : 'We will refund everything you have paid.'
+  const refund = !reference
+    ? ''
+    : amount
+      ? `We have started a refund of everything you have paid (${amount}). The refund reference is ${reference}.`
+      : `We have started a refund of everything you have paid. The refund reference is ${reference}.`
   return branded({
     subject: 'Your StyleFlo sign-up has been declined',
     subtitle: 'Sign-up declined',
@@ -159,21 +167,31 @@ function signupDeclined(data: Record<string, string>): SystemEmailContent {
 }
 
 function accountClosed(data: Record<string, string>): SystemEmailContent {
+  const closed = clean(data.accountClosed) === 'true'
+  const reference = refundReference(data)
   const unused = formatBatch2Pence(data.unusedPeriodPence)
-  const refund = unused
-    ? `We will refund what has been paid for any period not yet used (${unused}).`
-    : 'We will refund what has been paid for any period not yet used.'
+  const refund = !reference
+    ? ''
+    : unused
+      ? `We have started a refund of what has been paid for any period not yet used (${unused}). The refund reference is ${reference}.`
+      : `We have started a refund of what has been paid for any period not yet used. The refund reference is ${reference}.`
   const periodEnd = formatBatch2Date(data.unusedPeriodEnds)
   return branded({
     subject: 'Your StyleFlo account has been closed',
     subtitle: 'Account closed',
     paragraphs: [
       'Hello,',
-      `We have closed the StyleFlo account for ${business(data)} because it is not being used for a business.`,
-      'StyleFlo is for businesses, such as salons, barbers, spas and clinics. It is not for personal use.',
+      closed
+        ? `We have closed the StyleFlo account for ${business(data)} because it is not being used for a business.`
+        : '',
+      closed
+        ? 'StyleFlo is for businesses, such as salons, barbers, spas and clinics. It is not for personal use.'
+        : '',
       refund,
-      periodEnd ? `The unused period runs to ${periodEnd}.` : '',
-      'After the account closes we keep the data for 30 days, so you can ask for a copy. We then delete it. We may keep billing records for as long as the law requires.',
+      reference && periodEnd ? `The unused period runs to ${periodEnd}.` : '',
+      closed
+        ? 'After the account closes we keep the data for 30 days, so you can ask for a copy. We then delete it. We may keep billing records for as long as the law requires.'
+        : '',
     ],
   })
 }
@@ -227,11 +245,16 @@ export const batch2Templates: readonly SystemEmailTemplate[] = [
       businessName: 'Harbour Salon',
       reasonCode: 'business_unverified',
       amountPaidPence: '999',
+      refundRecorded: 'true',
+      refundReference: 're_batch2_decline',
     }, signupDeclined),
   template(BATCH2_ACCOUNT_CLOSED, {
       businessName: 'Harbour Salon',
       unusedPeriodPence: '499',
       unusedPeriodEnds: '2027-04-01',
+      accountClosed: 'true',
+      refundRecorded: 'true',
+      refundReference: 're_batch2_close',
     }, accountClosed),
   template(BATCH2_ANNUAL_PRICE_RISE, {
       businessName: 'Harbour Salon',

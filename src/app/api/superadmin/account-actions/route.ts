@@ -46,6 +46,8 @@ export const POST = withSuperAdmin(async (req: NextRequest) => {
       tenantId,
       reasonCode: text(body.reasonCode),
       amountPaidPence: typeof body.amountPaidPence === 'number' ? body.amountPaidPence : undefined,
+      refundRecorded: body.refundRecorded === true,
+      refundReference: text(body.refundReference),
     })
     if (!result.ok) return NextResponse.json({ error: result.message }, { status: result.status })
     return NextResponse.json({ refund: result.refund, email: result.email })
@@ -57,8 +59,11 @@ export const POST = withSuperAdmin(async (req: NextRequest) => {
     }
     const result = await closeAccountNotABusiness({
       tenantId,
+      accountClosed: body.accountClosed === true,
       unusedPeriodPence: typeof body.unusedPeriodPence === 'number' ? body.unusedPeriodPence : undefined,
       unusedPeriodEnds: text(body.unusedPeriodEnds) || undefined,
+      refundRecorded: body.refundRecorded === true,
+      refundReference: text(body.refundReference),
     })
     if (!result.ok) return NextResponse.json({ error: result.message }, { status: result.status })
     return NextResponse.json({ refund: result.refund, email: result.email })
