@@ -176,6 +176,12 @@ env:
       - BUILD
       - RUNTIME
 
+  # STYL-404: opt in to Google/Microsoft calendar push registration at RUNTIME.
+  - variable: CALENDAR_PUSH_REGISTER_ENABLED
+    value: "true"
+    availability:
+      - RUNTIME
+
   # Aliases for existing readers (same Secret Manager names).
   - variable: VAPI_PRIVATE_API_KEY
     secret: VAPI_API_KEY

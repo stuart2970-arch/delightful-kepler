@@ -60,7 +60,8 @@ async function emailExists(client: SupabaseClient, email: string): Promise<boole
 
 async function readMailboxLink(recipient: string): Promise<string> {
   const localPart = recipient.split('@')[0];
-  const deadline = Date.now() + 20000;
+  const waitMs = Number(process.env.CI_MAILBOX_WAIT_MS || (process.env.CI ? '45000' : '20000'));
+  const deadline = Date.now() + waitMs;
 
   while (Date.now() < deadline) {
     const mailpit = await fetch(`${MAILBOX}/api/v1/messages`).catch(() => null);

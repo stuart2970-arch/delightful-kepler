@@ -2,6 +2,10 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createAdminClient } from '@/utils/supabase-admin';
 import { publicAppPath } from '@/lib/env/public-app-url';
 import { requireOAuthCallback } from '@/lib/auth/oauth-callback-guard';
+import {
+  onMicrosoftCalendarConnected,
+  runCalendarPushSideEffect,
+} from '@/lib/calendar/push-sync/register-lifecycle';
 
 type MicrosoftTokens = {
   access_token?: string;
@@ -126,11 +130,18 @@ export async function GET(request: NextRequest) {
       }
     }
 
-    await saveMicrosoftCalendarConnection(createAdminClient(), {
+    const supabaseAdmin = createAdminClient();
+    await saveMicrosoftCalendarConnection(supabaseAdmin, {
       staffId: gate.staffId,
       tenantId: gate.tenantId,
       tokens,
     });
+
+    if (!gate.staffId) {
+      runCalendarPushSideEffect('microsoft connect', () =>
+        onMicrosoftCalendarConnected(supabaseAdmin, gate.tenantId),
+      );
+    }
 
     return NextResponse.redirect(`${appUrl}/dashboard?tab=scheduling&success=microsoft_calendar`);
   } catch (err: any) {

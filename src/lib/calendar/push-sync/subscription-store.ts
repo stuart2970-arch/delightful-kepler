@@ -75,3 +75,64 @@ export async function deleteCalendarPushSubscription(
 ): Promise<void> {
   await admin.from('calendar_push_subscriptions').delete().eq('id', id)
 }
+
+export async function listCalendarPushSubscriptionsForTenant(
+  admin: SupabaseClient,
+  tenantId: string,
+  provider?: CalendarPushProvider,
+): Promise<CalendarPushSubscriptionRow[]> {
+  let query = admin
+    .from('calendar_push_subscriptions')
+    .select('id, tenant_id, provider, calendar_id, channel_id, resource_id, verification_token, expires_at')
+    .eq('tenant_id', tenantId)
+  if (provider) {
+    query = query.eq('provider', provider)
+  }
+  const { data, error } = await query
+  if (error) {
+    throw new Error(`calendar_push_subscriptions tenant list failed: ${error.message}`)
+  }
+  return (data || []) as CalendarPushSubscriptionRow[]
+}
+
+export async function findLiveCalendarPushSubscription(
+  admin: SupabaseClient,
+  tenantId: string,
+  provider: CalendarPushProvider,
+  calendarId: string,
+  nowMs: number = Date.now(),
+): Promise<CalendarPushSubscriptionRow | null> {
+  const rows = await listCalendarPushSubscriptionsForTenantCalendar(
+    admin,
+    tenantId,
+    provider,
+    calendarId,
+  )
+  const match = rows.find((row) => new Date(row.expires_at).getTime() > nowMs)
+  return match ?? null
+}
+
+export async function listCalendarPushSubscriptionsForTenantCalendar(
+  admin: SupabaseClient,
+  tenantId: string,
+  provider: CalendarPushProvider,
+  calendarId: string,
+): Promise<CalendarPushSubscriptionRow[]> {
+  const rows = await listCalendarPushSubscriptionsForTenant(admin, tenantId, provider)
+  return rows.filter((row) => row.calendar_id === calendarId)
+}
+
+export async function listExpiredCalendarPushSubscriptions(
+  admin: SupabaseClient,
+  beforeIso: string,
+): Promise<CalendarPushSubscriptionRow[]> {
+  const { data, error } = await admin
+    .from('calendar_push_subscriptions')
+    .select('id, tenant_id, provider, calendar_id, channel_id, resource_id, verification_token, expires_at')
+    .lt('expires_at', beforeIso)
+    .order('expires_at', { ascending: true })
+  if (error) {
+    throw new Error(`calendar_push_subscriptions expired list failed: ${error.message}`)
+  }
+  return (data || []) as CalendarPushSubscriptionRow[]
+}

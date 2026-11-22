@@ -3,6 +3,12 @@ import { calendarPushRegistrationAllowed } from '@/lib/calendar/push-sync/config
 import { registerGoogleCalendarWatch, stopGoogleCalendarWatch } from '@/lib/calendar/push-sync/google-watch'
 import { renewMicrosoftCalendarSubscription } from '@/lib/calendar/push-sync/microsoft-subscription'
 import {
+  backfillMissingCalendarPushSubscriptions,
+  purgeExpiredCalendarPushSubscriptions,
+  type BackfillCalendarPushResult,
+  type CalendarPushRegisterDeps,
+} from '@/lib/calendar/push-sync/register-lifecycle'
+import {
   deleteCalendarPushSubscription,
   listSubscriptionsExpiringBefore,
   type CalendarPushSubscriptionRow,
@@ -13,26 +19,35 @@ export type RenewCalendarPushResult = {
   renewed: number
   skipped: number
   errors: string[]
+  backfill: BackfillCalendarPushResult
 }
 
 const DEFAULT_RENEW_WITHIN_MS = 24 * 60 * 60 * 1000
 
+export type RenewCalendarPushDeps = CalendarPushRegisterDeps
+
 export async function renewCalendarPushSubscriptions(
   admin: SupabaseClient,
   options?: { renewWithinMs?: number },
+  deps?: RenewCalendarPushDeps,
 ): Promise<RenewCalendarPushResult> {
   const renewWithinMs = options?.renewWithinMs ?? DEFAULT_RENEW_WITHIN_MS
   const cutoff = new Date(Date.now() + renewWithinMs).toISOString()
   const expiring = await listSubscriptionsExpiringBefore(admin, cutoff)
-  const result: RenewCalendarPushResult = { renewed: 0, skipped: 0, errors: [] }
+  const result: RenewCalendarPushResult = {
+    renewed: 0,
+    skipped: 0,
+    errors: [],
+    backfill: { registered: 0, skipped: 0, errors: [] },
+  }
 
   if (!calendarPushRegistrationAllowed()) {
-    return { renewed: 0, skipped: expiring.length, errors: [] }
+    return { ...result, skipped: expiring.length }
   }
 
   for (const row of expiring) {
     try {
-      const ok = await renewOneSubscription(admin, row)
+      const ok = await renewOneSubscription(admin, row, deps)
       if (ok) result.renewed += 1
       else result.skipped += 1
     } catch (err) {
@@ -40,20 +55,26 @@ export async function renewCalendarPushSubscriptions(
       result.errors.push(`${row.provider}:${row.channel_id}: ${message}`)
     }
   }
+
+  await purgeExpiredCalendarPushSubscriptions(admin, deps)
+  result.backfill = await backfillMissingCalendarPushSubscriptions(admin, deps)
   return result
 }
 
 async function renewOneSubscription(
   admin: SupabaseClient,
   row: CalendarPushSubscriptionRow,
+  deps?: RenewCalendarPushDeps,
 ): Promise<boolean> {
+  const registerGoogle = deps?.registerGoogle ?? registerGoogleCalendarWatch
+  const stopGoogle = deps?.stopGoogle ?? stopGoogleCalendarWatch
   if (row.provider === 'google') {
-    const watch = await registerGoogleCalendarWatch(admin, row.tenant_id, row.calendar_id)
+    const watch = await registerGoogle(admin, row.tenant_id, row.calendar_id)
     if (!watch) {
       return false
     }
     if (row.resource_id) {
-      await stopGoogleCalendarWatch(admin, row.tenant_id, row.channel_id, row.resource_id)
+      await stopGoogle(admin, row.tenant_id, row.channel_id, row.resource_id)
     }
     await deleteCalendarPushSubscription(admin, row.id)
     return true
