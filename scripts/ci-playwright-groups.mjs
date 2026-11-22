@@ -140,6 +140,7 @@ export const CI_PLAYWRIGHT_GROUPS = [
       /tests\/styl-226-telephony-provision-route\.spec\.ts$/,
       /tests\/styl-226-telephony-provision-safety\.spec\.ts$/,
       /tests\/styl-226-wordpress-disabled-on-staging\.spec\.ts$/,
+      /tests\/system-email-.*\.spec\.ts$/,
     ],
   },
   {
