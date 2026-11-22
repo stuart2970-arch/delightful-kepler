@@ -1,4 +1,10 @@
 import type { NextConfig } from "next";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
+
+const repoRoot = path.dirname(fileURLToPath(import.meta.url));
+const fontsProduction = path.join(repoRoot, "src/lib/fonts/root-fonts-production.ts");
+const fontsPlaywright = path.join(repoRoot, "src/lib/fonts/root-fonts-playwright.ts");
 
 const isStaging =
   (process.env.APP_ENV || process.env.NEXT_PUBLIC_ENV || "")
@@ -31,7 +37,14 @@ const nextConfig: any = {
   // config keeps App Hosting on Turbopack, which is what previously shipped.
   // The Firebase adapter spreads this object and only sets images.unoptimized,
   // so this key is still present when that overlay runs.
-  turbopack: {},
+  turbopack: playwrightServer
+    ? {
+        // CI Playwright dev server: never compile multi-weight production google fonts.
+        resolveAlias: {
+          [fontsProduction]: fontsPlaywright,
+        },
+      }
+    : {},
   webpack: (config: { devtool?: false | string; cache?: false | object }, { dev }: { dev: boolean }) => {
     if (dev && playwrightServer) {
       config.devtool = false;
