@@ -4666,3 +4666,8 @@ Highlighted adjustments in the modal:
 * **User**: GitHub-hosted runners on `ubuntu-latest` (26.04) exit 143 mid-suite (~818 tests); pin 24.04, parallel **areas** (not `--shard`), staging path filters, full suite on PRs to `main`, aggregate **Typecheck and Playwright** check; trim optional Supabase containers in CI.
 * **Changes**: `.github/workflows/playwright.yml`, `scripts/ci-playwright-groups.mjs`, `scripts/ci-playwright-paths.mjs`, `.github/playwright-area-paths.json`, `tests/styl-356-prepush-related-specs.spec.ts`, README CI table.
 * **Verify**: `node scripts/ci-playwright-groups.mjs validate`; PR #109 CI (8 area jobs + validate + aggregate).
+
+### Session (CI auth magic-link / inbucket — 22 Nov 2026)
+* **Root cause**: CI container trim stopped `supabase_inbucket_*` (local email capture on port 54324); GoTrue could not dispatch magic-link mail — `styl-228-magic-link-auth` inbox test timed out.
+* **Fix**: Keep **inbucket** (and mailpit/smtp) running in `.github/workflows/playwright.yml` trim step; log GoTrue `error.message` on magic-link dispatch failure.
+* **Verify**: Reproduced by `docker stop supabase_inbucket_workspace` locally; auth area 78 passed with inbucket up; push and await PR #109 **Playwright (auth)** green.

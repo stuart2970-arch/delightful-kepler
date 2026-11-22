@@ -160,7 +160,7 @@ jobs:
                 continue
                 ;;
             esac
-            if echo "$name" | grep -qi supabase && echo "$name" | grep -qiE 'studio|imgproxy|inbucket|edge-runtime'; then
+            if echo "$name" | grep -qi supabase && echo "$name" | grep -qiE 'studio|imgproxy|edge-runtime'; then
               docker stop "$name" || true
             fi
           done

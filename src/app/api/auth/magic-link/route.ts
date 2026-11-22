@@ -83,7 +83,7 @@ export async function POST(request: Request) {
   });
 
   if (error) {
-    console.warn('[Magic Link] Sign-in email was not dispatched.');
+    console.warn('[Magic Link] Sign-in email was not dispatched.', error.message);
   } else {
     console.info('[Magic Link] Sign-in email accepted.');
   }
