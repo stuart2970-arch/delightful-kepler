@@ -7,11 +7,25 @@ import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { execSync } from 'node:child_process';
 import { pathToFileURL } from 'node:url';
-import minimatch from 'minimatch';
 import {
   CI_PLAYWRIGHT_GROUPS,
   testPathsForGroup,
 } from './ci-playwright-groups.mjs';
+
+/**
+ * @param {string} file
+ * @param {string} pattern
+ */
+function globMatch(file, pattern) {
+  const re = pattern
+    .replace(/\\/g, '/')
+    .replace(/[.+^${}()|[\]\\]/g, '\\$&')
+    .replace(/\*\*/g, '§GLOBSTAR§')
+    .replace(/\*/g, '[^/]*')
+    .replace(/§GLOBSTAR§/g, '.*')
+    .replace(/\?/g, '.');
+  return new RegExp(`^${re}$`).test(file.replace(/\\/g, '/'));
+}
 
 const root = join(import.meta.dirname, '..');
 const configPath = join(root, '.github/playwright-area-paths.json');
@@ -27,7 +41,7 @@ const AREA_IDS = CI_PLAYWRIGHT_GROUPS.map((g) => g.id);
  */
 function matchesAny(changedPath, patterns) {
   const normalised = changedPath.replace(/\\/g, '/');
-  return patterns.some((pattern) => minimatch(normalised, pattern, { dot: true }));
+  return patterns.some((pattern) => globMatch(normalised, pattern));
 }
 
 /**
