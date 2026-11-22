@@ -220,6 +220,9 @@ export interface DashboardState {
   setRwgAddressSameAsTrading: (same: boolean) => void;
 
   // RWG & Scheduling Context
+  /** Server-supplied STYL-416 visibility. Default off. */
+  rwgUiEnabled: boolean;
+  setRwgUiEnabled: (enabled: boolean) => void;
   rwgConfig: any;
   setRwgConfig: (config: any) => void;
   bookingMode: string;
@@ -335,6 +338,8 @@ export const useDashboardStore = create<DashboardState>((set) => ({
   setTwilioShadowNumber: (number) => set({ twilioShadowNumber: number }),
   twilioMobileNumber: null,
   setTwilioMobileNumber: (number) => set({ twilioMobileNumber: number }),
+  rwgUiEnabled: false,
+  setRwgUiEnabled: (rwgUiEnabled) => set({ rwgUiEnabled }),
   rwgConfig: {},
   setRwgConfig: (rwgConfig) => set({ rwgConfig }),
   bookingMode: 'single_calendar',

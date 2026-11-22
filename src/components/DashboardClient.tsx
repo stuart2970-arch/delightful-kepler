@@ -126,6 +126,8 @@ interface DashboardClientProps {
   initialServices?: Record<string, unknown>[];
   initialStaff?: Record<string, unknown>[];
   initialRwgConfig?: Record<string, unknown>;
+  /** STYL-416. Server-read flag. Default off hides Reserve with Google. */
+  rwgUiEnabled?: boolean;
   initialBookingMode?: string;
   initialBookingUrl?: string;
   initialGeneralOperatingHours?: Record<string, unknown>;
@@ -177,6 +179,7 @@ export default function DashboardClient({
   isSuperAdmin,
   initialDomain,
   initialRwgConfig,
+  rwgUiEnabled = false,
   initialBookingMode,
   initialBookingUrl,
   initialGeneralOperatingHours = {},
@@ -234,6 +237,7 @@ export default function DashboardClient({
       billingData,
       superadminData,
       domain: initialDomain || '',
+      rwgUiEnabled: rwgUiEnabled === true,
       rwgConfig: initialRwgConfig || {},
       bookingMode: initialBookingMode || 'single_calendar',
       bookingUrl: initialBookingUrl || '',
@@ -284,6 +288,7 @@ export default function DashboardClient({
     billingData,
     superadminData,
     initialDomain,
+    rwgUiEnabled,
     initialRwgConfig,
     initialBookingMode,
     initialBookingUrl,
@@ -471,10 +476,13 @@ export default function DashboardClient({
         body: JSON.stringify({
           tenantId,
           domain: domain,
-          rwgConfig: {
-            ...finalRwgConfig,
-            is_registered_business_address: registeredAddressSameAsTrading // Sync legacy field for compatibility
-          },
+          ...(rwgUiEnabled ? {
+            rwgConfig: {
+              ...finalRwgConfig,
+              is_registered_business_address: registeredAddressSameAsTrading // Sync legacy field for compatibility
+            },
+            rwgAddressSameAsTrading,
+          } : {}),
           tradingAddressStreet,
           tradingAddressCity,
           tradingAddressPostcode,
@@ -485,7 +493,6 @@ export default function DashboardClient({
           registeredAddressPostcode: finalRegisteredAddressPostcode,
           isRegisteredCompany,
           registeredAddressSameAsTrading,
-          rwgAddressSameAsTrading
         }),
       });
 
