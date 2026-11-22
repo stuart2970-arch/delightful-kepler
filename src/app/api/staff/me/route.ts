@@ -1,5 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createServerClient } from '@/utils/supabase-server';
+import { createAdminClient } from '@/utils/supabase-admin';
+import {
+  onStaffGoogleCalendarIdChanged,
+  runCalendarPushSideEffect,
+} from '@/lib/calendar/push-sync/register-lifecycle';
 
 export async function GET(request: NextRequest) {
   try {
@@ -50,6 +55,12 @@ export async function PATCH(request: NextRequest) {
 
     const payload = await request.json();
 
+    const { data: before } = await supabase
+      .from('staff')
+      .select('tenant_id, google_calendar_id')
+      .eq('user_id', user.id)
+      .maybeSingle();
+
     // Explicitly sanitize inputs: Colleague cannot mutate security, tenant boundaries, or permissions
     const safePayload: any = {
       name: payload.name,
@@ -70,6 +81,19 @@ export async function PATCH(request: NextRequest) {
       .single();
 
     if (error) return NextResponse.json({ error: error.message }, { status: 400 });
+
+    if (before && payload.google_calendar_id !== undefined) {
+      const tenantId = String(before.tenant_id);
+      const admin = createAdminClient();
+      runCalendarPushSideEffect('staff profile calendar change', () =>
+        onStaffGoogleCalendarIdChanged(
+          admin,
+          tenantId,
+          before.google_calendar_id,
+          data.google_calendar_id,
+        ),
+      );
+    }
 
     return NextResponse.json(data);
   } catch (err: any) {

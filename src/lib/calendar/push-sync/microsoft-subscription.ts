@@ -73,6 +73,31 @@ export function verifyMicrosoftClientState(provided: string, expected: string): 
   return secretsEqual(provided, expected)
 }
 
+export async function deleteMicrosoftCalendarSubscription(
+  admin: SupabaseClient,
+  tenantId: string,
+  subscriptionId: string,
+): Promise<void> {
+  if (!calendarPushRegistrationAllowed()) return
+  const token = await getMicrosoftAccessToken(tenantId)
+  if (!token || token === 'mock_ms_access_token') return
+  try {
+    const res = await fetch(
+      `https://graph.microsoft.com/v1.0/subscriptions/${encodeURIComponent(subscriptionId)}`,
+      {
+        method: 'DELETE',
+        headers: { Authorization: `Bearer ${token}` },
+      },
+    )
+    if (!res.ok && res.status !== 404) {
+      const text = await res.text()
+      console.warn(`Microsoft subscription delete failed: ${res.status} ${text}`)
+    }
+  } catch (err) {
+    console.warn('[Calendar push] Microsoft subscription delete failed:', err)
+  }
+}
+
 export async function renewMicrosoftCalendarSubscription(
   admin: SupabaseClient,
   tenantId: string,

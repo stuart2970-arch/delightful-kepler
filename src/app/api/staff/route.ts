@@ -1,6 +1,12 @@
 import { NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import { requireTenantMember, requireTenantRole } from '@/lib/auth/require-tenant-role';
+import {
+  ensureGoogleCalendarPushWatch,
+  onStaffGoogleCalendarIdChanged,
+  runCalendarPushSideEffect,
+  tenantHasGoogleCalendar,
+} from '@/lib/calendar/push-sync/register-lifecycle';
 
 function getSupabaseAdmin() {
   return createClient(
@@ -96,6 +102,16 @@ export async function POST(request: Request) {
 
     if (error) throw error;
 
+    runCalendarPushSideEffect('staff create calendar', async () => {
+      if (await tenantHasGoogleCalendar(supabaseAdmin, auth.tenantId)) {
+        await ensureGoogleCalendarPushWatch(
+          supabaseAdmin,
+          auth.tenantId,
+          data.google_calendar_id || 'primary',
+        );
+      }
+    });
+
     return NextResponse.json({ staff: data });
   } catch (err: unknown) {
     console.error('Error creating staff:', err);
@@ -118,7 +134,7 @@ export async function PUT(request: Request) {
     const supabaseAdmin = getSupabaseAdmin();
     const { data: existing } = await supabaseAdmin
       .from('staff')
-      .select('id, tenant_id')
+      .select('id, tenant_id, google_calendar_id')
       .eq('id', id)
       .maybeSingle();
     if (!existing) {
@@ -151,6 +167,18 @@ export async function PUT(request: Request) {
       .single();
 
     if (error) throw error;
+
+    if (existing) {
+      const tenantId = String(existing.tenant_id);
+      runCalendarPushSideEffect('staff update calendar', () =>
+        onStaffGoogleCalendarIdChanged(
+          supabaseAdmin,
+          tenantId,
+          existing.google_calendar_id,
+          data.google_calendar_id,
+        ),
+      );
+    }
 
     return NextResponse.json({ staff: data });
   } catch (err: unknown) {

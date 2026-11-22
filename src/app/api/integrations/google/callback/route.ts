@@ -8,6 +8,10 @@ import {
   unsignedIdTokenForEmail,
 } from '@/lib/google-account-email';
 import { requireOAuthCallback } from '@/lib/auth/oauth-callback-guard';
+import {
+  onGoogleCalendarConnected,
+  runCalendarPushSideEffect,
+} from '@/lib/calendar/push-sync/register-lifecycle';
 
 async function connectedAccountEmail(
   oauth2Client: InstanceType<typeof google.auth.OAuth2>,
@@ -98,6 +102,10 @@ export async function GET(request: NextRequest) {
         });
 
       if (error) throw error;
+
+      runCalendarPushSideEffect('google connect', () =>
+        onGoogleCalendarConnected(supabaseAdmin, gate.tenantId),
+      );
     }
 
     return NextResponse.redirect(`${appUrl}/dashboard?tab=scheduling&success=google_calendar`);
