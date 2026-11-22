@@ -28,11 +28,32 @@ export interface LeadNotificationParams {
   customerName?: string;
 }
 
+/** Columns that exist on public.tenants and public.messages (init schema). */
+export const LEAD_TENANT_SELECT = 'company_name';
+export const LEAD_MESSAGE_SELECT = 'sender_type, text_content, created_at';
+
+export interface ConsolidatedLeadPreview {
+  businessName: string;
+  chatbotName: string;
+  adminEmail: string | null;
+  emailDisplay: string;
+  phoneDisplay: string;
+  intentCategory: string;
+  userIntentSnippet: string;
+  formattedTranscriptLines: string[];
+  transcriptBlock: string;
+  plainText: string;
+  capturedEmail: string | null;
+  capturedPhone: string | null;
+  conversation: Record<string, any> | null;
+  currentContactSig: string;
+}
+
 /**
- * Consolidates email and mobile phone number into 1 email notification for the chatbot involved,
- * including customer intent summary and full chat or voice conversation transcript.
+ * Loads the lead email body from columns that exist.
+ * Does not send mail and does not write the conversation row.
  */
-export async function sendConsolidatedLeadEmail(params: LeadNotificationParams): Promise<boolean> {
+export async function loadConsolidatedLeadPreview(params: LeadNotificationParams): Promise<ConsolidatedLeadPreview> {
   const {
     tenantId,
     chatbotId,
@@ -43,164 +64,123 @@ export async function sendConsolidatedLeadEmail(params: LeadNotificationParams):
     customerName,
   } = params;
 
-  try {
-    const supabaseAdmin = getSupabaseAdmin();
+  const supabaseAdmin = getSupabaseAdmin();
 
-    // 1. Fetch chatbot details & tenant business name
-    const [{ data: chatbot }, { data: tenant }] = await Promise.all([
-      supabaseAdmin.from('chatbots').select('name, configuration_json').eq('id', chatbotId).single(),
-      supabaseAdmin.from('tenants').select('company_name').eq('id', tenantId).single(),
-    ]);
+  const [{ data: chatbot, error: chatbotError }, { data: tenant, error: tenantError }] = await Promise.all([
+    supabaseAdmin.from('chatbots').select('name, configuration_json').eq('id', chatbotId).single(),
+    supabaseAdmin.from('tenants').select(LEAD_TENANT_SELECT).eq('id', tenantId).single(),
+  ]);
 
-    const chatbotName = chatbot?.name || 'AI Chatbot';
-    const businessName = (tenant as { company_name?: string } | null)?.company_name || 'StyleFlo Business';
-    const botConfig = (chatbot?.configuration_json || {}) as Record<string, any>;
+  if (chatbotError) {
+    throw new Error(chatbotError.message);
+  }
+  if (tenantError) {
+    throw new Error(tenantError.message);
+  }
 
-    // 2. Resolve target admin email address
-    let adminEmail = botConfig.admin_email || botConfig.notification_email;
+  const chatbotName = chatbot?.name || 'AI Chatbot';
+  const businessName = (tenant as { company_name?: string | null } | null)?.company_name?.trim() || 'StyleFlo Business';
+  const botConfig = (chatbot?.configuration_json || {}) as Record<string, any>;
 
-    if (!adminEmail) {
-      const { data: profile } = await supabaseAdmin
-        .from('profiles')
-        .select('id')
-        .eq('tenant_id', tenantId)
-        .eq('role', 'owner')
-        .limit(1)
-        .maybeSingle();
+  let adminEmail: string | null = botConfig.admin_email || botConfig.notification_email || null;
 
-      if (profile) {
-        const { data: authUser } = await supabaseAdmin.auth.admin.getUserById(profile.id);
-        adminEmail = authUser?.user?.email;
-      }
-    }
-
-    if (!adminEmail) {
-      console.warn(`[Lead Notifier] No admin email address found for tenant ${tenantId} / chatbot ${chatbotId}`);
-      return false;
-    }
-
-    // 3. Fetch conversation and message history
-    const { data: conversation } = await supabaseAdmin
-      .from('conversations')
-      .select('*')
-      .eq('id', conversationId)
+  if (!adminEmail) {
+    const { data: profile } = await supabaseAdmin
+      .from('profiles')
+      .select('id')
+      .eq('tenant_id', tenantId)
+      .eq('role', 'owner')
+      .limit(1)
       .maybeSingle();
 
-    const { data: messages } = await supabaseAdmin
-      .from('messages')
-      .select('sender_type, sender_role, text_content, content, created_at')
-      .eq('conversation_id', conversationId)
-      .order('created_at', { ascending: true });
-
-    // Build list of message texts
-    const allMessageTexts: string[] = [];
-    const formattedTranscriptLines: string[] = [];
-
-    if (messages && messages.length > 0) {
-      messages.forEach((msg) => {
-        const text = (msg.text_content || msg.content || '').trim();
-        if (text) {
-          allMessageTexts.push(text);
-          const role = (msg.sender_type === 'user' || msg.sender_role === 'user') ? 'Customer' : 'Assistant';
-          formattedTranscriptLines.push(`${role}: ${text}`);
-        }
-      });
+    if (profile) {
+      const { data: authUser } = await supabaseAdmin.auth.admin.getUserById(profile.id);
+      adminEmail = authUser?.user?.email || null;
     }
+  }
 
-    if (voiceTranscript) {
-      allMessageTexts.push(voiceTranscript);
-    }
+  const { data: conversation } = await supabaseAdmin
+    .from('conversations')
+    .select('*')
+    .eq('id', conversationId)
+    .maybeSingle();
 
-    if (newContactInfo) {
-      allMessageTexts.push(newContactInfo);
-    }
+  const { data: messages, error: messageError } = await supabaseAdmin
+    .from('messages')
+    .select(LEAD_MESSAGE_SELECT)
+    .eq('conversation_id', conversationId)
+    .order('created_at', { ascending: true });
 
-    const combinedAllText = allMessageTexts.join('\n');
+  if (messageError) {
+    throw new Error(messageError.message);
+  }
 
-    // 4. Extract and consolidate Email & Mobile Phone Number
-    const emailRegex = /[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/gi;
-    const phoneRegex = /(?:(?:\+|00)\d{1,3}[\s-]*)?(?:0|\(\d+\))?[\s-]*\d{3,4}[\s-]*\d{3,4,5}/g;
+  const allMessageTexts: string[] = [];
+  const formattedTranscriptLines: string[] = [];
 
-    const extractedEmails = Array.from(new Set(combinedAllText.match(emailRegex) || []));
-    
-    // Filter raw phone matches to valid mobile/tel numbers (min 7 digits)
-    const rawPhones = combinedAllText.match(phoneRegex) || [];
-    const extractedPhones = Array.from(
-      new Set(
-        rawPhones
-          .map((p) => p.trim())
-          .filter((p) => p.replace(/\D/g, '').length >= 7 && !p.includes('@'))
-      )
-    );
-
-    const emailDisplay = extractedEmails.length > 0 ? extractedEmails.join(', ') : 'Not provided yet';
-    const phoneDisplay = extractedPhones.length > 0 ? extractedPhones.join(', ') : 'Not provided yet';
-
-    // 5. Derive Customer Intent Summary
-    let intentCategory = 'General Enquiry / Customer Assistance';
-    const lowerText = combinedAllText.toLowerCase();
-
-    if (lowerText.includes('book') || lowerText.includes('appointment') || lowerText.includes('slot') || lowerText.includes('availability') || lowerText.includes('schedule')) {
-      intentCategory = 'Appointment & Booking Enquiry';
-    } else if (lowerText.includes('price') || lowerText.includes('cost') || lowerText.includes('how much') || lowerText.includes('rate') || lowerText.includes('fee')) {
-      intentCategory = 'Pricing & Fee Enquiry';
-    } else if (lowerText.includes('service') || lowerText.includes('treatment') || lowerText.includes('cut') || lowerText.includes('style') || lowerText.includes('colour') || lowerText.includes('color')) {
-      intentCategory = 'Services Enquiry';
-    } else if (lowerText.includes('cancel') || lowerText.includes('reschedule') || lowerText.includes('change')) {
-      intentCategory = 'Appointment Modification';
-    }
-
-    // Extract first user enquiry as primary intent snippet
-    const firstUserMsg = messages?.find((m) => m.sender_type === 'user' || m.sender_role === 'user');
-    const userIntentSnippet = firstUserMsg ? (firstUserMsg.text_content || firstUserMsg.content || '').trim() : (voiceTranscript || newContactInfo || 'Customer initiated contact with chatbot');
-
-    // 6. Build Transcript Output
-    let transcriptBlock = '';
-    if (channelType === 'voice' || conversation?.is_voice_call) {
-      transcriptBlock = `--- VOICE CALL TRANSCRIPT ---\n${voiceTranscript || conversation?.transcript || 'Voice call completed.'}`;
-    } else {
-      transcriptBlock = `--- CHAT TRANSCRIPT ---\n${formattedTranscriptLines.length > 0 ? formattedTranscriptLines.join('\n') : (combinedAllText || 'No transcript available.')}`;
-    }
-
-    // 7. Deduplication & Consolidation Check
-    const currentContactSig = `${emailDisplay}|${phoneDisplay}`;
-    const prevContactSig = conversation?.configuration_json?.last_email_contact_sig;
-
-    if (prevContactSig === currentContactSig) {
-      console.log(`[Lead Notifier] Lead email already sent for conversation ${conversationId} with exact contacts (${currentContactSig}). Skipping duplicate.`);
-      return true;
-    }
-
-    // Update conversation record with metadata
-    if (conversation) {
-      const updatedConvConfig = {
-        ...(conversation.configuration_json || {}),
-        last_email_contact_sig: currentContactSig,
-        captured_email: extractedEmails[0] || null,
-        captured_phone: extractedPhones[0] || null,
-        last_lead_notification_at: new Date().toISOString(),
-      };
-      await supabaseAdmin.from('conversations').update({ configuration_json: updatedConvConfig }).eq('id', conversationId);
-    }
-
-    // 8. Mailgun Sending
-    if (!process.env.MAILGUN_API_KEY || !process.env.MAILGUN_DOMAIN) {
-      console.error('[Lead Notifier] Mailgun API Key or Domain missing. Cannot send lead email.');
-      return false;
-    }
-
-    const mailgun = new Mailgun(formData);
-    const mg = mailgun.client({
-      username: 'api',
-      key: process.env.MAILGUN_API_KEY,
-      url: 'https://api.eu.mailgun.net',
+  if (messages && messages.length > 0) {
+    messages.forEach((msg) => {
+      const text = (msg.text_content || '').trim();
+      if (text) {
+        allMessageTexts.push(text);
+        const role = msg.sender_type === 'user' ? 'Customer' : 'Assistant';
+        formattedTranscriptLines.push(`${role}: ${text}`);
+      }
     });
+  }
 
-    const isUpdateNotice = Boolean(prevContactSig);
-    const subjectPrefix = isUpdateNotice ? '[Lead Update]' : '[New Lead]';
-    const emailSubject = `${subjectPrefix} ${intentCategory} captured by ${chatbotName}`;
+  if (voiceTranscript) {
+    allMessageTexts.push(voiceTranscript);
+  }
 
-    const plainTextBody = `
+  if (newContactInfo) {
+    allMessageTexts.push(newContactInfo);
+  }
+
+  const combinedAllText = allMessageTexts.join('\n');
+
+  const emailRegex = /[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/gi;
+  const phoneRegex = /(?:(?:\+|00)\d{1,3}[\s-]*)?(?:0|\(\d+\))?[\s-]*\d{3,4}[\s-]*\d{3,4,5}/g;
+
+  const extractedEmails = Array.from(new Set(combinedAllText.match(emailRegex) || []));
+  const rawPhones = combinedAllText.match(phoneRegex) || [];
+  const extractedPhones = Array.from(
+    new Set(
+      rawPhones
+        .map((p) => p.trim())
+        .filter((p) => p.replace(/\D/g, '').length >= 7 && !p.includes('@'))
+    )
+  );
+
+  const emailDisplay = extractedEmails.length > 0 ? extractedEmails.join(', ') : 'Not provided yet';
+  const phoneDisplay = extractedPhones.length > 0 ? extractedPhones.join(', ') : 'Not provided yet';
+
+  let intentCategory = 'General Enquiry / Customer Assistance';
+  const lowerText = combinedAllText.toLowerCase();
+
+  if (lowerText.includes('book') || lowerText.includes('appointment') || lowerText.includes('slot') || lowerText.includes('availability') || lowerText.includes('schedule')) {
+    intentCategory = 'Appointment & Booking Enquiry';
+  } else if (lowerText.includes('price') || lowerText.includes('cost') || lowerText.includes('how much') || lowerText.includes('rate') || lowerText.includes('fee')) {
+    intentCategory = 'Pricing & Fee Enquiry';
+  } else if (lowerText.includes('service') || lowerText.includes('treatment') || lowerText.includes('cut') || lowerText.includes('style') || lowerText.includes('colour') || lowerText.includes('color')) {
+    intentCategory = 'Services Enquiry';
+  } else if (lowerText.includes('cancel') || lowerText.includes('reschedule') || lowerText.includes('change')) {
+    intentCategory = 'Appointment Modification';
+  }
+
+  const firstUserMsg = messages?.find((m) => m.sender_type === 'user');
+  const userIntentSnippet = firstUserMsg
+    ? (firstUserMsg.text_content || '').trim()
+    : (voiceTranscript || newContactInfo || 'Customer initiated contact with chatbot');
+
+  let transcriptBlock = '';
+  if (channelType === 'voice' || conversation?.is_voice_call) {
+    transcriptBlock = `--- VOICE CALL TRANSCRIPT ---\n${voiceTranscript || conversation?.transcript || 'Voice call completed.'}`;
+  } else {
+    transcriptBlock = `--- CHAT TRANSCRIPT ---\n${formattedTranscriptLines.length > 0 ? formattedTranscriptLines.join('\n') : (combinedAllText || 'No transcript available.')}`;
+  }
+
+  const plainText = `
 ==================================================
 NEW LEAD CAPTURED BY AI CHATBOT
 ==================================================
@@ -224,6 +204,101 @@ Log into your StyleFlo Dashboard to view and manage this conversation.
 ==================================================
 `.trim();
 
+  return {
+    businessName,
+    chatbotName,
+    adminEmail,
+    emailDisplay,
+    phoneDisplay,
+    intentCategory,
+    userIntentSnippet,
+    formattedTranscriptLines,
+    transcriptBlock,
+    plainText,
+    capturedEmail: extractedEmails[0] || null,
+    capturedPhone: extractedPhones[0] || null,
+    conversation: conversation as Record<string, any> | null,
+    currentContactSig: `${emailDisplay}|${phoneDisplay}`,
+  };
+}
+
+/**
+ * Consolidates email and mobile phone number into 1 email notification for the chatbot involved,
+ * including customer intent summary and full chat or voice conversation transcript.
+ */
+export async function sendConsolidatedLeadEmail(params: LeadNotificationParams): Promise<boolean> {
+  const {
+    tenantId,
+    chatbotId,
+    conversationId,
+    newContactInfo,
+    channelType = 'chat',
+    voiceTranscript,
+    customerName,
+  } = params;
+
+  try {
+    const supabaseAdmin = getSupabaseAdmin();
+    const draft = await loadConsolidatedLeadPreview(params);
+    const {
+      businessName,
+      chatbotName,
+      adminEmail,
+      emailDisplay,
+      phoneDisplay,
+      intentCategory,
+      userIntentSnippet,
+      formattedTranscriptLines,
+      transcriptBlock,
+      plainText: plainTextBody,
+      capturedEmail,
+      capturedPhone,
+      conversation,
+      currentContactSig,
+    } = draft;
+
+    if (!adminEmail) {
+      console.warn(`[Lead Notifier] No admin email address found for tenant ${tenantId} / chatbot ${chatbotId}`);
+      return false;
+    }
+
+    // Deduplication & Consolidation Check
+    const prevContactSig = conversation?.configuration_json?.last_email_contact_sig;
+
+    if (prevContactSig === currentContactSig) {
+      console.log(`[Lead Notifier] Lead email already sent for conversation ${conversationId} with exact contacts (${currentContactSig}). Skipping duplicate.`);
+      return true;
+    }
+
+    // Update conversation record with metadata
+    if (conversation) {
+      const updatedConvConfig = {
+        ...(conversation.configuration_json || {}),
+        last_email_contact_sig: currentContactSig,
+        captured_email: capturedEmail,
+        captured_phone: capturedPhone,
+        last_lead_notification_at: new Date().toISOString(),
+      };
+      await supabaseAdmin.from('conversations').update({ configuration_json: updatedConvConfig }).eq('id', conversationId);
+    }
+
+    // 8. Mailgun Sending
+    if (!process.env.MAILGUN_API_KEY || !process.env.MAILGUN_DOMAIN) {
+      console.error('[Lead Notifier] Mailgun API Key or Domain missing. Cannot send lead email.');
+      return false;
+    }
+
+    const mailgun = new Mailgun(formData);
+    const mg = mailgun.client({
+      username: 'api',
+      key: process.env.MAILGUN_API_KEY,
+      url: 'https://api.eu.mailgun.net',
+    });
+
+    const isUpdateNotice = Boolean(prevContactSig);
+    const subjectPrefix = isUpdateNotice ? '[Lead Update]' : '[New Lead]';
+    const emailSubject = `${subjectPrefix} ${intentCategory} captured by ${chatbotName}`;
+
     const dashboardUrl = `${resolveServerPublicAppOrigin().replace(/\/+$/, '')}/dashboard`;
     const channelLabel = channelType === 'voice' ? 'Voice call' : 'Web chat';
     const safeChatbot = escapeHtml(chatbotName);
@@ -236,7 +311,7 @@ Log into your StyleFlo Dashboard to view and manage this conversation.
     const transcriptHtml = escapeHtml(
       formattedTranscriptLines.length > 0
         ? formattedTranscriptLines.join('\n\n')
-        : (voiceTranscript || combinedAllText || 'No transcript text available.'),
+        : (voiceTranscript || transcriptBlock || 'No transcript text available.'),
     );
     const htmlBody = buildBrandedEmailHtml({
       title: 'New Lead Captured',
