@@ -12,6 +12,7 @@ import { buildAccountOwnership } from '@/lib/billing/account-ownership';
 import { knowledgeItemsTotal } from '@/lib/billing/bolt-on';
 import type { CatalogAddon, InclusionRecord, PurchaseRecord } from '@/lib/billing/account-ownership';
 import { TENANT_PROFILE_SELECT, salonNameFromTenant } from '@/lib/tenant-profile';
+import { isRwgUiEnabled } from '@/lib/rwg-ui';
 import { STAFF_PUBLIC_COLUMNS } from '@/lib/staff/public-columns';
 import {
   isPostgresMissingColumnError,
@@ -821,6 +822,7 @@ export default async function DashboardPage(props: { searchParams?: Promise<{ [k
         initialTwilioShadowNumber={initialTwilioShadowNumber}
         initialTwilioMobileNumber={initialTwilioMobileNumber}
         initialRwgConfig={rwgConfig}
+        rwgUiEnabled={isRwgUiEnabled()}
         initialBookingMode={bookingMode}
         initialBookingUrl={bookingUrl}
         initialGeneralOperatingHours={generalOperatingHours}

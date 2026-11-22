@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import { requireTenantRole } from '@/lib/auth/require-tenant-role';
 import { openingHoursForSave, mergeHolidaySettings } from '@/lib/opening-hours';
+import { isRwgUiEnabled } from '@/lib/rwg-ui';
 
 export async function PATCH(req: NextRequest) {
   try {
@@ -87,6 +88,10 @@ export async function PATCH(req: NextRequest) {
       );
     }
 
+    // STYL-416: while Reserve with Google is hidden, ignore RwG writes.
+    // Existing columns stay as stored. Other settings in the same request still save.
+    const persistRwgFields = isRwgUiEnabled();
+
     // Tier 1: Core Base Fields (Guaranteed in all Supabase schemas)
     const baselineUpdate: Record<string, any> = {
       ...(domain !== undefined && { domain: domain ? domain.trim() : null }),
@@ -97,7 +102,7 @@ export async function PATCH(req: NextRequest) {
       ...(body.twilioShadowNumber !== undefined && { twilio_shadow_number: body.twilioShadowNumber }),
       ...(body.twilio_mobile_number !== undefined && { twilio_mobile_number: body.twilio_mobile_number }),
       ...(body.twilioMobileNumber !== undefined && { twilio_mobile_number: body.twilioMobileNumber }),
-      ...(rwgConfig !== undefined && { 
+      ...(persistRwgFields && rwgConfig !== undefined && { 
         is_rwg_enabled: rwgConfig.is_rwg_enabled,
         rwg_business_name: rwgConfig.rwg_business_name,
         rwg_street_address: rwgConfig.rwg_street_address,
@@ -137,7 +142,7 @@ export async function PATCH(req: NextRequest) {
       
       ...((is_registered_company !== undefined || isRegisteredCompany !== undefined) && { is_registered_company: is_registered_company ?? isRegisteredCompany }),
       ...((registered_address_same_as_trading !== undefined || registeredAddressSameAsTrading !== undefined) && { registered_address_same_as_trading: registered_address_same_as_trading ?? registeredAddressSameAsTrading }),
-      ...((rwg_address_same_as_trading !== undefined || rwgAddressSameAsTrading !== undefined) && { rwg_address_same_as_trading: rwg_address_same_as_trading ?? rwgAddressSameAsTrading }),
+      ...(persistRwgFields && (rwg_address_same_as_trading !== undefined || rwgAddressSameAsTrading !== undefined) && { rwg_address_same_as_trading: rwg_address_same_as_trading ?? rwgAddressSameAsTrading }),
     };
 
     // Check if tenant row exists in database

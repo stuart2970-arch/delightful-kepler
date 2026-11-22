@@ -18,7 +18,8 @@ export default function IntegrationsView() {
     bookingMode, 
     bookingUrl, 
     rwgConfig, 
-    setRwgConfig, 
+    setRwgConfig,
+    rwgUiEnabled, 
     services, 
     staff,
     rwgAddressSameAsTrading,
@@ -364,7 +365,8 @@ export default function IntegrationsView() {
                 )}
               </div>
 
-              <div className="bg-white border border-[#f2f3f5] p-6 rounded-2xl shadow-sm space-y-6">
+              {rwgUiEnabled ? (
+              <div className="bg-white border border-[#f2f3f5] p-6 rounded-2xl shadow-sm space-y-6" data-testid="rwg-integration-card">
                 {/* Reserve with Google Integration */}
                 <div>
                   <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4">
@@ -581,6 +583,7 @@ export default function IntegrationsView() {
                 </div>
               </div>
             </div>
+              ) : null}
           </div>
   );
 }
