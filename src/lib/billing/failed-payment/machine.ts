@@ -27,6 +27,7 @@ export type FailedPaymentCaseRow = {
   restarted_at: string | null;
   cancelled_at: string | null;
   written_off_invoice_id: string | null;
+  paid_at: string | null;
   status: FailedPaymentStatus;
 };
 
@@ -65,10 +66,11 @@ export function snapshotFromFailedPaymentCase(row: FailedPaymentCaseRow): Failed
     restartedAt: row.restarted_at,
     cancelledAt: row.cancelled_at,
     writtenOffInvoiceId: row.written_off_invoice_id,
+    paidAt: row.paid_at,
   };
 }
 
-const CASE_COLUMNS = 'id, tenant_id, stripe_invoice_id, stripe_subscription_id, stripe_customer_id, first_failed_at, paused_at, restarted_at, cancelled_at, written_off_invoice_id, status';
+const CASE_COLUMNS = 'id, tenant_id, stripe_invoice_id, stripe_subscription_id, stripe_customer_id, first_failed_at, paused_at, restarted_at, cancelled_at, written_off_invoice_id, paid_at, status';
 
 async function loadCaseByInvoice(db: FailedPaymentDb, stripeInvoiceId: string): Promise<FailedPaymentCaseRow | null> {
   const invoiceId = stripeInvoiceId.trim();
@@ -243,6 +245,15 @@ async function markRecovered(db: FailedPaymentDb, caseId: string): Promise<void>
   if (error) throw dbError(error, 'Could not recover the failed payment');
 }
 
+async function markInvoicePaid(db: FailedPaymentDb, caseId: string, paidAt: string): Promise<void> {
+  const { error } = await db
+    .from('failed_payment_cases')
+    .update({ paid_at: paidAt, updated_at: paidAt })
+    .eq('id', caseId)
+    .is('paid_at', null);
+  if (error) throw dbError(error, 'Could not record the paid invoice');
+}
+
 async function emitTransition(
   handler: FailedPaymentTransitionHandler | undefined,
   event: FailedPaymentTransitionEvent,
@@ -258,6 +269,8 @@ export async function applyFailedPaymentTransition(
   stripe: FailedPaymentStripeClient,
   onTransition?: FailedPaymentTransitionHandler,
 ): Promise<'applied' | 'skipped' | 'locked'> {
+  if ((kind === 'cancel' || kind === 'write_off') && row.paid_at) return 'skipped';
+
   const occurredAt = now.toISOString();
   const key = failedPaymentTransitionKey(kind, row.stripe_invoice_id);
   const claim = await claimTransition(db, row, kind, occurredAt);
@@ -315,11 +328,16 @@ export async function settleFailedPaymentOnInvoicePaid(
     onTransition?: FailedPaymentTransitionHandler;
   },
 ): Promise<void> {
+  if (input.settlement.action !== 'recover' && input.settlement.action !== 'restart') return;
+
+  const paidAt = input.now.toISOString();
+  await markInvoicePaid(db, input.settlement.row.id, paidAt);
+  input.settlement.row.paid_at = input.settlement.row.paid_at || paidAt;
+
   if (input.settlement.action === 'recover') {
     await markRecovered(db, input.settlement.row.id);
     return;
   }
-  if (input.settlement.action !== 'restart') return;
 
   const stripe = input.stripe ?? resolveFailedPaymentStripeClient();
   const outcome = await applyFailedPaymentTransition(
@@ -355,7 +373,8 @@ export async function runFailedPaymentSweep(
     .from('failed_payment_cases')
     .select(CASE_COLUMNS)
     .not('cancelled_at', 'is', null)
-    .is('written_off_invoice_id', null);
+    .is('written_off_invoice_id', null)
+    .is('paid_at', null);
   if (unwound.error) throw dbError(unwound.error, 'Could not list open failed payments');
   const seen = new Set<string>();
   const rows: FailedPaymentCaseRow[] = [];
@@ -368,6 +387,21 @@ export async function runFailedPaymentSweep(
   const result: FailedPaymentSweepResult = { examined: rows.length, applied: 0, skipped: 0, failed: 0 };
 
   for (const row of rows) {
+    if (row.paid_at && !row.restarted_at && !row.cancelled_at && (row.paused_at || row.status === 'paused')) {
+      try {
+        const outcome = await applyFailedPaymentTransition(db, row, 'restart', now, input.stripe, input.onTransition);
+        if (outcome === 'applied') result.applied += 1;
+        else if (outcome === 'skipped') result.skipped += 1;
+        else result.failed += 1;
+      } catch (err) {
+        result.failed += 1;
+        console.error('[failed-payment] restart retry failed', {
+          caseId: row.id,
+          message: err instanceof Error ? err.message : 'restart failed',
+        });
+      }
+      continue;
+    }
     const due = dueFailedPaymentTransitions(snapshotFromFailedPaymentCase(row), now);
     for (const kind of due) {
       try {

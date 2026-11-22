@@ -13,12 +13,16 @@ CREATE TABLE IF NOT EXISTS public.failed_payment_cases (
   restarted_at timestamptz,
   cancelled_at timestamptz,
   written_off_invoice_id text,
+  paid_at timestamptz,
   status text NOT NULL DEFAULT 'past_due'
     CHECK (status IN ('past_due', 'paused', 'restarted', 'recovered', 'cancelled')),
   created_at timestamptz NOT NULL DEFAULT clock_timestamp(),
   updated_at timestamptz NOT NULL DEFAULT clock_timestamp(),
   CONSTRAINT failed_payment_cases_invoice_key UNIQUE (stripe_invoice_id)
 );
+
+ALTER TABLE public.failed_payment_cases
+  ADD COLUMN IF NOT EXISTS paid_at timestamptz;
 
 CREATE INDEX IF NOT EXISTS failed_payment_cases_tenant_idx
   ON public.failed_payment_cases (tenant_id);

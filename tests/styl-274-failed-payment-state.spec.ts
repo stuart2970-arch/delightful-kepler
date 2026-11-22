@@ -142,6 +142,7 @@ test.describe('STYL-274 failed-payment day count', () => {
       restartedAt: null,
       cancelledAt: null,
       writtenOffInvoiceId: null,
+      paidAt: null,
     };
     expect(elapsedFailedPaymentDays(start, start)).toBe(0);
     expect(dueFailedPaymentTransitions(snapshot, start)).toEqual([]);
@@ -158,6 +159,7 @@ test.describe('STYL-274 failed-payment day count', () => {
       restartedAt: null,
       cancelledAt: null,
       writtenOffInvoiceId: null,
+      paidAt: null,
     };
     expect(dueFailedPaymentTransitions(open, new Date(start.getTime() + 7 * DAY))).toEqual(['pause']);
     expect(dueFailedPaymentTransitions(open, new Date(start.getTime() + 36 * DAY))).toEqual(['pause']);
@@ -180,6 +182,10 @@ test.describe('STYL-274 failed-payment day count', () => {
       { ...open, status: 'recovered' },
       new Date(start.getTime() + 37 * DAY),
     )).toEqual([]);
+    expect(dueFailedPaymentTransitions(
+      { ...paused, paidAt: '2026-01-10T00:00:00.000Z' },
+      new Date(start.getTime() + 37 * DAY),
+    )).toEqual([]);
   });
 });
 
@@ -189,6 +195,8 @@ test.describe('STYL-274 migration and Stripe test-mode calls', () => {
       join(root, 'supabase/migrations/20261123100000_styl274_failed_payment_state.sql'),
       'utf8',
     );
+    expect(sql).toContain('paid_at timestamptz');
+    expect(sql).toContain('ADD COLUMN IF NOT EXISTS paid_at');
     expect(sql).toContain('failed_payment_cases');
     expect(sql).toContain('failed_payment_transitions');
     expect(sql).toContain('CONSTRAINT failed_payment_cases_invoice_key UNIQUE (stripe_invoice_id)');
@@ -748,6 +756,90 @@ test.describe('STYL-274 failed-payment state machine', () => {
       .single();
     expect(tenant?.is_active).toBe(true);
     expect(tenant?.subscription_status).toBe('active');
+  });
+
+  test('a failed restart is retried and a paid case is not cancelled', async () => {
+    const admin = adminClient();
+    const failedAt = new Date('2026-04-01T00:00:00.000Z');
+    const paidAt = new Date(failedAt.getTime() + 10 * DAY);
+    const day37 = new Date(failedAt.getTime() + 37 * DAY);
+    const { client, calls } = trackingStripe();
+    await handleStripeBillingEvent(
+      failureEvent({
+        eventId: 'evt_styl274_retry_fail',
+        invoiceId: 'in_styl274_retry',
+        subscriptionId: 'sub_styl274_retry',
+        created: failedAt,
+      }),
+      { supabaseAdmin: admin },
+    );
+    await runFailedPaymentSweep(admin, {
+      now: new Date(failedAt.getTime() + 7 * DAY),
+      stripe: client,
+    });
+    const throwing = {
+      ...client,
+      async restartBilling() {
+        throw new Error('stripe down');
+      },
+    };
+    const paid = await handleStripeBillingEvent({
+      id: 'evt_styl274_retry_paid',
+      type: 'invoice.payment_succeeded',
+      data: {
+        object: {
+          id: 'in_styl274_retry',
+          billing_reason: 'manual',
+          subscription: 'sub_styl274_retry',
+          subscription_details: { metadata: { tenant_id: TENANT } },
+        },
+      },
+    }, {
+      supabaseAdmin: admin,
+      now: paidAt,
+      failedPaymentStripe: throwing,
+      allocateRollingCredits: async () => undefined,
+    });
+    expect(paid.status).toBe(200);
+    expect(String(paid.body.message || '')).toContain('unlocked');
+
+    const { data: paused } = await admin
+      .from('failed_payment_cases')
+      .select('status, paid_at, restarted_at, cancelled_at, written_off_invoice_id')
+      .eq('stripe_invoice_id', 'in_styl274_retry')
+      .single();
+    expect(paused?.status).toBe('paused');
+    expect(Date.parse(paused?.paid_at)).toBe(paidAt.getTime());
+    expect(paused?.restarted_at).toBeNull();
+    expect(paused?.cancelled_at).toBeNull();
+
+    const blocked = await runFailedPaymentSweep(admin, { now: day37, stripe: throwing });
+    expect(blocked.failed).toBeGreaterThanOrEqual(1);
+    expect(calls.cancel).toHaveLength(0);
+    expect(calls.writeOff).toHaveLength(0);
+    const { data: stillPaused } = await admin
+      .from('failed_payment_cases')
+      .select('status, cancelled_at, written_off_invoice_id')
+      .eq('stripe_invoice_id', 'in_styl274_retry')
+      .single();
+    expect(stillPaused?.status).toBe('paused');
+    expect(stillPaused?.cancelled_at).toBeNull();
+    expect(stillPaused?.written_off_invoice_id).toBeNull();
+
+    const retried = await runFailedPaymentSweep(admin, { now: day37, stripe: client });
+    expect(retried.applied).toBe(1);
+    expect(calls.cancel).toHaveLength(0);
+    expect(calls.writeOff).toHaveLength(0);
+    expect(calls.restart).toHaveLength(1);
+    const { data: restarted } = await admin
+      .from('failed_payment_cases')
+      .select('status, restarted_at, cancelled_at, written_off_invoice_id')
+      .eq('stripe_invoice_id', 'in_styl274_retry')
+      .single();
+    expect(restarted?.status).toBe('restarted');
+    expect(restarted?.restarted_at).not.toBeNull();
+    expect(restarted?.cancelled_at).toBeNull();
+    expect(restarted?.written_off_invoice_id).toBeNull();
   });
 });
 

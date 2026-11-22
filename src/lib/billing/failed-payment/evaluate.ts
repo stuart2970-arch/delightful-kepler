@@ -12,6 +12,7 @@ export type FailedPaymentSnapshot = {
   restartedAt: string | null;
   cancelledAt: string | null;
   writtenOffInvoiceId: string | null;
+  paidAt: string | null;
 };
 
 export type DueFailedPaymentTransition = 'pause' | 'cancel' | 'write_off';
@@ -27,12 +28,14 @@ export function elapsedFailedPaymentDays(firstFailedAt: Date, now: Date): number
 
 /**
  * Days 0–6 record only. Day 7 pauses. Day 37 cancels and writes the invoice off.
- * A paid or restarted case has no further transitions.
+ * A paid case is never paused, cancelled, or written off from here.
+ * Restart of a paid pause is retried by the sweep, not by the day count.
  */
 export function dueFailedPaymentTransitions(
   snapshot: FailedPaymentSnapshot,
   now: Date,
 ): DueFailedPaymentTransition[] {
+  if (snapshot.paidAt) return [];
   if (snapshot.status === 'restarted' || snapshot.status === 'recovered' || snapshot.restartedAt) {
     return [];
   }
