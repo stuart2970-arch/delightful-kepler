@@ -4737,3 +4737,8 @@ Highlighted adjustments in the modal:
 * **STYL-292**: `loadConsolidatedLeadPreview` selects `company_name` and `sender_type, text_content, created_at`. A bad column now throws instead of sending an empty transcript. `sendConsolidatedLeadEmail` uses that preview.
 * **Website wording left in place**: `public/styleflo_landing_page.html` and `public/template-styleflo-landing.php` meta keywords still say "Reserve with Google integration". The pricing-matrix feature row `reserve_with_google` remains in the database with `is_available` false. Booking-server comments and the Basic realm string stay on the API.
 * **Verify**: `npm run typecheck`; Playwright `tests/styl-416-rwg-ui-hidden.spec.ts`, `tests/styl-292-lead-email-columns.spec.ts`, `tests/styl-407-rwg-check-availability.spec.ts` — 9 passed on local Supabase.
+
+### Session (STYL-416 feed gate follow-up — 22 Nov 2026)
+* **Review**: With the flag off, `/api/rwg/feeds/merchants`, `/services` and `/availability` still listed tenants that already had `is_rwg_enabled`. Production has rows in that state, and the settings API will not turn them off.
+* **Change**: Each of those GET handlers returns `[]` before opening a database client when `RWG_UI_ENABLED` is off. `/api/rwg/feeds/cron` returns the disabled message and does not run the aggregation. With the flag on, the same handlers still build the feeds. Booking server routes and secrets are unchanged.
+* **Tests**: `tests/styl-416-rwg-feeds-disabled.spec.ts`.

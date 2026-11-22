@@ -1,25 +1,26 @@
 import { NextResponse } from 'next/server';
-import { createServerClient } from '@supabase/ssr';
-import { cookies } from 'next/headers';
-import { APPOINTMENT_STATUS_BOOKED } from '@/lib/booking/appointment-status';
-import { STAFF_PUBLIC_COLUMNS, type StaffPublicRow } from '@/lib/staff/public-columns';
+import { createClient } from '@supabase/supabase-js';
+import { APPOINTMENT_STATUS_BOOKED } from '../../../../../lib/booking/appointment-status';
+import { STAFF_PUBLIC_COLUMNS, type StaffPublicRow } from '../../../../../lib/staff/public-columns';
+import { isRwgUiEnabled } from '../../../../../lib/rwg-ui';
 
 export const dynamic = 'force-dynamic';
 
-export async function GET(request: Request) {
-  try {
-    const cookieStore = await cookies();
-    const supabaseUrl = process.env.SUPABASE_URL || process.env['NEXT_PUBLIC_SUPABASE_URL'] || '';
-    const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_ANON_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || '';
+function feedSupabase() {
+  const supabaseUrl = process.env.SUPABASE_URL || process.env['NEXT_PUBLIC_SUPABASE_URL'] || '';
+  const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_ANON_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || '';
+  return createClient(supabaseUrl, supabaseKey, {
+    auth: { persistSession: false, autoRefreshToken: false },
+  });
+}
 
-    const supabase = createServerClient(supabaseUrl, supabaseKey, {
-      cookies: {
-        getAll() { return cookieStore.getAll(); },
-        setAll(cookiesToSet) {
-          try { cookiesToSet.forEach(({ name, value, options }) => cookieStore.set(name, value, options)); } catch {}
-        },
-      },
-    });
+export async function GET() {
+  if (!isRwgUiEnabled()) {
+    return NextResponse.json([]);
+  }
+
+  try {
+    const supabase = feedSupabase();
 
     // We only want availability from tenants that have RwG enabled and are not external_platform
     const { data: tenants, error: tenantError } = await supabase
