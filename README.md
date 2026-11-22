@@ -142,6 +142,13 @@ This runbook documents the key fixes and architecture enhancements implemented d
 
 ### Session Chat History Log
 
+### Session (STYL-413 Subscribe to Foundation — 22 Nov 2026)
+* **User / Stuart**: Package 1b on current staging (PR 124 is merged). On Subscriptions & Bolt-ons, next to the billing portal button, add **Subscribe to Foundation**. It POSTs `{ plan: 'foundation' }` to `/api/billing/checkout` and redirects to the Checkout URL. Show the button only when `hasActiveFoundationSubscription` is exactly false. Do not use `tenants.plan_tier` or `subscription_status`. Checkout returns 409 when that same check finds a billable Foundation subscription. Do not change webhook processing, failed-payment files, Reserve with Google, or the email layer.
+* **Flag**: `GET /api/billing/account` reads `tenants.stripe_customer_id`. No customer id means false (show the button). Otherwise Stripe `subscriptions.list({ customer, status: 'all', limit: 20 })`. True when a subscription is `active`, `trialing`, or `past_due` and an item price id matches `subscription_tiers.stripe_price_id` for `foundation` or `base_tier`. A Stripe error is `null` (button stays hidden). Playwright uses a fixture file instead of Stripe when `PLAYWRIGHT_TEST=true`.
+* **Checkout**: `{ plan: 'foundation' }` returns 409 `foundation_subscription_exists` only when the flag is true. The tenant id is the session tenant. Customer creation still uses the `cust-${tenantId}` idempotency key.
+* **Tests**: `tests/styl-413-subscribe-foundation.spec.ts` in the billing Stripe entitlements group. Local Supabase and the Playwright Stripe fixture only.
+* **Left out**: No new Stripe prices, no webhook changes, and the Jira ticket was not moved.
+
 ### Session (STYL-225 slug minimum and review wording — 22 Nov 2026)
 * **User / Stuart**: Small PR into staging. Replace the review sentence that promised a reply within one working day with "Thanks! We need to check this name. You can carry on setting up, and we'll review it shortly." Web addresses need at least 3 characters. Do not edit already-applied migrations and do not touch production.
 * **Wording**: `NAME_POLICY_MESSAGES.review` and the Playwright `REVIEW` constant use the new sentence. New migration `supabase/migrations/20261122170000_styl225_slug_min_and_review_wording.sql` replaces `classify_moderated_name` and `moderation_profanity_decision` with the same bodies and the new sentence. The earlier migration files stay as applied history, so a text search still finds the old sentence there.

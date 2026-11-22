@@ -100,6 +100,7 @@ export const CI_PLAYWRIGHT_GROUPS = [
       /tests\/unit\/styl-142-checkout-invoice-presentation\.spec\.ts$/,
       /tests\/unit\/styl-142-stripe-checkout-customer\.spec\.ts$/,
       /tests\/styl-414-stripe-customer-race\.spec\.ts$/,
+      /tests\/styl-413-subscribe-foundation\.spec\.ts$/,
     ],
   },
   {

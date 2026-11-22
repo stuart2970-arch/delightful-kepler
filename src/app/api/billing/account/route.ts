@@ -3,6 +3,7 @@ import { createClient } from '@supabase/supabase-js';
 import { requireUser } from '@/lib/auth/require-superadmin';
 import { buildAccountOwnership, planHeadingName } from '@/lib/billing/account-ownership';
 import type { CatalogAddon, InclusionRecord, PurchaseRecord } from '@/lib/billing/account-ownership';
+import { lookupHasActiveFoundationSubscription } from '@/lib/billing/foundation-subscription';
 
 export const dynamic = 'force-dynamic';
 
@@ -40,9 +41,14 @@ export async function GET(req: NextRequest) {
     const tenantId = profile.tenant_id as string;
     const { data: tenant } = await supabase
       .from('tenants')
-      .select('plan_tier')
+      .select('plan_tier, stripe_customer_id')
       .eq('id', tenantId)
       .maybeSingle();
+
+    const hasActiveFoundationSubscription = await lookupHasActiveFoundationSubscription({
+      supabase,
+      stripeCustomerId: tenant?.stripe_customer_id,
+    });
 
     const tierId = tenant?.plan_tier || 'foundation';
     const { data: tier } = await supabase
@@ -93,6 +99,7 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({
       tenant_id: tenantId,
       ...ownership,
+      hasActiveFoundationSubscription,
     });
   } catch (error) {
     console.error('[Billing Account] Failed to load ownership:', error);
