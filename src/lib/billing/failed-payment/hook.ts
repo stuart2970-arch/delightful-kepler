@@ -1,4 +1,4 @@
-export type FailedPaymentTransitionKind = 'pause' | 'restart' | 'cancel' | 'write_off';
+export type FailedPaymentTransitionKind = 'pause' | 'restart' | 'cancel' | 'write_off' | 'written_off_paid';
 
 export type FailedPaymentTransitionEvent = {
   kind: FailedPaymentTransitionKind;
@@ -8,6 +8,7 @@ export type FailedPaymentTransitionEvent = {
   stripeSubscriptionId: string | null;
   occurredAt: string;
   billingRestartedAt?: string | null;
+  nextBillingAt?: string | null;
   writtenOffInvoiceId?: string | null;
 };
 
@@ -25,6 +26,7 @@ export async function onFailedPaymentTransition(event: FailedPaymentTransitionEv
     stripeInvoiceId: event.stripeInvoiceId,
     occurredAt: event.occurredAt,
     billingRestartedAt: event.billingRestartedAt ?? null,
+    nextBillingAt: event.nextBillingAt ?? null,
     writtenOffInvoiceId: event.writtenOffInvoiceId ?? null,
   });
 }

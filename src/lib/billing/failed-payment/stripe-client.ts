@@ -3,13 +3,26 @@ import type { FailedPaymentStripeClient } from '@/lib/billing/failed-payment/str
 
 export type { FailedPaymentStripeClient } from '@/lib/billing/failed-payment/stripe-types';
 
+export type FailedPaymentBillingInterval = 'day' | 'week' | 'month' | 'year';
+
+export type FailedPaymentSubscriptionSnapshot = {
+  items?: {
+    data?: Array<{
+      price?: { recurring?: { interval?: string | null; interval_count?: number | null } | null } | null;
+      plan?: { interval?: string | null; interval_count?: number | null } | null;
+    }>;
+  };
+};
+
 export type FailedPaymentStripeGateway = {
   subscriptions: {
+    retrieve(id: string): Promise<FailedPaymentSubscriptionSnapshot>;
     update(id: string, params: Stripe.SubscriptionUpdateParams): Promise<unknown>;
     cancel(id: string, params?: Stripe.SubscriptionCancelParams): Promise<unknown>;
   };
   invoices: {
     markUncollectible(id: string): Promise<unknown>;
+    create?(params?: unknown): Promise<unknown>;
   };
 };
 
@@ -39,8 +52,12 @@ export function isSubscriptionAlreadyCancelled(error: unknown): boolean {
   return /already canceled|already cancelled|a canceled subscription/i.test(message);
 }
 
-export function assertStripeTestModeKey(key: string): void {
-  if (!/^(sk|rk)_test_/.test(key.trim())) {
+export function assertStripeKeyForFailedPayment(key: string, env: NodeJS.ProcessEnv = process.env): void {
+  const trimmed = key.trim();
+  if (!/^(sk|rk)_(test|live)_/.test(trimmed)) {
+    throw new Error('Failed-payment actions require a Stripe secret key');
+  }
+  if ((env.PLAYWRIGHT_TEST || '').trim() === 'true' && !/^(sk|rk)_test_/.test(trimmed)) {
     throw new Error('Failed-payment actions require a Stripe test-mode secret key');
   }
 }
@@ -51,14 +68,43 @@ export const FAILED_PAYMENT_PAUSE_PARAMS: Stripe.SubscriptionUpdateParams = {
 };
 
 /**
- * Clear the pause and start the next cycle from today.
- * The invoice that was just paid covers that first month. No proration charge.
+ * Clear the pause and give the paid invoice one billing interval.
+ * trial_end becomes the next anchor. Stripe does not invoice today.
  */
-export const FAILED_PAYMENT_RESTART_PARAMS: Stripe.SubscriptionUpdateParams = {
-  pause_collection: '',
-  billing_cycle_anchor: 'now',
-  proration_behavior: 'none',
-};
+export function failedPaymentRestartParams(trialEndUnix: number): Stripe.SubscriptionUpdateParams {
+  return {
+    pause_collection: '',
+    trial_end: trialEndUnix,
+    proration_behavior: 'none',
+  };
+}
+
+export function addBillingInterval(
+  from: Date,
+  interval: FailedPaymentBillingInterval,
+  intervalCount: number,
+): Date {
+  const count = Number.isFinite(intervalCount) && intervalCount > 0 ? Math.floor(intervalCount) : 1;
+  const next = new Date(from.getTime());
+  if (interval === 'day') next.setUTCDate(next.getUTCDate() + count);
+  else if (interval === 'week') next.setUTCDate(next.getUTCDate() + (count * 7));
+  else if (interval === 'year') next.setUTCFullYear(next.getUTCFullYear() + count);
+  else next.setUTCMonth(next.getUTCMonth() + count);
+  return next;
+}
+
+function billingIntervalFromSubscription(
+  subscription: FailedPaymentSubscriptionSnapshot,
+): { interval: FailedPaymentBillingInterval; intervalCount: number } {
+  const item = subscription.items?.data?.[0];
+  const recurring = item?.price?.recurring;
+  const rawInterval = recurring?.interval || item?.plan?.interval || '';
+  const rawCount = recurring?.interval_count ?? item?.plan?.interval_count ?? 1;
+  if (rawInterval !== 'day' && rawInterval !== 'week' && rawInterval !== 'month' && rawInterval !== 'year') {
+    throw new Error('Failed payment restart needs a recurring billing interval');
+  }
+  return { interval: rawInterval, intervalCount: rawCount || 1 };
+}
 
 export const FAILED_PAYMENT_CANCEL_PARAMS: Stripe.SubscriptionCancelParams = {
   invoice_now: false,
@@ -70,8 +116,13 @@ export function createFailedPaymentStripeClient(stripe: FailedPaymentStripeGatew
     async pauseCollection(subscriptionId: string) {
       await stripe.subscriptions.update(subscriptionId, FAILED_PAYMENT_PAUSE_PARAMS);
     },
-    async restartBilling(subscriptionId: string) {
-      await stripe.subscriptions.update(subscriptionId, FAILED_PAYMENT_RESTART_PARAMS);
+    async restartBilling(subscriptionId: string, restartedAt: Date) {
+      const subscription = await stripe.subscriptions.retrieve(subscriptionId);
+      const { interval, intervalCount } = billingIntervalFromSubscription(subscription);
+      const nextBillingAt = addBillingInterval(restartedAt, interval, intervalCount);
+      const trialEndUnix = Math.floor(nextBillingAt.getTime() / 1000);
+      await stripe.subscriptions.update(subscriptionId, failedPaymentRestartParams(trialEndUnix));
+      return { nextBillingAt: new Date(trialEndUnix * 1000).toISOString() };
     },
     async cancelSubscription(subscriptionId: string) {
       try {
@@ -94,7 +145,7 @@ export function createFailedPaymentStripeClientFromEnv(
   env: NodeJS.ProcessEnv = process.env,
 ): FailedPaymentStripeClient {
   const key = (env.STRIPE_SECRET_KEY || '').trim();
-  assertStripeTestModeKey(key);
+  assertStripeKeyForFailedPayment(key, env);
   const stripe = new Stripe(key, {
     apiVersion: '2023-10-16' as Stripe.LatestApiVersion,
   });

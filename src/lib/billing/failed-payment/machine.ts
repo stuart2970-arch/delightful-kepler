@@ -32,7 +32,7 @@ export type FailedPaymentCaseRow = {
 
 export type FailedPaymentSettlement =
   | { action: 'ignore' }
-  | { action: 'blocked_cancelled' }
+  | { action: 'blocked_cancelled'; row: FailedPaymentCaseRow }
   | { action: 'restart'; row: FailedPaymentCaseRow }
   | { action: 'recover'; row: FailedPaymentCaseRow };
 
@@ -140,7 +140,7 @@ export async function readFailedPaymentSettlement(
   const row = await loadCaseByInvoice(db, stripeInvoiceId);
   if (!row) return { action: 'ignore' };
   if (row.cancelled_at || row.status === 'cancelled' || row.written_off_invoice_id) {
-    return { action: 'blocked_cancelled' };
+    return { action: 'blocked_cancelled', row };
   }
   if (row.restarted_at || row.status === 'restarted' || row.status === 'recovered') {
     return { action: 'ignore' };
@@ -265,12 +265,14 @@ export async function applyFailedPaymentTransition(
   if (claim === 'locked') return 'locked';
 
   const subscriptionId = (row.stripe_subscription_id || '').trim() || null;
+  let nextBillingAt: string | null = null;
   try {
     if (kind === 'pause') {
       await stripe.pauseCollection(requireSubscriptionId(row));
       await pauseTenant(db, row.tenant_id);
     } else if (kind === 'restart') {
-      await stripe.restartBilling(requireSubscriptionId(row));
+      const restarted = await stripe.restartBilling(requireSubscriptionId(row), now);
+      nextBillingAt = restarted.nextBillingAt;
       await reactivateTenant(db, row.tenant_id);
     } else if (kind === 'cancel') {
       await stripe.cancelSubscription(requireSubscriptionId(row));
@@ -284,7 +286,7 @@ export async function applyFailedPaymentTransition(
   }
 
   const detail = kind === 'restart'
-    ? { billingCycleAnchor: 'now', prorationBehavior: 'none', billingRestartedAt: occurredAt }
+    ? { trialEnd: nextBillingAt, prorationBehavior: 'none', billingRestartedAt: occurredAt }
     : kind === 'write_off'
       ? { writtenOffInvoiceId: row.stripe_invoice_id }
       : { stripeSubscriptionId: subscriptionId };
@@ -298,6 +300,7 @@ export async function applyFailedPaymentTransition(
     stripeSubscriptionId: subscriptionId,
     occurredAt,
     billingRestartedAt: kind === 'restart' ? occurredAt : null,
+    nextBillingAt,
     writtenOffInvoiceId: kind === 'write_off' ? row.stripe_invoice_id : null,
   });
   return 'applied';

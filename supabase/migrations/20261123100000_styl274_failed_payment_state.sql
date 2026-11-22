@@ -1,5 +1,5 @@
 -- STYL-274: failed-payment timeline. Additive, idempotent, service-role only.
--- Local / staging only — never apply to live tkoasyjvrgaglofpzduq.
+-- The app ignores these tables until FAILED_PAYMENT_FLOW_ENABLED=true.
 -- RLS stays enabled and is not granted to anon or authenticated.
 
 CREATE TABLE IF NOT EXISTS public.failed_payment_cases (

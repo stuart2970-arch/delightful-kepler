@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
+import { isFailedPaymentFlowEnabled } from '@/lib/billing/failed-payment/flag';
 import { onFailedPaymentTransition } from '@/lib/billing/failed-payment/hook';
 import { runFailedPaymentSweep } from '@/lib/billing/failed-payment/machine';
 import { isFailedPaymentSweepAuthorized } from '@/lib/billing/failed-payment/sweep-auth';
@@ -26,6 +27,17 @@ function getSupabaseAdmin() {
 export async function POST(req: Request) {
   if (!isFailedPaymentSweepAuthorized(req.headers.get('authorization'))) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  }
+
+  if (!isFailedPaymentFlowEnabled()) {
+    return NextResponse.json({
+      success: true,
+      disabled: true,
+      examined: 0,
+      applied: 0,
+      skipped: 0,
+      failed: 0,
+    }, { status: 200 });
   }
 
   try {

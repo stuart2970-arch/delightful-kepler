@@ -2,6 +2,7 @@ import { test, expect } from '@playwright/test';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
+import { addonActivateStatusFields, stripeStatusToAddonStatus } from '../src/lib/billing/addon-subscription-status';
 import { handleStripeBillingEvent } from '../src/lib/billing/process-stripe-webhook';
 import {
   dueFailedPaymentTransitions,
@@ -11,14 +12,16 @@ import {
   FAILED_PAYMENT_PAUSE_AFTER_DAYS,
 } from '../src/lib/billing/failed-payment/evaluate';
 import type { FailedPaymentTransitionEvent } from '../src/lib/billing/failed-payment/hook';
+import { isFailedPaymentFlowEnabled } from '../src/lib/billing/failed-payment/flag';
 import { runFailedPaymentSweep } from '../src/lib/billing/failed-payment/machine';
 import { isFailedPaymentSweepAuthorized } from '../src/lib/billing/failed-payment/sweep-auth';
 import {
+  addBillingInterval,
   createFailedPaymentStripeClient,
   createFailedPaymentStripeClientFromEnv,
   FAILED_PAYMENT_CANCEL_PARAMS,
   FAILED_PAYMENT_PAUSE_PARAMS,
-  FAILED_PAYMENT_RESTART_PARAMS,
+  failedPaymentRestartParams,
   isInvoiceAlreadyWrittenOff,
   setFailedPaymentStripeClientForTests,
 } from '../src/lib/billing/failed-payment/stripe-client';
@@ -36,12 +39,33 @@ type StripeCalls = {
   restart: Array<{ id: string; params: unknown }>;
   cancel: Array<{ id: string; params: unknown }>;
   writeOff: string[];
+  invoiceCreates: unknown[];
+  retrieves: string[];
 };
 
+function monthlySubscription() {
+  return {
+    items: {
+      data: [{ price: { recurring: { interval: 'month', interval_count: 1 } } }],
+    },
+  };
+}
+
 function trackingStripe() {
-  const calls: StripeCalls = { pause: [], restart: [], cancel: [], writeOff: [] };
+  const calls: StripeCalls = {
+    pause: [],
+    restart: [],
+    cancel: [],
+    writeOff: [],
+    invoiceCreates: [],
+    retrieves: [],
+  };
   const gateway: FailedPaymentStripeGateway = {
     subscriptions: {
+      async retrieve(id) {
+        calls.retrieves.push(id);
+        return monthlySubscription();
+      },
       async update(id, params) {
         const pause = params.pause_collection;
         if (pause && typeof pause === 'object' && pause.behavior === 'void') {
@@ -59,6 +83,10 @@ function trackingStripe() {
     invoices: {
       async markUncollectible(id) {
         calls.writeOff.push(id);
+        return {};
+      },
+      async create(params) {
+        calls.invoiceCreates.push(params ?? null);
         return {};
       },
     },
@@ -175,19 +203,20 @@ test.describe('STYL-274 migration and Stripe test-mode calls', () => {
 
   test('pause, restart, cancel, and write-off use Stripe test-mode semantics', async () => {
     const { client, calls } = trackingStripe();
+    const restartedAt = new Date('2026-05-11T00:00:00.000Z');
     await client.pauseCollection('sub_274');
-    await client.restartBilling('sub_274');
+    await client.restartBilling('sub_274', restartedAt);
     await client.cancelSubscription('sub_274');
     await client.writeOffInvoice('in_274');
 
     expect(calls.pause[0]).toEqual({ id: 'sub_274', params: FAILED_PAYMENT_PAUSE_PARAMS });
     expect(FAILED_PAYMENT_PAUSE_PARAMS.pause_collection).toEqual({ behavior: 'void' });
-    expect(calls.restart[0]).toEqual({ id: 'sub_274', params: FAILED_PAYMENT_RESTART_PARAMS });
-    expect(FAILED_PAYMENT_RESTART_PARAMS).toMatchObject({
-      pause_collection: '',
-      billing_cycle_anchor: 'now',
-      proration_behavior: 'none',
-    });
+    const trialEnd = Math.floor(addBillingInterval(restartedAt, 'month', 1).getTime() / 1000);
+    expect(calls.restart[0]).toEqual({ id: 'sub_274', params: failedPaymentRestartParams(trialEnd) });
+    expect(calls.restart[0].params).not.toHaveProperty('billing_cycle_anchor');
+    expect(calls.invoiceCreates).toEqual([]);
+    expect(calls.retrieves).toEqual(['sub_274']);
+    expect(new Date(trialEnd * 1000).toISOString()).toBe('2026-06-11T00:00:00.000Z');
     expect(calls.cancel[0]).toEqual({ id: 'sub_274', params: FAILED_PAYMENT_CANCEL_PARAMS });
     expect(calls.writeOff).toEqual(['in_274']);
   });
@@ -195,6 +224,7 @@ test.describe('STYL-274 migration and Stripe test-mode calls', () => {
   test('an already written-off invoice is a successful write-off and a live key is refused', async () => {
     const gateway: FailedPaymentStripeGateway = {
       subscriptions: {
+        async retrieve() { return monthlySubscription(); },
         async update() { return {}; },
         async cancel() {
           throw Object.assign(new Error('already canceled'), { code: 'resource_missing' });
@@ -213,6 +243,7 @@ test.describe('STYL-274 migration and Stripe test-mode calls', () => {
 
     const refusing: FailedPaymentStripeGateway = {
       subscriptions: {
+        async retrieve() { return monthlySubscription(); },
         async update() { return {}; },
         async cancel() { return {}; },
       },
@@ -223,8 +254,17 @@ test.describe('STYL-274 migration and Stripe test-mode calls', () => {
       },
     };
     await expect(createFailedPaymentStripeClient(refusing).writeOffInvoice('in_open')).rejects.toThrow('network down');
-    expect(() => createFailedPaymentStripeClientFromEnv({ STRIPE_SECRET_KEY: 'sk_live_secret' })).toThrow(/test-mode/);
-    expect(() => createFailedPaymentStripeClientFromEnv({ STRIPE_SECRET_KEY: '' })).toThrow(/test-mode/);
+    expect(() => createFailedPaymentStripeClientFromEnv({
+      STRIPE_SECRET_KEY: 'sk_live_secret',
+      PLAYWRIGHT_TEST: 'true',
+    })).toThrow(/test-mode/);
+    expect(() => createFailedPaymentStripeClientFromEnv({ STRIPE_SECRET_KEY: '' })).toThrow(/secret key/);
+    expect(() => createFailedPaymentStripeClientFromEnv({
+      STRIPE_SECRET_KEY: 'sk_live_example',
+      PLAYWRIGHT_TEST: '',
+    })).not.toThrow();
+    expect(isFailedPaymentFlowEnabled({ FAILED_PAYMENT_FLOW_ENABLED: '' })).toBe(false);
+    expect(isFailedPaymentFlowEnabled({ FAILED_PAYMENT_FLOW_ENABLED: 'true' })).toBe(true);
   });
 });
 
@@ -238,6 +278,7 @@ test.describe('STYL-274 failed-payment state machine', () => {
   });
 
   test.beforeEach(async () => {
+    process.env.FAILED_PAYMENT_FLOW_ENABLED = 'true';
     await cleanup(adminClient());
   });
 
@@ -443,9 +484,17 @@ test.describe('STYL-274 failed-payment state machine', () => {
     expect(paid.status).toBe(200);
     expect(paidAgain.status).toBe(200);
     expect(calls.restart).toHaveLength(1);
-    expect(calls.restart[0]).toEqual({ id: 'sub_styl274_restart', params: FAILED_PAYMENT_RESTART_PARAMS });
+    const nextBillingAt = addBillingInterval(restartAt, 'month', 1);
+    const trialEnd = Math.floor(nextBillingAt.getTime() / 1000);
+    expect(calls.restart[0]).toEqual({
+      id: 'sub_styl274_restart',
+      params: failedPaymentRestartParams(trialEnd),
+    });
+    expect(calls.restart[0].params).not.toHaveProperty('billing_cycle_anchor');
+    expect(calls.invoiceCreates).toEqual([]);
     expect(hooks.map((event) => event.kind)).toEqual(['restart']);
     expect(hooks[0].billingRestartedAt).toBe(restartAt.toISOString());
+    expect(hooks[0].nextBillingAt).toBe(new Date(trialEnd * 1000).toISOString());
 
     const { data: row } = await admin
       .from('failed_payment_cases')
@@ -595,9 +644,11 @@ test.describe('STYL-274 failed-payment state machine', () => {
       supabaseAdmin: admin,
       failedPaymentStripe: client,
       allocateRollingCredits: async () => undefined,
+      onFailedPaymentTransition: async (event) => { hooks.push(event); },
     });
     expect(latePay.status).toBe(200);
     expect(latePay.body.message).toBe('Written-off invoice payment ignored');
+    expect(hooks.map((event) => event.kind)).toContain('written_off_paid');
     const { data: stillCancelled } = await admin
       .from('tenants')
       .select('subscription_status, is_active')
@@ -607,11 +658,251 @@ test.describe('STYL-274 failed-payment state machine', () => {
     expect(stillCancelled?.is_active).toBe(false);
     expect(calls.restart).toHaveLength(0);
   });
+
+  test('a Stripe error during restart still unlocks the tenant', async () => {
+    const admin = adminClient();
+    const failedAt = new Date('2026-04-01T00:00:00.000Z');
+    const { client } = trackingStripe();
+    await handleStripeBillingEvent(
+      failureEvent({
+        eventId: 'evt_styl274_throw_fail',
+        invoiceId: 'in_styl274_throw',
+        subscriptionId: 'sub_styl274_throw',
+        created: failedAt,
+      }),
+      { supabaseAdmin: admin },
+    );
+    await runFailedPaymentSweep(admin, {
+      now: new Date(failedAt.getTime() + 7 * DAY),
+      stripe: client,
+    });
+    const throwing = {
+      ...client,
+      async restartBilling() {
+        throw new Error('Failed-payment actions require a Stripe test-mode secret key');
+      },
+    };
+    const paid = await handleStripeBillingEvent({
+      id: 'evt_styl274_throw_paid',
+      type: 'invoice.payment_succeeded',
+      data: {
+        object: {
+          id: 'in_styl274_throw',
+          billing_reason: 'manual',
+          subscription: 'sub_styl274_throw',
+          subscription_details: { metadata: { tenant_id: TENANT } },
+        },
+      },
+    }, {
+      supabaseAdmin: admin,
+      now: new Date(failedAt.getTime() + 10 * DAY),
+      failedPaymentStripe: throwing,
+      allocateRollingCredits: async () => undefined,
+    });
+    expect(paid.status).toBe(200);
+    expect(paid.body.message).toContain('unlocked');
+    const { data: tenant } = await admin
+      .from('tenants')
+      .select('is_active, subscription_status')
+      .eq('id', TENANT)
+      .single();
+    expect(tenant?.is_active).toBe(true);
+    expect(tenant?.subscription_status).toBe('active');
+  });
+
+  test('a trialing subscription update is treated as active', async () => {
+    expect(stripeStatusToAddonStatus('trialing')).toBe('trialing');
+    expect(addonActivateStatusFields('trialing').is_active).toBe(true);
+    const admin = adminClient();
+    const trialing = await handleStripeBillingEvent({
+      id: 'evt_styl274_trialing',
+      type: 'customer.subscription.updated',
+      data: {
+        object: {
+          id: 'sub_styl274_trialing',
+          status: 'trialing',
+          metadata: { tenant_id: TENANT, addon_catalog_id: 'styl274-missing-addon', is_addon: 'true' },
+          items: { data: [{ id: 'si_styl274_trialing', price: { id: 'price_styl274_missing' } }] },
+        },
+      },
+    }, { supabaseAdmin: admin });
+    const ignored = await handleStripeBillingEvent({
+      id: 'evt_styl274_trialing_ignored',
+      type: 'customer.subscription.updated',
+      data: {
+        object: {
+          id: 'sub_styl274_trialing',
+          status: 'past_due',
+          metadata: { tenant_id: TENANT, addon_catalog_id: 'styl274-missing-addon', is_addon: 'true' },
+          items: { data: [{ id: 'si_styl274_trialing', price: { id: 'price_styl274_missing' } }] },
+        },
+      },
+    }, { supabaseAdmin: admin });
+    expect(trialing.status).toBe(200);
+    expect(String(trialing.body.message || '')).not.toMatch(/ignored/);
+    expect(String(ignored.body.message || '')).toMatch(/ignored/);
+    const { data: tenant } = await admin
+      .from('tenants')
+      .select('is_active, subscription_status')
+      .eq('id', TENANT)
+      .single();
+    expect(tenant?.is_active).toBe(true);
+    expect(tenant?.subscription_status).toBe('active');
+  });
+});
+
+function watchFailedPaymentTables(admin: SupabaseClient): { client: SupabaseClient; touches: string[] } {
+  const touches: string[] = [];
+  const client = new Proxy(admin, {
+    get(target, prop, receiver) {
+      if (prop !== 'from') return Reflect.get(target, prop, receiver);
+      return (table: string) => {
+        if (table === 'failed_payment_cases' || table === 'failed_payment_transitions') touches.push(table);
+        return target.from(table);
+      };
+    },
+  }) as SupabaseClient;
+  return { client, touches };
+}
+
+function missingFailedPaymentTables(admin: SupabaseClient): SupabaseClient {
+  const error = { message: 'relation "failed_payment_cases" does not exist', code: '42P01' };
+  return new Proxy(admin, {
+    get(target, prop, receiver) {
+      if (prop !== 'from') return Reflect.get(target, prop, receiver);
+      return (table: string) => {
+        if (table !== 'failed_payment_cases' && table !== 'failed_payment_transitions') return target.from(table);
+        const builder = {
+          select: () => builder,
+          insert: () => builder,
+          update: () => builder,
+          delete: () => builder,
+          eq: () => builder,
+          is: () => builder,
+          in: () => builder,
+          not: () => builder,
+          maybeSingle: async () => ({ data: null, error }),
+          single: async () => ({ data: null, error }),
+          then: (
+            onFulfilled: (value: { data: null; error: typeof error }) => unknown,
+            onRejected?: (reason: unknown) => unknown,
+          ) => Promise.resolve({ data: null, error }).then(onFulfilled, onRejected),
+        };
+        return builder;
+      };
+    },
+  }) as SupabaseClient;
+}
+
+test.describe('STYL-274 failed-payment flow flag', () => {
+  test.beforeAll(async () => {
+    if (!serviceKey) throw new Error('Local Supabase service role key is required');
+    await ensureTenant(adminClient());
+  });
+
+  test.afterAll(async () => {
+    if (!serviceKey) return;
+    await cleanup(adminClient());
+  });
+
+  test('flag off does not touch the new tables and still unlocks', async () => {
+    process.env.FAILED_PAYMENT_FLOW_ENABLED = 'false';
+    const watched = watchFailedPaymentTables(adminClient());
+    const failedAt = new Date('2026-07-01T00:00:00.000Z');
+    const failed = await handleStripeBillingEvent({
+      id: 'evt_styl274_flag_webhook_fail',
+      type: 'invoice.payment_failed',
+      created: Math.floor(failedAt.getTime() / 1000),
+      data: {
+        object: {
+          id: 'in_styl274_flag_webhook',
+          subscription: 'sub_styl274_flag_webhook',
+          subscription_details: { metadata: { tenant_id: TENANT } },
+        },
+      },
+    }, { supabaseAdmin: watched.client });
+    expect(failed.status).toBe(200);
+    expect(String(failed.body.message || '')).toContain('past_due');
+    const paid = await handleStripeBillingEvent({
+      id: 'evt_styl274_flag_webhook_paid',
+      type: 'invoice.payment_succeeded',
+      data: {
+        object: {
+          id: 'in_styl274_flag_webhook',
+          billing_reason: 'manual',
+          subscription: 'sub_styl274_flag_webhook',
+          subscription_details: { metadata: { tenant_id: TENANT } },
+        },
+      },
+    }, {
+      supabaseAdmin: watched.client,
+      allocateRollingCredits: async () => undefined,
+    });
+    expect(paid.status).toBe(200);
+    expect(String(paid.body.message || '')).toContain('unlocked');
+    expect(watched.touches).toEqual([]);
+    const { data: tenant } = await adminClient()
+      .from('tenants')
+      .select('is_active, subscription_status')
+      .eq('id', TENANT)
+      .single();
+    expect(tenant?.is_active).toBe(true);
+    expect(tenant?.subscription_status).toBe('active');
+  });
+
+  test('a missing failed-payment table is logged and does not block the webhook', async () => {
+    process.env.FAILED_PAYMENT_FLOW_ENABLED = 'true';
+    const logs: string[] = [];
+    const original = console.error;
+    console.error = (...args: unknown[]) => {
+      logs.push(args.map((part) => (typeof part === 'string' ? part : JSON.stringify(part))).join(' '));
+    };
+    try {
+      const admin = missingFailedPaymentTables(adminClient());
+      const failedAt = new Date('2026-07-02T00:00:00.000Z');
+      const failed = await handleStripeBillingEvent({
+        id: 'evt_styl274_missing_table_fail',
+        type: 'invoice.payment_failed',
+        created: Math.floor(failedAt.getTime() / 1000),
+        data: {
+          object: {
+            id: 'in_styl274_missing_table',
+            subscription: 'sub_styl274_missing_table',
+            subscription_details: { metadata: { tenant_id: TENANT } },
+          },
+        },
+      }, { supabaseAdmin: admin });
+      expect(failed.status).toBe(200);
+      expect(String(failed.body.message || '')).toContain('past_due');
+      const paid = await handleStripeBillingEvent({
+        id: 'evt_styl274_missing_table_paid',
+        type: 'invoice.payment_succeeded',
+        data: {
+          object: {
+            id: 'in_styl274_missing_table',
+            billing_reason: 'manual',
+            subscription: 'sub_styl274_missing_table',
+            subscription_details: { metadata: { tenant_id: TENANT } },
+          },
+        },
+      }, {
+        supabaseAdmin: admin,
+        allocateRollingCredits: async () => undefined,
+      });
+      expect(paid.status).toBe(200);
+      expect(String(paid.body.message || '')).toContain('unlocked');
+      expect(logs.some((line) => line.includes('[failed-payment]'))).toBe(true);
+    } finally {
+      console.error = original;
+      process.env.FAILED_PAYMENT_FLOW_ENABLED = 'true';
+    }
+  });
 });
 
 test.describe('STYL-274 sweep route fails closed', () => {
   const previousSecret = process.env.FAILED_PAYMENT_SWEEP_SECRET;
   const previousPlaywright = process.env.PLAYWRIGHT_TEST;
+  const previousFlag = process.env.FAILED_PAYMENT_FLOW_ENABLED;
 
   test.afterEach(() => {
     if ((process.env.PLAYWRIGHT_TEST || '').trim() === 'true') {
@@ -621,9 +912,12 @@ test.describe('STYL-274 sweep route fails closed', () => {
     else process.env.FAILED_PAYMENT_SWEEP_SECRET = previousSecret;
     if (previousPlaywright === undefined) delete process.env.PLAYWRIGHT_TEST;
     else process.env.PLAYWRIGHT_TEST = previousPlaywright;
+    if (previousFlag === undefined) delete process.env.FAILED_PAYMENT_FLOW_ENABLED;
+    else process.env.FAILED_PAYMENT_FLOW_ENABLED = previousFlag;
   });
 
   test('missing, blank, and wrong secrets are rejected', async () => {
+    process.env.FAILED_PAYMENT_FLOW_ENABLED = 'true';
     delete process.env.FAILED_PAYMENT_SWEEP_SECRET;
     expect(isFailedPaymentSweepAuthorized('Bearer something')).toBe(false);
     const unset = await sweepPost(new Request('http://localhost:3001/api/billing/failed-payment-sweep', {
@@ -652,6 +946,7 @@ test.describe('STYL-274 sweep route fails closed', () => {
   });
 
   test('a repeated authorised sweep pauses once', async () => {
+    process.env.FAILED_PAYMENT_FLOW_ENABLED = 'true';
     if (!serviceKey) throw new Error('Local Supabase service role key is required');
     const admin = adminClient();
     await ensureTenant(admin);
@@ -696,6 +991,52 @@ test.describe('STYL-274 sweep route fails closed', () => {
     expect(secondBody.failed).toBe(0);
     expect(calls.pause.filter((call) => call.id === 'sub_styl274_route')).toHaveLength(1);
 
+    await cleanup(admin);
+  });
+
+  test('flag off returns 200 and does not pause', async () => {
+    if (!serviceKey) throw new Error('Local Supabase service role key is required');
+    const admin = adminClient();
+    await ensureTenant(admin);
+    await cleanup(admin);
+    process.env.FAILED_PAYMENT_FLOW_ENABLED = 'true';
+    const failedAt = new Date(Date.now() - 8 * DAY);
+    const recorded = await handleStripeBillingEvent({
+      id: 'evt_styl274_flag_off_fail',
+      type: 'invoice.payment_failed',
+      created: Math.floor(failedAt.getTime() / 1000),
+      data: {
+        object: {
+          id: 'in_styl274_flag_off',
+          subscription: 'sub_styl274_flag_off',
+          subscription_details: { metadata: { tenant_id: TENANT } },
+        },
+      },
+    }, { supabaseAdmin: admin });
+    expect(recorded.status).toBe(200);
+
+    process.env.FAILED_PAYMENT_FLOW_ENABLED = 'false';
+    process.env.PLAYWRIGHT_TEST = 'true';
+    process.env.FAILED_PAYMENT_SWEEP_SECRET = 'sweep-secret-274';
+    const { client, calls } = trackingStripe();
+    setFailedPaymentStripeClientForTests(client);
+    const response = await sweepPost(new Request('http://localhost:3001/api/billing/failed-payment-sweep', {
+      method: 'POST',
+      headers: { authorization: 'Bearer sweep-secret-274' },
+    }));
+    expect(response.status).toBe(200);
+    const body = await response.json();
+    expect(body.disabled).toBe(true);
+    expect(body.applied).toBe(0);
+    expect(calls.pause).toHaveLength(0);
+    expect(calls.invoiceCreates).toEqual([]);
+    const { data: row } = await admin
+      .from('failed_payment_cases')
+      .select('status, paused_at')
+      .eq('stripe_invoice_id', 'in_styl274_flag_off')
+      .single();
+    expect(row?.status).toBe('past_due');
+    expect(row?.paused_at).toBeNull();
     await cleanup(admin);
   });
 });
