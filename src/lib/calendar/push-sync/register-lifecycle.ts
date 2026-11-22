@@ -11,6 +11,8 @@ import {
   deleteCalendarPushSubscription,
   findLiveCalendarPushSubscription,
   listCalendarPushSubscriptionsForTenant,
+  listCalendarPushSubscriptionsForTenantCalendar,
+  listExpiredCalendarPushSubscriptions,
   type CalendarPushSubscriptionRow,
 } from '@/lib/calendar/push-sync/subscription-store'
 
@@ -150,26 +152,18 @@ export async function teardownGoogleCalendarPushWatch(
   if (!calendarPushRegistrationAllowed()) return
   const d = depsWithDefaults(deps)
   const normalized = normalizeGoogleCalendarId(calendarId)
-  const row = await findLiveCalendarPushSubscription(admin, tenantId, 'google', normalized, d.now())
-  if (!row) {
-    const { data: stale } = await admin
-      .from('calendar_push_subscriptions')
-      .select('id, channel_id, resource_id')
-      .eq('tenant_id', tenantId)
-      .eq('provider', 'google')
-      .eq('calendar_id', normalized)
-    for (const s of stale || []) {
-      if (s.resource_id) {
-        await d.stopGoogle(admin, tenantId, s.channel_id, s.resource_id)
-      }
-      await deleteCalendarPushSubscription(admin, s.id)
+  const rows = await listCalendarPushSubscriptionsForTenantCalendar(
+    admin,
+    tenantId,
+    'google',
+    normalized,
+  )
+  for (const row of rows) {
+    if (row.resource_id) {
+      await d.stopGoogle(admin, tenantId, row.channel_id, row.resource_id)
     }
-    return
+    await deleteCalendarPushSubscription(admin, row.id)
   }
-  if (row.resource_id) {
-    await d.stopGoogle(admin, tenantId, row.channel_id, row.resource_id)
-  }
-  await deleteCalendarPushSubscription(admin, row.id)
 }
 
 export async function teardownAllGoogleCalendarPushForTenant(
@@ -181,6 +175,62 @@ export async function teardownAllGoogleCalendarPushForTenant(
   const calendarIds = [...new Set(rows.map((r) => r.calendar_id))]
   for (const calendarId of calendarIds) {
     await teardownGoogleCalendarPushWatch(admin, tenantId, calendarId, deps)
+  }
+}
+
+export async function purgeExpiredCalendarPushSubscriptions(
+  admin: SupabaseClient,
+  deps?: CalendarPushRegisterDeps,
+): Promise<number> {
+  const d = depsWithDefaults(deps)
+  const expired = await listExpiredCalendarPushSubscriptions(admin, new Date(d.now()).toISOString())
+  for (const row of expired) {
+    if (row.provider === 'google' && row.resource_id) {
+      await d.stopGoogle(admin, row.tenant_id, row.channel_id, row.resource_id)
+    }
+    if (row.provider === 'microsoft') {
+      await d.deleteMicrosoft(admin, row.tenant_id, row.channel_id)
+    }
+    await deleteCalendarPushSubscription(admin, row.id)
+  }
+  return expired.length
+}
+
+export async function disconnectGoogleCalendarIntegration(
+  admin: SupabaseClient,
+  tenantId: string,
+  deps?: CalendarPushRegisterDeps,
+): Promise<void> {
+  await teardownAllGoogleCalendarPushForTenant(admin, tenantId, deps)
+  const { error } = await admin
+    .from('tenant_integrations')
+    .delete()
+    .eq('tenant_id', tenantId)
+    .eq('provider', 'google_calendar')
+  if (error) {
+    throw new Error(`tenant_integrations delete failed: ${error.message}`)
+  }
+}
+
+export async function disconnectMicrosoftCalendarIntegration(
+  admin: SupabaseClient,
+  tenantId: string,
+  deps?: CalendarPushRegisterDeps,
+): Promise<void> {
+  await teardownMicrosoftCalendarPushForTenant(admin, tenantId, deps)
+  const [{ error: integrationError }, { error: tenantError }] = await Promise.all([
+    admin
+      .from('tenant_integrations')
+      .delete()
+      .eq('tenant_id', tenantId)
+      .eq('provider', 'microsoft_calendar'),
+    admin.from('tenants').update({ microsoft_refresh_token: null }).eq('id', tenantId),
+  ])
+  if (integrationError) {
+    throw new Error(`tenant_integrations delete failed: ${integrationError.message}`)
+  }
+  if (tenantError) {
+    throw new Error(`tenants microsoft_refresh_token clear failed: ${tenantError.message}`)
   }
 }
 

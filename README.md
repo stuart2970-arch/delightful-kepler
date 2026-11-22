@@ -4682,3 +4682,8 @@ Highlighted adjustments in the modal:
 * **User**: HIGH — with `CALENDAR_PUSH_REGISTER_ENABLED=true`, renew never created first watch/subscription because registration only ran on existing rows.
 * **Changes**: `register-lifecycle.ts` (OAuth connect, staff calendar change, disconnect teardown, renew backfill); hooks in Google/Microsoft OAuth callbacks, integration DELETE routes, `staff` / `staff/me`; `deleteMicrosoftCalendarSubscription`; `tests/unit/styl-409-calendar-push-register.spec.ts`.
 * **Verify**: `npx playwright test tests/unit/styl-409-calendar-push-register.spec.ts tests/unit/styl-404-calendar-push-sync.spec.ts`; typecheck; husky pre-push on push.
+
+### Session (STYL-409 OpenClaw review fixes — 22 Nov 2026)
+* **User**: Disconnect teardown before credential delete; renew backfill after renewal + expired purge; multi-row Google teardown.
+* **Changes**: `disconnectGoogleCalendarIntegration` / `disconnectMicrosoftCalendarIntegration`; `purgeExpiredCalendarPushSubscriptions`; expanded `styl-409` unit specs.
+* **Verify**: 11 unit specs in `styl-409-calendar-push-register.spec.ts`; husky pre-push on push.

@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import { requireTenantRole, type TenantRole } from '@/lib/auth/require-tenant-role';
-import { teardownAllGoogleCalendarPushForTenant } from '@/lib/calendar/push-sync/register-lifecycle';
+import { disconnectGoogleCalendarIntegration } from '@/lib/calendar/push-sync/register-lifecycle';
 
 function getSupabaseAdmin() {
   return createClient(
@@ -67,17 +67,7 @@ export async function DELETE(request: Request) {
     const tenantId = auth.tenantId;
 
     const supabaseAdmin = getSupabaseAdmin();
-    const { error } = await supabaseAdmin
-      .from('tenant_integrations')
-      .delete()
-      .eq('tenant_id', tenantId)
-      .eq('provider', 'google_calendar');
-
-    if (error) {
-      throw error;
-    }
-
-    await teardownAllGoogleCalendarPushForTenant(supabaseAdmin, tenantId);
+    await disconnectGoogleCalendarIntegration(supabaseAdmin, tenantId);
 
     return NextResponse.json({ success: true });
   } catch (err: any) {
