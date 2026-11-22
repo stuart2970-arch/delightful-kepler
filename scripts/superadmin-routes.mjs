@@ -75,6 +75,21 @@ export const superadminRoutes = [
     auth: 'superadmin'
   },
   {
+    path: '/api/superadmin/system-emails',
+    methods: ['GET'],
+    auth: 'superadmin'
+  },
+  {
+    path: '/api/superadmin/system-emails/preview',
+    methods: ['POST'],
+    auth: 'superadmin'
+  },
+  {
+    path: '/api/superadmin/system-emails/resend',
+    methods: ['POST'],
+    auth: 'superadmin'
+  },
+  {
     path: '/api/global-holidays',
     methods: ['GET', 'POST', 'DELETE'],
     auth: 'mixed',
