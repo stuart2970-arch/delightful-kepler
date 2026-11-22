@@ -4755,3 +4755,4 @@ Highlighted adjustments in the modal:
 * **Previews**: `docs/system-emails/batch-4-previews.md`.
 * **Left out**: enquiry and booking toggles, auth templates, health-information redirect, automatic refunds, and the existing superadmin notices screen.
 * **Verify**: `npm run typecheck`. `tests/styl-265-batch4-notices.spec.ts` and `tests/system-email-layer.spec.ts` on local Supabase. Mailgun stayed mocked.
+* **Review**: Complaint and human follow-up run only for the StyleFlo house tenant on the moderation allowlist. The acknowledgement and the follow-up go to the visitor's own email, or they are skipped. They are never sent to the tenant owner. "Call me back" is not treated as a request for a person.

@@ -172,34 +172,84 @@ test.describe('STYL-265 batch 4 notices', () => {
     expect(complaintForwardRecipient({ APP_ENV: 'staging' } as NodeJS.ProcessEnv)).toBe(TO)
   })
 
-  test('a labelled complaint and a request for a person send once', async () => {
+  test('only the StyleFlo house chat sends a complaint, an acknowledgement and a follow-up', async () => {
     expect(messageAsksForAPerson('Can I speak to a person?')).toBe(true)
+    expect(messageAsksForAPerson('Please call me back tomorrow')).toBe(false)
     expect(messageIsLabelledComplaint('This is a complaint about the booking.')).toBe(true)
     expect(messageAsksForAPerson('What time are you open?')).toBe(false)
     process.env.SYSTEM_EMAILS_BATCH4_ENABLED = 'true'
-    const conversationId = crypto.randomUUID()
-    await dispatchBatch4ChatEmail({
-      tenantId,
-      conversationId,
-      messageText: 'This is a complaint and I need to speak to a person.',
-      businessName: 'Harbour Salon',
-      to: TO,
+    const admin = adminClient()
+    const suffix = `${Date.now()}`
+    const houseSlug = `styleflo-house-${suffix}`
+    const { data: house, error: houseErr } = await admin
+      .from('tenants')
+      .insert({ company_name: `House ${suffix}`, slug: houseSlug })
+      .select('id')
+      .single()
+    expect(houseErr).toBeNull()
+    const { data: salon, error: salonErr } = await admin
+      .from('tenants')
+      .insert({ company_name: `Salon ${suffix}`, slug: `salon-${suffix}` })
+      .select('id')
+      .single()
+    expect(salonErr).toBeNull()
+    const { error: allowErr } = await admin.from('moderation_house_allowlist').insert({
+      slug: houseSlug,
+      note: 'STYL-265 test house tenant',
     })
-    await dispatchBatch4ChatEmail({
-      tenantId,
-      conversationId,
-      messageText: 'This is a complaint and I need to speak to a person.',
-      businessName: 'Harbour Salon',
-      to: TO,
-    })
-    const deliveries = readSystemEmailTestDeliveries()
-    expect(deliveries).toHaveLength(3)
-    expect(deliveries.map((item) => item.subject).sort()).toEqual([
-      'A person from StyleFlo will follow up',
-      'Complaint forwarded for Harbour Salon',
-      'We have received your complaint',
-    ].sort())
-    expect(deliveries.every((item) => item.replyTo === 'support@styleflo.ai')).toBe(true)
+    expect(allowErr).toBeNull()
+    const messageText = 'This is a complaint and I need to speak to a person.'
+    try {
+      await dispatchBatch4ChatEmail({
+        tenantId: salon!.id,
+        conversationId: crypto.randomUUID(),
+        messageText,
+        businessName: 'Harbour Salon',
+        visitorEmail: TO,
+      })
+      expect(readSystemEmailTestDeliveries()).toHaveLength(0)
+
+      const conversationId = crypto.randomUUID()
+      await dispatchBatch4ChatEmail({
+        tenantId: house!.id,
+        conversationId,
+        messageText,
+        businessName: 'StyleFlo',
+        visitorEmail: TO,
+      })
+      await dispatchBatch4ChatEmail({
+        tenantId: house!.id,
+        conversationId,
+        messageText,
+        businessName: 'StyleFlo',
+        visitorEmail: TO,
+      })
+      const deliveries = readSystemEmailTestDeliveries()
+      expect(deliveries).toHaveLength(3)
+      expect(deliveries.map((item) => item.to).sort()).toEqual([TO, TO, TO].sort())
+      expect(deliveries.map((item) => item.subject).sort()).toEqual([
+        'A person from StyleFlo will follow up',
+        'Complaint forwarded for StyleFlo',
+        'We have received your complaint',
+      ].sort())
+      expect(deliveries.every((item) => item.replyTo === 'support@styleflo.ai')).toBe(true)
+
+      resetSystemEmailTestState()
+      await dispatchBatch4ChatEmail({
+        tenantId: house!.id,
+        conversationId: crypto.randomUUID(),
+        messageText,
+        businessName: 'StyleFlo',
+      })
+      const withoutVisitor = readSystemEmailTestDeliveries()
+      expect(withoutVisitor).toHaveLength(1)
+      expect(withoutVisitor[0]?.subject).toBe('Complaint forwarded for StyleFlo')
+      expect(withoutVisitor[0]?.to).toBe(TO)
+    } finally {
+      await admin.from('system_email_log').delete().in('tenant_id', [house!.id, salon!.id])
+      await admin.from('moderation_house_allowlist').delete().eq('slug', houseSlug)
+      await admin.from('tenants').delete().in('id', [house!.id, salon!.id])
+    }
   })
 
   test('superadmin send is refused while the flag is off', async () => {
