@@ -4748,3 +4748,9 @@ Highlighted adjustments in the modal:
 * **Review**: With the flag off, `/api/rwg/feeds/merchants`, `/services` and `/availability` still listed tenants that already had `is_rwg_enabled`. Production has rows in that state, and the settings API will not turn them off.
 * **Change**: Each of those GET handlers returns `[]` before opening a database client when `RWG_UI_ENABLED` is off. `/api/rwg/feeds/cron` still returns 401 without its bearer token. With a valid token and the flag off, it returns the disabled message and does not run the aggregation. With the flag on, the same handlers still build the feeds. Booking server routes and secrets are unchanged.
 * **Tests**: `tests/styl-416-rwg-feeds-disabled.spec.ts`.
+
+### Session (R5 package 4a — STYL-263 emails 2, 3, 22, 23 and STYL-278 — 22 Nov 2026)
+* **User**: Batch 2 system emails behind `SYSTEM_EMAILS_BATCH2_ENABLED` (default off). British English, Terms facts only. Refunds stay an admin action and are not run from this package. No live send until Stuart reviews the previews. Split from package 4b because the logic was over the review limit. Do not stack the PRs.
+* **4a**: Sign-up declined, account closed (not a business), annual and other price-rise notices (dashboard notice text is returned, the dashboard screen is not wired), and bolt-on added after a successful Stripe billing event. One-off packs are skipped. Idempotency keys make each event send once. Superadmin resend uses the existing log.
+* **4b**: Auto top-up and porting templates are a separate branch. Production does not call those senders yet.
+* **Verify**: `npm run typecheck`. Playwright `tests/styl-263-batch2-system-emails.spec.ts` — 8 passed on local Supabase. Mailgun client was not created. No migration.

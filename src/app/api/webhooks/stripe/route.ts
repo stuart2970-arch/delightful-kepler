@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import { parseStripeWebhookEvent } from '@/lib/env/stripe-webhook';
 import { handleStripeBillingEvent } from '@/lib/billing/process-stripe-webhook';
+import { notifyBoltOnsAddedFromStripeEvent } from '@/lib/email/system/triggers/batch2/bolt-on-added';
 
 export const dynamic = 'force-dynamic';
 
@@ -34,6 +35,13 @@ export async function POST(req: Request) {
     const result = await handleStripeBillingEvent(event, {
       supabaseAdmin,
     });
+    if (result.status >= 200 && result.status < 300) {
+      try {
+        await notifyBoltOnsAddedFromStripeEvent(event);
+      } catch {
+        console.error('[system-email] bolt-on added email was not sent');
+      }
+    }
     return NextResponse.json(result.body, { status: result.status });
   } catch (err: any) {
     console.error('[Stripe Webhook] Unhandled error:', err);
