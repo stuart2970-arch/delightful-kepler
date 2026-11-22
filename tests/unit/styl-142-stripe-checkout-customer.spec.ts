@@ -1,9 +1,12 @@
 import { test, expect } from '@playwright/test';
 import {
+  customerIsReusableForTenant,
   ensureTenantStripeCustomerForSubscription,
 } from '../../src/lib/billing/stripe-tenant-customer';
 
 const TENANT_ID = '10000000-0000-0000-0000-000000000142';
+const TENANT_B_ID = '10000000-0000-0000-0000-000000000143';
+const SHARED_EMAIL = 'multi-location@example.com';
 
 function createMockStripe() {
   let createCount = 0;
@@ -117,6 +120,129 @@ test.describe('STYL-142 Stripe customer reuse per tenant', () => {
     expect(second).toBe('cus_created_142');
     expect(stripe.createCount).toBe(1);
     expect(supabase.stripeCustomerId).toBe('cus_created_142');
+  });
+
+  test('two tenants with the same email get different Stripe customers', async () => {
+    const stored: Array<{ id: string; email: string; metadata: Record<string, string> }> = [];
+    let createCount = 0;
+
+    const stripe = {
+      customers: {
+        async create(
+          params: { email?: string; metadata?: Record<string, string> },
+          options?: { idempotencyKey?: string },
+        ) {
+          createCount += 1;
+          const tenantId = params.metadata?.tenant_id || '';
+          expect(options?.idempotencyKey).toBe(`cust-${tenantId}`);
+          const row = {
+            id: `cus_tenant_${tenantId.split('-').pop()}`,
+            email: params.email || '',
+            metadata: params.metadata || {},
+          };
+          stored.push(row);
+          return row;
+        },
+        async search() {
+          return { data: [] as Array<{ id: string }> };
+        },
+        async list() {
+          return {
+            data: stored.filter(
+              (c) => c.email.toLowerCase() === SHARED_EMAIL.toLowerCase(),
+            ),
+          };
+        },
+        async update() {
+          return {};
+        },
+      },
+    };
+
+    const supabaseRows = [
+      { id: TENANT_ID, stripe_customer_id: null as string | null },
+      { id: TENANT_B_ID, stripe_customer_id: null as string | null },
+    ];
+
+    const supabase = {
+      from(table: string) {
+        if (table !== 'tenants') throw new Error(`unexpected table ${table}`);
+        const filters: Array<[string, unknown]> = [];
+        const isFilters: Array<[string, unknown]> = [];
+        let pendingUpdate: Record<string, unknown> | null = null;
+        const api = {
+          select() {
+            return api;
+          },
+          eq(col: string, val: unknown) {
+            filters.push([col, val]);
+            return api;
+          },
+          neq(col: string, val: unknown) {
+            filters.push(['__neq', col, val]);
+            return api;
+          },
+          limit() {
+            return api;
+          },
+          is(col: string, val: unknown) {
+            isFilters.push([col, val]);
+            return api;
+          },
+          update(payload: Record<string, unknown>) {
+            pendingUpdate = payload;
+            return api;
+          },
+          async maybeSingle() {
+            if (pendingUpdate) {
+              const target = supabaseRows.find((row) =>
+                filters.every(([col, val]) => {
+                  if (col === '__neq') return true;
+                  return (row as Record<string, unknown>)[col] === val;
+                }),
+              );
+              const nullOnly = isFilters.some(([c, v]) => c === 'stripe_customer_id' && v === null);
+              if (target && nullOnly && target.stripe_customer_id === null) {
+                target.stripe_customer_id = String(pendingUpdate.stripe_customer_id);
+                pendingUpdate = null;
+                return { data: { stripe_customer_id: target.stripe_customer_id }, error: null };
+              }
+              pendingUpdate = null;
+            }
+
+            const rows = supabaseRows.filter((row) =>
+              filters.every(([col, val]) => {
+                if (col === '__neq') {
+                  return (row as Record<string, unknown>)[col as string] !== val;
+                }
+                return (row as Record<string, unknown>)[col] === val;
+              }),
+            );
+            return { data: rows[0] || null, error: null };
+          },
+        };
+        return api;
+      },
+    };
+
+    const idA = await ensureTenantStripeCustomerForSubscription(
+      stripe as never,
+      supabase as never,
+      { tenantId: TENANT_ID, email: SHARED_EMAIL },
+      { STRIPE_INVOICE_PRESENTATION_ENABLED: 'false' } as NodeJS.ProcessEnv,
+    );
+    const idB = await ensureTenantStripeCustomerForSubscription(
+      stripe as never,
+      supabase as never,
+      { tenantId: TENANT_B_ID, email: SHARED_EMAIL },
+      { STRIPE_INVOICE_PRESENTATION_ENABLED: 'false' } as NodeJS.ProcessEnv,
+    );
+
+    expect(idA).toBeTruthy();
+    expect(idB).toBeTruthy();
+    expect(idA).not.toBe(idB);
+    expect(createCount).toBe(2);
+    expect(customerIsReusableForTenant({ id: 'x', metadata: { tenant_id: TENANT_ID } }, TENANT_B_ID)).toBe(false);
   });
 
   test('existing stripe_customer_id is reused without create', async () => {
