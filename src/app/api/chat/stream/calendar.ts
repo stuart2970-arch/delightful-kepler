@@ -736,6 +736,7 @@ export async function bookMeeting(
         formattedStart,
         manageToken: manageTokenRaw,
         businessName: tenantRow?.company_name,
+        tenantId,
       });
       console.log(`[Calendar] Sent confirmation to ${customerEmail}${manageTokenRaw ? ' (with manage link)' : ''}`);
     } catch (mgErr: unknown) {

@@ -25,6 +25,14 @@ import {
   isPostgresMissingColumnError,
   missingPostgresColumnName,
 } from '@/lib/postgres/missing-column-error';
+import { onFailedPaymentTransition, type FailedPaymentTransitionHandler } from '@/lib/billing/failed-payment/hook';
+import { runFailedPaymentFlow } from '@/lib/billing/failed-payment/flag';
+import {
+  readFailedPaymentSettlement,
+  recordInitialFailedPayment,
+  settleFailedPaymentOnInvoicePaid,
+} from '@/lib/billing/failed-payment/machine';
+import type { FailedPaymentStripeClient } from '@/lib/billing/failed-payment/stripe-types';
 
 export type AddonLineItemContext = {
   stripeSubscriptionStatus?: string | null;
@@ -386,6 +394,9 @@ export type StripeWebhookDeps = {
     addonCatalogId?: string,
     options?: { sectorTag?: string; billingPeriodStart?: string },
   ) => Promise<{ id?: string } | void>;
+  now?: Date;
+  failedPaymentStripe?: FailedPaymentStripeClient;
+  onFailedPaymentTransition?: FailedPaymentTransitionHandler;
 };
 
 export type StripeWebhookResult = {
@@ -1145,12 +1156,45 @@ async function processStripeBillingEventBody(
     }
 
     if (tenantId) {
+      const invoiceId = typeof dataObject.id === 'string' ? dataObject.id.trim() : '';
+      const settlement = invoiceId
+        ? await runFailedPaymentFlow(
+          'settlement read failed',
+          () => readFailedPaymentSettlement(supabaseAdmin, invoiceId),
+          { action: 'ignore' as const },
+        )
+        : { action: 'ignore' as const };
+      if (settlement.action === 'blocked_cancelled') {
+        console.error('[failed-payment] written-off invoice was paid', {
+          tenantId,
+          invoiceId,
+          caseId: settlement.row.id,
+        });
+        try {
+          await (deps.onFailedPaymentTransition ?? onFailedPaymentTransition)({
+            kind: 'written_off_paid',
+            tenantId,
+            caseId: settlement.row.id,
+            stripeInvoiceId: invoiceId,
+            stripeSubscriptionId: stripeSubscriptionIdFrom(dataObject),
+            occurredAt: (deps.now ?? new Date()).toISOString(),
+            writtenOffInvoiceId: settlement.row.written_off_invoice_id,
+          });
+        } catch (hookError: unknown) {
+          console.error('[failed-payment] written-off payment hook failed', {
+            message: hookError instanceof Error ? hookError.message : 'failed',
+          });
+        }
+        return {
+          status: 200,
+          body: { success: true, message: 'Written-off invoice payment ignored', tenantId },
+        };
+      }
+
       await supabaseAdmin
         .from('tenants')
         .update({ is_active: true, subscription_status: 'active' })
         .eq('id', tenantId);
-
-      const invoiceId = typeof dataObject.id === 'string' ? dataObject.id.trim() : '';
       const periodStartUnix = dataObject.lines?.data?.[0]?.period?.start ?? dataObject.period_start;
       const billingPeriodStart = periodStartUnix != null
         ? new Date(Number(periodStartUnix) * 1000).toISOString()
@@ -1217,6 +1261,15 @@ async function processStripeBillingEventBody(
 
       await grantPlanVoiceMinutesForRenewal(supabaseAdmin, tenantId, dataObject, allocateRollingCredits);
 
+      if (settlement.action === 'restart' || settlement.action === 'recover') {
+        await runFailedPaymentFlow('settlement failed', () => settleFailedPaymentOnInvoicePaid(supabaseAdmin, {
+          settlement,
+          now: deps.now ?? new Date(),
+          stripe: deps.failedPaymentStripe,
+          onTransition: deps.onFailedPaymentTransition,
+        }), undefined);
+      }
+
       return { status: 200, body: { success: true, message: `Tenant ${tenantId} unlocked` } };
     }
   }
@@ -1242,6 +1295,17 @@ async function processStripeBillingEventBody(
         .from('tenants')
         .update({ subscription_status: 'past_due' })
         .eq('id', tenantId);
+      const invoiceId = typeof dataObject.id === 'string' ? dataObject.id.trim() : '';
+      if (invoiceId) {
+        const customer = dataObject.customer;
+        await runFailedPaymentFlow('record failed', () => recordInitialFailedPayment(supabaseAdmin, {
+          tenantId,
+          stripeInvoiceId: invoiceId,
+          stripeSubscriptionId: stripeSubscriptionIdFrom(dataObject),
+          stripeCustomerId: typeof customer === 'string' ? customer : null,
+          firstFailedAt: stripeEventCreatedToIso(event.created) ?? new Date().toISOString(),
+        }), null);
+      }
       return { status: 200, body: { success: true, message: `Tenant ${tenantId} marked past_due` } };
     }
   }

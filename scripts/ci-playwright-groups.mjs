@@ -92,6 +92,7 @@ export const CI_PLAYWRIGHT_GROUPS = [
       /tests\/styl-312-legacy-voice-cap\.spec\.ts$/,
       /tests\/styl-261-webhook-cancel-race\.spec\.ts$/,
       /tests\/styl-279-stripe-webhook-event-idempotency\.spec\.ts$/,
+      /tests\/styl-274-failed-payment-state\.spec\.ts$/,
       /tests\/styl-385-credit-grant-idempotency\.spec\.ts$/,
       /tests\/styl-226-addon-subscription-status\.spec\.ts$/,
       /tests\/styl-226-stripe-webhook-signature\.spec\.ts$/,
@@ -100,6 +101,7 @@ export const CI_PLAYWRIGHT_GROUPS = [
       /tests\/unit\/styl-142-checkout-invoice-presentation\.spec\.ts$/,
       /tests\/unit\/styl-142-stripe-checkout-customer\.spec\.ts$/,
       /tests\/styl-414-stripe-customer-race\.spec\.ts$/,
+      /tests\/styl-413-subscribe-foundation\.spec\.ts$/,
     ],
   },
   {
@@ -110,6 +112,7 @@ export const CI_PLAYWRIGHT_GROUPS = [
       /tests\/styl-225-banned-names\.spec\.ts$/,
       /tests\/crypto\.spec\.ts$/,
       /tests\/styl-228-magic-link-auth\.spec\.ts$/,
+      /tests\/styl-265-batch4a-toggles\.spec\.ts$/,
       /tests\/styl-228-turnstile-site-key\.spec\.ts$/,
       /tests\/styl-231-google-sign-in-scopes\.spec\.ts$/,
       /tests\/styl-239-tenant-created-auth\.spec\.ts$/,
@@ -145,6 +148,7 @@ export const CI_PLAYWRIGHT_GROUPS = [
       /tests\/styl-226-wordpress-disabled-on-staging\.spec\.ts$/,
       /tests\/system-email-.*\.spec\.ts$/,
       /tests\/styl-265-batch4-notices\.spec\.ts$/,
+      /tests\/styl-264-.*\.spec\.ts$/,
     ],
   },
   {

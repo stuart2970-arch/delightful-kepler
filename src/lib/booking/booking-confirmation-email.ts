@@ -2,6 +2,7 @@ import formData from 'form-data';
 import Mailgun from 'mailgun.js';
 import { manageBookingUrl } from '@/lib/booking/manage-token';
 import { escapeHtml, escapeHtmlAttr } from '@/lib/email/escape-html';
+import { isBookingConfirmationEmailEnabled } from '@/lib/email/tenant-email-toggles';
 
 export interface BookingConfirmationEmailParams {
   customerName: string;
@@ -11,11 +12,29 @@ export interface BookingConfirmationEmailParams {
   formattedStart: string;
   manageToken?: string | null;
   businessName?: string;
+  tenantId?: string | null;
+}
+
+/** Quoted display name so a comma or @ in the business name is not a second address. */
+export function bookingConfirmationFromName(businessName?: string | null): string {
+  const cleaned = (businessName || '')
+    .replace(/[\u0000-\u001f\u007f\u2028\u2029]/g, ' ')
+    .replace(/[<>]/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+  const business = cleaned || 'the small business';
+  const escaped = business.replace(/\\/g, '\\\\').replace(/"/g, '\\"');
+  return `"${escaped}" via StyleFlo`;
 }
 
 export async function sendBookingConfirmationEmail(
   params: BookingConfirmationEmailParams,
 ): Promise<void> {
+  const confirmationOn = await isBookingConfirmationEmailEnabled(params.tenantId);
+  if (!confirmationOn) {
+    return;
+  }
+
   if (!process.env.MAILGUN_API_KEY || !process.env.MAILGUN_DOMAIN) {
     return;
   }
@@ -49,7 +68,7 @@ Your appointment for ${params.serviceName} with ${params.staffName} is confirmed
 Thank you for booking with ${business}.`;
 
   await mg.messages.create(process.env.MAILGUN_DOMAIN, {
-    from: `StyleFlo Bookings <no-reply@${process.env.MAILGUN_DOMAIN}>`,
+    from: `${bookingConfirmationFromName(params.businessName)} <no-reply@${process.env.MAILGUN_DOMAIN}>`,
     to: [params.customerEmail],
     subject: `Booking Confirmed: ${params.serviceName} with ${params.staffName}`,
     text,
