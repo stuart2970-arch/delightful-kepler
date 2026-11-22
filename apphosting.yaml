@@ -150,6 +150,16 @@ env:
     availability:
       - RUNTIME
 
+  - variable: RWG_BOOKING_SERVER_USERNAME
+    secret: RWG_BOOKING_SERVER_USERNAME
+    availability:
+      - RUNTIME
+
+  - variable: RWG_BOOKING_SERVER_PASSWORD
+    secret: RWG_BOOKING_SERVER_PASSWORD
+    availability:
+      - RUNTIME
+
   - variable: VAPI_WEBHOOK_SECRET
     secret: VAPI_WEBHOOK_SECRET
     availability:
