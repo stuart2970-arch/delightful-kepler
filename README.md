@@ -4748,3 +4748,7 @@ Highlighted adjustments in the modal:
 * **Review**: With the flag off, `/api/rwg/feeds/merchants`, `/services` and `/availability` still listed tenants that already had `is_rwg_enabled`. Production has rows in that state, and the settings API will not turn them off.
 * **Change**: Each of those GET handlers returns `[]` before opening a database client when `RWG_UI_ENABLED` is off. `/api/rwg/feeds/cron` still returns 401 without its bearer token. With a valid token and the flag off, it returns the disabled message and does not run the aggregation. With the flag on, the same handlers still build the feeds. Booking server routes and secrets are unchanged.
 * **Tests**: `tests/styl-416-rwg-feeds-disabled.spec.ts`.
+
+### Session (R5 package 4b — STYL-263 emails 6-9 and 20 — 22 Nov 2026)
+* **User**: Templates for auto top-up and number porting, behind `SYSTEM_EMAILS_BATCH2_ENABLED` (default off). The purchase path and STYL-167 port events are not in the app, so the senders are ready and nothing in production calls them. Package 4a holds the wired emails. Merge 4a first, then keep both template lists.
+* **Verify**: `npm run typecheck`. Playwright `tests/styl-263-batch2-deferred.spec.ts` — 4 passed on local Supabase. Mailgun client was not created. No migration.
