@@ -4,6 +4,7 @@ import {
   buildStripeInvoicePresentation,
   applyStripeCheckoutInvoicePresentation,
 } from '../src/lib/billing/stripe-invoice-presentation';
+import type Stripe from 'stripe';
 
 const SEEDED_TENANT_ID = '10000000-0000-0000-0000-000000000001';
 
@@ -28,14 +29,14 @@ test.describe('STYL-142 Stripe invoice presentation', () => {
     expect(presentation!.custom_fields.find((f) => f.name === 'VAT')?.value).toBe('No VAT to add (test)');
   });
 
-  test('applyStripeCheckoutInvoicePresentation attaches invoice_creation', () => {
-    const params: { invoice_creation?: { enabled: boolean; invoice_data: { footer: string } } } = {
+  test('subscription checkout params omit invoice_creation', () => {
+    const params: Stripe.Checkout.SessionCreateParams = {
       mode: 'subscription',
       line_items: [],
+      subscription_data: { metadata: { plan_tier: 'base_tier' } },
     };
-    applyStripeCheckoutInvoicePresentation(params as never);
-    expect(params.invoice_creation?.enabled).toBe(true);
-    expect(params.invoice_creation?.invoice_data.footer).toContain('STYLEFLO LTD');
+    applyStripeCheckoutInvoicePresentation(params);
+    expect(params.invoice_creation).toBeUndefined();
   });
 
   let ownerSession: TestUserSession;
@@ -48,7 +49,7 @@ test.describe('STYL-142 Stripe invoice presentation', () => {
     if (ownerSession) await ownerSession.cleanup();
   });
 
-  test('checkout mock response carries invoice_creation when PLAYWRIGHT_TEST uses sk_test_mock', async ({ request }) => {
+  test('Foundation subscription mock exposes customer invoice settings, not invoice_creation', async ({ request }) => {
     const res = await request.post('/api/billing/checkout', {
       headers: {
         'Content-Type': 'application/json',
@@ -61,8 +62,8 @@ test.describe('STYL-142 Stripe invoice presentation', () => {
     });
     expect(res.status(), await res.text()).toBe(200);
     const json = await res.json();
-    expect(json.invoice_creation?.enabled).toBe(true);
-    expect(json.invoice_creation?.invoice_data?.footer).toContain('No VAT to add');
-    expect(json.invoice_creation?.invoice_data?.custom_fields?.length).toBeGreaterThan(0);
+    expect(json.invoice_creation).toBeUndefined();
+    expect(json.customer_invoice_settings?.footer).toContain('No VAT to add');
+    expect(json.customer_invoice_settings?.custom_fields?.length).toBeGreaterThan(0);
   });
 });

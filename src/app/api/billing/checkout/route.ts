@@ -8,7 +8,11 @@ import { buildBoltOnCheckoutMetadata } from '@/lib/billing/bolt-on';
 import { billingCorsHeaders } from '@/lib/billing/app-origin-cors';
 import { portalEnvFromRequest, resolvePortalConfigurationId } from '@/lib/billing/portal-config';
 import { publicAppPath, safePublicReturnUrl } from '@/lib/env/public-app-url';
-import { applyStripeCheckoutInvoicePresentation } from '@/lib/billing/stripe-invoice-presentation';
+import {
+  applyStripeCheckoutInvoicePresentation,
+  buildStripeCustomerInvoiceSettings,
+  ensureStripeCheckoutCustomerForSubscription,
+} from '@/lib/billing/stripe-invoice-presentation';
 import {
   billingCheckoutRateLimit,
   billingClientIp,
@@ -88,6 +92,33 @@ function withCheckoutInvoicePresentation(
 ): Stripe.Checkout.SessionCreateParams {
   applyStripeCheckoutInvoicePresentation(sessionParams);
   return sessionParams;
+}
+
+type SubscriptionCheckoutCustomerHints = {
+  customerId?: string | null;
+  email?: string | null;
+};
+
+async function prepareSubscriptionCheckoutCustomer(
+  stripe: Stripe,
+  apiKey: string,
+  sessionParams: Stripe.Checkout.SessionCreateParams,
+  hints: SubscriptionCheckoutCustomerHints,
+): Promise<void> {
+  if (sessionParams.mode !== 'subscription' || isPlaywrightStripeMock(apiKey)) {
+    return;
+  }
+  const email =
+    hints.email ||
+    (typeof sessionParams.customer_email === 'string' ? sessionParams.customer_email : undefined);
+  const customerId = await ensureStripeCheckoutCustomerForSubscription(stripe, {
+    customerId: hints.customerId || (typeof sessionParams.customer === 'string' ? sessionParams.customer : undefined),
+    email,
+  });
+  if (customerId) {
+    sessionParams.customer = customerId;
+    delete sessionParams.customer_email;
+  }
 }
 
 export async function OPTIONS(req: Request) {
@@ -212,20 +243,24 @@ export async function GET(req: Request) {
     const targetSuccessUrl = safePublicReturnUrl(returnUrl, defaultConfirmedUrl);
     const targetCancelUrl = planCheckoutCancelUrl(returnUrl);
 
-    const session = await stripe.checkout.sessions.create(
-      withCheckoutInvoicePresentation({
-        mode: 'subscription',
-        payment_method_types: ['card'],
-        customer_email: customerEmail || undefined,
-        line_items: lineItems,
-        subscription_data: {
-          metadata: sessionMetadata,
-        },
+    const getSessionParams: Stripe.Checkout.SessionCreateParams = {
+      mode: 'subscription',
+      payment_method_types: ['card'],
+      customer_email: customerEmail || undefined,
+      line_items: lineItems,
+      subscription_data: {
         metadata: sessionMetadata,
-        success_url: appendQueryParams(targetSuccessUrl, 'checkout_status=success&session_id={CHECKOUT_SESSION_ID}'),
-        cancel_url: appendQueryParams(targetCancelUrl, 'checkout_status=cancelled'),
-      }),
-    );
+      },
+      metadata: sessionMetadata,
+      success_url: appendQueryParams(targetSuccessUrl, 'checkout_status=success&session_id={CHECKOUT_SESSION_ID}'),
+      cancel_url: appendQueryParams(targetCancelUrl, 'checkout_status=cancelled'),
+    };
+    withCheckoutInvoicePresentation(getSessionParams);
+    await prepareSubscriptionCheckoutCustomer(stripe, apiKey, getSessionParams, {
+      email: customerEmail || undefined,
+    });
+
+    const session = await stripe.checkout.sessions.create(getSessionParams);
 
     return NextResponse.redirect(session.url || '/dashboard', 303);
   } catch (err: any) {
@@ -500,6 +535,12 @@ export async function POST(req: Request) {
 
       // The local suite uses a placeholder key. A real Stripe test key still creates a live session.
       withCheckoutInvoicePresentation(sessionConfig);
+      await prepareSubscriptionCheckoutCustomer(stripe, apiKey, sessionConfig, {
+        customerId: tenant?.stripe_customer_id,
+        email:
+          sessionConfig.customer_email ||
+          (typeof customerEmail === 'string' ? customerEmail : undefined),
+      });
 
       if (isPlaywrightStripeMock(apiKey)) {
         return NextResponse.json({
@@ -511,6 +552,7 @@ export async function POST(req: Request) {
           metadata: sessionConfig.metadata,
           subscription_data: sessionConfig.subscription_data,
           invoice_creation: sessionConfig.invoice_creation,
+          customer_invoice_settings: buildStripeCustomerInvoiceSettings(),
         }, { headers: corsHeaders(req) });
       }
 
@@ -665,6 +707,9 @@ export async function POST(req: Request) {
       };
 
       withCheckoutInvoicePresentation(sessionParams);
+      await prepareSubscriptionCheckoutCustomer(stripe, apiKey, sessionParams, {
+        email: customerEmail || undefined,
+      });
 
       if (isPlaywrightStripeMock(apiKey)) {
         return NextResponse.json({
@@ -675,6 +720,7 @@ export async function POST(req: Request) {
           metadata: sessionParams.metadata,
           subscription_data: sessionParams.subscription_data,
           invoice_creation: sessionParams.invoice_creation,
+          customer_invoice_settings: buildStripeCustomerInvoiceSettings(),
         }, { headers: corsHeaders(req) });
       }
 

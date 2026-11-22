@@ -1,10 +1,6 @@
 import type Stripe from 'stripe';
 
-type InvoiceCustomField = NonNullable<
-  NonNullable<Stripe.Checkout.SessionCreateParams['invoice_creation']>['invoice_data']
->['custom_fields'] extends (infer F)[] | undefined
-  ? F
-  : { name: string; value: string };
+type InvoiceCustomField = { name: string; value: string };
 
 export type StripeInvoicePresentation = {
   footer: string;
@@ -50,6 +46,25 @@ export function buildStripeInvoicePresentation(env: NodeJS.ProcessEnv = process.
   return { footer, custom_fields };
 }
 
+export type StripeCustomerInvoiceSettingsUpdate = NonNullable<
+  Stripe.CustomerCreateParams['invoice_settings']
+>;
+
+export function buildStripeCustomerInvoiceSettings(
+  env: NodeJS.ProcessEnv = process.env,
+): StripeCustomerInvoiceSettingsUpdate | null {
+  const presentation = buildStripeInvoicePresentation(env);
+  if (!presentation) return null;
+  return {
+    footer: presentation.footer,
+    custom_fields: presentation.custom_fields,
+  };
+}
+
+/**
+ * Checkout: `invoice_creation` is only valid in `payment` mode. Subscription invoices
+ * use the Stripe Customer's `invoice_settings` (footer + custom fields).
+ */
 export function applyStripeCheckoutInvoicePresentation(
   params: Stripe.Checkout.SessionCreateParams,
   env: NodeJS.ProcessEnv = process.env,
@@ -57,11 +72,57 @@ export function applyStripeCheckoutInvoicePresentation(
   const presentation = buildStripeInvoicePresentation(env);
   if (!presentation) return;
 
-  params.invoice_creation = {
-    enabled: true,
-    invoice_data: {
-      footer: presentation.footer,
-      custom_fields: presentation.custom_fields,
-    },
-  };
+  if (params.mode === 'payment') {
+    params.invoice_creation = {
+      enabled: true,
+      invoice_data: {
+        footer: presentation.footer,
+        custom_fields: presentation.custom_fields,
+      },
+    };
+    return;
+  }
+
+  if (params.mode === 'subscription' && params.invoice_creation) {
+    delete params.invoice_creation;
+  }
+}
+
+export async function syncStripeCustomerInvoicePresentation(
+  stripe: Stripe,
+  customerId: string,
+  env: NodeJS.ProcessEnv = process.env,
+): Promise<void> {
+  const invoiceSettings = buildStripeCustomerInvoiceSettings(env);
+  if (!invoiceSettings) return;
+  await stripe.customers.update(customerId, { invoice_settings: invoiceSettings });
+}
+
+/**
+ * Ensures subscription Checkout has a customer id with invoice_settings applied.
+ * Creates a customer when only an email is available.
+ */
+export async function ensureStripeCheckoutCustomerForSubscription(
+  stripe: Stripe,
+  input: { customerId?: string | null; email?: string | null },
+  env: NodeJS.ProcessEnv = process.env,
+): Promise<string | undefined> {
+  const invoiceSettings = buildStripeCustomerInvoiceSettings(env);
+
+  if (input.customerId) {
+    if (invoiceSettings) {
+      await syncStripeCustomerInvoicePresentation(stripe, input.customerId, env);
+    }
+    return input.customerId;
+  }
+
+  const email = (input.email || '').trim();
+  if (!email) return undefined;
+
+  const createParams: Stripe.CustomerCreateParams = { email };
+  if (invoiceSettings) {
+    createParams.invoice_settings = invoiceSettings;
+  }
+  const customer = await stripe.customers.create(createParams);
+  return customer.id;
 }

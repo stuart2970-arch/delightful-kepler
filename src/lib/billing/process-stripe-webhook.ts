@@ -931,10 +931,15 @@ export async function loadTierIncludedVoiceMinutes(
     if (entitlementError) {
       throw new Error(entitlementError.message || 'Could not read the plan voice allowance');
     }
-    const raw = entitlement?.limit_value;
-    const minutes =
-      raw === null || raw === undefined ? foundationVoiceMinutesCap() : Number(raw);
-    if (Number.isFinite(minutes) && minutes >= 0) {
+    if (!entitlement) {
+      continue;
+    }
+    const raw = entitlement.limit_value;
+    if (raw === null || raw === undefined) {
+      continue;
+    }
+    const minutes = Number(raw);
+    if (Number.isFinite(minutes) && minutes > 0) {
       return minutes;
     }
   }
