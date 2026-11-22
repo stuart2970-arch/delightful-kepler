@@ -986,7 +986,7 @@ export default function PricingMatrixView() {
         )}
       </div>
 
-      {/* Fixed Bolt-ons Section (WhatsApp, Knowledge Base Chunks) */}
+      {/* Fixed Bolt-ons Section (WhatsApp, knowledge items) */}
       <div className="bg-gray-900 border border-gray-800 rounded-2xl p-6 shadow-xl space-y-4">
         <div>
           <h3 className="text-base font-bold text-white flex items-center gap-2">
@@ -1057,7 +1057,7 @@ export default function PricingMatrixView() {
             </div>
           )}
 
-          {/* Data Pack (500 Chunks) */}
+          {/* Data Pack (500 knowledge items) */}
           {dataPack && formState[dataPack.id] && (
             <div className={`bg-gray-950 border ${dataPack.is_active === false ? 'border-amber-500/40' : 'border-gray-800'} p-4 rounded-xl space-y-3`}>
               <div className="flex justify-between items-center">

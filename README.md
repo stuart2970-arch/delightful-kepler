@@ -49,7 +49,7 @@ Local development uses the **local Supabase CLI stack** and mock third-party key
    | `admin-superadmin` | Admin & superadmin | 18 |
    | `voice-telephony-vapi` | Voice, telephony & Vapi | 13 |
    | `channels-meta-whatsapp` | Meta / WhatsApp / Twilio channels | 9 |
-   | `misc` | Catch-all (signed-out sweep, release docs, app config) | 20 |
+   | `misc` | Catch-all (signed-out sweep, release docs, app config) | 23 |
 
    **Staging PRs** run only areas touched by the PR. Path → area rules live in **`.github/playwright-area-paths.json`** (source paths per area; each area’s spec list is merged automatically from `ci-playwright-groups.mjs`). **`shared`** paths (migrations, `package.json` / lockfile, Playwright config, test helpers, `.github/`, `apphosting*.yaml`, cross-cutting `src/lib/security|env|fonts|postgres|server`, etc.) or any changed file **not covered** by an area map force **all** areas. Skipped areas still exit success so branch protection’s single check **Typecheck and Playwright** passes.
 
@@ -4687,3 +4687,10 @@ Highlighted adjustments in the modal:
 * **User**: Disconnect teardown before credential delete; renew backfill after renewal + expired purge; multi-row Google teardown.
 * **Changes**: `disconnectGoogleCalendarIntegration` / `disconnectMicrosoftCalendarIntegration`; `purgeExpiredCalendarPushSubscriptions`; expanded `styl-409` unit specs.
 * **Verify**: 11 unit specs in `styl-409-calendar-push-register.spec.ts`; husky pre-push on push.
+
+### Session (R4 package 3 chores — STYL-408, STYL-410, STYL-359 — 22 Nov 2026)
+* **User**: One PR into `staging`. CI Turbopack `next/font/google` flakes on parallel Playwright area jobs; fix `globMatch` so a double-star between slashes does not require a subdirectory. Revert the accidental `tsconfig.json` include `.next/dev/dev/types/**` from PR 110. Replace the word "chunks" with "knowledge items" in the user-facing app UI. Leave internal and database names. Keep the aggregate check name "Typecheck and Playwright". Merge commits only. Never `--no-verify` or `supabase db push`.
+* **STYL-408**: `useDeterministicCiFonts` is true for `PLAYWRIGHT_TEST` or `CI` unless `NODE_ENV=production`. `next.config.ts` then aliases `@/lib/fonts` to `src/lib/fonts/ci-font-entry.ts`, which does not import `next/font/google`. Production builds keep `turbopack: {}` and the multi-weight Google fonts in `root-fonts-production.ts`. `globMatch` selects both `src/components/ServiceEditor.tsx` and nested `BillingView.tsx`.
+* **STYL-410**: `tsconfig.json` restored to the pre-PR-110 formatting and include list.
+* **STYL-359**: Superadmin feature-type examples say "knowledge items". A source scan covers other app UI string literals. Database columns such as `included_data_chunks` are unchanged.
+* **Verify**: `npm run typecheck`; `npx playwright test tests/styl-408-ci-font-and-area-glob.spec.ts tests/styl-359-knowledge-items-copy.spec.ts` — 6 passed, including the Playwright server rendering `font-ci-poppins` / `font-ci-inter`.

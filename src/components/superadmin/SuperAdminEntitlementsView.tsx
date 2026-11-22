@@ -388,7 +388,7 @@ export default function SuperAdminEntitlementsView() {
                             onChange={e => setEditForm({ ...editForm, value_type: e.target.value as 'numeric' | 'boolean' })}
                             className="w-full bg-gray-900 border border-gray-700 rounded px-2.5 py-1 text-xs text-white outline-none focus:border-indigo-500"
                           >
-                            <option value="numeric">Numeric (e.g. 500 chunks, 1000 msgs, UNLIMITED)</option>
+                            <option value="numeric">Numeric (e.g. 500 knowledge items, 1000 msgs, UNLIMITED)</option>
                             <option value="boolean">Boolean (1 = Yes / 0 = No)</option>
                           </select>
                         </div>
@@ -552,7 +552,7 @@ export default function SuperAdminEntitlementsView() {
             onChange={(e) => setNewFeature({...newFeature, value_type: e.target.value as 'numeric' | 'boolean'})}
             className="bg-gray-950 border border-gray-700 rounded px-3 py-1.5 text-sm text-white w-56 outline-none focus:border-indigo-500"
           >
-            <option value="numeric">Numeric (e.g. 500 chunks)</option>
+            <option value="numeric">Numeric (e.g. 500 knowledge items)</option>
             <option value="boolean">Boolean (1 = Yes / 0 = No)</option>
           </select>
 
