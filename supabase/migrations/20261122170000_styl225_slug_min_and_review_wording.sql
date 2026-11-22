@@ -4,7 +4,10 @@
 -- changes neither company_name nor slug still returns before classification.
 -- A slug-context name under 3 normalised characters is action block, so that
 -- trigger already raises. Reserved slugs are still decided before the length check.
--- A derived sign-up slug under 3 characters becomes base_slug || '-' || counter.
+-- A derived sign-up slug whose normalised key is under 3 characters becomes
+-- base_slug || '-' || counter. The key is moderation_normalize, then letters
+-- and digits only, the same key classify_moderated_name blocks on.
+-- Once counter is past 50 the fallback is my-workspace-<counter>.
 -- An empty derived slug stays my-workspace. An explicit slug is unchanged.
 
 CREATE OR REPLACE FUNCTION public.classify_moderated_name(p_value text, p_context text)
@@ -270,7 +273,7 @@ BEGIN
 
     final_slug := base_slug;
     IF NEW.raw_user_meta_data->>'slug' IS NULL
-       AND char_length(regexp_replace(lower(base_slug), '[^a-z0-9]+', '', 'g')) < 3 THEN
+       AND char_length(regexp_replace(public.moderation_normalize(base_slug), '[^a-z0-9]+', '', 'g')) < 3 THEN
       final_slug := base_slug || '-' || counter;
       counter := counter + 1;
     END IF;
@@ -279,12 +282,21 @@ BEGIN
        OR (
          NEW.raw_user_meta_data->>'slug' IS NULL
          AND base_slug IS DISTINCT FROM 'my-workspace'
-         AND char_length(regexp_replace(lower(final_slug), '[^a-z0-9]+', '', 'g')) < 3
+         AND char_length(regexp_replace(public.moderation_normalize(final_slug), '[^a-z0-9]+', '', 'g')) < 3
        )
     LOOP
-      final_slug := base_slug || '-' || counter;
+      IF counter > 50 THEN
+        final_slug := 'my-workspace-' || counter;
+      ELSE
+        final_slug := base_slug || '-' || counter;
+      END IF;
       counter := counter + 1;
     END LOOP;
+
+    IF NEW.raw_user_meta_data->>'slug' IS NULL
+       AND char_length(regexp_replace(public.moderation_normalize(final_slug), '[^a-z0-9]+', '', 'g')) < 3 THEN
+      final_slug := 'my-workspace-' || counter;
+    END IF;
 
     INSERT INTO public.tenants (company_name, slug)
     VALUES (company_name_input, final_slug)

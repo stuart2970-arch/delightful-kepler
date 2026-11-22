@@ -569,33 +569,50 @@ test.describe('STYL-225 banned words and reserved names', () => {
     await expect(page.getByText(TOO_SHORT)).toBeVisible()
   })
 
-  test('company name AB at sign-up gets a padded slug', async () => {
+  test('company names AB, AAA, and 111 at sign-up get padded slugs', async () => {
     const admin = adminClient()
-    const email = `short-salon-${suffix()}@test.styleflo.ai`
-    const created = await admin.auth.admin.createUser({
-      email,
-      password: 'Password123!',
-      email_confirm: true,
-      user_metadata: {
-        full_name: 'Alex Dickson',
-        company_name: 'AB',
-      },
-    })
-    expect(created.error).toBeNull()
-    const userId = created.data.user!.id
+    const cases = [
+      { company: 'AB', pattern: /^ab-1$/ },
+      { company: 'AAA', pattern: /^aaa-\d+$/ },
+      { company: '111', pattern: /^111-\d+$/ },
+    ]
+    const createdUsers: string[] = []
+    const createdTenants: string[] = []
     try {
-      const { data: profile } = await admin.from('profiles').select('tenant_id').eq('id', userId).single()
-      const { data: tenant } = await admin
-        .from('tenants')
-        .select('id, company_name, slug')
-        .eq('id', profile!.tenant_id)
-        .single()
-      expect(tenant?.company_name).toBe('AB')
-      expect(tenant?.slug).toMatch(/^ab-\d+$/)
-      expect((tenant?.slug || '').replace(/[^a-z0-9]/g, '').length).toBeGreaterThanOrEqual(3)
-      if (tenant?.id) await admin.from('tenants').delete().eq('id', tenant.id)
+      for (const { company, pattern } of cases) {
+        const email = `short-salon-${company.toLowerCase()}-${suffix()}@test.styleflo.ai`
+        const created = await admin.auth.admin.createUser({
+          email,
+          password: 'Password123!',
+          email_confirm: true,
+          user_metadata: {
+            full_name: 'Alex Dickson',
+            company_name: company,
+          },
+        })
+        expect(created.error, company).toBeNull()
+        const userId = created.data.user!.id
+        createdUsers.push(userId)
+        const { data: profile } = await admin.from('profiles').select('tenant_id').eq('id', userId).single()
+        const { data: tenant } = await admin
+          .from('tenants')
+          .select('id, company_name, slug')
+          .eq('id', profile!.tenant_id)
+          .single()
+        expect(tenant?.company_name, company).toBe(company)
+        expect(tenant?.slug, company).toMatch(pattern)
+        expect(tenant?.slug, company).not.toBe(company.toLowerCase())
+        const { data: decision, error: decisionError } = await admin.rpc('classify_moderated_name', {
+          p_value: tenant!.slug,
+          p_context: 'slug',
+        })
+        expect(decisionError, company).toBeNull()
+        expect(decision?.[0]?.action, `${company} ${tenant?.slug}`).toBe('allow')
+        if (tenant?.id) createdTenants.push(tenant.id)
+      }
     } finally {
-      await admin.auth.admin.deleteUser(userId)
+      for (const tenantId of createdTenants) await admin.from('tenants').delete().eq('id', tenantId)
+      for (const userId of createdUsers) await admin.auth.admin.deleteUser(userId)
     }
   })
 
