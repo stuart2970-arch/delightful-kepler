@@ -71,6 +71,10 @@ export async function isStripeCustomerLinkedToOtherTenant(
   return Boolean(data?.id);
 }
 
+/**
+ * Email match for an untagged customer. Tenant subscription checkout does not
+ * call this: two checkouts can pass it before either tags metadata.tenant_id.
+ */
 export async function findReusableStripeCustomerByEmail(
   customers: StripeCustomerOps,
   supabase: Pick<SupabaseClient, 'from'>,
@@ -207,7 +211,6 @@ export async function ensureTenantStripeCustomerForSubscription(
 ): Promise<string | undefined> {
   const invoiceSettings = buildStripeCustomerInvoiceSettings(env);
   let customerId = (input.stripeCustomerId || '').trim() || undefined;
-  let matchedCustomer: CustomerLike | undefined;
 
   if (customerId) {
     await syncStripeCustomerInvoicePresentation(stripe, customerId, env);
@@ -218,20 +221,11 @@ export async function ensureTenantStripeCustomerForSubscription(
     (await findStripeCustomerIdByTenantMetadata(stripe.customers, input.tenantId)) || undefined;
 
   const email = (input.email || '').trim();
-  if (!customerId && email) {
-    const reusableId = await findReusableStripeCustomerByEmail(
-      stripe.customers,
-      supabase,
-      input.tenantId,
-      email,
-    );
-    if (reusableId) {
-      customerId = reusableId;
-      const listed = await stripe.customers.list({ email: email.toLowerCase(), limit: 10 });
-      matchedCustomer = listed.data.find((c) => c.id === reusableId);
-    }
-  }
 
+  // Do not attach an email-matched customer. Two tenants can both see the same
+  // untagged customer before either writes metadata.tenant_id. A re-read after
+  // tagging still loses if the other tenant tags afterwards: Stripe customer
+  // updates are not conditional. Guest checkout still matches by email.
   if (customerId) {
     const linkedElsewhere = await isStripeCustomerLinkedToOtherTenant(
       supabase,
@@ -240,7 +234,6 @@ export async function ensureTenantStripeCustomerForSubscription(
     );
     if (linkedElsewhere) {
       customerId = undefined;
-      matchedCustomer = undefined;
     }
   }
 
@@ -257,7 +250,6 @@ export async function ensureTenantStripeCustomerForSubscription(
       stripe.customers,
       customerId,
       input.tenantId,
-      matchedCustomer,
     );
   }
 
