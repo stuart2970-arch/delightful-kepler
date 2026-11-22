@@ -26,7 +26,7 @@ export default defineConfig({
     command: 'npm run test:server',
     url: 'http://localhost:3001',
     reuseExistingServer: false,
-    timeout: 120 * 1000,
+    timeout: process.env.CI ? 180 * 1000 : 120 * 1000,
     env: {
       ...process.env,
       // The pre-push hook and CI give the Playwright process an 8GB heap.
