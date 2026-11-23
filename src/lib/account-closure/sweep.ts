@@ -199,7 +199,7 @@ async function stamp(db: SupabaseClient, id: string, patch: Record<string, strin
   if (error) throw dbError(error, 'Could not update the account closure');
 }
 
-async function discoverFailedPaymentClosures(db: SupabaseClient): Promise<number> {
+async function discoverFailedPaymentClosures(db: SupabaseClient, now: Date): Promise<number> {
   const { data, error } = await db
     .from('failed_payment_cases')
     .select('id, tenant_id, cancelled_at')
@@ -208,10 +208,12 @@ async function discoverFailedPaymentClosures(db: SupabaseClient): Promise<number
   let opened = 0;
   for (const row of data || []) {
     if (!row.cancelled_at || !row.tenant_id) continue;
+    // First sighting starts the 31-day hold. A cancellation from before the
+    // flag was on must not be deleted on the sweep that first records it.
     const result = await openAccountClosure(db, {
       tenantId: row.tenant_id,
       reason: 'failed_payment',
-      closedAt: row.cancelled_at,
+      closedAt: now.toISOString(),
       sourceKey: `failed-payment:${row.id}`,
     });
     if (!result.ok) throw new Error(result.message);
@@ -230,10 +232,11 @@ async function discoverEndedTrials(db: SupabaseClient, now: Date): Promise<numbe
   let opened = 0;
   for (const row of data || []) {
     if (!row.trial_ends_at || !row.id) continue;
+    // First sighting starts the 31-day hold, even when trial_ends_at is older.
     const result = await openAccountClosure(db, {
       tenantId: row.id,
       reason: 'trial_ended',
-      closedAt: row.trial_ends_at,
+      closedAt: now.toISOString(),
       sourceKey: `trial:${row.id}:${row.trial_ends_at}`,
     });
     if (!result.ok) throw new Error(result.message);
@@ -326,7 +329,7 @@ export async function runAccountClosureSweep(
   }
 
   const now = input.now ?? new Date();
-  result.opened += await discoverFailedPaymentClosures(db);
+  result.opened += await discoverFailedPaymentClosures(db, now);
   result.opened += await discoverEndedTrials(db, now);
   result.reopened += await reopenActiveAccounts(db, now);
 

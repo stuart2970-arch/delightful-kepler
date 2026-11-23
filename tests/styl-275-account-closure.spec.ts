@@ -151,30 +151,37 @@ test.describe('STYL-275 closure sweep', () => {
     else process.env.FAILED_PAYMENT_FLOW_ENABLED = previousFlag
   })
 
-  async function ensureTenant(admin: SupabaseClient, numbers: { shadow?: string | null; mobile?: string | null }) {
+  async function ensureTenant(
+    admin: SupabaseClient,
+    numbers: { shadow?: string | null; mobile?: string | null },
+    options: { id?: string; slug?: string; active?: boolean; status?: string; trialEndsAt?: string | null } = {},
+  ) {
     localSupabase()
-    const { data } = await admin.from('tenants').select('id').eq('id', TENANT).maybeSingle()
+    const tenantId = options.id || TENANT
+    const { data } = await admin.from('tenants').select('id').eq('id', tenantId).maybeSingle()
     if (!data) {
       const { error } = await admin.from('tenants').insert({
-        id: TENANT,
-        tenant_id: TENANT,
+        id: tenantId,
+        tenant_id: tenantId,
         company_name: 'Harbour Salon',
-        slug: 'harbour-salon-275',
+        slug: options.slug || 'harbour-salon-275',
         plan_tier: 'foundation',
-        is_active: false,
-        subscription_status: 'cancelled',
+        is_active: options.active ?? false,
+        subscription_status: options.status || 'cancelled',
+        trial_ends_at: options.trialEndsAt ?? null,
       })
       if (error) throw new Error(error.message)
     }
     const { error: updateError } = await admin.from('tenants').update({
       company_name: 'Harbour Salon',
-      is_active: false,
-      subscription_status: 'cancelled',
+      is_active: options.active ?? false,
+      subscription_status: options.status || 'cancelled',
+      trial_ends_at: options.trialEndsAt ?? null,
       twilio_shadow_number: numbers.shadow ?? null,
       twilio_mobile_number: numbers.mobile ?? null,
       has_landline: Boolean(numbers.shadow),
       has_mobile: Boolean(numbers.mobile),
-    }).eq('id', TENANT)
+    }).eq('id', tenantId)
     if (updateError) throw new Error(updateError.message)
 
     const created = await admin.auth.admin.createUser({
@@ -190,24 +197,25 @@ test.describe('STYL-275 closure sweep', () => {
     expect(userId).toBeTruthy()
     const { error: profileError } = await admin.from('profiles').upsert({
       id: userId,
-      tenant_id: TENANT,
+      tenant_id: tenantId,
       role: 'owner',
       is_super_admin: false,
     })
     if (profileError) throw new Error(profileError.message)
   }
 
-  async function cleanup(admin: SupabaseClient) {
-    await admin.from('services').delete().eq('tenant_id', TENANT)
-    await admin.from('system_email_log').delete().eq('tenant_id', TENANT)
-    await admin.from('account_closures').delete().eq('tenant_id', TENANT)
-    await admin.from('tenant_phone_number_purchases').delete().eq('tenant_id', TENANT)
+  async function cleanup(admin: SupabaseClient, tenantId = TENANT) {
+    await admin.from('services').delete().eq('tenant_id', tenantId)
+    await admin.from('system_email_log').delete().eq('tenant_id', tenantId)
+    await admin.from('account_closures').delete().eq('tenant_id', tenantId)
+    await admin.from('tenant_phone_number_purchases').delete().eq('tenant_id', tenantId)
     await admin.from('tenants').update({
       twilio_shadow_number: null,
       twilio_mobile_number: null,
       is_active: true,
       subscription_status: 'active',
-    }).eq('id', TENANT)
+      trial_ends_at: null,
+    }).eq('id', tenantId)
   }
 
   function countingReleaser(): { releaser: NumberReleaser; calls: string[] } {
@@ -365,6 +373,94 @@ test.describe('STYL-275 closure sweep', () => {
     expect(telephonyReleaseCallLog.twilio).toBe(0)
     expect(telephonyReleaseCallLog.vapi).toBe(0)
     setFailedPaymentStripeClientForTests(null)
+    await cleanup(admin)
+  })
+
+  test('an old expired trial is held from the day the sweep first sees it', async () => {
+    if (!serviceKey) throw new Error('Local Supabase service role key is required')
+    const admin = adminClient()
+    const tenantId = '27520000-0000-4000-8000-000000000275'
+    const seenAt = new Date('2026-05-01T00:00:00.000Z')
+    const trialEndsAt = '2024-01-01T00:00:00.000Z'
+    await ensureTenant(admin, {}, {
+      id: tenantId,
+      slug: 'harbour-salon-275-backfill',
+      active: true,
+      status: 'trialing',
+      trialEndsAt,
+    })
+    await cleanup(admin, tenantId)
+    await ensureTenant(admin, {}, {
+      id: tenantId,
+      slug: 'harbour-salon-275-backfill',
+      active: true,
+      status: 'trialing',
+      trialEndsAt,
+    })
+    const { error: serviceError } = await admin.from('services').insert({
+      tenant_id: tenantId,
+      name: 'Old trial cut',
+    })
+    expect(serviceError).toBeNull()
+
+    const { data: beforeClosures } = await admin.from('account_closures').select('id')
+    const beforeIds = new Set((beforeClosures || []).map((row) => row.id as string))
+    const { data: beforeTrials } = await admin
+      .from('tenants')
+      .select('id, is_active, subscription_status, trial_ends_at')
+      .in('subscription_status', ['trialing', 'trial'])
+
+    const { releaser } = countingReleaser()
+    const first = await runAccountClosureSweep(admin, { now: seenAt, releaser })
+    expect(first.deleted).toBe(0)
+    const { data: opened } = await admin
+      .from('account_closures')
+      .select('closed_at, deleted_at, reminder_sent_at, reason')
+      .eq('tenant_id', tenantId)
+      .maybeSingle()
+    expect(opened?.reason).toBe('trial_ended')
+    expect(new Date(opened?.closed_at || '').getTime()).toBe(seenAt.getTime())
+    expect(new Date(opened?.closed_at || '').getTime()).not.toBe(new Date(trialEndsAt).getTime())
+    expect(opened?.deleted_at).toBeNull()
+    expect(opened?.reminder_sent_at).toBeNull()
+    const { data: kept } = await admin.from('services').select('id').eq('tenant_id', tenantId)
+    expect(kept).toHaveLength(1)
+
+    const { data: spawned } = await admin.from('account_closures').select('id, tenant_id, closed_at')
+    for (const row of spawned || []) {
+      if (row.tenant_id === tenantId || beforeIds.has(row.id)) continue
+      if (new Date(row.closed_at).getTime() !== seenAt.getTime()) continue
+      await admin.from('account_closures').delete().eq('id', row.id)
+    }
+    for (const trial of beforeTrials || []) {
+      if (trial.id === tenantId) continue
+      await admin.from('tenants').update({
+        is_active: trial.is_active,
+        subscription_status: trial.subscription_status,
+        trial_ends_at: trial.trial_ends_at,
+      }).eq('id', trial.id)
+    }
+
+    const reminderDay = await runAccountClosureSweep(admin, { now: addClosureDays(seenAt, 24), releaser })
+    expect(reminderDay.deleted).toBe(0)
+    const { data: reminded } = await admin
+      .from('account_closures')
+      .select('deleted_at, reminder_sent_at')
+      .eq('tenant_id', tenantId)
+      .maybeSingle()
+    expect(reminded?.deleted_at).toBeNull()
+    expect(reminded?.reminder_sent_at).toBeTruthy()
+    const { data: stillKept } = await admin.from('services').select('id').eq('tenant_id', tenantId)
+    expect(stillKept).toHaveLength(1)
+
+    const deletionDay = await runAccountClosureSweep(admin, { now: addClosureDays(seenAt, 31), releaser })
+    expect(deletionDay.deleted).toBe(1)
+    const { data: removed } = await admin.from('services').select('id').eq('tenant_id', tenantId)
+    expect(removed).toEqual([])
+    const { data: closed } = await admin.from('account_closures').select('deleted_at').eq('tenant_id', tenantId).maybeSingle()
+    expect(new Date(closed?.deleted_at || '').getTime()).toBe(addClosureDays(seenAt, 31).getTime())
+    await cleanup(admin, tenantId)
+    await ensureTenant(admin, {})
     await cleanup(admin)
   })
 
