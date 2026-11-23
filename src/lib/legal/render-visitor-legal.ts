@@ -25,8 +25,7 @@ export const VISITOR_LEGAL_DRAFT_BANNER =
 export const BLANK_BUSINESS_NAME = 'the business whose website you are on'
 export const BLANK_AGENT_NAME = 'the AI assistant'
 export const STYLEFLO_PRIVACY_URL = 'https://styleflo.ai/privacy/#assistant'
-export const TRANSFERS_SUMMARY_FALLBACK =
-  '[Placeholder: TBC from the sub-processor list (Privacy Part D, DPA 7)]'
+export const TRANSFERS_SUMMARY_FALLBACK = '[TBC]'
 export const SPECIAL_CATEGORY_BASIS_FALLBACK = '[TBC]'
 
 const CONTACT_LINE =

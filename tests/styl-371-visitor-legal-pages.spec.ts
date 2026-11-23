@@ -194,9 +194,8 @@ test.describe('STYL-371 visitor legal pages', () => {
     expect(privacyQuiet.html).not.toContain('or by text')
     expect(privacyQuiet.html).not.toContain('3A. Health')
     expect(privacyQuiet.html).not.toContain('To send you marketing')
-    expect(privacyQuiet.html).not.toContain('[TBC]')
     expect(privacyQuiet.html).toContain('Sub-processor list [link to be confirmed]')
-    expect(privacyQuiet.html).toContain('[Placeholder: TBC from the sub-processor list (Privacy Part D, DPA 7)]')
+    expect(privacyQuiet.html).toContain('[TBC]')
 
     const privacyOn = renderVisitorLegal('privacy', facts({
       voiceEnabled: true,
@@ -224,6 +223,9 @@ test.describe('STYL-371 visitor legal pages', () => {
       'W4',
       'DPA 2.',
       'Anti-Gravity',
+      'Placeholder',
+      'Part D',
+      'DPA 7',
     ]
     const pages = [
       renderVisitorLegal('terms', facts()),

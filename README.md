@@ -4825,3 +4825,8 @@ Highlighted adjustments in the modal:
 * **User**: Review on pull request 134. Visitor-facing privacy text still contained solicitor and open-item notes.
 * **Changes**: Removed the DPA 2.4 confirmation line, the proposed security-log period, and the W4 "remember me" paragraph. Security records now say they are kept for `[period TBC]`. The clinic special-category basis is `[TBC]`. Terms had no matching notes. A test checks the rendered terms and privacy HTML for `Solicitor`, `awaiting Stuart`, `PROPOSED`, `W4`, `DPA 2.` and `Anti-Gravity`.
 * **Verify**: Playwright `tests/styl-371-visitor-legal-pages.spec.ts` — 16 passed on local Supabase.
+
+### Session (STYL-371 transfers placeholder shortened — 23 Nov 2026)
+* **User**: After pull request 134 merged, shorten the sub-processor transfers gap to `[TBC]`.
+* **Changes**: The transfers fallback is `[TBC]`. The following `[Placeholder:` paragraph in the privacy template is gone, because the leak test now also rejects `Placeholder`, `Part D` and `DPA 7`.
+* **Verify**: Playwright `tests/styl-371-visitor-legal-pages.spec.ts` — 16 passed on local Supabase.
