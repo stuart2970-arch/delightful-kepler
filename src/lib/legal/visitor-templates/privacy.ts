@@ -86,10 +86,6 @@ Your information isn't sold, and it isn't used to train AI models for anyone els
 ## 6. Where it is stored and international transfers
 Transcripts and messages are stored on Google Cloud servers in London.
 {{transfers_summary}}
-[Placeholder: some suppliers process information outside the UK. For each one,
-the sub-processor list says whether UK adequacy regulations apply or which UK
-safeguard is used (the UK International Data Transfer Agreement or the UK
-Addendum). Text TBC from the list.]
 
 ## 7. How long it is kept
 {{business_name}} keeps transcripts and messages for
