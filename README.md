@@ -4764,6 +4764,10 @@ Highlighted adjustments in the modal:
 * **Verify**: `npm run typecheck`; `tests/styl-274-failed-payment-state.spec.ts` (12) and `tests/billing-checkout-auth.spec.ts` (the sweep counts as gated via `isFailedPaymentSweepAuthorized`). Full Playwright run: 842 passed before the Next dev server was OOM-killed on this VM; the remaining 47 (STYL-252 `psql`, then connection refused) passed on rerun. 1 skipped.
 * **Review**: Restart sets `trial_end` to the restart time plus one billing interval (`proration_behavior: none`) so the paid invoice covers that month and Stripe does not raise a second invoice today. `FAILED_PAYMENT_FLOW_ENABLED` defaults off. While it is off the sweep returns 200 and does nothing. A failure reading or writing the new tables is logged and does not block unlock or `past_due`. A payment of a written-off invoice is logged. The flag is not in apphosting yaml. A paid case stores `paid_at` before the restart attempt. The sweep retries that restart and never cancels or writes off a case that has been paid.
 
+### Session (R5 package 4b — STYL-263 emails 6-9 and 20 — 22 Nov 2026)
+* **User**: Templates for auto top-up and number porting, behind `SYSTEM_EMAILS_BATCH2_ENABLED` (default off). The purchase path and STYL-167 port events are not in the app, so the senders are ready and nothing in production calls them. Package 4a holds the wired emails. Merge 4a first, then keep both template lists. This package does not call `onFailedPaymentTransition`.
+* **Verify**: `npm run typecheck`. Playwright `tests/styl-263-batch2-deferred.spec.ts` — 4 passed on local Supabase. Mailgun client was not created. No migration.
+
 ### Session (R5 package 4a — STYL-263 emails 2, 3, 22, 23 and STYL-278 — 22 Nov 2026)
 * **User**: Batch 2 system emails behind `SYSTEM_EMAILS_BATCH2_ENABLED` (default off). British English, Terms facts only. Refunds stay an admin action and are not run from this package. No live send until Stuart reviews the previews. Split from package 4b because the logic was over the review limit. Do not stack the PRs.
 * **4a**: Sign-up declined, account closed (not a business), annual and other price-rise notices (dashboard notice text is returned, the dashboard screen is not wired), and bolt-on added after a successful Stripe billing event. One-off packs are skipped. Idempotency keys make each event send once. Superadmin resend uses the existing log.
@@ -4785,11 +4789,17 @@ Highlighted adjustments in the modal:
 * **Verify**: `npm run typecheck`. `tests/styl-265-batch4a-toggles.spec.ts` and `tests/styl-292-lead-email-columns.spec.ts` on local Supabase.
 * **Merge**: Brought `origin/staging` in after PRs 126, 128 and 131. Kept the STYL-274 note, the package 5b note and this note. The account tab shows both the retention card and the email switches.
 
+### Session (merge staging into package 4b after PR 132 — 22 Nov 2026)
+* **Merge**: `origin/staging` at `c23b4de` (PR 132) into package 4b. Shared helpers `flag.ts`, `send.ts`, `account.ts` and `price-rules.ts` match PR 132. `batch-2.ts` and `docs/system-emails/batch-2-previews.md` keep both template lists. The registry length checks now expect 13 templates.
+
 ### Session (R5 package 5a — STYL-264 legal mass notices — 22 Nov 2026)
 * **User**: Batch 3 of the system emails, split into two ordinary PRs into `staging`. This commit is 5a: templates and the admin send tool for notices #24–#31. `SYSTEM_EMAILS_BATCH3_ENABLED` stays off. No live Mailgun. Facts only from the Terms, Privacy Policy and DPA redrafts on STYL-171. British English. Exactly once per notice id.
 * **Changes**: `src/lib/email/system/templates/batch-3.ts` holds the eight notices (sub-processor, service change, urgent change, Terms, DPA, Privacy Policy, VAT registration, transfer of the contract). `POST /api/superadmin/system-emails/notices` dry-runs the recipient list or, with an explicit confirm and the flag on, sends through the shared layer. The idempotency key is `b3n:{noticeId}:{tenantId}`. The Legal notices panel sits on the existing System emails tab. Previews are in `docs/system-emails/batch-3-previews.md`.
 * **Verify**: `npm run typecheck`. Playwright `tests/styl-264-mass-notices.spec.ts` — 7 passed on local Supabase. Mailgun client was not constructed. After PRs 129 and 131 merged, this branch merged `origin/staging` and kept every README session note, both template lists, and both preview sections.
 * **Left for 5b**: breach, DSAR, deletion and Meta data-deletion emails, the retention setting, and the rest of the preview file. No migration in 5a. Those are now on staging and kept alongside this branch.
+
+### Session (merge staging into package 4b after PR 127 — 23 Nov 2026)
+* **Merge**: `origin/staging` at `5dc3716` (PR 127) into package 4b. The only conflict was the README. Both session notes are kept. `batch-3.ts` and its preview doc already contain package 5a and package 5b.
 
 ### Session (R5 package 6b — STYL-265 admin and service notices — 22 Nov 2026)
 * **User**: Second ordinary pull request into `staging` for STYL-265. Not stacked on the toggle pull request. Covers breach, suspension, termination, StyleFlo ending the Terms, complaint forward and acknowledgement, fair-use, channel launch, planned maintenance, and human follow-up.
@@ -4799,3 +4809,6 @@ Highlighted adjustments in the modal:
 * **Verify**: `npm run typecheck`. `tests/styl-265-batch4-notices.spec.ts` and `tests/system-email-layer.spec.ts` on local Supabase. Mailgun stayed mocked.
 * **Review**: Complaint and human follow-up run only for the StyleFlo house tenant on the moderation allowlist. The acknowledgement and the follow-up go to the visitor's own email, or they are skipped. They are never sent to the tenant owner. "Call me back" is not treated as a request for a person.
 * **Merge**: Brought `origin/staging` in after PR 127. Kept the package 5a session note and this note.
+
+### Session (merge staging into package 4b after PR 130 — 23 Nov 2026)
+* **Merge**: `origin/staging` at `46658f3` (PR 130) into package 4b. The only conflict was the README. Both session notes are kept.

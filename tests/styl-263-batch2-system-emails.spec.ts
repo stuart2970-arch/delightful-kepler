@@ -87,7 +87,7 @@ test.describe('STYL-263 batch 2 templates', () => {
     const keys = listSystemEmailTemplates({ APP_ENV: 'production', PLAYWRIGHT_TEST: '' } as NodeJS.ProcessEnv)
       .map((template) => template.key)
     const batch2 = batch2Templates.map((template) => template.key)
-    expect(batch2).toHaveLength(5)
+    expect(batch2).toHaveLength(13)
     for (const key of batch2) {
       expect(keys.filter((item) => item === key)).toHaveLength(1)
     }
