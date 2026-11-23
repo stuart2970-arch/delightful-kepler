@@ -85,6 +85,8 @@
       "src/app/api/data-deletion/**",
       "src/app/api/gdpr/**",
       "src/lib/wordpress/**",
+      "src/lib/legal/**",
+      "src/app/v/**",
       "src/lib/telephony/**",
       "src/lib/tenants/**",
       "src/components/superadmin/**"
