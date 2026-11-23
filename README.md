@@ -4800,3 +4800,15 @@ Highlighted adjustments in the modal:
 
 ### Session (merge staging into package 4b after PR 127 — 23 Nov 2026)
 * **Merge**: `origin/staging` at `5dc3716` (PR 127) into package 4b. The only conflict was the README. Both session notes are kept. `batch-3.ts` and its preview doc already contain package 5a and package 5b.
+
+### Session (R5 package 6b — STYL-265 admin and service notices — 22 Nov 2026)
+* **User**: Second ordinary pull request into `staging` for STYL-265. Not stacked on the toggle pull request. Covers breach, suspension, termination, StyleFlo ending the Terms, complaint forward and acknowledgement, fair-use, channel launch, planned maintenance, and human follow-up.
+* **Changes**: Templates in `src/lib/email/system/templates/batch-4.ts`. Triggers under `src/lib/email/system/triggers/batch4/`. `SYSTEM_EMAILS_BATCH4_ENABLED` defaults off, so nothing is sent until it is set to `true`. Each event uses one idempotency key on the shared sending layer. Ending the Terms requires at least one month of notice and does not start a refund. A chat message labelled as a complaint, or a request to speak to a person, is the app trigger. Superadmins can send the admin notices from `POST /api/superadmin/system-emails/batch4`.
+* **Previews**: `docs/system-emails/batch-4-previews.md` keeps part A (toggles and auth templates) and part B (these notices).
+* **Left out**: enquiry and booking toggles, auth templates, health-information redirect, automatic refunds, and the existing superadmin notices screen.
+* **Verify**: `npm run typecheck`. `tests/styl-265-batch4-notices.spec.ts` and `tests/system-email-layer.spec.ts` on local Supabase. Mailgun stayed mocked.
+* **Review**: Complaint and human follow-up run only for the StyleFlo house tenant on the moderation allowlist. The acknowledgement and the follow-up go to the visitor's own email, or they are skipped. They are never sent to the tenant owner. "Call me back" is not treated as a request for a person.
+* **Merge**: Brought `origin/staging` in after PR 127. Kept the package 5a session note and this note.
+
+### Session (merge staging into package 4b after PR 130 — 23 Nov 2026)
+* **Merge**: `origin/staging` at `46658f3` (PR 130) into package 4b. The only conflict was the README. Both session notes are kept.

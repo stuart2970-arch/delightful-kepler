@@ -39,6 +39,7 @@ import {
   stripCalendarTags,
 } from '@/lib/calendar/availability';
 import { sendConsolidatedLeadEmail } from '@/lib/lead-notifier';
+import { capturedVisitorEmail, dispatchBatch4ChatEmail } from '@/lib/email/system/triggers/batch4/chat';
 import { formatOpeningHoursForPrompt, normaliseOpeningHours } from '@/lib/opening-hours';
 import {
   PREVIEW_BOOKING_DISABLED_MESSAGE,
@@ -1280,6 +1281,19 @@ ${staffContext}`;
                 });
               } catch (err: unknown) {
                 console.error(`[Chat Stream][${requestId}] Background lead notification failed:`, err);
+              }
+            }
+
+            if (!previewBlocksCustomerNotifications(isPreview)) {
+              try {
+                await dispatchBatch4ChatEmail({
+                  tenantId,
+                  conversationId,
+                  messageText: message,
+                  visitorEmail: capturedVisitorEmail(body.clientEmail, body.email, message),
+                });
+              } catch (err: unknown) {
+                console.error(`[Chat Stream][${requestId}] Batch 4 chat email failed:`, err);
               }
             }
           } catch (dbErr: unknown) {
