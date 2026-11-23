@@ -44,6 +44,14 @@ test.describe('STYL-264 data protection templates', () => {
   test('breach and data-rights templates render facts and do not state a legal deadline', () => {
     const keys = batch3Templates.map((template) => template.key)
     expect(keys).toEqual([
+      'system.batch3.sub-processor-change',
+      'system.batch3.service-change',
+      'system.batch3.urgent-change',
+      'system.batch3.terms-change',
+      'system.batch3.dpa-change',
+      'system.batch3.privacy-change',
+      'system.batch3.vat-registration',
+      'system.batch3.contract-transfer',
       'system.batch3.breach-salon',
       'system.batch3.breach-individual',
       'system.batch3.meta-deletion-received',

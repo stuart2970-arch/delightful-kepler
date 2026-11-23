@@ -4791,3 +4791,12 @@ Highlighted adjustments in the modal:
 
 ### Session (merge staging into package 4b after PR 132 — 22 Nov 2026)
 * **Merge**: `origin/staging` at `c23b4de` (PR 132) into package 4b. Shared helpers `flag.ts`, `send.ts`, `account.ts` and `price-rules.ts` match PR 132. `batch-2.ts` and `docs/system-emails/batch-2-previews.md` keep both template lists. The registry length checks now expect 13 templates.
+
+### Session (R5 package 5a — STYL-264 legal mass notices — 22 Nov 2026)
+* **User**: Batch 3 of the system emails, split into two ordinary PRs into `staging`. This commit is 5a: templates and the admin send tool for notices #24–#31. `SYSTEM_EMAILS_BATCH3_ENABLED` stays off. No live Mailgun. Facts only from the Terms, Privacy Policy and DPA redrafts on STYL-171. British English. Exactly once per notice id.
+* **Changes**: `src/lib/email/system/templates/batch-3.ts` holds the eight notices (sub-processor, service change, urgent change, Terms, DPA, Privacy Policy, VAT registration, transfer of the contract). `POST /api/superadmin/system-emails/notices` dry-runs the recipient list or, with an explicit confirm and the flag on, sends through the shared layer. The idempotency key is `b3n:{noticeId}:{tenantId}`. The Legal notices panel sits on the existing System emails tab. Previews are in `docs/system-emails/batch-3-previews.md`.
+* **Verify**: `npm run typecheck`. Playwright `tests/styl-264-mass-notices.spec.ts` — 7 passed on local Supabase. Mailgun client was not constructed. After PRs 129 and 131 merged, this branch merged `origin/staging` and kept every README session note, both template lists, and both preview sections.
+* **Left for 5b**: breach, DSAR, deletion and Meta data-deletion emails, the retention setting, and the rest of the preview file. No migration in 5a. Those are now on staging and kept alongside this branch.
+
+### Session (merge staging into package 4b after PR 127 — 23 Nov 2026)
+* **Merge**: `origin/staging` at `5dc3716` (PR 127) into package 4b. The only conflict was the README. Both session notes are kept. `batch-3.ts` and its preview doc already contain package 5a and package 5b.
