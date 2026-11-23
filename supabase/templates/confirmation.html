@@ -1,0 +1,20 @@
+<!DOCTYPE html>
+<html lang="en-GB">
+  <body style="margin:0;padding:0;background:#f8fafc;">
+    <div style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;max-width:650px;margin:0 auto;border:1px solid #e5e7eb;border-radius:12px;overflow:hidden;background:#ffffff;">
+      <div style="background:#4f46e5;padding:24px;text-align:center;color:#ffffff;">
+        <h1 style="margin:0;font-size:22px;font-weight:700;">StyleFlo</h1>
+        <p style="margin:6px 0 0 0;font-size:14px;">Confirm your email address</p>
+      </div>
+      <div style="padding:24px;color:#1e293b;font-size:15px;line-height:1.5;">
+        <p>Hello,</p>
+        <p>Please confirm {{ .Email }} for your StyleFlo account.</p>
+        <p style="text-align:center;margin:28px 0;">
+          <a href="{{ .ConfirmationURL }}" style="background:#4f46e5;color:#ffffff;padding:12px 24px;border-radius:6px;text-decoration:none;font-weight:600;display:inline-block;">Confirm email address</a>
+        </p>
+        <p>If you did not create a StyleFlo account, you can ignore this email.</p>
+        <p>Reply to this email and it will reach StyleFlo support.</p>
+      </div>
+    </div>
+  </body>
+</html>

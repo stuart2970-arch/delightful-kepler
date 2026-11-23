@@ -252,6 +252,20 @@ otp_expiry = 3600
 # subject = "You have been invited"
 # content_path = "./supabase/templates/invite.html"
 
+# STYL-265 #42–#44. Local template files only. SMTP stays on Inbucket here.
+# Hosted Auth SMTP is configured in the Supabase dashboard, not in this file.
+[auth.email.template.confirmation]
+subject = "Confirm your StyleFlo email address"
+content_path = "./supabase/templates/confirmation.html"
+
+[auth.email.template.magic_link]
+subject = "Your StyleFlo sign-in link"
+content_path = "./supabase/templates/magic_link.html"
+
+[auth.email.template.recovery]
+subject = "Reset your StyleFlo password"
+content_path = "./supabase/templates/recovery.html"
+
 # Uncomment to customize notification email template
 # [auth.email.notification.password_changed]
 # enabled = true

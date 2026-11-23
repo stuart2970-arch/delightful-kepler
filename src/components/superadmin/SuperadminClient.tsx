@@ -11,6 +11,9 @@ import FloBotProfileSettingsView from './FloBotProfileSettingsView';
 import SuperAdminGdprView from './SuperAdminGdprView';
 import ConnectedAccountsView from './ConnectedAccountsView';
 import SuperAdminWhatsAppView from './SuperAdminWhatsAppView';
+import SystemEmailsView from './SystemEmailsView';
+import SystemEmailNoticesView from './SystemEmailNoticesView';
+import SystemEmailDataProtectionView from './SystemEmailDataProtectionView';
 import IncludeOnAccountView from './IncludeOnAccountView';
 
 
@@ -220,7 +223,7 @@ export default function SuperadminClient({
   const [newHoliday, setNewHoliday] = useState({ countries: ['UK'], date: new Date().toISOString().split('T')[0], name: '' });
   const [isSavingHoliday, setIsSavingHoliday] = useState(false);
 
-  const [activeTab, setActiveTab] = useState<'overview' | 'pricing' | 'holidays' | 'settings' | 'voices' | 'gateways' | 'flobot' | 'gdpr' | 'accounts' | 'whatsapp'>('overview');
+  const [activeTab, setActiveTab] = useState<'overview' | 'pricing' | 'holidays' | 'settings' | 'voices' | 'gateways' | 'flobot' | 'gdpr' | 'accounts' | 'whatsapp' | 'emails' | 'protection'>('overview');
   const [pricingSubTab, setPricingSubTab] = useState<'sliding' | 'tiers' | 'include'>('sliding');
 
   const [globalBrandingHtml, setGlobalBrandingHtml] = useState(initialGlobalBrandingHtml || '<span style="opacity: 0.6; font-size: 11px;">⚡ Powered by <strong>StyleFlo</strong></span>');
@@ -406,7 +409,7 @@ export default function SuperadminClient({
       </div>
 
       {/* Tabs */}
-      <div className="flex space-x-1 bg-gray-900 p-1 rounded-xl border border-gray-800">
+      <div className="flex flex-wrap gap-1 bg-gray-900 p-1 rounded-xl border border-gray-800">
         <button 
           onClick={() => setActiveTab('overview')}
           className={`flex-1 py-2.5 text-sm font-medium rounded-lg transition-colors ${activeTab === 'overview' ? 'bg-indigo-600 text-white shadow' : 'text-gray-400 hover:text-white hover:bg-gray-800'}`}
@@ -467,7 +470,34 @@ export default function SuperadminClient({
         >
           💬 WhatsApp
         </button>
+        <button
+          type="button"
+          onClick={() => setActiveTab('emails')}
+          className={`flex-1 py-2.5 text-sm font-medium rounded-lg transition-colors ${activeTab === 'emails' ? 'bg-indigo-600 text-white shadow' : 'text-gray-400 hover:text-white hover:bg-gray-800'}`}
+        >
+          System emails
+        </button>
+        <button
+          type="button"
+          onClick={() => setActiveTab('protection')}
+          className={`flex-1 py-2.5 text-sm font-medium rounded-lg transition-colors ${activeTab === 'protection' ? 'bg-indigo-600 text-white shadow' : 'text-gray-400 hover:text-white hover:bg-gray-800'}`}
+        >
+          Data protection
+        </button>
       </div>
+
+      {activeTab === 'protection' && (
+        <div className="mt-6">
+          <SystemEmailDataProtectionView />
+        </div>
+      )}
+
+      {activeTab === 'emails' && (
+        <div className="mt-6 space-y-10">
+          <SystemEmailsView />
+          <SystemEmailNoticesView />
+        </div>
+      )}
 
       {activeTab === 'whatsapp' && (
         <div className="mt-6">

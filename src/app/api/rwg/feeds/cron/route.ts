@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { disabledRwgCronBody, isRwgUiEnabled } from '../../../../../lib/rwg-ui';
 
 export const dynamic = 'force-dynamic';
 
@@ -14,6 +15,10 @@ export async function GET(request: NextRequest) {
     const token = authHeader.substring(7).trim();
     if (!cronSecret || token !== cronSecret) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
+    if (!isRwgUiEnabled()) {
+      return NextResponse.json(disabledRwgCronBody());
     }
 
     console.log('[RwG Cron] Executing daily data aggregation pipeline...');
