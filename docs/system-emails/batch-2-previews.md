@@ -76,7 +76,7 @@ We have started a refund of what has been paid for any period not yet used (£4.
 
 The unused period runs to 1 April 2027.
 
-After the account closes we keep the data for 30 days, so you can ask for a copy. We then delete it. We may keep billing records for as long as the law requires.
+After the account closes we keep the data for 31 days, so you can ask for a copy. We then delete it. We may keep billing records for as long as the law requires.
 
 Reply to this email and it will reach StyleFlo support.
 ```
@@ -90,7 +90,7 @@ Reply to this email and it will reach StyleFlo support.
     <p style="margin: 6px 0 0 0; font-size: 14px; opacity: 0.9;">Account closed</p>
   </div>
   <div style="padding: 24px;">
-    <p>Hello,</p><p>We have closed the StyleFlo account for Harbour Salon because it is not being used for a business.</p><p>StyleFlo is for businesses, such as salons, barbers, spas and clinics. It is not for personal use.</p><p>We have started a refund of what has been paid for any period not yet used (£4.99). The refund reference is re_batch2_close.</p><p>The unused period runs to 1 April 2027.</p><p>After the account closes we keep the data for 30 days, so you can ask for a copy. We then delete it. We may keep billing records for as long as the law requires.</p><p>Reply to this email and it will reach StyleFlo support.</p>
+    <p>Hello,</p><p>We have closed the StyleFlo account for Harbour Salon because it is not being used for a business.</p><p>StyleFlo is for businesses, such as salons, barbers, spas and clinics. It is not for personal use.</p><p>We have started a refund of what has been paid for any period not yet used (£4.99). The refund reference is re_batch2_close.</p><p>The unused period runs to 1 April 2027.</p><p>After the account closes we keep the data for 31 days, so you can ask for a copy. We then delete it. We may keep billing records for as long as the law requires.</p><p>Reply to this email and it will reach StyleFlo support.</p>
     
   </div>
 </div>

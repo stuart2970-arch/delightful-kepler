@@ -16,6 +16,7 @@ export const telephonyReleaseCallLog = {
 
 export async function releaseTwilioNumber(numberToRelease: string): Promise<void> {
   telephonyReleaseCallLog.twilio += 1;
+  if ((process.env.PLAYWRIGHT_TEST || '').trim() === 'true') return;
   const accountSid = process.env.TWILIO_ACCOUNT_SID;
   const authToken = process.env.TWILIO_AUTH_TOKEN;
   if (!accountSid || !authToken) return;
@@ -36,6 +37,7 @@ export async function releaseTwilioNumber(numberToRelease: string): Promise<void
 
 export async function releaseVapiNumber(numberToRelease: string): Promise<void> {
   telephonyReleaseCallLog.vapi += 1;
+  if ((process.env.PLAYWRIGHT_TEST || '').trim() === 'true') return;
   const vapiPrivateKey = process.env.VAPI_PRIVATE_API_KEY;
   if (!vapiPrivateKey) return;
 

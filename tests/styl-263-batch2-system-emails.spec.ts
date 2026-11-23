@@ -123,7 +123,7 @@ test.describe('STYL-263 batch 2 templates', () => {
 
     const closed = batch2Templates.find((template) => template.key === BATCH2_ACCOUNT_CLOSED)!
     expect(closed.render(closed.sampleData).text).toContain('not being used for a business')
-    expect(closed.render(closed.sampleData).text).toContain('30 days')
+    expect(closed.render(closed.sampleData).text).toContain('31 days')
     expect(closed.render(closed.sampleData).text).toContain('re_batch2_close')
     const bareClose = closed.render({
       businessName: 'Harbour Salon',
@@ -131,7 +131,7 @@ test.describe('STYL-263 batch 2 templates', () => {
       unusedPeriodEnds: '2027-04-01',
     })
     expect(bareClose.text).not.toContain('We have closed')
-    expect(bareClose.text).not.toContain('30 days')
+    expect(bareClose.text).not.toContain('31 days')
     expect(bareClose.text.toLowerCase()).not.toContain('refund')
 
     const annual = batch2Templates.find((template) => template.key === BATCH2_ANNUAL_PRICE_RISE)!
@@ -308,7 +308,7 @@ test.describe('STYL-263 batch 2 triggers', () => {
     expect(delivery?.text).toContain('£4.99')
     expect(delivery?.text).toContain('1 April 2027')
     expect(delivery?.text).toContain('We have started a refund')
-    expect(delivery?.text).toContain('30 days')
+    expect(delivery?.text).toContain('31 days')
 
     const admin = service()
     const { data } = await admin.from('system_email_log').select('template_key').eq('tenant_id', tenantId).eq('template_key', BATCH2_ACCOUNT_CLOSED)

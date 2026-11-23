@@ -208,7 +208,7 @@ function accountClosed(data: Record<string, string>): SystemEmailContent {
       refund,
       reference && periodEnd ? `The unused period runs to ${periodEnd}.` : '',
       closed
-        ? 'After the account closes we keep the data for 30 days, so you can ask for a copy. We then delete it. We may keep billing records for as long as the law requires.'
+        ? 'After the account closes we keep the data for 31 days, so you can ask for a copy. We then delete it. We may keep billing records for as long as the law requires.'
         : '',
     ],
   })

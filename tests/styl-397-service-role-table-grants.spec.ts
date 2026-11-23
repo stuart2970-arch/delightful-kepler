@@ -31,6 +31,7 @@ const REVOKED_TABLES: { schema: string; table: string }[] = [
   { schema: 'public', table: 'meta_data_deletion_requests' },
   { schema: 'public', table: 'booking_audit_log' },
   { schema: 'public', table: 'stripe_webhook_processed_events' },
+  { schema: 'public', table: 'account_closures' },
 ];
 
 test.describe('STYL-397 service-role table grants', () => {

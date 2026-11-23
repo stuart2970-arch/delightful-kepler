@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
+import { runAccountClosureSweep } from '@/lib/account-closure/sweep';
 import { isFailedPaymentFlowEnabled } from '@/lib/billing/failed-payment/flag';
 import { onFailedPaymentTransition } from '@/lib/billing/failed-payment/hook';
 import { runFailedPaymentSweep } from '@/lib/billing/failed-payment/machine';
@@ -20,8 +21,10 @@ function getSupabaseAdmin() {
 }
 
 /**
- * Daily failed-payment sweep. A scheduler (STYL-275) calls this.
- * This route does not create infrastructure and does not send email.
+ * Daily billing sweep. A scheduler calls this. This route does not create
+ * that scheduler. One run pauses or cancels failed payments, sends the
+ * closure reminder, deletes due accounts, releases held numbers, and sends
+ * the deletion confirmation. A second run the same day does not repeat them.
  * Authorization: `Authorization: Bearer ${FAILED_PAYMENT_SWEEP_SECRET}`.
  */
 export async function POST(req: Request) {
@@ -41,13 +44,17 @@ export async function POST(req: Request) {
   }
 
   try {
-    const result = await runFailedPaymentSweep(getSupabaseAdmin(), {
-      now: new Date(),
+    const admin = getSupabaseAdmin();
+    const now = new Date();
+    const result = await runFailedPaymentSweep(admin, {
+      now,
       stripe: resolveFailedPaymentStripeClient(),
       onTransition: onFailedPaymentTransition,
     });
-    const status = result.failed > 0 ? 500 : 200;
-    return NextResponse.json({ success: status === 200, ...result }, { status });
+    const closure = await runAccountClosureSweep(admin, { now });
+    const failed = result.failed + closure.failed;
+    const status = failed > 0 ? 500 : 200;
+    return NextResponse.json({ success: status === 200, ...result, closure }, { status });
   } catch (err) {
     console.error('[failed-payment] sweep failed', {
       message: err instanceof Error ? err.message : 'sweep failed',
