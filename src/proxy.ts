@@ -30,6 +30,13 @@ export async function proxy(request: NextRequest) {
     return NextResponse.next();
   }
 
+  // Visitor terms and privacy are public. They must not wait on Auth or be
+  // sent to the dashboard. The page itself returns 404 until
+  // VISITOR_LEGAL_PAGES_ENABLED is the exact string true.
+  if (request.nextUrl.pathname === '/v' || request.nextUrl.pathname.startsWith('/v/')) {
+    return NextResponse.next();
+  }
+
   // 0. CORS preflight. Auth routes stay same-origin: no wildcard header.
   if (request.method === 'OPTIONS') {
     const preflightPath = request.nextUrl.pathname;
