@@ -1,7 +1,7 @@
 /**
  * Visitor terms of use. DRAFT, copied from the solicitor template updated
  * 1 November 2026. Not legal advice and not checked for publication.
- * Bracketed solicitor markers stay visible. Reviewer notes are not included.
+ * Plain [TBC] gaps stay visible. Reviewer notes are not included.
  */
 
 export const VISITOR_TERMS_VERSION = '1.0-draft'

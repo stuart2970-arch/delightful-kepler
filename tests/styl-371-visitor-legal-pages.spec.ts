@@ -194,8 +194,7 @@ test.describe('STYL-371 visitor legal pages', () => {
     expect(privacyQuiet.html).not.toContain('or by text')
     expect(privacyQuiet.html).not.toContain('3A. Health')
     expect(privacyQuiet.html).not.toContain('To send you marketing')
-    expect(privacyQuiet.html).not.toContain('[Solicitor to decide]')
-    expect(privacyQuiet.html).toContain('[Solicitor to confirm, DPA 2.4]')
+    expect(privacyQuiet.html).not.toContain('[TBC]')
     expect(privacyQuiet.html).toContain('Sub-processor list [link to be confirmed]')
     expect(privacyQuiet.html).toContain('[Placeholder: TBC from the sub-processor list (Privacy Part D, DPA 7)]')
 
@@ -210,11 +209,46 @@ test.describe('STYL-371 visitor legal pages', () => {
     expect(privacyOn.html).toContain('Call details')
     expect(privacyOn.html).toContain('or by text')
     expect(privacyOn.html).toContain('3A. Health information')
-    expect(privacyOn.html).toContain('[Solicitor to decide]')
+    expect(privacyOn.html).toContain('[TBC]')
     expect(privacyOn.html).toContain('To send you marketing')
     expect(privacyOn.html).toContain('30 days')
     expect(privacyOn.html).not.toContain('30 days days')
     expectNoTokens(privacyOn.html)
+  })
+
+  test('visitor pages do not show reviewer notes', () => {
+    const banned = [
+      'Solicitor',
+      'awaiting Stuart',
+      'PROPOSED',
+      'W4',
+      'DPA 2.',
+      'Anti-Gravity',
+    ]
+    const pages = [
+      renderVisitorLegal('terms', facts()),
+      renderVisitorLegal('privacy', facts()),
+      renderVisitorLegal('terms', facts({
+        voiceEnabled: true,
+        phoneEnabled: true,
+        smsEnabled: true,
+        clinic: true,
+        marketingEnabled: true,
+      })),
+      renderVisitorLegal('privacy', facts({
+        voiceEnabled: true,
+        phoneEnabled: true,
+        smsEnabled: true,
+        clinic: true,
+        marketingEnabled: true,
+      })),
+    ]
+    for (const page of pages) {
+      const visible = `${VISITOR_LEGAL_DRAFT_BANNER}\n${page.html}`
+      for (const phrase of banned) {
+        expect(visible, phrase).not.toContain(phrase)
+      }
+    }
   })
 
   test('removing StyleFlo branding never hides the AI label, the notice or the links', () => {

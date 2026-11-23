@@ -4820,3 +4820,8 @@ Highlighted adjustments in the modal:
 * **Site Editor, not this pull request**: The styleflo.ai business page footer should link to these pages, and only after the flag is on. Nothing is published from this change.
 * **Left out**: WordPress publish paths, migrations, a public contact email field, and any widget link.
 * **Verify**: `npm run typecheck`. Playwright `tests/styl-371-visitor-legal-pages.spec.ts` (15) plus `styl-226-wordpress-disabled-on-staging`, `styl-251-wordpress-publish-rollback`, `styl-239-tenant-created-auth`, `styl-304-tenant-created-bearer` and `homepage-widget` — 52 passed on local Supabase.
+
+### Session (STYL-371 reviewer notes removed — 23 Nov 2026)
+* **User**: Review on pull request 134. Visitor-facing privacy text still contained solicitor and open-item notes.
+* **Changes**: Removed the DPA 2.4 confirmation line, the proposed security-log period, and the W4 "remember me" paragraph. Security records now say they are kept for `[period TBC]`. The clinic special-category basis is `[TBC]`. Terms had no matching notes. A test checks the rendered terms and privacy HTML for `Solicitor`, `awaiting Stuart`, `PROPOSED`, `W4`, `DPA 2.` and `Anti-Gravity`.
+* **Verify**: Playwright `tests/styl-371-visitor-legal-pages.spec.ts` — 16 passed on local Supabase.

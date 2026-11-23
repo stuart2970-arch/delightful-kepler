@@ -1,7 +1,7 @@
 /**
  * Visitor privacy notice. DRAFT, copied from the solicitor template updated
  * 1 November 2026. Not legal advice and not checked for publication.
- * Bracketed solicitor markers stay visible. Reviewer notes are not included.
+ * Plain [TBC] gaps stay visible. Reviewer notes are not included.
  */
 
 export const VISITOR_PRIVACY_VERSION = '1.0-draft'
@@ -79,7 +79,6 @@ system.
   checks and records of misuse) for its own purpose of keeping the assistant
   secure and enforcing its [terms of use]({{visitor_terms_url}}). For that, StyleFlo
   is responsible, as explained in [StyleFlo's privacy policy]({{styleflo_privacy_url}}).
-  [Solicitor to confirm, DPA 2.4]
 - Others only where the law requires it.
 
 Your information isn't sold, and it isn't used to train AI models for anyone else.
@@ -96,7 +95,7 @@ Addendum). Text TBC from the list.]
 {{business_name}} keeps transcripts and messages for
 **{{transcript_retention_days}} days** after the conversation, unless it deletes
 them sooner. They are then deleted automatically. Calls aren't recorded (section 2).
-Technical security records are kept for [period TBC, StyleFlo] [PROPOSED – awaiting Stuart: 90 days, or longer while a security incident is being investigated].
+Technical security records are kept for [period TBC].
 
 ## 8. Information stored on your device
 The assistant stores a little information in your browser on this website.
@@ -108,9 +107,6 @@ The assistant stores a little information in your browser on this website.
 | Your name and email | So you don't have to type them again next time | Until you press **Forget me** or clear your browser data [expiry TBC] |
 The first three are needed for the assistant to work. You can remove your saved
 name and email at any time with the **Forget me** link in the chat.
-[W4 variant, recommended: "If you tick 'Remember me on this device', we save your
-name and email so you don't have to type them again. You can remove them at any
-time with Forget me."]
 
 ## 9. Your rights
 You can ask {{business_name}} to:

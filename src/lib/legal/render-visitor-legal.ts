@@ -27,7 +27,7 @@ export const BLANK_AGENT_NAME = 'the AI assistant'
 export const STYLEFLO_PRIVACY_URL = 'https://styleflo.ai/privacy/#assistant'
 export const TRANSFERS_SUMMARY_FALLBACK =
   '[Placeholder: TBC from the sub-processor list (Privacy Part D, DPA 7)]'
-export const SPECIAL_CATEGORY_BASIS_FALLBACK = '[Solicitor to decide]'
+export const SPECIAL_CATEGORY_BASIS_FALLBACK = '[TBC]'
 
 const CONTACT_LINE =
   'Contact: {{business_contact_email}}{{#if business_phone}} · {{business_phone}}{{/if}}.'
