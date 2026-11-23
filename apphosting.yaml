@@ -198,3 +198,29 @@ env:
     secret: TOKEN_ENC_KEY
     availability:
       - RUNTIME
+
+  # R5 production opt-ins. Staging overrides these in apphosting.staging.yaml.
+  - variable: SYSTEM_EMAILS_BATCH2_ENABLED
+    value: "true"
+    availability:
+      - RUNTIME
+
+  - variable: SYSTEM_EMAILS_BATCH3_ENABLED
+    value: "true"
+    availability:
+      - RUNTIME
+
+  - variable: SYSTEM_EMAILS_BATCH4_ENABLED
+    value: "true"
+    availability:
+      - RUNTIME
+
+  - variable: FAILED_PAYMENT_FLOW_ENABLED
+    value: "true"
+    availability:
+      - RUNTIME
+
+  - variable: FAILED_PAYMENT_SWEEP_SECRET
+    secret: FAILED_PAYMENT_SWEEP_SECRET
+    availability:
+      - RUNTIME
