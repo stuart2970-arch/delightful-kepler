@@ -93,6 +93,12 @@ async function markNumbersHeld(db: SupabaseClient, tenantId: string): Promise<vo
   if (error) throw dbError(error, 'Could not mark the number as held');
 }
 
+export function planClosureSourceKey(subscriptionId: string, eventId: string, closedAt: string): string {
+  const subscription = subscriptionId.trim();
+  const cycle = eventId.trim() || closedAt.trim();
+  return `plan:${subscription}:${cycle}`;
+}
+
 export async function openAccountClosure(
   db: SupabaseClient,
   input: {

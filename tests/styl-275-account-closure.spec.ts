@@ -4,9 +4,11 @@ import { join } from 'node:path'
 import { createClient, type SupabaseClient } from '@supabase/supabase-js'
 import {
   openAccountClosure,
+  planClosureSourceKey,
   reopenAccountClosure,
   runAccountClosureSweep,
 } from '../src/lib/account-closure/sweep'
+import { handleStripeBillingEvent } from '../src/lib/billing/process-stripe-webhook'
 import type { NumberReleaser } from '../src/lib/account-closure/release'
 import {
   ACCOUNT_CLOSURE_REMINDER_AFTER_CLOSE_DAYS,
@@ -320,8 +322,8 @@ test.describe('STYL-275 closure sweep', () => {
     const { data: tenant } = await admin.from('tenants').select('twilio_shadow_number, twilio_mobile_number').eq('id', TENANT).single()
     expect(tenant?.twilio_shadow_number).toBeNull()
     expect(tenant?.twilio_mobile_number).toBeNull()
-    const { data: purchase } = await admin.from('tenant_phone_number_purchases').select('tenant_id').eq('tenant_id', TENANT)
-    expect(purchase).toEqual([])
+    const { data: purchase } = await admin.from('tenant_phone_number_purchases').select('status').eq('tenant_id', TENANT).maybeSingle()
+    expect(purchase?.status).toBe('released')
     const confirmation = readSystemEmailTestDeliveries().find((message) => message.subject.includes('has been deleted'))
     expect(confirmation?.text).toContain('released the StyleFlo number +441632960123')
     expect(confirmation?.replyTo).toBe('support@styleflo.ai')
@@ -373,6 +375,46 @@ test.describe('STYL-275 closure sweep', () => {
     expect(telephonyReleaseCallLog.twilio).toBe(0)
     expect(telephonyReleaseCallLog.vapi).toBe(0)
     setFailedPaymentStripeClientForTests(null)
+    await cleanup(admin)
+  })
+
+  test('a second plan cancellation after reopen opens a new closure', async () => {
+    if (!serviceKey) throw new Error('Local Supabase service role key is required')
+    const admin = adminClient()
+    await ensureTenant(admin, {})
+    await cleanup(admin)
+    await ensureTenant(admin, {})
+    const firstCreated = Math.floor(Date.parse('2026-07-01T00:00:00.000Z') / 1000)
+    const secondCreated = Math.floor(Date.parse('2026-07-02T00:00:00.000Z') / 1000)
+    const subscriptionId = 'sub_275_plan'
+    const firstEvent = 'evt_275_cancel_1'
+    const secondEvent = 'evt_275_cancel_2'
+    const cancel = (eventId: string, created: number) => handleStripeBillingEvent({
+      id: eventId,
+      type: 'customer.subscription.deleted',
+      created,
+      data: { object: { id: subscriptionId, metadata: { tenant_id: TENANT } } },
+    }, { supabaseAdmin: admin, now: new Date(created * 1000) })
+
+    const first = await cancel(firstEvent, firstCreated)
+    expect(first.status).toBe(200)
+    const reopened = await reopenAccountClosure(admin, TENANT, new Date(firstCreated * 1000))
+    expect(reopened.ok && reopened.skipped === null).toBe(true)
+    const second = await cancel(secondEvent, secondCreated)
+    expect(second.status).toBe(200)
+    const replay = await cancel(secondEvent, secondCreated)
+    expect(replay.body.duplicate).toBe(true)
+
+    const { data: rows } = await admin.from('account_closures').select('source_key, reopened_at').eq('tenant_id', TENANT)
+    const keys = (rows || []).map((row) => row.source_key).sort()
+    expect(keys).toEqual([
+      planClosureSourceKey(subscriptionId, firstEvent, new Date(firstCreated * 1000).toISOString()),
+      planClosureSourceKey(subscriptionId, secondEvent, new Date(secondCreated * 1000).toISOString()),
+    ].sort())
+    expect((rows || []).filter((row) => !row.reopened_at)).toHaveLength(1)
+    expect(planClosureSourceKey(subscriptionId, '', '2026-07-03T00:00:00.000Z')).toBe('plan:sub_275_plan:2026-07-03T00:00:00.000Z')
+
+    await admin.from('stripe_webhook_processed_events').delete().in('event_id', [firstEvent, secondEvent])
     await cleanup(admin)
   })
 

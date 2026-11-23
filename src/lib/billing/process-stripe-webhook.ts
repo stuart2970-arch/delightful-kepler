@@ -25,7 +25,7 @@ import {
   isPostgresMissingColumnError,
   missingPostgresColumnName,
 } from '@/lib/postgres/missing-column-error';
-import { openAccountClosure, reopenAccountClosure } from '@/lib/account-closure/sweep';
+import { openAccountClosure, planClosureSourceKey, reopenAccountClosure } from '@/lib/account-closure/sweep';
 import { onFailedPaymentTransition, type FailedPaymentTransitionHandler } from '@/lib/billing/failed-payment/hook';
 import { runFailedPaymentFlow } from '@/lib/billing/failed-payment/flag';
 import {
@@ -1419,7 +1419,11 @@ async function processStripeBillingEventBody(
         tenantId,
         reason: 'plan_cancelled',
         closedAt,
-        sourceKey: `plan:${subscriptionId}`,
+        sourceKey: planClosureSourceKey(
+          subscriptionId,
+          typeof event.id === 'string' ? event.id : '',
+          closedAt,
+        ),
       });
       if (!opened.ok) {
         return { status: 500, body: { success: false, error: opened.message } };
