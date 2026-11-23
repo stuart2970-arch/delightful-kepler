@@ -122,6 +122,7 @@ async function ensureTenant(admin: SupabaseClient) {
 }
 
 async function cleanup(admin: SupabaseClient) {
+  await admin.from('account_closures').delete().eq('tenant_id', TENANT);
   await admin.from('failed_payment_cases').delete().eq('tenant_id', TENANT);
   await admin.from('stripe_webhook_processed_events').delete().like('event_id', 'evt_styl274%');
   await admin

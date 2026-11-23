@@ -25,6 +25,7 @@ import {
   isPostgresMissingColumnError,
   missingPostgresColumnName,
 } from '@/lib/postgres/missing-column-error';
+import { openAccountClosure, reopenAccountClosure } from '@/lib/account-closure/sweep';
 import { onFailedPaymentTransition, type FailedPaymentTransitionHandler } from '@/lib/billing/failed-payment/hook';
 import { runFailedPaymentFlow } from '@/lib/billing/failed-payment/flag';
 import {
@@ -1195,6 +1196,10 @@ async function processStripeBillingEventBody(
         .from('tenants')
         .update({ is_active: true, subscription_status: 'active' })
         .eq('id', tenantId);
+      const reopened = await reopenAccountClosure(supabaseAdmin, tenantId, deps.now ?? new Date());
+      if (!reopened.ok) {
+        return { status: 500, body: { success: false, error: reopened.message, tenantId } };
+      }
       const periodStartUnix = dataObject.lines?.data?.[0]?.period?.start ?? dataObject.period_start;
       const billingPeriodStart = periodStartUnix != null
         ? new Date(Number(periodStartUnix) * 1000).toISOString()
@@ -1406,6 +1411,20 @@ async function processStripeBillingEventBody(
         })
         .eq('id', tenantId);
 
+      const closedAt = typeof event.created === 'number'
+        ? new Date(event.created * 1000).toISOString()
+        : (deps.now ?? new Date()).toISOString();
+      const subscriptionId = String(dataObject.id || stripeSubscriptionIdFrom(dataObject) || tenantId);
+      const opened = await openAccountClosure(supabaseAdmin, {
+        tenantId,
+        reason: 'plan_cancelled',
+        closedAt,
+        sourceKey: `plan:${subscriptionId}`,
+      });
+      if (!opened.ok) {
+        return { status: 500, body: { success: false, error: opened.message } };
+      }
+
       return { status: 200, body: { success: true, message: `Tenant ${tenantId} subscription cancelled` } };
     }
   }
@@ -1557,6 +1576,11 @@ async function processStripeBillingEventBody(
 
     if (updateError) {
       return { status: 500, body: { error: 'Database update failed' } };
+    }
+
+    const reopened = await reopenAccountClosure(supabaseAdmin, targetTenantId, deps.now ?? new Date());
+    if (!reopened.ok) {
+      return { status: 500, body: { success: false, error: reopened.message, tenant_id: targetTenantId } };
     }
 
     if (dataObject.line_items?.data) {
