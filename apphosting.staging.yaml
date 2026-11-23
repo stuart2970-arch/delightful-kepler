@@ -315,3 +315,30 @@ env:
     value: "   "
     availability:
       - RUNTIME
+
+  # R5 flags stay off on staging. The sweep secret uses the same three-space
+  # stand-in as TENANT_CREATED_WEBHOOK_SECRET so this backend never fetches it.
+  - variable: SYSTEM_EMAILS_BATCH2_ENABLED
+    value: "false"
+    availability:
+      - RUNTIME
+
+  - variable: SYSTEM_EMAILS_BATCH3_ENABLED
+    value: "false"
+    availability:
+      - RUNTIME
+
+  - variable: SYSTEM_EMAILS_BATCH4_ENABLED
+    value: "false"
+    availability:
+      - RUNTIME
+
+  - variable: FAILED_PAYMENT_FLOW_ENABLED
+    value: "false"
+    availability:
+      - RUNTIME
+
+  - variable: FAILED_PAYMENT_SWEEP_SECRET
+    value: "   "
+    availability:
+      - RUNTIME
