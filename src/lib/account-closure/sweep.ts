@@ -1,7 +1,7 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { isFailedPaymentFlowEnabled } from '@/lib/billing/failed-payment/flag';
 import { deleteClosedAccountData } from '@/lib/account-closure/delete-data';
-import { loadClosureNotice, sendClosureConfirmation, sendClosureReminder } from '@/lib/account-closure/notify';
+import { loadClosureNotice, sendClosureConfirmation, sendClosureReminder } from '@/lib/account-closure/closure-mail';
 import { closurePhoneLabel, releaseHeldNumbers, type NumberReleaser } from '@/lib/account-closure/release';
 import {
   ACCOUNT_CLOSURE_RETENTION_DAYS,
@@ -11,7 +11,7 @@ import {
   isReminderDue,
   isReopenAllowed,
   closureMilestones,
-} from '@/lib/account-closure/schedule';
+} from '@/lib/account-closure/closure-clock';
 
 export type AccountClosureRow = {
   id: string;

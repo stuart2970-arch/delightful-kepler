@@ -18,7 +18,7 @@ import {
   isDeletionDue,
   isReminderDue,
   isReopenAllowed,
-} from '../src/lib/account-closure/schedule'
+} from '../src/lib/account-closure/closure-clock'
 import {
   FAILED_PAYMENT_CANCEL_AFTER_DAYS,
   FAILED_PAYMENT_DAY_MS,
