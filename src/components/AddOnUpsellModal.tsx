@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { publicAppPath } from '@/lib/env/public-app-url';
+import { dashboardReturnUrl, openBillingCheckoutFromApi } from '@/lib/navigation/billing-checkout';
 
 export type AddOnCategory = 'landline' | 'mobile' | 'whatsapp' | 'voice_pack' | 'sms_pack' | 'data_pack' | 'google_calendar' | 'microsoft_calendar' | 'remove_branding';
 
@@ -32,6 +32,7 @@ export default function AddOnUpsellModal({ isOpen, onClose, category, tenantId }
   const [isLoading, setIsLoading] = useState(true);
   const [isSubscribing, setIsSubscribing] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [checkoutFallbackUrl, setCheckoutFallbackUrl] = useState<string | null>(null);
 
   // Slider States:
   // 1. Landline
@@ -91,9 +92,8 @@ export default function AddOnUpsellModal({ isOpen, onClose, category, tenantId }
   ) => {
     setIsSubscribing(addonCatalogId);
     setError(null);
+    setCheckoutFallbackUrl(null);
     try {
-      const baseUrl = publicAppPath('/dashboard');
-
       let targetTab = 'telephony';
       if (category === 'google_calendar' || addonCatalogId === 'google_calendar_addon' || category === 'microsoft_calendar' || addonCatalogId === 'microsoft_calendar_addon') {
         targetTab = 'scheduling';
@@ -103,37 +103,23 @@ export default function AddOnUpsellModal({ isOpen, onClose, category, tenantId }
         targetTab = 'billing';
       }
 
-      const returnUrl = `${baseUrl}?tab=${targetTab}&addon=${addonCatalogId}`;
+      const returnUrl = dashboardReturnUrl(`/dashboard?tab=${targetTab}&addon=${addonCatalogId}`);
 
-      const response = await fetch('/api/billing/checkout', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          addonCatalogId,
-          customPricePence,
-          customVoiceMinutes,
-          customSms,
-          autoTopup,
-          autoTopupThreshold,
-          returnUrl,
-        }),
+      const result = await openBillingCheckoutFromApi({
+        addonCatalogId,
+        customPricePence,
+        customVoiceMinutes,
+        customSms,
+        autoTopup,
+        autoTopupThreshold,
+        returnUrl,
       });
 
-      const data = await response.json();
-
-      if (!response.ok) {
-        throw new Error(data.error || 'Failed to initiate checkout');
+      if (!result.ok) {
+        if (result.checkoutUrl) setCheckoutFallbackUrl(result.checkoutUrl);
+        throw new Error(result.error);
       }
-
-      if (data.url) {
-        if (typeof window !== 'undefined' && window.top && window.top !== window) {
-          window.top.location.href = data.url;
-        } else {
-          window.location.href = data.url;
-        }
-      } else {
-        throw new Error('No checkout URL received from payment provider');
-      }
+      setIsSubscribing(null);
     } catch (err: any) {
       console.error('Error initiating checkout:', err);
       setError(err.message || 'Checkout failed. Please try again.');
@@ -247,8 +233,19 @@ export default function AddOnUpsellModal({ isOpen, onClose, category, tenantId }
           ) : error ? (
             <div className="flex flex-col items-center justify-center py-8 text-center bg-rose-50 border border-rose-200 rounded-xl p-4 my-2">
               <p className="text-rose-700 text-sm font-semibold mb-1">⚠️ {error}</p>
-              <p className="text-rose-600 text-xs mb-3">Please try again or contact support if the issue persists.</p>
-              <button onClick={() => setError(null)} className="text-xs text-[#198fd9] hover:underline font-semibold">Dismiss</button>
+              {checkoutFallbackUrl ? (
+                <a
+                  href={checkoutFallbackUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-sm font-semibold text-[#198fd9] hover:underline mb-3"
+                >
+                  Continue to secure checkout
+                </a>
+              ) : (
+                <p className="text-rose-600 text-xs mb-3">Please try again or contact support if the issue persists.</p>
+              )}
+              <button onClick={() => { setError(null); setCheckoutFallbackUrl(null); }} className="text-xs text-[#198fd9] hover:underline font-semibold">Dismiss</button>
             </div>
           ) : null}
 

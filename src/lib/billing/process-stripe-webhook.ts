@@ -28,6 +28,9 @@ import {
 import { openAccountClosure, planClosureSourceKey, reopenAccountClosure } from '@/lib/account-closure/sweep';
 import { onFailedPaymentTransition, type FailedPaymentTransitionHandler } from '@/lib/billing/failed-payment/hook';
 import { runFailedPaymentFlow } from '@/lib/billing/failed-payment/flag';
+import { resolveFoundationCheckoutTenantStatus } from '@/lib/billing/foundation-checkout-session';
+
+export { foundationTenantStatusFromCheckoutSession } from '@/lib/billing/foundation-checkout-session';
 import {
   readFailedPaymentSettlement,
   recordInitialFailedPayment,
@@ -388,6 +391,11 @@ export type StripeBillingEvent = {
 
 export type StripeWebhookDeps = {
   supabaseAdmin: any;
+  stripe?: {
+    subscriptions: {
+      retrieve: (id: string) => Promise<{ status?: string | null; trial_end?: number | null }>;
+    };
+  };
   allocateRollingCredits?: (
     tenantId: string,
     featureId: string,
@@ -1567,11 +1575,17 @@ async function processStripeBillingEventBody(
 
     await setStripeCustomerIdOnTenantIfEmpty(supabaseAdmin, targetTenantId, stripeCustomerId);
 
+    const retrieve =
+      deps.stripe?.subscriptions?.retrieve?.bind(deps.stripe.subscriptions);
+    const subscriptionStatus = await resolveFoundationCheckoutTenantStatus(dataObject, retrieve);
     const updatePayload: Record<string, unknown> = {
       plan_tier: planTier,
-      is_active: true,
-      subscription_status: 'active',
+      is_active: subscriptionStatus.activateTenant,
+      subscription_status: subscriptionStatus.subscription_status,
     };
+    if (subscriptionStatus.trial_ends_at) {
+      updatePayload.trial_ends_at = subscriptionStatus.trial_ends_at;
+    }
 
     const { error: updateError } = await supabaseAdmin
       .from('tenants')
@@ -1582,12 +1596,20 @@ async function processStripeBillingEventBody(
       return { status: 500, body: { error: 'Database update failed' } };
     }
 
-    const reopened = await reopenAccountClosure(supabaseAdmin, targetTenantId, deps.now ?? new Date());
-    if (!reopened.ok) {
-      return { status: 500, body: { success: false, error: reopened.message, tenant_id: targetTenantId } };
+    if (subscriptionStatus.activateTenant) {
+      const reopened = await reopenAccountClosure(supabaseAdmin, targetTenantId, deps.now ?? new Date());
+      if (!reopened.ok) {
+        return { status: 500, body: { success: false, error: reopened.message, tenant_id: targetTenantId } };
+      }
     }
 
-    if (dataObject.line_items?.data) {
+    if (subscriptionStatus.activateTenant && dataObject.line_items?.data) {
+      const addonStripeStatus =
+        subscriptionStatus.subscription_status === 'trialing'
+          ? 'trialing'
+          : subscriptionStatus.subscription_status === 'active'
+            ? 'active'
+            : subscriptionStatus.stripeStatus || subscriptionStatus.subscription_status;
       const lineItemsResult = await processAddonLineItems(
         supabaseAdmin,
         targetTenantId,
@@ -1595,7 +1617,7 @@ async function processStripeBillingEventBody(
         'activate',
         allocateRollingCredits,
         {
-          stripeSubscriptionStatus: 'active',
+          stripeSubscriptionStatus: addonStripeStatus,
           stripeSubscriptionId: stripeSubscriptionIdFrom(dataObject),
         },
       );

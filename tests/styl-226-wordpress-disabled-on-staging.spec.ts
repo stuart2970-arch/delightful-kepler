@@ -86,8 +86,11 @@ test.describe('STYL-226: WordPress publishing disabled on staging', () => {
           authorization: `Bearer ${TENANT_CREATED_TEST_SECRET}`,
         },
         body: JSON.stringify({
-          slug: 'staging-wp-guard',
-          company_name: 'Staging WP Guard',
+          record: {
+            slug: 'staging-wp-guard',
+            company_name: 'Staging WP Guard',
+            page_published: true,
+          },
         }),
       });
       const createdRes = await tenantCreated(createdReq);

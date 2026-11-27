@@ -59,4 +59,12 @@ if [ -z "$specs" ]; then
   echo "Pre-push selected no Playwright specs. Refusing to run the full suite."
   exit 1
 fi
-printf '%s\n' "$specs" | tr '\n' '\0' | NODE_OPTIONS="${NODE_OPTIONS:---max-old-space-size=3072}" xargs -0 npm run test:e2e --
+# One Playwright invocation per related spec. Batching dozens of files into a
+# single run can kill the Next test server late in the suite on memory-tight VMs.
+while IFS= read -r spec; do
+  [ -n "$spec" ] || continue
+  echo "Pre-push Playwright: $spec"
+  NODE_OPTIONS="${NODE_OPTIONS:---max-old-space-size=3072}" npm run test:e2e:agent -- "$spec" || exit 1
+done <<EOF
+$specs
+EOF

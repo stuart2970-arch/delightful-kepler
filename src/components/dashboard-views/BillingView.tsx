@@ -49,15 +49,11 @@ export default function BillingView() {
   }, [searchQuery]);
   
   const handleUpgrade = () => {
-    // Redirect to WordPress pricing page, passing the tenant_id 
-    // so WPMUDEV webhook can map the payment to this Supabase tenant.
-    const isLocal = typeof window !== 'undefined' && (window.location.hostname.includes('localhost') || window.location.hostname.includes('.test'));
+    const isLocal =
+      typeof window !== 'undefined' &&
+      (window.location.hostname.includes('localhost') || window.location.hostname.includes('.test'));
     const targetUrl = `${isLocal ? 'https://styleflo.test' : 'https://styleflo.ai'}/pricing?tenant_id=${tenantId}`;
-    if (typeof window !== 'undefined' && window.top && window.top !== window) {
-      window.top.location.href = targetUrl;
-    } else {
-      window.location.href = targetUrl;
-    }
+    window.open(targetUrl, '_blank', 'noopener,noreferrer');
   };
 
   return (

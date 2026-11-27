@@ -250,6 +250,18 @@ test.describe('STYL-228 magic link session lockdown', () => {
     expect(data.user?.id).toBeTruthy();
 
     try {
+      const { data: profile } = await client
+        .from('profiles')
+        .select('tenant_id')
+        .eq('id', data.user!.id)
+        .maybeSingle();
+      if (profile?.tenant_id) {
+        await client
+          .from('tenants')
+          .update({ is_active: true, subscription_status: 'active' })
+          .eq('id', profile.tenant_id);
+      }
+
       const res = await request.post('/api/auth/magic-link', {
         headers: authHeaders(APP_ORIGIN),
         data: { email },

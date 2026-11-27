@@ -12,6 +12,19 @@ export interface TestUserSession {
   cleanup: () => Promise<void>;
 }
 
+export async function markTenantFoundationCheckoutComplete(tenantId: string): Promise<void> {
+  const adminClient = createClient(supabaseUrl, serviceRoleKey, {
+    auth: { persistSession: false, autoRefreshToken: false },
+  });
+  const { error } = await adminClient
+    .from('tenants')
+    .update({ is_active: true, subscription_status: 'active' })
+    .eq('id', tenantId);
+  if (error) {
+    throw new Error(`markTenantFoundationCheckoutComplete failed: ${error.message}`);
+  }
+}
+
 export async function createTestUser(options: {
   tenantId?: string;
   role?: 'owner' | 'admin' | 'member';
@@ -47,6 +60,15 @@ export async function createTestUser(options: {
   if (profErr) {
     await adminClient.auth.admin.deleteUser(user.id);
     throw new Error(`Failed to provision profile: ${profErr.message}`);
+  }
+
+  const { error: tenantErr } = await adminClient
+    .from('tenants')
+    .update({ is_active: true, subscription_status: 'active' })
+    .eq('id', tenantId);
+  if (tenantErr) {
+    await adminClient.auth.admin.deleteUser(user.id);
+    throw new Error(`Failed to activate test tenant: ${tenantErr.message}`);
   }
 
   const { data: loginData, error: loginErr } = await anonClient.auth.signInWithPassword({

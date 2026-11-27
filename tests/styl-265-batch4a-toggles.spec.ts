@@ -241,7 +241,12 @@ test.describe('STYL-265 batch 4a email toggles and auth templates', () => {
     expect(dashboard).toContain('<EmailDeliveryToggles accountEmail={userEmail} />')
     for (const file of ['confirmation.html', 'magic_link.html', 'recovery.html']) {
       const html = readFileSync(path.join(root, 'supabase/templates', file), 'utf8')
-      expect(html).toContain('{{ .ConfirmationURL }}')
+      if (file === 'confirmation.html') {
+        expect(html).toContain('token_hash={{ .TokenHash }}')
+        expect(html).toContain('type=signup')
+      } else {
+        expect(html).toContain('{{ .ConfirmationURL }}')
+      }
       expect(html).toContain('{{ .Email }}')
       expect(html).toContain('StyleFlo')
       expect(html).toContain('lang="en-GB"')

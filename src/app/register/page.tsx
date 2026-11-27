@@ -7,6 +7,10 @@ import { trackSignUp, trackVisitorNotSignedUp, trackLeadIntent } from '@/lib/ana
 import { getSupabaseBrowserClient } from '@/lib/supabase-browser';
 import { getBrowserTurnstileToken } from '@/lib/turnstile-client';
 import { publicAppPath } from '@/lib/env/public-app-url';
+import { embeddedReturnUrl } from '@/lib/env/embed-context';
+import { openExternalSecureUrl } from '@/lib/navigation/external-url';
+import { buildEmailSignupRedirectUrl } from '@/lib/auth/email-confirmation-redirect';
+import { buildSignupCheckoutPath } from '@/lib/billing/signup-checkout-gate';
 import { checkSignupNames, hardNameRejection, reviewNameMessage } from '@/lib/moderation/messages';
 
 function RegisterContent() {
@@ -278,7 +282,12 @@ function RegisterContent() {
       const reviewNotice = reviewNameMessage(nameResults);
       if (reviewNotice) setNameNotice(reviewNotice);
 
-      const redirectUrl = publicAppPath('/auth/callback?next=/dashboard');
+      const checkoutNext = buildSignupCheckoutPath({
+        plan: planParam || 'foundation',
+        addons: addonsList,
+        returnUrl: publicAppPath('/payment-confirmed'),
+      });
+      const redirectUrl = buildEmailSignupRedirectUrl(checkoutNext);
 
       const supabase = getSupabaseBrowserClient();
       const { data, error } = await supabase.auth.signUp({
@@ -292,6 +301,7 @@ function RegisterContent() {
             slug: finalSlug,
             selected_plan: planParam,
             promo_applied: promoParam,
+            ...(hasAddons ? { selected_addons: addonsList.join(',') } : {}),
             terms_accepted: true,
             terms_accepted_at: new Date().toISOString(),
             terms_version: 'v1.0',
@@ -324,7 +334,7 @@ function RegisterContent() {
         }
       } else {
         // Trigger Stripe Checkout with plan and bolt-ons in basket
-        const returnTargetUrl = publicAppPath('/payment-confirmed');
+        const returnTargetUrl = embeddedReturnUrl('/payment-confirmed');
         const checkoutRes = await fetch('/api/billing/checkout', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -338,9 +348,8 @@ function RegisterContent() {
         });
         const checkoutData = await checkoutRes.json();
         if (checkoutData?.url) {
-          if (typeof window !== 'undefined' && window.top) {
-            window.top.location.href = checkoutData.url;
-          } else if (typeof window !== 'undefined') {
+          const opened = openExternalSecureUrl(checkoutData.url);
+          if (!opened.ok && typeof window !== 'undefined') {
             window.location.href = checkoutData.url;
           }
           return;

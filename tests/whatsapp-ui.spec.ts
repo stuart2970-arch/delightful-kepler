@@ -28,6 +28,8 @@ test.describe('Phases 4 & 5: WhatsApp Embedded Signup v4 UI & Superadmin Telemet
         domain: `testsalon${timestamp}.styleflo.ai`,
         plan_tier: 'base_tier',
         has_whatsapp: true,
+        is_active: true,
+        subscription_status: 'active',
       })
       .select('id')
       .single();
