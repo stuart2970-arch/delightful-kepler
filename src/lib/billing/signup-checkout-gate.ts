@@ -28,7 +28,7 @@ export function tenantRequiresFoundationCheckout(input: SignupCheckoutGateInput)
   const status = normalizeSubscriptionStatus(input.subscription_status)
   if (status === 'comped' || status === 'paused') return false
   if (status === 'active' || status === 'trialing' || status === 'past_due') {
-    return input.is_active === false
+    return false
   }
   if (PENDING_FOUNDATION_CHECKOUT_STATUSES.has(status)) return true
   if (input.is_active === false) return true
