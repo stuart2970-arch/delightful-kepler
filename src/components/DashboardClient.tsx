@@ -30,6 +30,7 @@ import {
   dashboardReturnUrl,
   openBillingCheckoutFromApi,
 } from '@/lib/navigation/billing-checkout';
+import { isEmbeddedInStyleflo } from '@/lib/env/embed-context';
 import EmailDeliveryToggles from './dashboard/EmailDeliveryToggles';
 
 const BILLING_CATEGORIES: AddOnCategory[] = [
@@ -651,10 +652,11 @@ const globalBotId = '00000000-0000-0000-0000-000000000000';
     setBillingMessage(null);
     setBillingPortalFallbackUrl(null);
     try {
-      const result = await openBillingCheckoutFromApi({
-        plan: 'foundation',
-        returnUrl: dashboardReturnUrl('/dashboard?tab=billing'),
-      });
+      const checkoutBody: Record<string, unknown> = { plan: 'foundation' };
+      if (isEmbeddedInStyleflo()) {
+        checkoutBody.returnUrl = dashboardReturnUrl('/dashboard?tab=billing');
+      }
+      const result = await openBillingCheckoutFromApi(checkoutBody);
       if (!result.ok) {
         if (result.checkoutUrl) setBillingPortalFallbackUrl(result.checkoutUrl);
         setBillingMessage(result.error);

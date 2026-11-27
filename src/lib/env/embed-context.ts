@@ -66,6 +66,11 @@ export function isStylefloEmbed(): boolean {
   return initEmbedFromQuery(params);
 }
 
+/** True when the dashboard runs inside the styleflo.ai/app/ WordPress iframe shell. */
+export function isEmbeddedInStyleflo(): boolean {
+  return isStylefloEmbed();
+}
+
 export function isAllowedEmbedParentOrigin(origin: string): boolean {
   if (!origin) return false;
   return pinnedParentOrigins().has(origin);
