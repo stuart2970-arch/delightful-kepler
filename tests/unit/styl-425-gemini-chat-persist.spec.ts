@@ -9,7 +9,11 @@ import {
   invalidateGeminiModelCache,
   getActiveGeminiModel,
 } from '../../src/lib/gemini-config';
-import { persistInboundUserMessage } from '../../src/lib/chat/persist-inbound-user-message';
+import {
+  assistantChatReplyCreatedAtIso,
+  inboundChatUserCreatedAtIso,
+  persistInboundUserMessage,
+} from '../../src/lib/chat/persist-inbound-user-message';
 
 dotenv.config({ path: path.resolve(__dirname, '../../.env.test'), override: true });
 
@@ -99,6 +103,25 @@ test.describe('STYL-425 inbound user message persistence', () => {
     expect(persistAt).toBeGreaterThan(-1);
     expect(streamAt).toBeGreaterThan(persistAt);
     expect(src).toContain('if (!inboundUserMessagePersisted)');
+    expect(src).toContain('inboundChatUserCreatedAtIso');
+    expect(src).toContain('assistantChatReplyCreatedAtIso');
+    expect(src).not.toContain('Date.now() - 1000');
+  });
+
+  test('message created_at helpers keep user after prior assistant and bot after user', () => {
+    const priorAssistantMs = 1_700_000_000_000;
+    const quickFollowUpUserMs = priorAssistantMs + 500;
+    const userIso = inboundChatUserCreatedAtIso(quickFollowUpUserMs);
+    expect(Date.parse(userIso)).toBeGreaterThan(priorAssistantMs);
+
+    const userMs = quickFollowUpUserMs;
+    const botIsoSameMs = assistantChatReplyCreatedAtIso(userMs, userMs);
+    expect(Date.parse(botIsoSameMs)).toBe(userMs + 1);
+
+    const laterStreamEndMs = userMs + 400;
+    const botIso = assistantChatReplyCreatedAtIso(userMs, laterStreamEndMs);
+    expect(Date.parse(botIso)).toBe(laterStreamEndMs);
+    expect(Date.parse(botIso)).toBeGreaterThan(userMs);
   });
 
   test('empty mock stream still stores exactly one inbound user message', async ({ request }) => {

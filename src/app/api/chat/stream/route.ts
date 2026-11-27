@@ -50,7 +50,11 @@ import {
 } from '@/lib/chat-preview';
 
 import { getActiveGeminiModel } from '@/lib/gemini-config';
-import { persistInboundUserMessage } from '@/lib/chat/persist-inbound-user-message';
+import {
+  assistantChatReplyCreatedAtIso,
+  inboundChatUserCreatedAtIso,
+  persistInboundUserMessage,
+} from '@/lib/chat/persist-inbound-user-message';
 import { generateEmbedding } from '@/lib/embeddings';
 import { getFirstName } from '@/lib/greeting';
 import { resolveMockModelReply } from '@/lib/env/allow-mock-reply';
@@ -1176,7 +1180,8 @@ ${staffContext}`;
     const activeModelName = await getActiveGeminiModel();
     console.log(`[Chat Stream][${requestId}] Initializing Vercel AI SDK text stream (${activeModelName})...`);
 
-    const inboundUserCreatedAt = new Date(Date.now() - 1000).toISOString();
+    const inboundUserCreatedAtMs = Date.now();
+    const inboundUserCreatedAt = inboundChatUserCreatedAtIso(inboundUserCreatedAtMs);
     const inboundUserMessagePersisted = await persistInboundUserMessage({
       supabaseAdmin,
       tenantId,
@@ -1236,9 +1241,7 @@ ${staffContext}`;
         onFinish: async (event) => {
           console.log(`[Chat Stream][${requestId}] AI stream finished. Logging conversation in background...`);
           try {
-            // Explicit timestamps to guarantee order
-            const now = Date.now();
-            const botTime = new Date(now).toISOString();
+            const botTime = assistantChatReplyCreatedAtIso(inboundUserCreatedAtMs);
 
             let userInsertRes: { error: unknown | null } = { error: null };
             if (!inboundUserMessagePersisted) {

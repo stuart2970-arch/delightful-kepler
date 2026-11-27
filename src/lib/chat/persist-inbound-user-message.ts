@@ -2,6 +2,19 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 
 const NIL_CONVERSATION_ID = '00000000-0000-0000-0000-000000000000';
 
+/** ISO timestamp for an inbound user turn at stream start (not backdated). */
+export function inboundChatUserCreatedAtIso(nowMs: number = Date.now()): string {
+  return new Date(nowMs).toISOString();
+}
+
+/** ISO timestamp for the assistant reply strictly after its triggering user turn. */
+export function assistantChatReplyCreatedAtIso(
+  inboundUserCreatedAtMs: number,
+  nowMs: number = Date.now(),
+): string {
+  return new Date(Math.max(nowMs, inboundUserCreatedAtMs + 1)).toISOString();
+}
+
 export type PersistInboundUserMessageInput = {
   supabaseAdmin: SupabaseClient;
   tenantId: string;
@@ -23,7 +36,7 @@ export async function persistInboundUserMessage(
   const text = typeof message === 'string' ? message.trim() : '';
   if (!text) return false;
 
-  const userTime = input.createdAt ?? new Date(Date.now() - 1000).toISOString();
+  const userTime = input.createdAt ?? inboundChatUserCreatedAtIso();
   const { error } = await supabaseAdmin.from('messages').insert({
     tenant_id: tenantId,
     conversation_id: conversationId,
