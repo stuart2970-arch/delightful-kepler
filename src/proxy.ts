@@ -3,6 +3,10 @@ import { createServerClient } from '@supabase/ssr';
 import { NextResponse, type NextRequest } from 'next/server';
 import { resolveSsoCookieDomain } from '@/lib/env/cookie-domain';
 import { publicAppPath } from '@/lib/env/public-app-url';
+import {
+  resolvePostSignupCheckoutNext,
+  tenantRequiresFoundationCheckout,
+} from '@/lib/billing/signup-checkout-gate';
 
 // Unauthenticated public routes requiring Cloudflare Turnstile bot verification
 const PUBLIC_TURNSTILE_ROUTES = ['/api/chat/public-init'];
@@ -288,6 +292,12 @@ export async function proxy(request: NextRequest) {
 
   const isProtectedRoute = request.nextUrl.pathname.startsWith('/dashboard');
 
+  const foundationCheckoutBypass =
+    pathname.startsWith('/api/billing') ||
+    pathname.startsWith('/auth/') ||
+    pathname === '/payment-confirmed' ||
+    pathname === '/register';
+
   // Helper to transfer cookies to a redirect response
   const redirectWithCookies = (url: URL) => {
     const redirectResponse = NextResponse.redirect(url);
@@ -295,6 +305,45 @@ export async function proxy(request: NextRequest) {
       redirectResponse.cookies.set(cookie.name, cookie.value, cookie);
     });
     return redirectResponse;
+  };
+
+  const redirectToFoundationCheckoutIfNeeded = async () => {
+    if (!user || foundationCheckoutBypass) return null;
+
+    const { data: profile } = await supabase
+      .from('profiles')
+      .select('tenant_id, role, is_super_admin')
+      .eq('id', user.id)
+      .maybeSingle();
+
+    if (!profile?.tenant_id) return null;
+
+    const { data: tenant } = await supabase
+      .from('tenants')
+      .select('is_active, subscription_status')
+      .eq('id', profile.tenant_id)
+      .maybeSingle();
+
+    if (
+      !tenantRequiresFoundationCheckout({
+        role: profile.role,
+        is_super_admin: profile.is_super_admin,
+        is_active: tenant?.is_active,
+        subscription_status: tenant?.subscription_status,
+      })
+    ) {
+      return null;
+    }
+
+    const checkoutPath = resolvePostSignupCheckoutNext(
+      user.user_metadata as Record<string, unknown> | undefined,
+    );
+    const checkoutUrl = new URL(checkoutPath, request.nextUrl.origin);
+    const customerEmail = (user.email || '').trim();
+    if (customerEmail && !checkoutUrl.searchParams.get('customerEmail')) {
+      checkoutUrl.searchParams.set('customerEmail', customerEmail);
+    }
+    return redirectWithCookies(checkoutUrl);
   };
 
   if (request.nextUrl.pathname === '/') {
@@ -314,7 +363,14 @@ export async function proxy(request: NextRequest) {
     return redirectWithCookies(loginUrl);
   }
 
+  if (isProtectedRoute && user) {
+    const checkoutRedirect = await redirectToFoundationCheckoutIfNeeded();
+    if (checkoutRedirect) return checkoutRedirect;
+  }
+
   if (request.nextUrl.pathname === '/login' && user) {
+    const checkoutRedirect = await redirectToFoundationCheckoutIfNeeded();
+    if (checkoutRedirect) return checkoutRedirect;
     return redirectWithCookies(new URL(publicAppPath('/dashboard')));
   }
 

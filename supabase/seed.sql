@@ -26,6 +26,8 @@ $$ LANGUAGE plpgsql;
 INSERT INTO public.tenants (
   id, tenant_id, company_name, slug, plan_tier, has_google_calendar,
   stripe_customer_id,
+  is_active,
+  subscription_status,
   general_operating_hours
 )
 VALUES (
@@ -36,6 +38,8 @@ VALUES (
   'foundation',
   true,
   'cus_test_acme',
+  true,
+  'active',
   '{
     "monday":    {"unavailable": false, "hours": {"start": "09:00", "end": "17:00"}},
     "tuesday":   {"unavailable": false, "hours": {"start": "09:00", "end": "17:00"}},
@@ -49,16 +53,27 @@ VALUES (
   has_google_calendar = true,
   plan_tier = 'foundation',
   stripe_customer_id = EXCLUDED.stripe_customer_id,
+  is_active = true,
+  subscription_status = 'active',
   general_operating_hours = EXCLUDED.general_operating_hours;
 
-INSERT INTO public.tenants (id, tenant_id, company_name, slug, plan_tier)
+INSERT INTO public.tenants (
+  id, tenant_id, company_name, slug, plan_tier, is_active, subscription_status, stripe_customer_id
+)
 VALUES (
   '10000000-0000-0000-0000-000000000002',
   '10000000-0000-0000-0000-000000000002',
   'Globex Corporation',
   'globex-corporation',
-  'foundation'
-) ON CONFLICT (id) DO UPDATE SET plan_tier = 'foundation';
+  'foundation',
+  true,
+  'active',
+  'cus_test_globex'
+) ON CONFLICT (id) DO UPDATE SET
+  plan_tier = 'foundation',
+  is_active = true,
+  subscription_status = 'active',
+  stripe_customer_id = EXCLUDED.stripe_customer_id;
 
 -- 3. Seed auth.users (incl. fake superadmin)
 -- Password is 'password123'

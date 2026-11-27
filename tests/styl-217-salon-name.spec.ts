@@ -1,6 +1,7 @@
 import { test, expect } from '@playwright/test';
 import { createClient } from '@supabase/supabase-js';
 import { TENANT_PROFILE_SELECT, salonNameFromTenant } from '../src/lib/tenant-profile';
+import { markTenantFoundationCheckoutComplete } from './test-auth-helper';
 
 /**
  * STYL-217: a new sign-up's salon name is stored on the tenant and shown
@@ -54,6 +55,7 @@ test.describe('STYL-217 salon name', () => {
         .single();
       expect(tenantError).toBeNull();
       expect(tenant?.company_name).toBe(salon);
+      await markTenantFoundationCheckoutComplete(profile!.tenant_id);
 
       await page.goto('/login');
       await page.locator('input[type="email"]').fill(email);
