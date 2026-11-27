@@ -72,7 +72,7 @@ test.describe('STYL-422 tenant Google Places guardrails', () => {
   test('does not persist unverified Places search matches from mocked searchText', async () => {
     const calls: string[] = []
     const originalFetch = globalThis.fetch
-    globalThis.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
+    globalThis.fetch = (async (input: RequestInfo | URL) => {
       const url = String(input)
       calls.push(url)
       if (url.includes('searchText')) {
