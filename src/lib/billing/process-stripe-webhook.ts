@@ -49,6 +49,24 @@ export function stripeSubscriptionIdFrom(object: Record<string, any> | null | un
   return null;
 }
 
+export function foundationTenantStatusFromCheckoutSession(
+  session: Record<string, unknown> | null | undefined,
+): { subscription_status: string; trial_ends_at?: string | null } {
+  const subscription = session?.subscription
+  let stripeStatus = ''
+  let trialEndUnix: number | null = null
+  if (subscription && typeof subscription === 'object') {
+    const sub = subscription as Record<string, unknown>
+    stripeStatus = String(sub.status || '').trim().toLowerCase()
+    if (typeof sub.trial_end === 'number') trialEndUnix = sub.trial_end
+  }
+  const subscription_status =
+    stripeStatus === 'trialing' ? 'trialing' : stripeStatus === 'past_due' ? 'past_due' : 'active'
+  const trial_ends_at =
+    trialEndUnix && trialEndUnix > 0 ? new Date(trialEndUnix * 1000).toISOString() : null
+  return { subscription_status, trial_ends_at }
+}
+
 export function invoicePriceIdsFrom(object: Record<string, any> | null | undefined): string[] {
   const lines = object?.lines?.data || object?.lines || [];
   if (!Array.isArray(lines)) return [];
@@ -1567,11 +1585,15 @@ async function processStripeBillingEventBody(
 
     await setStripeCustomerIdOnTenantIfEmpty(supabaseAdmin, targetTenantId, stripeCustomerId);
 
+    const subscriptionStatus = foundationTenantStatusFromCheckoutSession(dataObject);
     const updatePayload: Record<string, unknown> = {
       plan_tier: planTier,
       is_active: true,
-      subscription_status: 'active',
+      subscription_status: subscriptionStatus.subscription_status,
     };
+    if (subscriptionStatus.trial_ends_at) {
+      updatePayload.trial_ends_at = subscriptionStatus.trial_ends_at;
+    }
 
     const { error: updateError } = await supabaseAdmin
       .from('tenants')

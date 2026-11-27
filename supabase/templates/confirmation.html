@@ -10,7 +10,7 @@
         <p>Hello,</p>
         <p>Please confirm {{ .Email }} for your StyleFlo account.</p>
         <p style="text-align:center;margin:28px 0;">
-          <a href="{{ .ConfirmationURL }}" style="background:#4f46e5;color:#ffffff;padding:12px 24px;border-radius:6px;text-decoration:none;font-weight:600;display:inline-block;">Confirm email address</a>
+          <a href="{{ .SiteURL }}/auth/confirm?token_hash={{ .TokenHash }}&amp;type=signup" style="background:#4f46e5;color:#ffffff;padding:12px 24px;border-radius:6px;text-decoration:none;font-weight:600;display:inline-block;">Confirm email address</a>
         </p>
         <p>If you did not create a StyleFlo account, you can ignore this email.</p>
         <p>Reply to this email and it will reach StyleFlo support.</p>

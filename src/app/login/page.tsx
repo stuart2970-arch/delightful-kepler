@@ -14,6 +14,8 @@ import {
   mountTurnstileWidget,
 } from '@/lib/turnstile-client';
 import { publicAppPath } from '@/lib/env/public-app-url';
+import { buildEmailSignupRedirectUrl } from '@/lib/auth/email-confirmation-redirect';
+import { buildSignupCheckoutPath } from '@/lib/billing/signup-checkout-gate';
 import { checkSignupNames, hardNameRejection, reviewNameMessage } from '@/lib/moderation/messages';
 
 export default function LoginPage() {
@@ -136,16 +138,22 @@ export default function LoginPage() {
       const cleanUrl = window.location.pathname;
       window.history.replaceState({}, document.title, cleanUrl);
     } else if (code) {
-      supabase.auth.exchangeCodeForSession(code).then(({ error }) => {
-        if (error) {
-          console.error('Error exchanging code for session:', error);
-          setError(error.message);
-        } else {
-          setSuccessMessage("Email confirmed successfully! Signing you in...");
-          const cleanUrl = window.location.pathname;
-          window.history.replaceState({}, document.title, cleanUrl);
-        }
+      const callbackUrl = publicAppPath(`/auth/callback?code=${encodeURIComponent(code)}`);
+      window.location.assign(callbackUrl);
+      return;
+    }
+
+    const tokenHash = urlParams.get('token_hash');
+    const confirmType = urlParams.get('type');
+    if (tokenHash && confirmType) {
+      const next = urlParams.get('next');
+      const confirmParams = new URLSearchParams({
+        token_hash: tokenHash,
+        type: confirmType,
       });
+      if (next) confirmParams.set('next', next);
+      window.location.assign(publicAppPath(`/auth/confirm?${confirmParams.toString()}`));
+      return;
     }
 
     let leftLogin = false;
@@ -279,7 +287,11 @@ export default function LoginPage() {
         const reviewNotice = reviewNameMessage(nameResults);
         if (reviewNotice) setNameNotice(reviewNotice);
 
-        const redirectUrl = publicAppPath('/auth/callback?next=/dashboard');
+        const checkoutNext = buildSignupCheckoutPath({
+          plan: selectedPlan || 'foundation',
+          returnUrl: publicAppPath('/payment-confirmed'),
+        });
+        const redirectUrl = buildEmailSignupRedirectUrl(checkoutNext);
 
         const { data, error } = await supabase.auth.signUp({
           email,
