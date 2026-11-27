@@ -201,4 +201,12 @@ test.describe('STYL-421 webhook tenant status from checkout session', () => {
     expect(resolved.subscription_status).toBe('incomplete')
     expect(resolved.activateTenant).toBe(false)
   })
+
+  test('retrieve failures propagate so the webhook can return 500 for Stripe retry', async () => {
+    await expect(
+      resolveFoundationCheckoutTenantStatus({ subscription: 'sub_transient' }, async () => {
+        throw new Error('stripe rate limit')
+      }),
+    ).rejects.toThrow('stripe rate limit')
+  })
 })

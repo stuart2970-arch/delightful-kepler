@@ -129,12 +129,8 @@ export async function resolveFoundationCheckoutTenantStatus(
 
   const subscriptionId = subscriptionIdFromCheckoutSession(session)
   if (subscriptionId && retrieve) {
-    try {
-      const sub = await retrieve(subscriptionId)
-      return mapStripeFoundationSubscriptionToTenant(sub.status, sub.trial_end)
-    } catch (err) {
-      console.error('[Stripe Webhook] Failed to retrieve subscription for checkout session:', err)
-    }
+    const sub = await retrieve(subscriptionId)
+    return mapStripeFoundationSubscriptionToTenant(sub.status, sub.trial_end)
   }
 
   if (subscriptionId && !retrieve) {

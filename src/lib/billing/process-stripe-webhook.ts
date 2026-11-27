@@ -1596,9 +1596,11 @@ async function processStripeBillingEventBody(
       return { status: 500, body: { error: 'Database update failed' } };
     }
 
-    const reopened = await reopenAccountClosure(supabaseAdmin, targetTenantId, deps.now ?? new Date());
-    if (!reopened.ok) {
-      return { status: 500, body: { success: false, error: reopened.message, tenant_id: targetTenantId } };
+    if (subscriptionStatus.activateTenant) {
+      const reopened = await reopenAccountClosure(supabaseAdmin, targetTenantId, deps.now ?? new Date());
+      if (!reopened.ok) {
+        return { status: 500, body: { success: false, error: reopened.message, tenant_id: targetTenantId } };
+      }
     }
 
     if (subscriptionStatus.activateTenant && dataObject.line_items?.data) {
