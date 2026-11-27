@@ -1,10 +1,13 @@
 /**
  * STYL-226: single origin for login, magic-link, checkout, and OAuth redirects.
  * Never fall back to the production app host when APP_ENV / NEXT_PUBLIC_ENV is staging.
+ * STYL-423: allow-list embed parent /app/ return URLs (styleflo.ai/app/).
  */
 
 const PRODUCTION_APP_ORIGIN = 'https://app.styleflo.ai';
 const STAGING_APP_ORIGIN = 'https://staging.styleflo.ai';
+const PRODUCTION_EMBED_PARENT = 'https://styleflo.ai';
+const STAGING_EMBED_PARENT = 'https://staging.styleflo.ai';
 
 function stripTrailingSlash(url: string): string {
   return url.replace(/\/+$/, '');
@@ -74,6 +77,37 @@ function originOf(raw: string): string | null {
   }
 }
 
+function resolveEmbedParentOriginForReturnUrl(
+  env: NodeJS.ProcessEnv = process.env,
+): string {
+  const fromEnv = originFromUrl(env.NEXT_PUBLIC_EMBED_PARENT_URL);
+  if (fromEnv) return fromEnv;
+  const wp = originFromUrl(env.WORDPRESS_SITE_URL);
+  if (wp) return wp;
+  if (isStagingAppEnv(env)) return STAGING_EMBED_PARENT;
+  return PRODUCTION_EMBED_PARENT;
+}
+
+/** True when `candidate` is the WP /app/ iframe entry on the configured parent origin. */
+export function isAllowedEmbedParentReturnUrl(
+  candidate: string | undefined | null,
+  env: NodeJS.ProcessEnv = process.env,
+): boolean {
+  const trimmed = typeof candidate === 'string' ? candidate.trim() : '';
+  if (!trimmed || trimmed.includes('\\')) return false;
+  try {
+    const url = new URL(trimmed);
+    if (url.protocol !== 'http:' && url.protocol !== 'https:') return false;
+    if (url.username || url.password) return false;
+    const parentOrigin = resolveEmbedParentOriginForReturnUrl(env);
+    if (url.origin !== parentOrigin) return false;
+    const pathname = url.pathname.replace(/\/+$/, '') || '/';
+    return pathname === '/app';
+  } catch {
+    return false;
+  }
+}
+
 /** True when `candidate` is an absolute http(s) URL on this app's public origin. */
 export function isSameOriginPublicUrl(
   candidate: string | undefined | null,
@@ -95,6 +129,7 @@ export function safePublicReturnUrl(
   env: NodeJS.ProcessEnv = process.env,
 ): string {
   const value = typeof candidate === 'string' ? candidate.trim() : '';
-  if (!isSameOriginPublicUrl(value, env)) return fallback;
-  return new URL(value).href;
+  if (isSameOriginPublicUrl(value, env)) return new URL(value).href;
+  if (isAllowedEmbedParentReturnUrl(value, env)) return new URL(value).href;
+  return fallback;
 }

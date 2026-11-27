@@ -6,6 +6,8 @@ import {
   onMicrosoftCalendarConnected,
   runCalendarPushSideEffect,
 } from '@/lib/calendar/push-sync/register-lifecycle';
+import { oauthPopupCompleteResponse } from '@/lib/integrations/oauth-popup-response';
+import { verifyOAuthState } from '@/lib/auth/oauth-state';
 
 type MicrosoftTokens = {
   access_token?: string;
@@ -73,6 +75,9 @@ export async function GET(request: NextRequest) {
 
   const gate = await requireOAuthCallback(request, code, state64);
   if (!gate.ok) return gate.response;
+
+  const stateClaims = verifyOAuthState(state64);
+  const isPopup = Boolean(stateClaims?.popup);
 
   try {
     const appUrl = publicAppPath('');
@@ -143,9 +148,15 @@ export async function GET(request: NextRequest) {
       );
     }
 
+    if (isPopup) {
+      return oauthPopupCompleteResponse('microsoft_calendar', 'success');
+    }
     return NextResponse.redirect(`${appUrl}/dashboard?tab=scheduling&success=microsoft_calendar`);
   } catch (err: any) {
     console.error('[Microsoft OAuth Callback Error]:', err);
+    if (isPopup) {
+      return oauthPopupCompleteResponse('microsoft_calendar', 'error');
+    }
     return NextResponse.json({ error: err.message }, { status: 500 });
   }
 }

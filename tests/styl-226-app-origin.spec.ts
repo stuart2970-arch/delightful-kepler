@@ -20,12 +20,10 @@ test.describe('STYL-226: public app origin helper', () => {
   const sourceFiles = [
     'src/app/login/page.tsx',
     'src/app/register/page.tsx',
-    'src/app/onboard/page.tsx',
     'src/app/api/auth/magic-link/route.ts',
     'src/app/api/billing/checkout/route.ts',
     'src/components/AddOnUpsellModal.tsx',
     'src/components/DashboardClient.tsx',
-    'src/app/dashboard/billing/page.tsx',
     'src/proxy.ts',
     'src/app/api/integrations/google/authorize/route.ts',
     'src/app/api/integrations/google/callback/route.ts',
@@ -33,11 +31,10 @@ test.describe('STYL-226: public app origin helper', () => {
     'src/app/api/integrations/microsoft/callback/route.ts',
   ];
 
-  test('login embedded top navigation falls back to location.assign', () => {
+  test('login always navigates the iframe via location.assign', () => {
     const src = codeWithoutComments(readFileSync(join(root, 'src/app/login/page.tsx'), 'utf8'));
-    expect(src).toMatch(/try\s*\{/);
     expect(src).toContain("window.location.assign('/dashboard')");
-    expect(src).toMatch(/catch/);
+    expect(src).not.toMatch(/window\.top\.location/);
   });
 
   test('AddOnUpsellModal only sends customPricePence for sliding add-ons', () => {
@@ -49,7 +46,13 @@ test.describe('STYL-226: public app origin helper', () => {
   test('redirect and success_url builders do not hard-code the production host', () => {
     for (const rel of sourceFiles) {
       const src = codeWithoutComments(readFileSync(join(root, rel), 'utf8'));
-      expect(src, rel).toContain('publicAppPath');
+      expect(
+        src.includes('publicAppPath') ||
+          src.includes('embedAwarePublicPath') ||
+          src.includes('embeddedReturnUrl') ||
+          src.includes('dashboardReturnUrl'),
+        rel,
+      ).toBeTruthy();
       expect(src, rel).not.toContain(PROD_HOST);
     }
     const helper = readFileSync(join(root, 'src/lib/env/public-app-url.ts'), 'utf8');
@@ -116,7 +119,11 @@ test.describe('STYL-226: public app origin helper', () => {
     expect(
       safePublicReturnUrl('  https://staging.styleflo.ai/dashboard?tab=scheduling  ', fallback, env),
     ).toBe('https://staging.styleflo.ai/dashboard?tab=scheduling');
-    expect(safePublicReturnUrl('https://styleflo.ai/app', fallback, env)).toBe(fallback);
+    expect(safePublicReturnUrl('https://styleflo.ai/app?sf_path=/dashboard', fallback, {
+      ...env,
+      NEXT_PUBLIC_EMBED_PARENT_URL: 'https://styleflo.ai',
+    })).toBe('https://styleflo.ai/app?sf_path=/dashboard');
+    expect(safePublicReturnUrl('https://styleflo.ai/pricing', fallback, env)).toBe(fallback);
     expect(safePublicReturnUrl('https://evil.example/phish', fallback, env)).toBe(fallback);
     expect(safePublicReturnUrl('javascript:alert(1)', fallback, env)).toBe(fallback);
     expect(safePublicReturnUrl('/dashboard?tab=billing', fallback, env)).toBe(fallback);

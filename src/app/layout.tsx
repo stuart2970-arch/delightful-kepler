@@ -19,6 +19,8 @@ export const metadata: Metadata = {
 
 import { Suspense } from "react";
 import IframeResizer from "@/components/IframeResizer";
+import EmbedBootstrap from "@/components/EmbedBootstrap";
+import { DashboardSessionExpiredPrompt } from "@/lib/auth/dashboard-session-expired";
 import Analytics from "@/components/Analytics";
 import StagingBanner from "@/components/StagingBanner";
 
@@ -104,6 +106,8 @@ export default function RootLayout({
           <Analytics />
         </Suspense>
         <IframeResizer />
+        <EmbedBootstrap />
+        <DashboardSessionExpiredPrompt />
         {children}
       </body>
     </html>

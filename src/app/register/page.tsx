@@ -7,6 +7,8 @@ import { trackSignUp, trackVisitorNotSignedUp, trackLeadIntent } from '@/lib/ana
 import { getSupabaseBrowserClient } from '@/lib/supabase-browser';
 import { getBrowserTurnstileToken } from '@/lib/turnstile-client';
 import { publicAppPath } from '@/lib/env/public-app-url';
+import { embeddedReturnUrl } from '@/lib/env/embed-context';
+import { openExternalSecureUrl } from '@/lib/navigation/external-url';
 import { buildEmailSignupRedirectUrl } from '@/lib/auth/email-confirmation-redirect';
 import { buildSignupCheckoutPath } from '@/lib/billing/signup-checkout-gate';
 import { checkSignupNames, hardNameRejection, reviewNameMessage } from '@/lib/moderation/messages';
@@ -332,7 +334,7 @@ function RegisterContent() {
         }
       } else {
         // Trigger Stripe Checkout with plan and bolt-ons in basket
-        const returnTargetUrl = publicAppPath('/payment-confirmed');
+        const returnTargetUrl = embeddedReturnUrl('/payment-confirmed');
         const checkoutRes = await fetch('/api/billing/checkout', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -346,9 +348,8 @@ function RegisterContent() {
         });
         const checkoutData = await checkoutRes.json();
         if (checkoutData?.url) {
-          if (typeof window !== 'undefined' && window.top) {
-            window.top.location.href = checkoutData.url;
-          } else if (typeof window !== 'undefined') {
+          const opened = openExternalSecureUrl(checkoutData.url);
+          if (!opened.ok && typeof window !== 'undefined') {
             window.location.href = checkoutData.url;
           }
           return;

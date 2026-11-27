@@ -1,6 +1,6 @@
 import { createSystemEmailAdmin } from '../../admin'
 import { isSystemEmailTenantId } from '../../data'
-import { publicAppPath } from '@/lib/env/public-app-url'
+import { embedAwarePublicPath } from '@/lib/env/embed-parent'
 
 export type AccountEmailContext = {
   tenantId: string
@@ -16,7 +16,7 @@ export type AccountEmailFailure = {
 }
 
 export function billingUrl(): string {
-  return publicAppPath('/dashboard?tab=billing')
+  return embedAwarePublicPath('/dashboard?tab=billing')
 }
 
 export async function loadAccountEmailContext(tenantId: string): Promise<

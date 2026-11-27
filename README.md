@@ -444,6 +444,11 @@ This runbook documents the key fixes and architecture enhancements implemented d
 
 ### Session Chat History Log
 
+**Update (STYL-423 / STYL-424 — iframe embed + dashboard billing auth):**
+- **STYL-424**: `dashboardFetch` now refreshes Supabase once on HTTP 401 and retries with a fresh Bearer token; persistent 401 triggers an in-frame “Your session has expired — sign in again” prompt. Add-on checkout, billing portal, and Foundation subscribe route through `openBillingCheckoutFromApi` (Bearer + new-tab Stripe).
+- **STYL-423**: Embed context (`?embed=styleflo`, `STYLEFLO_EMBED_HELLO` handshake, `sf_path` routing), `embeddedReturnUrl` / parent `/app/` allow-listing in `safePublicReturnUrl`, popup Google auth & calendar OAuth, and removal of `window.top` escapes across login, billing, and scheduling.
+- **Tests**: `tests/styl-423-424-embed-utils.spec.ts`, `tests/styl-424-dashboard-fetch-401.spec.ts`, `tests/styl-423-424-iframe-embed.spec.ts`; `npm run typecheck` and targeted Playwright suites pass locally.
+
 **Update (Voice Connection Debugging 3):**
 - **Discovery**: The user provided an error screenshot showing `easy-server297.tempurl.host says VAPI ERROR DETAILS: {"type":"daily-error", "error":{"message":{"type":"ejected","msg":"Meeting has ended"}}}`. This revealed that the user had injected the widget into an external WordPress site (`easy-server297.tempurl.host`). 
 - **Root Cause**: Because `widget.js` dynamically extracts its `apiHost` from the domain it is currently hosted on (using `document.currentScript.src`), when injected into WordPress, it mistakenly instructed Vapi to send Custom LLM API requests to the WordPress server (`https://easy-server297.tempurl.host/api/voice/...`) instead of the Cloud Run backend. Vapi received a `404 Page Not Found` HTML response from WordPress and immediately aborted the voice call.

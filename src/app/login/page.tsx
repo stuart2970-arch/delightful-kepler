@@ -14,6 +14,11 @@ import {
   mountTurnstileWidget,
 } from '@/lib/turnstile-client';
 import { publicAppPath } from '@/lib/env/public-app-url';
+import {
+  shouldUseGoogleOAuthPopup,
+  startGoogleOAuthPopup,
+} from '@/lib/auth/google-oauth-popup';
+import { initEmbedFromQuery } from '@/lib/env/embed-context';
 import { buildEmailSignupRedirectUrl } from '@/lib/auth/email-confirmation-redirect';
 import { buildSignupCheckoutPath } from '@/lib/billing/signup-checkout-gate';
 import { checkSignupNames, hardNameRejection, reviewNameMessage } from '@/lib/moderation/messages';
@@ -157,18 +162,11 @@ export default function LoginPage() {
     }
 
     let leftLogin = false;
+    initEmbedFromQuery(urlParams);
+
     const goToApp = () => {
       if (leftLogin) return;
       leftLogin = true;
-      const isEmbedded = window.self !== window.top;
-      if (isEmbedded && window.top) {
-        try {
-          window.top.location.href = publicAppPath('/dashboard');
-          return;
-        } catch {
-          // Sandboxed iframes cannot assign window.top.
-        }
-      }
       window.location.assign('/dashboard');
     };
 
@@ -368,8 +366,13 @@ export default function LoginPage() {
     setLoading(true);
     setError(null);
     try {
+      if (shouldUseGoogleOAuthPopup()) {
+        const result = await startGoogleOAuthPopup();
+        if (!result.ok) throw new Error(result.error);
+        setLoading(false);
+        return;
+      }
       const redirectUrl = publicAppPath('/dashboard');
-
       const supabase = getSupabaseBrowserClient();
       const { error } = await supabase.auth.signInWithOAuth({
         provider: 'google',

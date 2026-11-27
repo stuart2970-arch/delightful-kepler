@@ -12,6 +12,7 @@ export async function GET(request: NextRequest) {
 
     const { searchParams } = new URL(request.url);
     const staffId = searchParams.get('staffId');
+    const popup = searchParams.get('popup') === '1';
     const appUrl = publicAppPath('');
     const supabase = createAdminClient();
 
@@ -34,6 +35,7 @@ export async function GET(request: NextRequest) {
       userId: auth.userId,
       tenantId: String(profile.tenant_id),
       staffId: staffId || null,
+      popup,
     });
     if (!state) {
       return NextResponse.json({ error: 'Server configuration error' }, { status: 500 });

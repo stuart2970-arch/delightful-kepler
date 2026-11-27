@@ -8,7 +8,7 @@ import {
   hashEmail,
 } from '@/lib/security/auth-rate-limit';
 import { verifyTurnstileToken } from '@/lib/security/turnstile';
-import { publicAppPath } from '@/lib/env/public-app-url';
+import { embedAwarePublicPath } from '@/lib/env/embed-parent';
 
 export const dynamic = 'force-dynamic';
 
@@ -23,7 +23,7 @@ function json(body: Record<string, unknown>, status: number) {
  * fragment. The redirect is chosen on the server, never from the request body.
  */
 function emailRedirectTo(): string {
-  return publicAppPath('/login');
+  return embedAwarePublicPath('/login');
 }
 
 export async function OPTIONS() {

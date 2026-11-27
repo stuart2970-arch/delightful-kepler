@@ -25,6 +25,11 @@ import { knowledgeItemsTotal, resolveCalendarAddonFlags, resolveCheckoutSuccessB
 import { META_MESSAGING_COMING_SOON_LABEL } from '@/lib/channels/meta-messaging-status';
 import { formatBoltOnCancelLabel } from '@/lib/billing/account-ownership';
 import { publicAppPath } from '@/lib/env/public-app-url';
+import { dashboardFetch } from '@/lib/auth/dashboard-auth-headers';
+import {
+  dashboardReturnUrl,
+  openBillingCheckoutFromApi,
+} from '@/lib/navigation/billing-checkout';
 import EmailDeliveryToggles from './dashboard/EmailDeliveryToggles';
 
 const BILLING_CATEGORIES: AddOnCategory[] = [
@@ -354,36 +359,27 @@ export default function DashboardClient({
   const [hasActiveFoundationSubscription, setHasActiveFoundationSubscription] = useState<boolean | null | undefined>(undefined);
   const [isStartingFoundationCheckout, setIsStartingFoundationCheckout] = useState(false);
   const [billingUpsellCategory, setBillingUpsellCategory] = useState<AddOnCategory | null>(null);
+  const [billingPortalFallbackUrl, setBillingPortalFallbackUrl] = useState<string | null>(null);
 
   const openBillingPortal = async () => {
     setIsOpeningPortal(true);
     setBillingMessage(null);
+    setBillingPortalFallbackUrl(null);
     const timeoutId = setTimeout(() => {
       setIsOpeningPortal(false);
     }, 10000);
 
     try {
-      const wpAppUrl = publicAppPath('/dashboard?tab=billing');
-      const res = await fetch('/api/billing/checkout', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action: 'portal', returnUrl: wpAppUrl }),
-      });
-      const data = await res.json();
+      const returnUrl = dashboardReturnUrl('/dashboard?tab=billing');
+      const result = await openBillingCheckoutFromApi({ action: 'portal', returnUrl });
       clearTimeout(timeoutId);
-      if (data.url) {
-        if (typeof window !== 'undefined' && window.top && window.top !== window) {
-          window.top.location.href = data.url;
-        } else {
-          window.location.href = data.url;
-        }
-      } else if (data.error) {
-        setBillingMessage(data.error);
+      if (!result.ok) {
+        if (result.checkoutUrl) setBillingPortalFallbackUrl(result.checkoutUrl);
+        setBillingMessage(result.error);
         setIsOpeningPortal(false);
-      } else {
-        setBillingMessage('Unable to connect to Stripe portal. Please try again later.');
-        setIsOpeningPortal(false);
+        return;
       }
+      setIsOpeningPortal(false);
     } catch (err: any) {
       clearTimeout(timeoutId);
       console.error('Stripe portal error:', err);
@@ -654,26 +650,15 @@ const globalBotId = '00000000-0000-0000-0000-000000000000';
     setIsStartingFoundationCheckout(true);
     setBillingMessage(null);
     try {
-      const headers = await getAuthHeaders({ 'Content-Type': 'application/json' });
-      const res = await fetch('/api/billing/checkout', {
-        method: 'POST',
-        headers,
-        body: JSON.stringify({ plan: 'foundation' }),
+      const result = await openBillingCheckoutFromApi({
+        plan: 'foundation',
+        returnUrl: dashboardReturnUrl('/dashboard?tab=billing'),
       });
-      const data = await res.json().catch(() => ({}));
-      if (res.ok && typeof data.url === 'string' && data.url) {
-        if (typeof window !== 'undefined' && window.top && window.top !== window) {
-          window.top.location.href = data.url;
-        } else {
-          window.location.href = data.url;
-        }
+      if (!result.ok) {
+        setBillingMessage(result.error);
+        setIsStartingFoundationCheckout(false);
         return;
       }
-      setBillingMessage(
-        typeof data.error === 'string' && data.error
-          ? data.error
-          : 'We could not open checkout. Please try again.',
-      );
       setIsStartingFoundationCheckout(false);
     } catch (err: any) {
       console.error('Foundation checkout error:', err);
@@ -688,8 +673,7 @@ const globalBotId = '00000000-0000-0000-0000-000000000000';
     setHasActiveFoundationSubscription(undefined);
     const loadFoundationSubscription = async () => {
       try {
-        const headers = await getAuthHeaders({ Accept: 'application/json' });
-        const res = await fetch('/api/billing/account', { headers, cache: 'no-store' });
+        const res = await dashboardFetch('/api/billing/account', { cache: 'no-store' });
         if (!res.ok) {
           if (!cancelled) setHasActiveFoundationSubscription(null);
           return;
@@ -1133,9 +1117,21 @@ const globalBotId = '00000000-0000-0000-0000-000000000000';
 
                 {billingMessage && (
                   <div className="mb-6 p-4 bg-amber-50 border border-amber-200 rounded-xl text-xs text-amber-800 flex items-center justify-between shadow-sm animate-fadeIn">
-                    <div className="flex items-center gap-2">
-                      <span className="text-base">ℹ️</span>
-                      <span>{billingMessage}</span>
+                    <div className="flex flex-col gap-2">
+                      <div className="flex items-center gap-2">
+                        <span className="text-base">ℹ️</span>
+                        <span>{billingMessage}</span>
+                      </div>
+                      {billingPortalFallbackUrl ? (
+                        <a
+                          href={billingPortalFallbackUrl}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-[#198fd9] font-semibold hover:underline"
+                        >
+                          Continue to secure billing portal
+                        </a>
+                      ) : null}
                     </div>
                     <button 
                       onClick={() => setBillingMessage(null)} 
@@ -1199,13 +1195,7 @@ const globalBotId = '00000000-0000-0000-0000-000000000000';
                       <h4 className="text-sm font-bold text-[var(--awb-color7)]">Monthly Chat Conversations</h4>
                       <button
                         onClick={() => {
-                          const isLocal = typeof window !== 'undefined' && (window.location.hostname.includes('localhost') || window.location.hostname.includes('.test'));
-                          const target = `${isLocal ? 'https://styleflo.test' : 'https://styleflo.ai'}/pricing?tenant_id=${tenantId}`;
-                          if (typeof window !== 'undefined' && window.top && window.top !== window) {
-                            window.top.location.href = target;
-                          } else {
-                            window.location.href = target;
-                          }
+                          setActiveTab('billing');
                         }}
                         className="bg-[var(--awb-color3)] hover:bg-[var(--awb-color4)] text-[var(--awb-color8)] text-[11px] font-bold py-1 px-3 rounded-[4px] shadow-sm transition-colors cursor-pointer flex items-center gap-1 shrink-0"
                         title="Manage monthly chat conversation quota"

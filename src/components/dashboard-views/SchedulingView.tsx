@@ -7,6 +7,7 @@ import { resolveCalendarAddonFlags } from '@/lib/billing/bolt-on';
 import { browserAuthHeaders } from '@/lib/auth/client-auth-headers';
 import { getMondayDate, formatMondayTabLabel, formatMondayFull, generateRollingSchedule, addDaysToDate } from '../../lib/dateUtils';
 import { rotaWeeksForEditor, workingDaysForStaffSave } from '@/lib/staff-rota';
+import { openCalendarOAuthPopup } from '@/lib/integrations/calendar-oauth-popup';
 import {
   normaliseOpeningHours,
   openingHoursForSave,
@@ -720,14 +721,18 @@ export default function SchedulingView() {
             </div>
 
             {hasGoogleCalendarAddon ? (
-              <a
-                href="/api/integrations/google/authorize"
-                target="_top"
-                rel="noopener noreferrer"
-                className="w-full px-4 py-2.5 bg-indigo-600 hover:bg-indigo-500 text-white font-bold rounded-xl shadow-md transition-all flex items-center justify-center gap-2 text-xs text-center"
+              <button
+                type="button"
+                onClick={() => {
+                  const opened = openCalendarOAuthPopup('google');
+                  if (!opened) {
+                    window.open('/api/integrations/google/authorize?popup=1', 'sf_oauth', 'popup,width=520,height=680');
+                  }
+                }}
+                className="w-full px-4 py-2.5 bg-indigo-600 hover:bg-indigo-500 text-white font-bold rounded-xl shadow-md transition-all flex items-center justify-center gap-2 text-xs text-center cursor-pointer"
               >
                 <span>{isGoogleConnected ? '🔄 Re-authorize Google' : '🔗 Connect Google Calendar'}</span>
-              </a>
+              </button>
             ) : hasMicrosoftCalendarAddon ? (
               <button
                 type="button"
@@ -786,14 +791,18 @@ export default function SchedulingView() {
             </div>
 
             {hasMicrosoftCalendarAddon ? (
-              <a
-                href="/api/integrations/microsoft/authorize"
-                target="_top"
-                rel="noopener noreferrer"
-                className="w-full px-4 py-2.5 bg-blue-600 hover:bg-blue-500 text-white font-bold rounded-xl shadow-md transition-all flex items-center justify-center gap-2 text-xs text-center"
+              <button
+                type="button"
+                onClick={() => {
+                  const opened = openCalendarOAuthPopup('microsoft');
+                  if (!opened) {
+                    window.open('/api/integrations/microsoft/authorize?popup=1', 'sf_oauth', 'popup,width=520,height=680');
+                  }
+                }}
+                className="w-full px-4 py-2.5 bg-blue-600 hover:bg-blue-500 text-white font-bold rounded-xl shadow-md transition-all flex items-center justify-center gap-2 text-xs text-center cursor-pointer"
               >
                 <span>{isMicrosoftConnected ? '🔄 Re-authorize Outlook' : '🔗 Connect Outlook Calendar'}</span>
-              </a>
+              </button>
             ) : hasGoogleCalendarAddon ? (
               <button
                 type="button"

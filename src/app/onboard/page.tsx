@@ -5,7 +5,10 @@ import { useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import LegalModal from '@/components/LegalModal';
 import { getSupabaseBrowserClient } from '@/lib/supabase-browser';
-import { publicAppPath } from '@/lib/env/public-app-url';
+import {
+  shouldUseGoogleOAuthPopup,
+  startGoogleOAuthPopup,
+} from '@/lib/auth/google-oauth-popup';
 
 function OnboardContent() {
   const searchParams = useSearchParams();
@@ -29,13 +32,17 @@ function OnboardContent() {
     setLoading(true);
     setError(null);
     try {
-      const redirectUrl = publicAppPath('/dashboard');
-
+      if (shouldUseGoogleOAuthPopup()) {
+        const result = await startGoogleOAuthPopup();
+        if (!result.ok) throw new Error(result.error);
+        setLoading(false);
+        return;
+      }
       const supabase = getSupabaseBrowserClient();
       const { data, error } = await (supabase.auth.signInWithOAuth as any)({
         provider: 'google',
         options: {
-          redirectTo: redirectUrl,
+          redirectTo: '/dashboard',
           skipBrowserRedirect: true,
           data: {
             terms_accepted: true,
@@ -45,13 +52,7 @@ function OnboardContent() {
         },
       });
       if (error) throw error;
-      if (data?.url) {
-        if (typeof window !== 'undefined' && window.top && window.top !== window) {
-          window.top.location.href = data.url;
-        } else {
-          window.location.href = data.url;
-        }
-      }
+      if (data?.url) window.location.href = data.url;
     } catch (err: any) {
       console.error("Google signin error:", err);
       setError(err?.message || 'Failed to initiate Google sign-in.');
