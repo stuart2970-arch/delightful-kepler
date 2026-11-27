@@ -12,6 +12,8 @@ import {
   onGoogleCalendarConnected,
   runCalendarPushSideEffect,
 } from '@/lib/calendar/push-sync/register-lifecycle';
+import { oauthPopupCompleteResponse } from '@/lib/integrations/oauth-popup-response';
+import { verifyOAuthState } from '@/lib/auth/oauth-state';
 
 async function connectedAccountEmail(
   oauth2Client: InstanceType<typeof google.auth.OAuth2>,
@@ -38,6 +40,9 @@ export async function GET(request: NextRequest) {
 
   const gate = await requireOAuthCallback(request, code, state64);
   if (!gate.ok) return gate.response;
+
+  const stateClaims = verifyOAuthState(state64);
+  const isPopup = Boolean(stateClaims?.popup);
 
   try {
     const appUrl = publicAppPath('');
@@ -108,9 +113,15 @@ export async function GET(request: NextRequest) {
       );
     }
 
+    if (isPopup) {
+      return oauthPopupCompleteResponse('google_calendar', 'success');
+    }
     return NextResponse.redirect(`${appUrl}/dashboard?tab=scheduling&success=google_calendar`);
   } catch (err: any) {
     console.error('OAuth Callback Error:', err);
+    if (isPopup) {
+      return oauthPopupCompleteResponse('google_calendar', 'error');
+    }
     return NextResponse.json({ error: err.message }, { status: 500 });
   }
 }

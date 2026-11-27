@@ -7,6 +7,7 @@ export interface OAuthStateClaims {
   staffId: string | null;
   nonce: string;
   exp: number;
+  popup?: boolean;
 }
 
 const TTL_MS = 15 * 60 * 1000;
@@ -20,7 +21,7 @@ function signingSecret(env: NodeJS.ProcessEnv): string | null {
 }
 
 export function signOAuthState(
-  input: { userId: string; tenantId: string; staffId?: string | null },
+  input: { userId: string; tenantId: string; staffId?: string | null; popup?: boolean },
   env: NodeJS.ProcessEnv = process.env,
   now = Date.now(),
 ): string | null {
@@ -32,6 +33,7 @@ export function signOAuthState(
     staffId: input.staffId || null,
     nonce: crypto.randomBytes(16).toString('hex'),
     exp: now + TTL_MS,
+    ...(input.popup ? { popup: true } : {}),
   };
   const payload = Buffer.from(JSON.stringify(claims)).toString('base64url');
   const sig = crypto.createHmac('sha256', secret).update(payload).digest('base64url');

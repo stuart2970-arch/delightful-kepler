@@ -371,7 +371,10 @@ export async function proxy(request: NextRequest) {
   if (request.nextUrl.pathname === '/login' && user) {
     const checkoutRedirect = await redirectToFoundationCheckoutIfNeeded();
     if (checkoutRedirect) return checkoutRedirect;
-    return redirectWithCookies(new URL(publicAppPath('/dashboard')));
+    const dashboardUrl = request.nextUrl.clone();
+    dashboardUrl.pathname = '/dashboard';
+    dashboardUrl.search = '';
+    return redirectWithCookies(dashboardUrl);
   }
 
   // Ensure public cross-origin endpoints under /api/chat/* carry full CORS headers

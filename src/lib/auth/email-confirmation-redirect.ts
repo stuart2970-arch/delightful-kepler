@@ -3,6 +3,7 @@
  */
 
 import { publicAppPath } from '@/lib/env/public-app-url'
+import { embedAwarePublicPath } from '@/lib/env/embed-parent'
 import {
   buildSignupCheckoutPath,
   resolvePostSignupCheckoutNext,
@@ -24,11 +25,11 @@ export function isEmailConfirmOtpType(type: string | null | undefined): boolean 
 
 export function buildEmailSignupRedirectUrl(nextPath?: string): string {
   const next = nextPath || buildSignupCheckoutPath({ returnUrl: '/payment-confirmed' })
-  return publicAppPath(`/auth/callback?next=${encodeURIComponent(next)}`)
+  return embedAwarePublicPath(`/auth/callback?next=${encodeURIComponent(next)}`)
 }
 
 export function buildTokenHashConfirmUrl(type: 'signup' | 'email' = 'signup', nextPath?: string): string {
-  const base = publicAppPath('/auth/confirm')
+  const base = embedAwarePublicPath('/auth/confirm')
   const params = new URLSearchParams({ type })
   if (nextPath) params.set('next', nextPath)
   return `${base}?${params.toString()}`

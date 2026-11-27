@@ -1,0 +1,22 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>StyleFlo embed host (Playwright only)</title>
+  </head>
+  <body>
+    <iframe
+      id="sf"
+      title="StyleFlo App"
+      style="width: 100%; height: 700px; border: 0"
+      src="/login?embed=styleflo"
+    ></iframe>
+    <script>
+      window.__topNav = [];
+      var initial = location.href;
+      setInterval(function () {
+        if (location.href !== initial) window.__topNav.push(location.href);
+      }, 100);
+    </script>
+  </body>
+</html>

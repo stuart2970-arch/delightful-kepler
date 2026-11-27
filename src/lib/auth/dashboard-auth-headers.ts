@@ -5,6 +5,7 @@
  * Sending it makes requireUser and the chatbot routes reject a signed-in owner.
  */
 import { getSupabaseBrowserClient, hasSupabaseBrowserEnv } from '../supabase-browser';
+import { notifyDashboardSessionExpired } from './dashboard-session-expired';
 
 export const DASHBOARD_AUTH_REFRESH_SKEW_SECONDS = 60;
 
@@ -190,11 +191,36 @@ function headersToRecord(headers: HeadersInit | undefined): Record<string, strin
  * Cookies are still sent by the browser. The header covers routes whose
  * cookie session is missing or stale.
  */
+async function fetchWithFreshBearer(
+  input: RequestInfo | URL,
+  init: RequestInit,
+  client?: DashboardAuthClient | null,
+): Promise<Response> {
+  const headers = await getDashboardAuthHeaders(headersToRecord(init.headers), client);
+  return fetch(input, { ...init, headers });
+}
+
 export async function dashboardFetch(
   input: RequestInfo | URL,
   init: RequestInit = {},
   client?: DashboardAuthClient | null,
 ): Promise<Response> {
-  const headers = await getDashboardAuthHeaders(headersToRecord(init.headers), client);
-  return fetch(input, { ...init, headers });
+  let response = await fetchWithFreshBearer(input, init, client);
+  if (response.status !== 401) return response;
+
+  const authClient = resolveDashboardAuthClient(client);
+  if (authClient) {
+    try {
+      await authClient.auth.refreshSession();
+    } catch {
+      // Still attempt one retry with whatever session remains.
+    }
+    response = await fetchWithFreshBearer(input, init, client);
+  }
+
+  if (response.status === 401 && typeof window !== 'undefined') {
+    notifyDashboardSessionExpired();
+  }
+
+  return response;
 }
