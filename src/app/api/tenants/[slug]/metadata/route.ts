@@ -1,164 +1,19 @@
 import { NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
+import { fetchTenantGooglePlacesBundle } from '@/lib/google/fetch-tenant-google-places';
+import {
+  GOOGLE_PLACES_LOOKUP_COOLDOWN_MS,
+  isGooglePlacesLookupCooldownActive,
+  readGoogleReviewsCacheMeta,
+  shouldTrustCachedGooglePlaces,
+} from '@/lib/google/tenant-places-metadata';
+import { withUnpublishedRobotsHeaders } from '@/lib/tenants/public-business-page';
 
 // Helper function to safely initialize Supabase Admin Client (preventing build-time failures when keys are absent)
 function getSupabaseAdmin() {
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || 'https://dummy.supabase.co';
   const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY || 'dummy-key';
   return createClient(supabaseUrl, serviceRoleKey);
-}
-
-function parseGoogleOpeningHours(googleHours: any) {
-  const daysMap: Record<number, string> = {
-    0: 'sunday',
-    1: 'monday',
-    2: 'tuesday',
-    3: 'wednesday',
-    4: 'thursday',
-    5: 'friday',
-    6: 'saturday'
-  };
-
-  const hoursResult: Record<string, any> = {};
-
-  // Initialize all days as closed
-  Object.values(daysMap).forEach(day => {
-    hoursResult[day] = {
-      hours: { start: '09:00', end: '17:00' },
-      unavailable: true
-    };
-  });
-
-  if (!googleHours || !Array.isArray(googleHours.periods)) {
-    return hoursResult;
-  }
-
-  const pad = (num: number) => String(num).padStart(2, '0');
-
-  for (const period of googleHours.periods) {
-    const dayNum = period.open?.day;
-    if (dayNum === undefined) continue;
-
-    const dayName = daysMap[dayNum];
-    if (!dayName) continue;
-
-    const startHour = period.open?.hour;
-    const startMin = period.open?.minute;
-    const endHour = period.close?.hour;
-    const endMin = period.close?.minute;
-
-    if (startHour !== undefined && startMin !== undefined && endHour !== undefined && endMin !== undefined) {
-      hoursResult[dayName] = {
-        hours: {
-          start: `${pad(startHour)}:${pad(startMin)}`,
-          end: `${pad(endHour)}:${pad(endMin)}`
-        },
-        unavailable: false
-      };
-    }
-  }
-
-  return hoursResult;
-}
-
-async function fetchGoogleReviews(tenant: any, apiKey: string): Promise<{ rating: number; userRatingCount: number; placeId: string; reviews: any[]; regularOpeningHours: any; photos: string[] }> {
-  const defaultResult = { rating: 5, userRatingCount: 0, placeId: '', reviews: [], regularOpeningHours: null, photos: [] };
-  try {
-    const addressParts = [
-      tenant.rwg_business_name || tenant.company_name,
-      tenant.trading_address_street || tenant.business_address,
-      tenant.trading_address_city,
-      tenant.trading_address_postcode || tenant.postcode
-    ].filter(Boolean);
-
-    if (addressParts.length === 0) return defaultResult;
-    const query = addressParts.join(', ');
-
-    const headers: Record<string, string> = {
-      'Content-Type': 'application/json',
-      'X-Goog-Api-Key': apiKey,
-      'X-Goog-FieldMask': 'places.id,places.displayName,places.rating,places.userRatingCount,places.reviews,places.regularOpeningHours,places.photos,places.photos.authorAttributions'
-    };
-    if (process.env.GOOGLE_PLACES_HTTP_REFERER) {
-      headers['Referer'] = process.env.GOOGLE_PLACES_HTTP_REFERER;
-    }
-
-    const response = await fetch('https://places.googleapis.com/v1/places:searchText', {
-      method: 'POST',
-      headers,
-      body: JSON.stringify({
-        textQuery: query
-      })
-    });
-
-    if (!response.ok) {
-      const errText = await response.text();
-      if (response.status === 403 && errText.includes('API_KEY_HTTP_REFERRER_BLOCKED')) {
-        console.warn('[Places API Error] Google returned 403 API_KEY_HTTP_REFERRER_BLOCKED. Server-side API requests from Node.js require an API key without HTTP Referrer restrictions in Google Cloud Console, or set GOOGLE_PLACES_SERVER_API_KEY / GOOGLE_PLACES_HTTP_REFERER in environment variables.');
-      } else {
-        console.warn('[Places API Error]', response.status, errText);
-      }
-      return defaultResult;
-    }
-
-    const data = await response.json();
-    const place = data.places?.[0];
-    
-    if (place) {
-      const reviews = Array.isArray(place.reviews) ? place.reviews.map((r: any) => ({
-        rating: r.rating || 5,
-        text: r.text?.text || r.originalText?.text || '',
-        author_name: r.authorAttribution?.displayName || 'Anonymous'
-      })) : [];
-
-      const parsedHours = place.regularOpeningHours ? parseGoogleOpeningHours(place.regularOpeningHours) : null;
-
-      // Filter and prioritize owner-uploaded photos (displayName matches company_name or rwg_business_name)
-      const businessNameLower = (tenant.rwg_business_name || tenant.company_name || '').toLowerCase();
-      const placePhotos = place.photos || [];
-      
-      const ownerPhotos = placePhotos.filter((p: any) => {
-        const creatorName = p.authorAttributions?.[0]?.displayName || '';
-        return creatorName.toLowerCase().includes(businessNameLower);
-      });
-
-      const customerPhotos = placePhotos.filter((p: any) => {
-        const creatorName = p.authorAttributions?.[0]?.displayName || '';
-        return !creatorName.toLowerCase().includes(businessNameLower);
-      });
-
-      // Combine prioritizing owner photos up to 10
-      const combinedPhotos = [...ownerPhotos, ...customerPhotos].slice(0, 10);
-
-      const photoPromises = combinedPhotos.map(async (photo: any) => {
-        try {
-          const mediaRes = await fetch(`https://places.googleapis.com/v1/${photo.name}/media?key=${apiKey}&maxWidthPx=1920&skipHttpRedirect=true`);
-          if (mediaRes.ok) {
-            const mediaData = await mediaRes.json();
-            return mediaData.photoUri || null;
-          }
-        } catch (e) {
-          console.error('Error fetching media URI for photo:', photo.name, e);
-        }
-        return null;
-      });
-
-      const photosList = (await Promise.all(photoPromises)).filter(Boolean) as string[];
-
-      return {
-        rating: place.rating || 5,
-        userRatingCount: place.userRatingCount || 0,
-        placeId: place.id || '',
-        reviews,
-        regularOpeningHours: parsedHours,
-        photos: photosList
-      };
-    }
-    return defaultResult;
-  } catch (error) {
-    console.error('Error fetching Google Reviews:', error);
-    return defaultResult;
-  }
 }
 
 export const dynamic = 'force-dynamic';
@@ -289,8 +144,10 @@ export async function GET(req: Request, { params }: { params: Promise<{ slug: st
       .select(`
         id,
         company_name,
+        rwg_business_name,
         business_address,
         postcode,
+        page_published,
         general_operating_hours,
         google_maps_share_url,
         google_reviews,
@@ -322,6 +179,20 @@ export async function GET(req: Request, { params }: { params: Promise<{ slug: st
       return NextResponse.json({ success: false, error: errMsg }, { status: 404, headers: corsHeaders });
     }
 
+    if (tenant.page_published !== true) {
+      return NextResponse.json(
+        {
+          success: false,
+          page_published: false,
+          error: 'Business page is not published',
+        },
+        {
+          status: 404,
+          headers: withUnpublishedRobotsHeaders(corsHeaders),
+        },
+      );
+    }
+
     let googleReviews: any[] = [];
     let googleRating = 5;
     let googleRatingCount = 0;
@@ -332,65 +203,122 @@ export async function GET(req: Request, { params }: { params: Promise<{ slug: st
     let cachedReviews: any[] = [];
     let lastUpdated: string | null = null;
 
-    if (tenant.google_reviews) {
+    const cacheIsTrusted = shouldTrustCachedGooglePlaces(tenant, tenant.google_reviews);
+
+    if (cacheIsTrusted && tenant.google_reviews) {
       if (Array.isArray(tenant.google_reviews)) {
         cachedReviews = tenant.google_reviews;
       } else if (typeof tenant.google_reviews === 'object' && tenant.google_reviews !== null) {
-        cachedReviews = (tenant.google_reviews as any).reviews || [];
-        lastUpdated = (tenant.google_reviews as any).last_updated || null;
-        googleRating = (tenant.google_reviews as any).rating || 5;
-        googleRatingCount = (tenant.google_reviews as any).userRatingCount || 0;
-        googlePhotos = (tenant.google_reviews as any).photos || [];
-        if ((tenant.google_reviews as any).placeId) {
-          googleWriteReviewUrl = `https://search.google.com/local/writereview?placeid=${(tenant.google_reviews as any).placeId}`;
+        const cache = tenant.google_reviews as Record<string, unknown>;
+        cachedReviews = (cache.reviews as unknown[]) || [];
+        lastUpdated = (cache.last_updated as string) || null;
+        googleRating = (cache.rating as number) || 5;
+        googleRatingCount = (cache.userRatingCount as number) || 0;
+        googlePhotos = (cache.photos as string[]) || [];
+        if (typeof cache.placeId === 'string' && cache.placeId) {
+          googleWriteReviewUrl = `https://search.google.com/local/writereview?placeid=${cache.placeId}`;
         }
       }
     }
 
     const apiKey = process.env.GOOGLE_PLACES_SERVER_API_KEY || process.env.GOOGLE_PLACES_API_KEY || process.env.GOOGLE_MAPS_API_KEY;
-    const isCacheExpired = !lastUpdated || (Date.now() - new Date(lastUpdated).getTime() > 24 * 60 * 60 * 1000);
+    const cacheMeta = readGoogleReviewsCacheMeta(tenant.google_reviews);
+    const lookupCooldownActive = isGooglePlacesLookupCooldownActive(cacheMeta);
+    const trustedCacheExpired =
+      !lastUpdated
+      || (Date.now() - new Date(lastUpdated).getTime() > GOOGLE_PLACES_LOOKUP_COOLDOWN_MS);
+    const shouldAttemptPlacesLookup =
+      Boolean(apiKey)
+      && !lookupCooldownActive
+      && (!cacheIsTrusted || cachedReviews.length === 0 || trustedCacheExpired);
 
-    if (apiKey && (cachedReviews.length === 0 || isCacheExpired)) {
+    if (shouldAttemptPlacesLookup) {
       try {
-        const result = await fetchGoogleReviews(tenant, apiKey);
-        googleReviews = result.reviews;
-        googleRating = result.rating;
-        googleRatingCount = result.userRatingCount;
-        googlePhotos = result.photos;
-        if (result.placeId) {
+        const result = await fetchTenantGooglePlacesBundle(tenant, apiKey as string);
+        if (result.verified && result.placeId) {
+          googleReviews = result.reviews;
+          googleRating = result.rating;
+          googleRatingCount = result.userRatingCount;
+          googlePhotos = result.photos;
           googleWriteReviewUrl = `https://search.google.com/local/writereview?placeid=${result.placeId}`;
-        }
-        if (result.regularOpeningHours) {
-          generalHours = result.regularOpeningHours;
-        }
-
-        // Save to database asynchronously to keep response fast
-        const updateData: any = {
-          google_reviews: {
-            last_updated: new Date().toISOString(),
-            rating: result.rating,
-            userRatingCount: result.userRatingCount,
-            placeId: result.placeId,
-            reviews: result.reviews,
-            photos: result.photos
+          if (result.regularOpeningHours) {
+            generalHours = result.regularOpeningHours;
           }
-        };
-        if (result.regularOpeningHours) {
-          updateData.general_operating_hours = result.regularOpeningHours;
-        }
 
-        supabaseAdmin
-          .from('tenants')
-          .update(updateData)
-          .eq('id', tenant.id)
-          .then(({ error }) => {
-            if (error) console.error('Failed to update tenant reviews/hours in DB:', error);
-          });
+          const updateData: Record<string, unknown> = {
+            google_reviews: {
+              last_updated: new Date().toISOString(),
+              last_lookup_at: new Date().toISOString(),
+              verified: true,
+              rating: result.rating,
+              userRatingCount: result.userRatingCount,
+              placeId: result.placeId,
+              reviews: result.reviews,
+              photos: result.photos,
+            },
+          };
+          if (result.regularOpeningHours) {
+            updateData.general_operating_hours = result.regularOpeningHours;
+          }
+
+          supabaseAdmin
+            .from('tenants')
+            .update(updateData)
+            .eq('id', tenant.id)
+            .then(({ error }) => {
+              if (error) console.error('Failed to update tenant reviews/hours in DB:', error);
+            });
+        } else {
+          if (cacheIsTrusted) {
+            googleReviews = cachedReviews;
+          }
+          const cooldownStamp = new Date().toISOString();
+          const existingCache =
+            tenant.google_reviews && typeof tenant.google_reviews === 'object' && !Array.isArray(tenant.google_reviews)
+              ? (tenant.google_reviews as Record<string, unknown>)
+              : {};
+          const cooldownPayload: Record<string, unknown> = {
+            ...existingCache,
+            verified: existingCache.verified === true ? true : false,
+            last_lookup_at: cooldownStamp,
+          };
+          if (!cacheIsTrusted) {
+            cooldownPayload.reviews = [];
+            cooldownPayload.photos = [];
+            cooldownPayload.rating = 5;
+            cooldownPayload.userRatingCount = 0;
+          }
+          supabaseAdmin
+            .from('tenants')
+            .update({ google_reviews: cooldownPayload })
+            .eq('id', tenant.id)
+            .then(({ error }) => {
+              if (error) console.error('Failed to record Places lookup cooldown:', error);
+            });
+        }
       } catch (err) {
         console.error('Failed fetching reviews on page load:', err);
-        googleReviews = cachedReviews;
+        googleReviews = cacheIsTrusted ? cachedReviews : [];
+        const cooldownStamp = new Date().toISOString();
+        const existingCache =
+          tenant.google_reviews && typeof tenant.google_reviews === 'object' && !Array.isArray(tenant.google_reviews)
+            ? (tenant.google_reviews as Record<string, unknown>)
+            : {};
+        supabaseAdmin
+          .from('tenants')
+          .update({
+            google_reviews: {
+              ...existingCache,
+              verified: existingCache.verified === true ? true : false,
+              last_lookup_at: cooldownStamp,
+            },
+          })
+          .eq('id', tenant.id)
+          .then(({ error }) => {
+            if (error) console.error('Failed to record Places lookup cooldown after error:', error);
+          });
       }
-    } else {
+    } else if (cacheIsTrusted) {
       googleReviews = cachedReviews;
     }
 
@@ -452,6 +380,7 @@ export async function GET(req: Request, { params }: { params: Promise<{ slug: st
     // 4. Return dynamic payload with CORS allowances for cross-domain WordPress AJAX
     return NextResponse.json(
       {
+        page_published: true,
         company_name: tenant.company_name,
         business_address: tenant.trading_address_street || tenant.business_address || '',
         postcode: tenant.trading_address_postcode || tenant.postcode || '',
@@ -480,7 +409,7 @@ export async function GET(req: Request, { params }: { params: Promise<{ slug: st
       },
       {
         status: 200,
-        headers: corsHeaders
+        headers: corsHeaders,
       }
     );
 

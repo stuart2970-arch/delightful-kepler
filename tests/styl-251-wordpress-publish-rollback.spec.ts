@@ -230,7 +230,9 @@ test.describe('STYL-251 WordPress publish diagnostics and slug rollback', () => 
             'content-type': 'application/json',
             authorization: 'Bearer styl251-webhook-secret',
           },
-          body: JSON.stringify({ record: { slug: 'styl251-hook', company_name: 'Hook Co' } }),
+          body: JSON.stringify({
+            record: { slug: 'styl251-hook', company_name: 'Hook Co', page_published: true },
+          }),
         }),
       );
       const json = (await res.json()) as { error?: string; wordpressError?: string };
