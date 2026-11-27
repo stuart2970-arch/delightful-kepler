@@ -4847,3 +4847,9 @@ Highlighted adjustments in the modal:
 * **Tests**: `tests/unit/styl-422-places-page-guard.spec.ts`; `styl-239` and `styl-251` tenant-created payloads set `page_published` where WordPress should run.
 * **Verify**: `NODE_OPTIONS='--max-old-space-size=8192' npm run typecheck`. Playwright `tests/unit/styl-422-places-page-guard.spec.ts` and `tests/styl-239-tenant-created-auth.spec.ts` — 17 passed.
 * **Follow-up (Bugbot + CI)**: `shouldTrustCachedGooglePlaces` requires cached `placeId` to match `google_maps_share_url` when present. Failed/unverified Places lookups record `last_lookup_at` for a 24h cooldown without serving or persisting wrong-business payloads. `styl-226` tenant-created fixture uses `page_published: true` so staging WordPress-disable assertions still exercise the staging guard.
+
+### Session (STYL-425 — Gemini fallback & chat persist — 27 Nov 2026)
+* **User**: STYL-425 on branch off `staging`: map retired Gemini flash-lite IDs to `gemini-3.6-flash` with a warning; persist inbound chat user messages before the model stream so stream failures cannot drop the customer turn; unit tests and PR to `staging`.
+* **Changes**: `normalizeGeminiModelId` in `src/lib/gemini-config.ts`; `persistInboundUserMessage` and early insert in `src/app/api/chat/stream/route.ts` with `onFinish` de-duplication; `tests/unit/styl-425-gemini-chat-persist.spec.ts`; CI group mapping in `scripts/ci-playwright-groups.mjs`.
+* **Verify**: `NODE_OPTIONS=--max-old-space-size=8192 npm run typecheck`; Playwright `tests/unit/styl-425-gemini-chat-persist.spec.ts` — 5 passed on local Supabase.
+* **Follow-up (Bugbot)**: Inbound user `created_at` at stream start (`Date.now()`), assistant at `max(stream end, userMs+1)` via `inboundChatUserCreatedAtIso` / `assistantChatReplyCreatedAtIso`; unit test for ordering; 6 specs passed.

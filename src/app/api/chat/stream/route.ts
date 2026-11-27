@@ -50,6 +50,11 @@ import {
 } from '@/lib/chat-preview';
 
 import { getActiveGeminiModel } from '@/lib/gemini-config';
+import {
+  assistantChatReplyCreatedAtIso,
+  inboundChatUserCreatedAtIso,
+  persistInboundUserMessage,
+} from '@/lib/chat/persist-inbound-user-message';
 import { generateEmbedding } from '@/lib/embeddings';
 import { getFirstName } from '@/lib/greeting';
 import { resolveMockModelReply } from '@/lib/env/allow-mock-reply';
@@ -1175,6 +1180,17 @@ ${staffContext}`;
     const activeModelName = await getActiveGeminiModel();
     console.log(`[Chat Stream][${requestId}] Initializing Vercel AI SDK text stream (${activeModelName})...`);
 
+    const inboundUserCreatedAtMs = Date.now();
+    const inboundUserCreatedAt = inboundChatUserCreatedAtIso(inboundUserCreatedAtMs);
+    const inboundUserMessagePersisted = await persistInboundUserMessage({
+      supabaseAdmin,
+      tenantId,
+      conversationId,
+      message,
+      requestId,
+      createdAt: inboundUserCreatedAt,
+    });
+
     let lastApiError = "";
     
     // 9. Invoke streamText (or a test mock) and setup async database transaction logging.
@@ -1225,18 +1241,18 @@ ${staffContext}`;
         onFinish: async (event) => {
           console.log(`[Chat Stream][${requestId}] AI stream finished. Logging conversation in background...`);
           try {
-            // Explicit timestamps to guarantee order
-            const now = Date.now();
-            const userTime = new Date(now - 1000).toISOString();
-            const botTime = new Date(now).toISOString();
+            const botTime = assistantChatReplyCreatedAtIso(inboundUserCreatedAtMs);
 
-            const userInsertRes = await supabaseAdmin.from('messages').insert({
-              tenant_id: tenantId,
-              conversation_id: conversationId,
-              sender_type: 'user',
-              text_content: message,
-              created_at: userTime,
-            });
+            let userInsertRes: { error: unknown | null } = { error: null };
+            if (!inboundUserMessagePersisted) {
+              userInsertRes = await supabaseAdmin.from('messages').insert({
+                tenant_id: tenantId,
+                conversation_id: conversationId,
+                sender_type: 'user',
+                text_content: message,
+                created_at: inboundUserCreatedAt,
+              });
+            }
 
             const cleanBotText = sanitiseForTranscript(event.text
               .slice(0, splitAtToolTag(event.text).before.length)
