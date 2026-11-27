@@ -6,6 +6,9 @@ import { POST as tenantCreated } from '../../src/app/api/webhooks/tenant-created
 import {
   buildPlacesTextSearchQuery,
   extractPlaceIdFromGoogleMapsInput,
+  GOOGLE_PLACES_LOOKUP_COOLDOWN_MS,
+  isGooglePlacesLookupCooldownActive,
+  readGoogleReviewsCacheMeta,
   resolveConfirmedPlaceId,
   shouldTrustCachedGooglePlaces,
   tenantHasLocationMatchContext,
@@ -41,7 +44,7 @@ test.describe('STYL-422 tenant Google Places guardrails', () => {
       placeId: 'ChIJconfirmed1234',
       reviews: [{ text: 'Great' }],
     }
-  const untrusted = {
+    const untrusted = {
       placeId: 'ChIJguess',
       reviews: [{ text: 'Wrong business' }],
     }
@@ -49,6 +52,35 @@ test.describe('STYL-422 tenant Google Places guardrails', () => {
     expect(shouldTrustCachedGooglePlaces(tenant, trusted)).toBe(true)
     expect(shouldTrustCachedGooglePlaces(tenant, untrusted)).toBe(false)
     expect(resolveConfirmedPlaceId(tenant, untrusted)).toBe('ChIJconfirmed1234')
+  })
+
+  test('rejects verified cache when cached placeId disagrees with Google Maps share URL', () => {
+    const tenant = {
+      company_name: 'Jon James',
+      google_maps_share_url: 'https://maps.google.com/?place_id=ChIJshareurl1234',
+    }
+    const mismatchedVerifiedCache = {
+      verified: true,
+      placeId: 'ChIJotherplace99',
+      reviews: [{ text: 'Wrong business cached' }],
+    }
+
+    expect(shouldTrustCachedGooglePlaces(tenant, mismatchedVerifiedCache)).toBe(false)
+  })
+
+  test('lookup cooldown uses last_lookup_at even when cache is not verified', () => {
+    const now = Date.now()
+    const recent = new Date(now - 60_000).toISOString()
+    const stale = new Date(now - GOOGLE_PLACES_LOOKUP_COOLDOWN_MS - 1_000).toISOString()
+
+    expect(isGooglePlacesLookupCooldownActive(readGoogleReviewsCacheMeta({
+      verified: false,
+      last_lookup_at: recent,
+    }), now)).toBe(true)
+    expect(isGooglePlacesLookupCooldownActive(readGoogleReviewsCacheMeta({
+      verified: false,
+      last_lookup_at: stale,
+    }), now)).toBe(false)
   })
 
   test('fetchTenantGooglePlacesBundle skips searchText for name-only tenants', async () => {
@@ -133,6 +165,8 @@ test.describe('STYL-422 metadata route publish gate', () => {
     expect(routeSrc).toContain('fetchTenantGooglePlacesBundle')
     expect(routeSrc).toContain('verified: true')
     expect(routeSrc).toContain('shouldTrustCachedGooglePlaces')
+    expect(routeSrc).toContain('last_lookup_at')
+    expect(routeSrc).toContain('isGooglePlacesLookupCooldownActive')
   })
 })
 

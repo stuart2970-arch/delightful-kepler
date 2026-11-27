@@ -17,6 +17,36 @@ export type TenantGoogleReviewsCache = {
   reviews?: unknown[]
   photos?: unknown[]
   last_updated?: string
+  last_lookup_at?: string
+}
+
+export const GOOGLE_PLACES_LOOKUP_COOLDOWN_MS = 24 * 60 * 60 * 1000
+
+export type GoogleReviewsCacheMeta = {
+  last_updated?: string
+  last_lookup_at?: string
+}
+
+export const readGoogleReviewsCacheMeta = (googleReviews: unknown): GoogleReviewsCacheMeta => {
+  if (!googleReviews || typeof googleReviews !== 'object' || Array.isArray(googleReviews)) {
+    return {}
+  }
+  const cache = googleReviews as TenantGoogleReviewsCache
+  return {
+    last_updated: typeof cache.last_updated === 'string' ? cache.last_updated : undefined,
+    last_lookup_at: typeof cache.last_lookup_at === 'string' ? cache.last_lookup_at : undefined,
+  }
+}
+
+export const isGooglePlacesLookupCooldownActive = (
+  meta: GoogleReviewsCacheMeta,
+  nowMs = Date.now(),
+): boolean => {
+  const anchor = meta.last_lookup_at || meta.last_updated
+  if (!anchor) return false
+  const anchorMs = new Date(anchor).getTime()
+  if (Number.isNaN(anchorMs)) return false
+  return nowMs - anchorMs < GOOGLE_PLACES_LOOKUP_COOLDOWN_MS
 }
 
 const PLACE_ID_INLINE = /^(ChIJ|GhIJ)[a-zA-Z0-9_-]{10,}$/
@@ -111,8 +141,18 @@ export const shouldTrustCachedGooglePlaces = (
   const cache = googleReviews as TenantGoogleReviewsCache
   if (cache.verified !== true) return false
   if (typeof cache.placeId !== 'string' || !cache.placeId.trim()) return false
+
+  const placeIdFromShareUrl = extractPlaceIdFromGoogleMapsInput(tenant.google_maps_share_url)
+  if (placeIdFromShareUrl && cache.placeId.trim() !== placeIdFromShareUrl) {
+    return false
+  }
+
   const confirmed = resolveConfirmedPlaceId(tenant, googleReviews)
-  return Boolean(confirmed)
+  if (!confirmed) return false
+  if (placeIdFromShareUrl) {
+    return confirmed === placeIdFromShareUrl
+  }
+  return cache.placeId.trim() === confirmed
 }
 
 export const matchPlaceToTenant = (

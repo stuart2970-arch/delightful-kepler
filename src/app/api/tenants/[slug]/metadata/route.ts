@@ -1,7 +1,12 @@
 import { NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import { fetchTenantGooglePlacesBundle } from '@/lib/google/fetch-tenant-google-places';
-import { shouldTrustCachedGooglePlaces } from '@/lib/google/tenant-places-metadata';
+import {
+  GOOGLE_PLACES_LOOKUP_COOLDOWN_MS,
+  isGooglePlacesLookupCooldownActive,
+  readGoogleReviewsCacheMeta,
+  shouldTrustCachedGooglePlaces,
+} from '@/lib/google/tenant-places-metadata';
 import { withUnpublishedRobotsHeaders } from '@/lib/tenants/public-business-page';
 
 // Helper function to safely initialize Supabase Admin Client (preventing build-time failures when keys are absent)
@@ -217,11 +222,19 @@ export async function GET(req: Request, { params }: { params: Promise<{ slug: st
     }
 
     const apiKey = process.env.GOOGLE_PLACES_SERVER_API_KEY || process.env.GOOGLE_PLACES_API_KEY || process.env.GOOGLE_MAPS_API_KEY;
-    const isCacheExpired = !lastUpdated || (Date.now() - new Date(lastUpdated).getTime() > 24 * 60 * 60 * 1000);
+    const cacheMeta = readGoogleReviewsCacheMeta(tenant.google_reviews);
+    const lookupCooldownActive = isGooglePlacesLookupCooldownActive(cacheMeta);
+    const trustedCacheExpired =
+      !lastUpdated
+      || (Date.now() - new Date(lastUpdated).getTime() > GOOGLE_PLACES_LOOKUP_COOLDOWN_MS);
+    const shouldAttemptPlacesLookup =
+      Boolean(apiKey)
+      && !lookupCooldownActive
+      && (!cacheIsTrusted || cachedReviews.length === 0 || trustedCacheExpired);
 
-    if (apiKey && (!cacheIsTrusted || cachedReviews.length === 0 || isCacheExpired)) {
+    if (shouldAttemptPlacesLookup) {
       try {
-        const result = await fetchTenantGooglePlacesBundle(tenant, apiKey);
+        const result = await fetchTenantGooglePlacesBundle(tenant, apiKey as string);
         if (result.verified && result.placeId) {
           googleReviews = result.reviews;
           googleRating = result.rating;
@@ -235,6 +248,7 @@ export async function GET(req: Request, { params }: { params: Promise<{ slug: st
           const updateData: Record<string, unknown> = {
             google_reviews: {
               last_updated: new Date().toISOString(),
+              last_lookup_at: new Date().toISOString(),
               verified: true,
               rating: result.rating,
               userRatingCount: result.userRatingCount,
@@ -254,12 +268,55 @@ export async function GET(req: Request, { params }: { params: Promise<{ slug: st
             .then(({ error }) => {
               if (error) console.error('Failed to update tenant reviews/hours in DB:', error);
             });
-        } else if (cacheIsTrusted) {
-          googleReviews = cachedReviews;
+        } else {
+          if (cacheIsTrusted) {
+            googleReviews = cachedReviews;
+          }
+          const cooldownStamp = new Date().toISOString();
+          const existingCache =
+            tenant.google_reviews && typeof tenant.google_reviews === 'object' && !Array.isArray(tenant.google_reviews)
+              ? (tenant.google_reviews as Record<string, unknown>)
+              : {};
+          const cooldownPayload: Record<string, unknown> = {
+            ...existingCache,
+            verified: existingCache.verified === true ? true : false,
+            last_lookup_at: cooldownStamp,
+          };
+          if (!cacheIsTrusted) {
+            cooldownPayload.reviews = [];
+            cooldownPayload.photos = [];
+            cooldownPayload.rating = 5;
+            cooldownPayload.userRatingCount = 0;
+          }
+          supabaseAdmin
+            .from('tenants')
+            .update({ google_reviews: cooldownPayload })
+            .eq('id', tenant.id)
+            .then(({ error }) => {
+              if (error) console.error('Failed to record Places lookup cooldown:', error);
+            });
         }
       } catch (err) {
         console.error('Failed fetching reviews on page load:', err);
         googleReviews = cacheIsTrusted ? cachedReviews : [];
+        const cooldownStamp = new Date().toISOString();
+        const existingCache =
+          tenant.google_reviews && typeof tenant.google_reviews === 'object' && !Array.isArray(tenant.google_reviews)
+            ? (tenant.google_reviews as Record<string, unknown>)
+            : {};
+        supabaseAdmin
+          .from('tenants')
+          .update({
+            google_reviews: {
+              ...existingCache,
+              verified: existingCache.verified === true ? true : false,
+              last_lookup_at: cooldownStamp,
+            },
+          })
+          .eq('id', tenant.id)
+          .then(({ error }) => {
+            if (error) console.error('Failed to record Places lookup cooldown after error:', error);
+          });
       }
     } else if (cacheIsTrusted) {
       googleReviews = cachedReviews;
