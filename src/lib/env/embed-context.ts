@@ -120,9 +120,19 @@ export function appOriginForPostMessage(): string {
 export function resolveSfPathRedirect(searchParams: URLSearchParams): string | null {
   const sfPath = searchParams.get('sf_path');
   if (!sfPath || !sfPath.startsWith('/') || sfPath.startsWith('//')) return null;
-  const rest = new URLSearchParams(searchParams);
-  rest.delete('sf_path');
-  rest.delete('embed');
-  const query = rest.toString();
-  return query ? `${sfPath}?${query}` : sfPath;
+  const parsed = new URL(sfPath, 'http://embed.local');
+  const merged = new URLSearchParams(parsed.search);
+  searchParams.forEach((value, key) => {
+    if (key === 'sf_path' || key === 'embed') return;
+    if (!merged.has(key)) merged.set(key, value);
+  });
+  const query = merged.toString();
+  return query ? `${parsed.pathname}?${query}` : parsed.pathname;
+}
+
+/** Normalised in-app path + search for sf_path redirect comparisons (no origin). */
+export function normalizedAppPathSearch(pathname: string, search: string): string {
+  const path = pathname.startsWith('/') ? pathname : `/${pathname}`;
+  const qs = search.startsWith('?') ? search : search ? `?${search}` : '';
+  return `${path}${qs}`;
 }

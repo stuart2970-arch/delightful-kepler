@@ -4,6 +4,7 @@ import {
   embedAwarePublicPath,
   resolveEmbedParentOrigin,
 } from '../src/lib/env/embed-parent';
+import { resolveSfPathRedirect } from '../src/lib/env/embed-context';
 import {
   isAllowedEmbedParentReturnUrl,
   publicAppPath,
@@ -65,6 +66,15 @@ test.describe('STYL-423/424 embed URL helpers', () => {
         NEXT_PUBLIC_EMBED_EMAIL_VIA_PARENT: 'true',
       }),
     ).toContain('/app/?sf_path=%2Flogin');
+  });
+
+  test('resolveSfPathRedirect merges query encoded inside sf_path', () => {
+    const params = new URLSearchParams(
+      'embed=styleflo&sf_path=%2Fdashboard%3Ftab%3Dbilling&checkout_status=success',
+    );
+    expect(resolveSfPathRedirect(params)).toBe(
+      '/dashboard?tab=billing&checkout_status=success',
+    );
   });
 
   test('resolveEmbedParentOrigin prefers NEXT_PUBLIC_EMBED_PARENT_URL', () => {

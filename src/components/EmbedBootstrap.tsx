@@ -4,6 +4,7 @@ import { useEffect } from 'react';
 import {
   initEmbedFromQuery,
   installEmbedHelloListener,
+  normalizedAppPathSearch,
   resolveSfPathRedirect,
   STYLEFLO_AUTH_DONE,
   STYLEFLO_OAUTH_DONE,
@@ -20,8 +21,16 @@ export default function EmbedBootstrap() {
     const teardownHello = installEmbedHelloListener();
 
     const sfTarget = resolveSfPathRedirect(params);
-    if (sfTarget && window.location.pathname !== sfTarget.split('?')[0]) {
-      window.location.replace(sfTarget);
+    if (sfTarget) {
+      const target = new URL(sfTarget, window.location.origin);
+      const desired = normalizedAppPathSearch(target.pathname, target.search);
+      const current = normalizedAppPathSearch(
+        window.location.pathname,
+        window.location.search,
+      );
+      if (desired !== current) {
+        window.location.replace(desired);
+      }
     }
 
     const onMessage = (event: MessageEvent) => {

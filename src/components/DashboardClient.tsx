@@ -649,12 +649,14 @@ const globalBotId = '00000000-0000-0000-0000-000000000000';
   const handleSubscribeFoundation = async () => {
     setIsStartingFoundationCheckout(true);
     setBillingMessage(null);
+    setBillingPortalFallbackUrl(null);
     try {
       const result = await openBillingCheckoutFromApi({
         plan: 'foundation',
         returnUrl: dashboardReturnUrl('/dashboard?tab=billing'),
       });
       if (!result.ok) {
+        if (result.checkoutUrl) setBillingPortalFallbackUrl(result.checkoutUrl);
         setBillingMessage(result.error);
         setIsStartingFoundationCheckout(false);
         return;
@@ -1129,7 +1131,7 @@ const globalBotId = '00000000-0000-0000-0000-000000000000';
                           rel="noopener noreferrer"
                           className="text-[#198fd9] font-semibold hover:underline"
                         >
-                          Continue to secure billing portal
+                          Continue to secure checkout
                         </a>
                       ) : null}
                     </div>
