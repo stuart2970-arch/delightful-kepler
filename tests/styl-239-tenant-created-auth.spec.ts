@@ -13,7 +13,7 @@ const PII_NOTE = 'raw-payload-marker';
 
 type FetchCall = { url: string; init?: RequestInit };
 
-function payload() {
+function payload(pagePublished = true) {
   return {
     record: {
       id: 'tenant_test_1',
@@ -24,6 +24,7 @@ function payload() {
       phone: PII_PHONE,
       token: 'payload-token-marker',
       note: PII_NOTE,
+      page_published: pagePublished,
     },
   };
 }
@@ -182,7 +183,7 @@ test.describe('STYL-239: tenant-created webhook requires a shared secret', () =>
     });
   });
 
-  test('valid Bearer with publish enabled calls the mocked WordPress endpoint once', async () => {
+  test('valid Bearer with publish enabled and page_published calls the mocked WordPress endpoint once', async () => {
     await withIsolatedEnv(async ({ fetches, logs }) => {
       enablePublishConfig();
       process.env.TENANT_CREATED_WEBHOOK_SECRET = WEBHOOK_SECRET;

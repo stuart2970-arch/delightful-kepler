@@ -68,6 +68,7 @@ export const CI_PLAYWRIGHT_GROUPS = [
       /tests\/unit\/lead-notifier-html\.spec\.ts$/,
       /tests\/styl-292-lead-email-columns\.spec\.ts$/,
       /tests\/unit\/styl-310-conversation-metering\.spec\.ts$/,
+      /tests\/unit\/styl-425-gemini-chat-persist\.spec\.ts$/,
     ],
   },
   {

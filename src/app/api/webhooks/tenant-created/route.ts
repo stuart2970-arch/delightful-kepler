@@ -59,6 +59,13 @@ export async function POST(req: NextRequest) {
 
     const name = record.company_name || record.name || 'Unnamed Business';
 
+    if (record.page_published !== true) {
+      return NextResponse.json(
+        { success: true, skipped: true, reason: 'Business page is not published' },
+        { status: 200 },
+      );
+    }
+
     const wpConfig = getWordpressPublishConfig();
     if (!wpConfig.enabled) {
       return NextResponse.json({ success: false, error: wpConfig.reason }, { status: 200 });

@@ -9,6 +9,41 @@ export const PRESET_GEMINI_MODELS = [
   { id: 'gemini-flash-latest', label: 'gemini-flash-latest (Auto-updates to Google\'s Latest Flash)' },
 ];
 
+const LEGACY_GEMINI_MODELS = new Set([
+  'gemini-2.5-flash',
+  'gemini-2.0-flash',
+  'gemini-1.5-flash',
+  'gemini-1.5-pro',
+  'gemini-2.5-flash-lite',
+]);
+
+const FLASH_LITE_PATTERN = /flash-lite/i;
+
+/**
+ * Maps retired or unsupported Gemini model IDs to the active default (STYL-425).
+ */
+export function normalizeGeminiModelId(raw: string, source?: string): string {
+  const trimmed = typeof raw === 'string' ? raw.trim() : '';
+  if (!trimmed) return DEFAULT_GEMINI_MODEL;
+
+  const resolved = trimmed.replace(/^models\//i, '');
+  const isLegacy = LEGACY_GEMINI_MODELS.has(resolved);
+  const isFlashLite = FLASH_LITE_PATTERN.test(resolved);
+
+  if (!isLegacy && !isFlashLite) {
+    return resolved;
+  }
+
+  if (resolved !== DEFAULT_GEMINI_MODEL) {
+    const suffix = source ? ` (source: ${source})` : '';
+    console.warn(
+      `[Gemini Config] Retired or unsupported model "${resolved}"${suffix}; using ${DEFAULT_GEMINI_MODEL}`,
+    );
+  }
+
+  return DEFAULT_GEMINI_MODEL;
+}
+
 /**
  * Resolves the active Gemini model ID dynamically from Superadmin global settings.
  * Caches in memory for 60 seconds to maximize throughput and zero latency overhead.
@@ -16,7 +51,7 @@ export const PRESET_GEMINI_MODELS = [
 export async function getActiveGeminiModel(): Promise<string> {
   const now = Date.now();
   if (cachedModel && (now - cachedModel.fetchedAt < 60000)) {
-    return cachedModel.model;
+    return normalizeGeminiModelId(cachedModel.model, 'cache');
   }
 
   try {
@@ -36,10 +71,7 @@ export async function getActiveGeminiModel(): Promise<string> {
 
       const configuredModel = globalBot?.configuration_json?.default_gemini_model;
       if (configuredModel && typeof configuredModel === 'string' && configuredModel.trim()) {
-        let resolved = configuredModel.trim().replace(/^models\//i, '');
-        if (resolved === 'gemini-2.5-flash' || resolved === 'gemini-2.0-flash' || resolved === 'gemini-1.5-flash' || resolved === 'gemini-1.5-pro') {
-          resolved = 'gemini-3.6-flash';
-        }
+        const resolved = normalizeGeminiModelId(configuredModel, 'superadmin');
         cachedModel = { model: resolved, fetchedAt: now };
         return resolved;
       }
@@ -48,10 +80,10 @@ export async function getActiveGeminiModel(): Promise<string> {
     console.warn('[Gemini Config] Failed to fetch active model from DB, using fallback:', err);
   }
 
-  let envModel = (process.env.DEFAULT_GEMINI_MODEL || process.env.GEMINI_MODEL || DEFAULT_GEMINI_MODEL).trim().replace(/^models\//i, '');
-  if (envModel === 'gemini-2.5-flash' || envModel === 'gemini-2.0-flash' || envModel === 'gemini-1.5-flash' || envModel === 'gemini-1.5-pro') {
-    envModel = 'gemini-3.6-flash';
-  }
+  const envModel = normalizeGeminiModelId(
+    process.env.DEFAULT_GEMINI_MODEL || process.env.GEMINI_MODEL || DEFAULT_GEMINI_MODEL,
+    'env',
+  );
   cachedModel = { model: envModel, fetchedAt: now };
   return envModel;
 }
