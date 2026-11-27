@@ -714,11 +714,17 @@ test.describe('Bolt-on webhook detection and fulfilment', () => {
             customer: 'cus_base',
             customer_details: { email: 'owner@example.com' },
             metadata: { tenant_id: TENANT_ID, plan_tier: 'base_tier' },
+            subscription: 'sub_base_checkout',
           },
         },
       },
       {
         supabaseAdmin: db,
+        stripe: {
+          subscriptions: {
+            retrieve: async () => ({ status: 'active', trial_end: null }),
+          },
+        },
         allocateRollingCredits: async (tenantId, featureId, quantity, addonId) => {
           allocations.push([tenantId, featureId, quantity, addonId]);
         },
