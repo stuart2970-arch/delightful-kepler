@@ -102,7 +102,11 @@ test.describe('STYL-264 breach, data rights and retention', () => {
     const admin = service()
     const { data: tenant, error } = await admin
       .from('tenants')
-      .insert({ company_name: 'Retention Test Salon' })
+      .insert({
+        company_name: 'Retention Test Salon',
+        is_active: true,
+        subscription_status: 'active',
+      })
       .select('id')
       .single()
     if (error || !tenant) throw new Error(error?.message || 'tenant')

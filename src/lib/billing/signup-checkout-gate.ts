@@ -8,6 +8,18 @@ export const PENDING_FOUNDATION_CHECKOUT_STATUSES = new Set([
   'unpaid',
 ])
 
+/** Foundation free-trial length in days; bolt-ons are not sold at signup when this is greater than zero. */
+export function foundationSignupTrialDays(): number {
+  const raw = (process.env.NEXT_PUBLIC_FOUNDATION_TRIAL_DAYS ?? '14').trim()
+  const parsed = Number.parseInt(raw, 10)
+  if (!Number.isFinite(parsed) || parsed < 0) return 14
+  return parsed
+}
+
+export function signupAllowsBoltOnsAtCheckout(): boolean {
+  return foundationSignupTrialDays() === 0
+}
+
 export type SignupCheckoutGateInput = {
   role?: string | null
   is_super_admin?: boolean | null
@@ -61,7 +73,13 @@ export function resolvePostSignupCheckoutNext(metadata: Record<string, unknown> 
   const promo = typeof metadata?.promo_applied === 'string' ? metadata.promo_applied : ''
   const addonsRaw = metadata?.selected_addons
   let addons: string | undefined
-  if (typeof addonsRaw === 'string' && addonsRaw.trim()) addons = addonsRaw.trim()
+  if (
+    signupAllowsBoltOnsAtCheckout() &&
+    typeof addonsRaw === 'string' &&
+    addonsRaw.trim()
+  ) {
+    addons = addonsRaw.trim()
+  }
   void promo
   return buildSignupCheckoutPath({ plan, addons, returnUrl: '/payment-confirmed' })
 }

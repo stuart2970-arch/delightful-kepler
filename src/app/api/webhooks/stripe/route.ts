@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
+import Stripe from 'stripe';
 import { parseStripeWebhookEvent } from '@/lib/env/stripe-webhook';
 import { handleStripeBillingEvent } from '@/lib/billing/process-stripe-webhook';
 import { notifyBoltOnsAddedFromStripeEvent } from '@/lib/email/system/triggers/batch2/bolt-on-added';
@@ -13,6 +14,20 @@ function getSupabaseAdmin() {
     throw new Error('Missing Supabase service role key');
   }
   return createClient(supabaseUrl, serviceRoleKey);
+}
+
+function stripeWebhookDeps() {
+  const apiKey = (process.env.STRIPE_SECRET_KEY || '').trim();
+  if (!apiKey) return undefined;
+  const stripe = new Stripe(apiKey, { apiVersion: '2023-10-16' as Stripe.LatestApiVersion });
+  return {
+    subscriptions: {
+      retrieve: async (id: string) => {
+        const sub = await stripe.subscriptions.retrieve(id);
+        return { status: sub.status, trial_end: sub.trial_end };
+      },
+    },
+  };
 }
 
 export async function POST(req: Request) {
@@ -34,6 +49,7 @@ export async function POST(req: Request) {
 
     const result = await handleStripeBillingEvent(event, {
       supabaseAdmin,
+      stripe: stripeWebhookDeps(),
     });
     if (result.status >= 200 && result.status < 300) {
       try {

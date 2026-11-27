@@ -11,10 +11,16 @@ import {
 } from '@/lib/auth/email-confirmation-redirect'
 import {
   buildSignupCheckoutPath,
+  foundationSignupTrialDays,
   resolvePostSignupCheckoutNext,
+  signupAllowsBoltOnsAtCheckout,
   tenantRequiresFoundationCheckout,
 } from '@/lib/billing/signup-checkout-gate'
-import { foundationTenantStatusFromCheckoutSession } from '@/lib/billing/process-stripe-webhook'
+import {
+  foundationTenantStatusFromCheckoutSession,
+  mapStripeFoundationSubscriptionToTenant,
+  resolveFoundationCheckoutTenantStatus,
+} from '@/lib/billing/foundation-checkout-session'
 
 test.describe('STYL-421 signup checkout gate', () => {
   test('new owner with incomplete status must finish checkout', () => {
@@ -96,6 +102,30 @@ test.describe('STYL-421 signup checkout gate', () => {
       'addons=google_calendar_addon',
     )
   })
+
+  test('preserves selected_addons in checkout next only when foundation trial is zero days', () => {
+    const prev = process.env.NEXT_PUBLIC_FOUNDATION_TRIAL_DAYS
+    try {
+      process.env.NEXT_PUBLIC_FOUNDATION_TRIAL_DAYS = '0'
+      expect(signupAllowsBoltOnsAtCheckout()).toBe(true)
+      const withAddons = resolvePostSignupCheckoutNext({
+        selected_plan: 'foundation',
+        selected_addons: 'google_calendar_addon,mobile_addon',
+      })
+      expect(withAddons).toContain('addons=google_calendar_addon%2Cmobile_addon')
+
+      process.env.NEXT_PUBLIC_FOUNDATION_TRIAL_DAYS = '14'
+      expect(foundationSignupTrialDays()).toBe(14)
+      const trialPath = resolvePostSignupCheckoutNext({
+        selected_plan: 'foundation',
+        selected_addons: 'google_calendar_addon',
+      })
+      expect(trialPath).not.toContain('addons=')
+    } finally {
+      if (prev === undefined) delete process.env.NEXT_PUBLIC_FOUNDATION_TRIAL_DAYS
+      else process.env.NEXT_PUBLIC_FOUNDATION_TRIAL_DAYS = prev
+    }
+  })
 })
 
 test.describe('STYL-420 cross-device email confirmation', () => {
@@ -134,6 +164,7 @@ test.describe('STYL-421 webhook tenant status from checkout session', () => {
     })
     expect(result.subscription_status).toBe('trialing')
     expect(result.trial_ends_at).toBeTruthy()
+    expect(result.activateTenant).toBe(true)
   })
 
   test('maps active subscriptions after immediate charge', () => {
@@ -141,5 +172,33 @@ test.describe('STYL-421 webhook tenant status from checkout session', () => {
       subscription: { status: 'active', trial_end: null },
     })
     expect(result.subscription_status).toBe('active')
+    expect(result.activateTenant).toBe(true)
+  })
+
+  test('does not coerce incomplete or canceled Stripe statuses to active', () => {
+    for (const status of ['incomplete', 'incomplete_expired', 'canceled', 'unpaid', '']) {
+      const mapped = mapStripeFoundationSubscriptionToTenant(status)
+      expect(mapped.subscription_status).not.toBe('active')
+      expect(mapped.activateTenant).toBe(false)
+    }
+  })
+
+  test('retrieves subscription by string id when webhook payload is not expanded', async () => {
+    const resolved = await resolveFoundationCheckoutTenantStatus(
+      { subscription: 'sub_test_compact' },
+      async (id) => {
+        expect(id).toBe('sub_test_compact')
+        return { status: 'trialing', trial_end: 1_800_000_000 }
+      },
+    )
+    expect(resolved.subscription_status).toBe('trialing')
+    expect(resolved.activateTenant).toBe(true)
+    expect(resolved.trial_ends_at).toBeTruthy()
+  })
+
+  test('string subscription id without retrieve stays incomplete and inactive', async () => {
+    const resolved = await resolveFoundationCheckoutTenantStatus({ subscription: 'sub_missing_client' })
+    expect(resolved.subscription_status).toBe('incomplete')
+    expect(resolved.activateTenant).toBe(false)
   })
 })

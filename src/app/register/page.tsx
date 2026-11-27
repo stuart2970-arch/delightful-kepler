@@ -299,6 +299,7 @@ function RegisterContent() {
             slug: finalSlug,
             selected_plan: planParam,
             promo_applied: promoParam,
+            ...(hasAddons ? { selected_addons: addonsList.join(',') } : {}),
             terms_accepted: true,
             terms_accepted_at: new Date().toISOString(),
             terms_version: 'v1.0',

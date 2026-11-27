@@ -361,6 +361,12 @@ test.describe('STYL-225 banned words and reserved names', () => {
     const userId = created.data.user!.id
     const { data: tenant } = await admin.from('tenants').select('id').eq('slug', slug).single()
     try {
+      if (tenant?.id) {
+        await admin
+          .from('tenants')
+          .update({ is_active: true, subscription_status: 'active' })
+          .eq('id', tenant.id)
+      }
       await page.goto('/login')
       await page.locator('input[type="email"]').fill(email)
       await page.locator('input[type="password"]').fill('Password123!')
