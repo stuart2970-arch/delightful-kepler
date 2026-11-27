@@ -80,7 +80,8 @@ ${codename} stable" | sudo tee /etc/apt/sources.list.d/docker.list > /dev/null
     docker-ce-cli="${DOCKER_CE_PKG_VERSION}" \
     containerd.io \
     docker-buildx-plugin \
-    docker-compose-plugin
+    docker-compose-plugin \
+    postgresql-client
 
   ensure_docker_nested_config
 
