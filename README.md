@@ -4840,3 +4840,8 @@ Highlighted adjustments in the modal:
 * **Verify**: Pre-push Playwright on local Supabase — 146 passed, including `tests/styl-275-account-closure.spec.ts` (day 24, 31, 37, 61 and 68, reopen inside the window, a second sweep that sends and deletes nothing, and the data-only reminder). `npx tsc --noEmit` passed. No live Twilio, Vapi or Mailgun calls.
 * **Follow-up**: A closure the sweep records for the first time uses that sweep's time as `closed_at`, not the earlier trial end or cancellation. An expired trial found with no `account_closures` row gets the full 31 days and the day-24 reminder. It is not deleted on the sweep that first sees it.
 * **Follow-up**: A plan cancellation source key includes the Stripe event id, so a second cancellation after a reopen opens a new hold. Closure release marks `tenant_phone_number_purchases.status` as `released`. `clearTenantPhonePurchase` still deletes the row for deprovision.
+
+### Session (STYL-425 — Gemini fallback & chat persist — 27 Nov 2026)
+* **User**: STYL-425 on branch off `staging`: map retired Gemini flash-lite IDs to `gemini-3.6-flash` with a warning; persist inbound chat user messages before the model stream so stream failures cannot drop the customer turn; unit tests and PR to `staging`.
+* **Changes**: `normalizeGeminiModelId` in `src/lib/gemini-config.ts`; `persistInboundUserMessage` and early insert in `src/app/api/chat/stream/route.ts` with `onFinish` de-duplication; `tests/unit/styl-425-gemini-chat-persist.spec.ts`; CI group mapping in `scripts/ci-playwright-groups.mjs`.
+* **Verify**: `NODE_OPTIONS=--max-old-space-size=8192 npm run typecheck`; Playwright `tests/unit/styl-425-gemini-chat-persist.spec.ts` — 5 passed on local Supabase.
