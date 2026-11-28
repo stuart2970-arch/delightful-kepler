@@ -15,13 +15,15 @@
     (function() {
       var urlParams = new URLSearchParams(window.location.search);
       var sitekey = (urlParams.get('sitekey') || '').trim();
+      var parentOriginParam = (urlParams.get('parent_origin') || '').trim();
       var widgetId = null;
 
       // The parent is the customer website, not the app. postMessage must
-      // target that parent origin (from the referrer). Using the app origin
-      // as the target would drop the token on every third-party embed.
+      // target that parent origin. Referrer is unreliable on mobile Chrome
+      // (stripped/cross-site), so the widget passes parent_origin explicitly.
       // The widget checks event.origin is this app page before accepting it.
       function parentTargetOrigin() {
+        if (parentOriginParam) return parentOriginParam;
         try {
           if (document.referrer) return new URL(document.referrer).origin;
         } catch (e) {}

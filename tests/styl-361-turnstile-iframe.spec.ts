@@ -20,6 +20,18 @@ function read(rel: string) {
 
 test.describe('STYL-361: Turnstile stays on the app origin', () => {
   test('widget source inlines the site key and never renders Turnstile on the host page', () => {
+    const bridge = read('src/widget/turnstile-bridge.ts');
+    expect(bridge).not.toContain('challenges.cloudflare.com/turnstile');
+    expect(bridge).not.toContain(LIVE_SITE_KEY);
+    expect(bridge).toContain('resolveTurnstileSiteKey');
+    expect(bridge).toContain('event.origin !== this.deps.appOrigin');
+    expect(bridge).toContain('event.source !== iframe.contentWindow');
+    expect(bridge).toContain('STYLEFLO_TURNSTILE_INTERACTIVE');
+    expect(bridge).toContain('styleflo-turnstile-overlay');
+    expect(bridge).toContain('30000');
+    expect(bridge).toContain("console.error('[StyleFlo Widget] Turnstile error:'");
+    expect(bridge).not.toContain('document.body.appendChild(iframe)');
+
     for (const rel of ['src/widget/index.ts', 'src/widget/embed.ts']) {
       const src = read(rel);
       expect(src, rel).not.toMatch(/typeof process\s*!==\s*['"]undefined['"]/);
@@ -28,15 +40,8 @@ test.describe('STYL-361: Turnstile stays on the app origin', () => {
       expect(src, rel).not.toContain('challenges.cloudflare.com/turnstile');
       expect(src, rel).not.toContain(LIVE_SITE_KEY);
       expect(src, rel).toContain('process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY');
-      expect(src, rel).toContain('/api/config/public');
-      expect(src, rel).toContain('resolveTurnstileSiteKey');
-      expect(src, rel).toContain('event.origin !== appOrigin');
-      expect(src, rel).toContain('event.source !== iframe.contentWindow');
-      expect(src, rel).toContain('STYLEFLO_TURNSTILE_INTERACTIVE');
-      expect(src, rel).toContain('styleflo-turnstile-overlay');
+      expect(src, rel).toContain('TurnstileBridge');
       expect(src, rel).toContain('.styleflo-chat-window');
-      expect(src, rel).toContain('30000');
-      expect(src, rel).toContain("console.error('[StyleFlo Widget] Turnstile error:'");
       expect(src, rel).not.toContain('document.body.appendChild(iframe)');
     }
   });
@@ -47,6 +52,7 @@ test.describe('STYL-361: Turnstile stays on the app origin', () => {
     expect(html).toContain("'before-interactive-callback'");
     expect(html).toContain('STYLEFLO_TURNSTILE_INTERACTIVE');
     expect(html).toContain('document.referrer');
+    expect(html).toContain('parent_origin');
     expect(html).toContain("console.error('[StyleFlo Turnstile Bridge] error:'");
     expect(html).toContain('event.source !== window.parent');
     expect(html).not.toMatch(/postMessage\(\s*payload\s*,\s*['"]\*['"]\s*\)/);
@@ -92,7 +98,9 @@ test.describe('STYL-361: Turnstile stays on the app origin', () => {
             try { return document.referrer ? new URL(document.referrer).origin : '*'; }
             catch (e) { return '*'; }
           }
-          parent.postMessage({ type: 'STYLEFLO_TURNSTILE_INTERACTIVE' }, target());
+          window.__sendInteractive = function () {
+            parent.postMessage({ type: 'STYLEFLO_TURNSTILE_INTERACTIVE' }, target());
+          };
           window.__sendToken = function () {
             parent.postMessage({ type: 'STYLEFLO_TURNSTILE_TOKEN', token: 'bridge-token' }, target());
           };
@@ -126,6 +134,14 @@ test.describe('STYL-361: Turnstile stays on the app origin', () => {
     await host.locator('#styleflo-chat-form').evaluate((form: HTMLFormElement) => {
       if (typeof form.requestSubmit === 'function') form.requestSubmit();
       else form.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }));
+    });
+
+    await expect.poll(() => page.frames().some((item) => item.url().includes('turnstile.html')), {
+      timeout: 15000,
+    }).toBe(true);
+    const frame = page.frames().find((item) => item.url().includes('turnstile.html'));
+    await frame!.evaluate(() => {
+      (window as unknown as { __sendInteractive: () => void }).__sendInteractive();
     });
 
     await expect.poll(async () => {
@@ -171,8 +187,6 @@ test.describe('STYL-361: Turnstile stays on the app origin', () => {
     await page.waitForTimeout(400);
     expect(tokens).not.toContain('forged-token');
 
-    const frame = page.frames().find((item) => item.url().includes('turnstile.html'));
-    expect(frame).toBeTruthy();
     await frame!.evaluate(() => {
       (window as unknown as { __sendToken: () => void }).__sendToken();
     });

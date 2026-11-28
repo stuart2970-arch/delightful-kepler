@@ -4868,3 +4868,10 @@ Highlighted adjustments in the modal:
 * **Changes**: `normalizeGeminiModelId` in `src/lib/gemini-config.ts`; `persistInboundUserMessage` and early insert in `src/app/api/chat/stream/route.ts` with `onFinish` de-duplication; `tests/unit/styl-425-gemini-chat-persist.spec.ts`; CI group mapping in `scripts/ci-playwright-groups.mjs`.
 * **Verify**: `NODE_OPTIONS=--max-old-space-size=8192 npm run typecheck`; Playwright `tests/unit/styl-425-gemini-chat-persist.spec.ts` — 5 passed on local Supabase.
 * **Follow-up (Bugbot)**: Inbound user `created_at` at stream start (`Date.now()`), assistant at `max(stream end, userMs+1)` via `inboundChatUserCreatedAtIso` / `assistantChatReplyCreatedAtIso`; unit test for ordering; 6 specs passed.
+
+### Session (Turnstile prewarm, gate pending state, mobile embed — 28 Nov 2026)
+* **User**: Fix production Chrome Android widget Turnstile failures (no `public-init`, silent gate success) and improve gate UX on staging.
+* **Root cause**: `turnstile.html` targeted `postMessage` via `document.referrer`, which is often missing/stripped on mobile Chrome embeds, so tokens never reached the shadow-DOM parent; the gate caught session init errors but still opened chat; each message spawned a new Turnstile iframe.
+* **Changes**: `src/widget/turnstile-bridge.ts` (single iframe, prewarm mount + reset, token cache/consume, retry UI, mobile iframe sizing); widget embed/index wired to bridge; gate shows **Connecting securely…** and blocks chat without a session; `public/turnstile.html` accepts `parent_origin` query param.
+* **Tests**: `tests/styl-turnstile-prewarm-mobile.spec.ts`; updated `tests/styl-361-turnstile-iframe.spec.ts`.
+* **Verify**: `npm run build:widget`; Playwright `tests/styl-turnstile-prewarm-mobile.spec.ts` + `tests/styl-361-turnstile-iframe.spec.ts` — 8 passed on local Supabase; `NODE_OPTIONS=--max-old-space-size=6144 npm run typecheck`.
