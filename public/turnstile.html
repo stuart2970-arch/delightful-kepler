@@ -19,6 +19,11 @@
       var widgetId = null;
       var resolvedPostMessageTarget = null;
       var resolvedPostMessageError = null;
+      var tokenDelivered = false;
+      var pendingTransientError = null;
+      var totalTimeoutId = null;
+      var TOTAL_TIMEOUT_MS = 30000;
+      var RETRY_INTERVAL_MS = 8000;
 
       // Keep in sync with src/lib/turnstile-parent-origin.ts
       var EXACT_ORIGINS = {
@@ -90,6 +95,41 @@
         }
       }
 
+      function isTransientError(code) {
+        var c = String(code || '').trim();
+        if (!c) return false;
+        if (c === '110600') return true;
+        if (/^600\d*/.test(c)) return true;
+        if (/^300\d*/.test(c)) return true;
+        return false;
+      }
+
+      function isFatalError(code) {
+        var c = String(code || '').trim();
+        if (!c) return false;
+        if (c === '110600') return false;
+        if (/^110\d*/.test(c)) return true;
+        if (/^400\d*/.test(c)) return true;
+        return false;
+      }
+
+      function flushPendingTransientError() {
+        if (tokenDelivered || !pendingTransientError) return;
+        notifyParent({
+          type: 'STYLEFLO_TURNSTILE_ERROR',
+          code: pendingTransientError
+        });
+        pendingTransientError = null;
+      }
+
+      function scheduleTotalTimeout() {
+        if (totalTimeoutId !== null) return;
+        totalTimeoutId = setTimeout(function() {
+          totalTimeoutId = null;
+          flushPendingTransientError();
+        }, TOTAL_TIMEOUT_MS);
+      }
+
       (function initPostMessageTarget() {
         var resolved = resolvePostMessageTarget();
         if (resolved.error) {
@@ -120,6 +160,8 @@
           return;
         }
 
+        scheduleTotalTimeout();
+
         var container = document.getElementById('cf-container');
         try {
           widgetId = window.turnstile.render(container, {
@@ -127,10 +169,18 @@
             action: 'chat_init',
             size: 'normal',
             appearance: 'interaction-only',
+            retry: 'auto',
+            'retry-interval': RETRY_INTERVAL_MS,
             'before-interactive-callback': function() {
               notifyParent({ type: 'STYLEFLO_TURNSTILE_INTERACTIVE' });
             },
             callback: function(token) {
+              tokenDelivered = true;
+              pendingTransientError = null;
+              if (totalTimeoutId !== null) {
+                clearTimeout(totalTimeoutId);
+                totalTimeoutId = null;
+              }
               notifyParent({
                 type: 'STYLEFLO_TURNSTILE_TOKEN',
                 token: token
@@ -138,10 +188,26 @@
             },
             'error-callback': function(code) {
               console.error('[StyleFlo Turnstile Bridge] error:', code);
+              if (tokenDelivered) {
+                return false;
+              }
+              if (isFatalError(code)) {
+                notifyParent({
+                  type: 'STYLEFLO_TURNSTILE_ERROR',
+                  code: code
+                });
+                return false;
+              }
+              if (isTransientError(code)) {
+                pendingTransientError = code;
+                scheduleTotalTimeout();
+                return true;
+              }
               notifyParent({
                 type: 'STYLEFLO_TURNSTILE_ERROR',
                 code: code
               });
+              return false;
             },
             'expired-callback': function() {
               if (widgetId !== null) {
@@ -164,6 +230,13 @@
       window.addEventListener('message', function(event) {
         if (event.source !== window.parent) return;
         if (!event.data || event.data.type !== 'STYLEFLO_RESET_TURNSTILE') return;
+        tokenDelivered = false;
+        pendingTransientError = null;
+        if (totalTimeoutId !== null) {
+          clearTimeout(totalTimeoutId);
+          totalTimeoutId = null;
+        }
+        scheduleTotalTimeout();
         if (widgetId !== null && window.turnstile) {
           window.turnstile.reset(widgetId);
         }

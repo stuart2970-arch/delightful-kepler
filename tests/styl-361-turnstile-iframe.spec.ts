@@ -49,6 +49,8 @@ test.describe('STYL-361: Turnstile stays on the app origin', () => {
   test('turnstile.html uses interaction-only and tells the parent only', () => {
     const html = read('public/turnstile.html');
     expect(html).toContain("appearance: 'interaction-only'");
+    expect(html).toContain("retry: 'auto'");
+    expect(html).toContain("'retry-interval'");
     expect(html).toContain("'before-interactive-callback'");
     expect(html).toContain('STYLEFLO_TURNSTILE_INTERACTIVE');
     expect(html).toContain('document.referrer');
