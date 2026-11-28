@@ -4886,3 +4886,8 @@ Highlighted adjustments in the modal:
 * **User**: One PR into `staging` for repeatable Extra Knowledge, Google Calendar checkout fixes, Stripe catalog price/product ids, hide voice/SMS one-off packs, 20MB knowledge upload cap, website import URL filtering, and purchase slider reliability.
 * **Changes**: Migrations `20261128120000_styl364_repeatable_extra_knowledge.sql` and `20261128120100_styl248_styl230_stripe_catalog_columns.sql`; `src/lib/billing/stripe-addon-checkout.ts`, `repeatable-addons.ts`; checkout uses catalog Stripe ids; `public-catalogue` hides retired packs; knowledge `url-import-filter.ts` and `upload-limits.ts`.
 * **Verify**: `scripts/agent-supabase-up.sh`; related Playwright specs (addons-sliding-scale, styl-179, styl-360, styl-364, styl-366); typecheck with raised Node heap.
+
+### Session (STYL-248 local Stripe placeholders — 28 Nov 2026)
+* **User**: After #149 merge, stop migration `20261128120100` from writing `price_local_*` / `prod_local_*` into hosted `addon_catalog`.
+* **Changes**: Migration keeps `stripe_product_id` column + flat bolt-on `is_sliding=false` only; `supabase/seed.sql` fills local Stripe ids when null/empty.
+* **Verify**: `scripts/agent-supabase-up.sh`; typecheck; styl-364, addons-sliding-scale, styl-179, styl-194, styl-200, styl-243.

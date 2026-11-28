@@ -364,6 +364,22 @@ UPDATE public.addon_catalog
 SET is_active = false
 WHERE id = 'whatsapp_addon';
 
+-- Local/test Stripe catalogue placeholders (agent Supabase db reset only — do not copy to hosted resets).
+UPDATE public.addon_catalog
+SET stripe_price_id = 'price_local_' || id
+WHERE id IN (
+  'data_pack_500',
+  'google_calendar_addon',
+  'microsoft_calendar_addon',
+  'remove_styleflo_branding'
+)
+  AND (stripe_price_id IS NULL OR btrim(stripe_price_id) = '');
+
+UPDATE public.addon_catalog
+SET stripe_product_id = 'prod_local_' || id
+WHERE (is_sliding IS TRUE OR category IN ('voice_pack', 'sms_pack'))
+  AND (stripe_product_id IS NULL OR btrim(stripe_product_id) = '');
+
 -- Seed Services for Acme Corp
 INSERT INTO public.services (id, tenant_id, name, duration_minutes, price)
 VALUES (
