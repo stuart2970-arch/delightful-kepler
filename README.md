@@ -4868,3 +4868,9 @@ Highlighted adjustments in the modal:
 * **Changes**: `normalizeGeminiModelId` in `src/lib/gemini-config.ts`; `persistInboundUserMessage` and early insert in `src/app/api/chat/stream/route.ts` with `onFinish` de-duplication; `tests/unit/styl-425-gemini-chat-persist.spec.ts`; CI group mapping in `scripts/ci-playwright-groups.mjs`.
 * **Verify**: `NODE_OPTIONS=--max-old-space-size=8192 npm run typecheck`; Playwright `tests/unit/styl-425-gemini-chat-persist.spec.ts` — 5 passed on local Supabase.
 * **Follow-up (Bugbot)**: Inbound user `created_at` at stream start (`Date.now()`), assistant at `max(stream end, userMs+1)` via `inboundChatUserCreatedAtIso` / `assistantChatReplyCreatedAtIso`; unit test for ordering; 6 specs passed.
+
+### Session (Chat widget Turnstile gate flow — 28 Nov 2026)
+* **User**: Fix production Turnstile handling on the embeddable chat widget: prefetch verification when the widget opens, block chat until `public-init` succeeds, show connecting/retry UI on the gate, reuse one app-origin iframe, surface error codes, add Playwright coverage; PR into `staging`.
+* **Cause**: `getTurnstileToken()` swallowed iframe failures as an empty string; gate submit caught `ensureChatSession` errors and still opened chat; each message spawned a new Turnstile iframe.
+* **Changes**: Persistent Turnstile bridge in `src/widget/embed.ts` / `index.ts`, prefetch on `openChatUI`, gate “Connecting securely…” + retry button, `ensureChatSessionForRequest` single retry for chat/voice, rebuilt `public/widget.js` / `embed.js`, `tests/styl-turnstile-gate-connecting.spec.ts`, CI group mapping.
+* **Verify**: `NODE_OPTIONS=--max-old-space-size=8192 npm run typecheck`; Playwright `tests/styl-turnstile-gate-connecting.spec.ts` + `tests/styl-361-turnstile-iframe.spec.ts` — 8 passed on local Supabase.

@@ -58,9 +58,22 @@ const CONNECTING_TIMEOUT_MS = 20000;
   const TURNSTILE_TOKEN_TIMEOUT_MS = 30000;
   const bakedTurnstileSiteKey = process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY || '';
 
+  class TurnstileVerificationError extends Error {
+    code: string;
+    constructor(code: string, message: string) {
+      super(message);
+      this.name = 'TurnstileVerificationError';
+      this.code = code;
+    }
+  }
+
   function reportTurnstileFailure(code: string) {
-    // No client error-ingest route exists; the browser console is the log.
     console.error('[StyleFlo Widget] Turnstile error:', code);
+  }
+
+  function turnstileMessageWithCode(code: string, base: string): string {
+    const trimmed = (code || '').trim();
+    return trimmed ? `${base} [${trimmed}]` : base;
   }
 
   function revealTurnstileOverlay(overlay: HTMLElement) {
@@ -68,15 +81,115 @@ const CONNECTING_TIMEOUT_MS = 20000;
     overlay.style.pointerEvents = 'auto';
   }
 
-  async function getTurnstileViaIframe(): Promise<string> {
-    const turnstileSiteKey = await resolveTurnstileSiteKey(appOrigin, bakedTurnstileSiteKey);
-    return new Promise((resolve, reject) => {
-      const frameId = 'styleflo-turnstile-frame';
-      const panel = shadowRoot.querySelector('.styleflo-chat-window') as HTMLElement | null;
-      const mount = panel || shadowRoot;
-      mount.querySelector('#styleflo-turnstile-overlay')?.remove();
+  function hideTurnstileOverlay(overlay: HTMLElement) {
+    overlay.style.opacity = '0';
+    overlay.style.pointerEvents = 'none';
+  }
 
-      const overlay = document.createElement('div');
+  function readBypassTurnstileToken(): string | null {
+    if (typeof window !== 'undefined' && (window as any).__STYLEFLO_TEST_TURNSTILE_TOKEN__) {
+      return (window as any).__STYLEFLO_TEST_TURNSTILE_TOKEN__;
+    }
+    const scriptTestToken = scriptEl?.getAttribute('data-turnstile-token');
+    return scriptTestToken || null;
+  }
+
+  let cachedTurnstileToken: string | null = null;
+  let turnstilePrefetchPromise: Promise<string> | null = null;
+
+  type TurnstileBridge = {
+    overlay: HTMLElement | null;
+    iframe: HTMLIFrameElement | null;
+    messageHandler: ((event: MessageEvent) => void) | null;
+    pending: {
+      resolve: (token: string) => void;
+      reject: (err: Error) => void;
+      timeoutId: ReturnType<typeof setTimeout>;
+      revealOnInteractive: boolean;
+      revealOnFailure: boolean;
+    } | null;
+    siteKeyLoaded: string | null;
+  };
+
+  const turnstileBridge: TurnstileBridge = {
+    overlay: null,
+    iframe: null,
+    messageHandler: null,
+    pending: null,
+    siteKeyLoaded: null,
+  };
+
+  function clearTurnstilePending(code: string) {
+    const pending = turnstileBridge.pending;
+    if (!pending) return;
+    clearTimeout(pending.timeoutId);
+    turnstileBridge.pending = null;
+    pending.reject(new TurnstileVerificationError(code, turnstileMessageWithCode(code, 'Turnstile verification failed.')));
+  }
+
+  function getTurnstileMount(): HTMLElement {
+    const panel = shadowRoot.querySelector('.styleflo-chat-window') as HTMLElement | null;
+    return panel || (shadowRoot as unknown as HTMLElement);
+  }
+
+  function teardownTurnstileBridgeListener() {
+    if (turnstileBridge.messageHandler) {
+      window.removeEventListener('message', turnstileBridge.messageHandler);
+      turnstileBridge.messageHandler = null;
+    }
+  }
+
+  function attachTurnstileBridgeListener(iframe: HTMLIFrameElement, overlay: HTMLElement) {
+    teardownTurnstileBridgeListener();
+    const messageHandler = (event: MessageEvent) => {
+      if (event.origin !== appOrigin) return;
+      if (event.source !== iframe.contentWindow) return;
+      if (!event.data || typeof event.data !== 'object') return;
+
+      if (event.data.type === 'STYLEFLO_TURNSTILE_INTERACTIVE') {
+        const pending = turnstileBridge.pending;
+        if (!pending || !pending.revealOnInteractive) return;
+        revealTurnstileOverlay(overlay);
+        return;
+      }
+
+      if (event.data.type === 'STYLEFLO_TURNSTILE_TOKEN' && event.data.token) {
+        const pending = turnstileBridge.pending;
+        if (!pending) return;
+        clearTimeout(pending.timeoutId);
+        turnstileBridge.pending = null;
+        hideTurnstileOverlay(overlay);
+        pending.resolve(String(event.data.token));
+        return;
+      }
+
+      if (event.data.type === 'STYLEFLO_TURNSTILE_ERROR') {
+        const code = String(event.data.code || event.data.error || 'unknown');
+        reportTurnstileFailure(code);
+        const pending = turnstileBridge.pending;
+        if (pending?.revealOnFailure) revealTurnstileOverlay(overlay);
+        clearTurnstilePending(code);
+        return;
+      }
+
+      if (event.data.type === 'STYLEFLO_TURNSTILE_EXPIRED') {
+        reportTurnstileFailure('expired');
+        const pending = turnstileBridge.pending;
+        if (pending?.revealOnInteractive) revealTurnstileOverlay(overlay);
+      }
+    };
+    turnstileBridge.messageHandler = messageHandler;
+    window.addEventListener('message', messageHandler);
+  }
+
+  async function ensureTurnstileBridgeMounted(siteKey: string): Promise<{ overlay: HTMLElement; iframe: HTMLIFrameElement }> {
+    const mount = getTurnstileMount();
+    let overlay = turnstileBridge.overlay;
+    let iframe = turnstileBridge.iframe;
+
+    if (!overlay || !iframe || !mount.contains(overlay)) {
+      mount.querySelector('#styleflo-turnstile-overlay')?.remove();
+      overlay = document.createElement('div');
       overlay.id = 'styleflo-turnstile-overlay';
       overlay.style.position = 'absolute';
       overlay.style.inset = '0';
@@ -88,69 +201,157 @@ const CONNECTING_TIMEOUT_MS = 20000;
       overlay.style.opacity = '0';
       overlay.style.pointerEvents = 'none';
 
-      const iframe = document.createElement('iframe');
-      iframe.id = frameId;
+      iframe = document.createElement('iframe');
+      iframe.id = 'styleflo-turnstile-frame';
       iframe.title = 'Security verification';
-      const sitekeyQuery = `?sitekey=${encodeURIComponent(turnstileSiteKey)}`;
-      iframe.src = `${appOrigin}/turnstile.html${sitekeyQuery}`;
       iframe.style.width = '300px';
       iframe.style.height = '70px';
       iframe.style.border = '0';
       iframe.style.borderRadius = '8px';
       iframe.style.background = '#ffffff';
 
-      const timeout = setTimeout(() => {
-        window.removeEventListener('message', messageHandler);
-        overlay.remove();
-        reportTurnstileFailure('timeout');
-        reject(new Error('Turnstile verification timed out.'));
-      }, TURNSTILE_TOKEN_TIMEOUT_MS);
-
-      function messageHandler(event: MessageEvent) {
-        // Tokens are only accepted from this app-origin iframe. On a customer
-        // site the parent origin is the customer domain, so the check is the
-        // sender (the iframe), not the host page.
-        if (event.origin !== appOrigin) return;
-        if (event.source !== iframe.contentWindow) return;
-        if (!event.data || typeof event.data !== 'object') return;
-        if (event.data.type === 'STYLEFLO_TURNSTILE_INTERACTIVE') {
-          revealTurnstileOverlay(overlay);
-          return;
-        }
-        if (event.data.type === 'STYLEFLO_TURNSTILE_TOKEN' && event.data.token) {
-          clearTimeout(timeout);
-          window.removeEventListener('message', messageHandler);
-          overlay.remove();
-          resolve(event.data.token);
-          return;
-        }
-        if (event.data.type === 'STYLEFLO_TURNSTILE_ERROR') {
-          const code = String(event.data.code || event.data.error || 'unknown');
-          reportTurnstileFailure(code);
-          clearTimeout(timeout);
-          window.removeEventListener('message', messageHandler);
-          overlay.remove();
-          reject(new Error(`Turnstile bridge error: ${code}`));
-        }
-      }
-
-      window.addEventListener('message', messageHandler);
       overlay.appendChild(iframe);
       mount.appendChild(overlay);
+      turnstileBridge.overlay = overlay;
+      turnstileBridge.iframe = iframe;
+      turnstileBridge.siteKeyLoaded = null;
+    }
+
+    attachTurnstileBridgeListener(iframe, overlay);
+
+    if (turnstileBridge.siteKeyLoaded !== siteKey) {
+      const sitekeyQuery = `?sitekey=${encodeURIComponent(siteKey)}`;
+      iframe.src = `${appOrigin}/turnstile.html${sitekeyQuery}`;
+      turnstileBridge.siteKeyLoaded = siteKey;
+    }
+
+    return { overlay, iframe };
+  }
+
+  function requestTurnstileToken(options: {
+    revealOnInteractive?: boolean;
+    revealOnFailure?: boolean;
+    revealImmediately?: boolean;
+    resetWidget?: boolean;
+  }): Promise<string> {
+    if (turnstileBridge.pending) {
+      clearTurnstilePending('superseded');
+    }
+
+    return resolveTurnstileSiteKey(appOrigin, bakedTurnstileSiteKey).then(async (siteKey) => {
+      const { overlay, iframe } = await ensureTurnstileBridgeMounted(siteKey);
+      if (options.revealImmediately) {
+        revealTurnstileOverlay(overlay);
+      } else {
+        hideTurnstileOverlay(overlay);
+      }
+
+      if (options.resetWidget) {
+        if (iframe.contentWindow) {
+          iframe.contentWindow.postMessage({ type: 'STYLEFLO_RESET_TURNSTILE' }, appOrigin);
+        }
+        const reloadQuery = `?sitekey=${encodeURIComponent(siteKey)}&_=${Date.now()}`;
+        iframe.src = `${appOrigin}/turnstile.html${reloadQuery}`;
+      }
+
+      return new Promise<string>((resolve, reject) => {
+        const revealOnFailure = options.revealOnFailure === true;
+        const timeoutId = setTimeout(() => {
+          reportTurnstileFailure('timeout');
+          if (revealOnFailure) revealTurnstileOverlay(overlay);
+          turnstileBridge.pending = null;
+          reject(new TurnstileVerificationError('timeout', turnstileMessageWithCode('timeout', 'Turnstile verification timed out.')));
+        }, TURNSTILE_TOKEN_TIMEOUT_MS);
+
+        turnstileBridge.pending = {
+          resolve: (token: string) => resolve(token),
+          reject,
+          timeoutId,
+          revealOnInteractive: options.revealOnInteractive === true,
+          revealOnFailure,
+        };
+      });
     });
   }
 
-  async function getTurnstileToken(): Promise<string> {
-    if (typeof window !== 'undefined' && (window as any).__STYLEFLO_TEST_TURNSTILE_TOKEN__) {
-      return (window as any).__STYLEFLO_TEST_TURNSTILE_TOKEN__;
+  function invalidateCachedTurnstileToken() {
+    cachedTurnstileToken = null;
+  }
+
+  function prefetchTurnstileToken() {
+    const bypass = readBypassTurnstileToken();
+    if (bypass) {
+      cachedTurnstileToken = bypass;
+      return;
     }
-    const scriptTestToken = scriptEl?.getAttribute('data-turnstile-token');
-    if (scriptTestToken) return scriptTestToken;
+    if (cachedTurnstileToken || turnstilePrefetchPromise) return;
+
+    turnstilePrefetchPromise = requestTurnstileToken({
+      revealOnInteractive: false,
+      revealOnFailure: false,
+      resetWidget: false,
+    })
+      .then((token) => {
+        cachedTurnstileToken = token;
+        turnstilePrefetchPromise = null;
+        return token;
+      })
+      .catch((err) => {
+        turnstilePrefetchPromise = null;
+        throw err;
+      });
+
+    turnstilePrefetchPromise.catch(() => {
+      // Warm-up failure is expected on slow devices; gate submit will retry with UI.
+    });
+  }
+
+  async function getTurnstileToken(options?: { forceRefresh?: boolean; revealOnFailure?: boolean }): Promise<string> {
+    const bypass = readBypassTurnstileToken();
+    if (bypass) return bypass;
+
+    if (!options?.forceRefresh && cachedTurnstileToken) {
+      return cachedTurnstileToken;
+    }
+
+    if (options?.revealOnFailure) {
+      if (turnstileBridge.pending) clearTurnstilePending('superseded');
+      turnstilePrefetchPromise = null;
+    } else if (!options?.forceRefresh && turnstilePrefetchPromise) {
+      try {
+        const prefetched = await turnstilePrefetchPromise;
+        cachedTurnstileToken = prefetched;
+        return prefetched;
+      } catch {
+        // Continue to an explicit challenge below.
+      }
+    }
+
+    const needsFreshChallenge =
+      Boolean(options?.revealOnFailure) &&
+      Boolean(turnstileBridge.iframe) &&
+      !cachedTurnstileToken;
+    const forceRefresh = Boolean(options?.forceRefresh || needsFreshChallenge);
 
     try {
-      return await getTurnstileViaIframe();
-    } catch {
-      return '';
+      const token = await requestTurnstileToken({
+        revealOnInteractive: true,
+        revealOnFailure: Boolean(options?.revealOnFailure),
+        revealImmediately: Boolean(options?.revealOnFailure),
+        resetWidget: forceRefresh,
+      });
+      cachedTurnstileToken = token;
+      return token;
+    } catch (err: any) {
+      const code =
+        err instanceof TurnstileVerificationError
+          ? err.code
+          : String(err?.code || err?.message || 'unknown');
+      reportTurnstileFailure(code);
+      throw new TurnstileVerificationError(
+        code,
+        turnstileMessageWithCode(code, 'Security verification failed. Please refresh the page and try again.'),
+      );
     }
   }
 
@@ -185,9 +386,15 @@ const CONNECTING_TIMEOUT_MS = 20000;
       }
     }
 
-    const turnstileToken = await getTurnstileToken();
+    const turnstileToken = await getTurnstileToken({
+      forceRefresh,
+      revealOnFailure: true,
+    });
     if (!turnstileToken) {
-      throw new Error('Security verification failed. Please refresh the page and try again.');
+      throw new TurnstileVerificationError(
+        'empty_token',
+        turnstileMessageWithCode('empty_token', 'Security verification failed. Please refresh the page and try again.'),
+      );
     }
 
     const res = await fetch(`${apiHost}/api/chat/public-init`, {
@@ -217,10 +424,20 @@ const CONNECTING_TIMEOUT_MS = 20000;
       localStorage.setItem(sessIdKey, data.sessionId);
       localStorage.setItem(sessionKey, data.sessionId);
       localStorage.setItem(expKey, String(expTime));
+      invalidateCachedTurnstileToken();
       return { sessionToken: data.sessionToken, sessionId: data.sessionId };
     }
 
     throw new Error('Invalid session response from security gateway.');
+  }
+
+  async function ensureChatSessionForRequest(forceRefresh = false): Promise<{ sessionToken: string; sessionId: string }> {
+    try {
+      return await ensureChatSession(forceRefresh);
+    } catch (firstError) {
+      if (forceRefresh) throw firstError;
+      return ensureChatSession(true);
+    }
   }
 
 
@@ -465,6 +682,9 @@ const CONNECTING_TIMEOUT_MS = 20000;
       background-color: #157ab9;
     }
 
+    @keyframes styleflo-spin {
+      to { transform: rotate(360deg); }
+    }
     @keyframes styleflo-pulse {
       0%, 100% { opacity: 1; }
       50% { opacity: .4; }
@@ -690,6 +910,13 @@ const CONNECTING_TIMEOUT_MS = 20000;
           </div>
 
           <div id="styleflo-gate-error" class="hidden text-red-500 text-xs mb-2.5 font-medium text-left"></div>
+          <div id="styleflo-gate-connecting" class="hidden text-gray-600 text-xs mb-2.5 font-medium text-left flex items-center gap-2" aria-live="polite">
+            <span class="inline-block w-3 h-3 rounded-full border-2 border-gray-300 border-t-gray-600 animate-spin" style="animation: styleflo-spin 0.8s linear infinite;"></span>
+            <span>Connecting securely…</span>
+          </div>
+          <button type="button" id="styleflo-gate-security-retry" class="hidden w-full py-2.5 mb-2 rounded-xl border border-red-200 text-red-700 font-semibold text-xs shadow-sm transition-all hover:bg-red-50 focus:outline-none" tabindex="0" aria-label="Retry security verification">
+            Couldn't verify, tap to retry
+          </button>
 
           <button type="submit" id="styleflo-onboarding-submit-btn" disabled aria-disabled="true" class="w-full py-3 rounded-xl text-white font-bold text-sm shadow-md transition-all opacity-50 cursor-not-allowed" style="background-color: ${primaryColor};">
             ${isFloBot ? 'Start Onboarding with FloBot ⚡' : 'Start Chat 💬'}
@@ -1103,7 +1330,10 @@ const CONNECTING_TIMEOUT_MS = 20000;
 
     const submitBtn = shadowRoot.getElementById('styleflo-onboarding-submit-btn') as HTMLButtonElement | null;
     const gateErrorEl = shadowRoot.getElementById('styleflo-gate-error') as HTMLDivElement | null;
+    const gateConnectingEl = shadowRoot.getElementById('styleflo-gate-connecting') as HTMLDivElement | null;
+    const gateSecurityRetryBtn = shadowRoot.getElementById('styleflo-gate-security-retry') as HTMLButtonElement | null;
     const acceptCheckbox = shadowRoot.getElementById('styleflo-disclaimer-accept') as HTMLInputElement | null;
+    const gateSubmitDefaultLabel = isFloBot ? 'Start Onboarding with FloBot ⚡' : 'Start Chat 💬';
 
     function validateGateForm(): boolean {
       const name = (onboardingName?.value || '').trim();
@@ -1247,6 +1477,115 @@ const CONNECTING_TIMEOUT_MS = 20000;
 
     renderGateNotice();
 
+  function setGateConnecting(visible: boolean) {
+    if (gateConnectingEl) {
+      if (visible) {
+        gateConnectingEl.classList.remove('hidden');
+      } else {
+        gateConnectingEl.classList.add('hidden');
+      }
+    }
+    if (submitBtn) {
+      if (visible) {
+        submitBtn.setAttribute('disabled', 'disabled');
+        submitBtn.setAttribute('aria-disabled', 'true');
+        submitBtn.classList.add('opacity-50', 'cursor-not-allowed');
+        submitBtn.classList.remove('opacity-100', 'cursor-pointer', 'hover:opacity-95');
+        submitBtn.textContent = 'Connecting securely…';
+      } else {
+        submitBtn.textContent = gateSubmitDefaultLabel;
+        updateSubmitButtonState();
+      }
+    }
+  }
+
+  function isGateOnboardingVisible(): boolean {
+    if (!onboardingContainer) return false;
+    const display = onboardingContainer.style.getPropertyValue('display');
+    return display !== 'none';
+  }
+
+  function showGateSecurityRetry(code?: string) {
+    if (gateSecurityRetryBtn && isGateOnboardingVisible()) {
+      gateSecurityRetryBtn.classList.remove('hidden');
+    }
+    const overlay = turnstileBridge.overlay;
+    if (overlay) {
+      overlay.style.opacity = '1';
+      overlay.style.pointerEvents = 'none';
+      if (turnstileBridge.iframe) {
+        turnstileBridge.iframe.style.pointerEvents = 'auto';
+      }
+    }
+    if (gateErrorEl) {
+      const base = "Couldn't verify your device. Tap retry below.";
+      gateErrorEl.textContent = turnstileMessageWithCode(code || '', base);
+      gateErrorEl.classList.remove('hidden');
+    }
+  }
+
+  function hideGateSecurityRetry() {
+    if (gateSecurityRetryBtn) gateSecurityRetryBtn.classList.add('hidden');
+  }
+
+  async function runGateSecurityHandshake(): Promise<boolean> {
+    hideGateSecurityRetry();
+    if (gateErrorEl) {
+      gateErrorEl.classList.add('hidden');
+      gateErrorEl.textContent = '';
+    }
+    setGateConnecting(true);
+    invalidateCachedTurnstileToken();
+    try {
+      await ensureChatSession(true);
+      setGateConnecting(false);
+      return true;
+    } catch (err: any) {
+      const code =
+        err instanceof TurnstileVerificationError ? err.code : String(err?.code || 'session_init_failed');
+      reportTurnstileFailure(code);
+      setGateConnecting(false);
+      showGateSecurityRetry(code);
+      return false;
+    }
+  }
+
+  function openChatAfterGateSession() {
+    if (welcomeTextEl) {
+      welcomeTextEl.textContent = getFormattedWelcomeMessage(storedName);
+    }
+    onboardingContainer.style.setProperty('display', 'none', 'important');
+    messagesContainer.style.setProperty('display', 'flex', 'important');
+    messagesContainer.style.setProperty('flex-direction', 'column', 'important');
+    chatForm.style.setProperty('display', 'flex', 'important');
+    hideGateSecurityRetry();
+    renderTaskButtons();
+
+    const shouldStartVoice = gateMode === 'voice' && pendingVoiceCall;
+    pendingVoiceCall = false;
+    if (shouldStartVoice) {
+      showConnecting();
+      void startVoiceCall();
+    } else {
+      inputField.focus();
+    }
+  }
+
+  if (gateSecurityRetryBtn) {
+    const handleGateSecurityRetry = async () => {
+      const sessionReady = await runGateSecurityHandshake();
+      if (sessionReady) openChatAfterGateSession();
+    };
+    gateSecurityRetryBtn.addEventListener('click', () => {
+      void handleGateSecurityRetry();
+    });
+    gateSecurityRetryBtn.addEventListener('keydown', (event) => {
+      if (event.key !== 'Enter' && event.key !== ' ') return;
+      event.preventDefault();
+      void handleGateSecurityRetry();
+    });
+  }
+
     onboardingForm.addEventListener('submit', async (e) => {
       e.preventDefault();
       const name = onboardingName.value.trim();
@@ -1256,6 +1595,7 @@ const CONNECTING_TIMEOUT_MS = 20000;
         gateErrorEl.classList.add('hidden');
         gateErrorEl.textContent = '';
       }
+      hideGateSecurityRetry();
 
       if (!name) {
         if (gateErrorEl) {
@@ -1294,30 +1634,10 @@ const CONNECTING_TIMEOUT_MS = 20000;
         at: new Date().toISOString(),
       }));
 
-      try {
-        await ensureChatSession(true);
-      } catch (err) {
-        console.warn('[StyleFlo Widget] Token init on gate submit:', err);
-      }
+      const sessionReady = await runGateSecurityHandshake();
+      if (!sessionReady) return;
 
-      if (welcomeTextEl) {
-        welcomeTextEl.textContent = getFormattedWelcomeMessage(storedName);
-      }
-      onboardingContainer.style.setProperty('display', 'none', 'important');
-      messagesContainer.style.setProperty('display', 'flex', 'important');
-      messagesContainer.style.setProperty('flex-direction', 'column', 'important');
-      chatForm.style.setProperty('display', 'flex', 'important');
-      renderTaskButtons();
-
-      // A text gate never starts voice, even if a previous Voice Call left the flag set.
-      const shouldStartVoice = gateMode === 'voice' && pendingVoiceCall;
-      pendingVoiceCall = false;
-      if (shouldStartVoice) {
-        showConnecting();
-        void startVoiceCall();
-      } else {
-        inputField.focus();
-      }
+      openChatAfterGateSession();
     });
 
     let isOpen = false;
@@ -1337,6 +1657,7 @@ const CONNECTING_TIMEOUT_MS = 20000;
       chatIcon.classList.add('scale-0');
       closeIcon.classList.remove('scale-0');
       closeIcon.classList.add('scale-100');
+      prefetchTurnstileToken();
       inputField.focus();
     }
 
@@ -1405,6 +1726,7 @@ const CONNECTING_TIMEOUT_MS = 20000;
       gateMode = 'voice';
       pendingVoiceCall = true;
       renderGateNotice();
+      prefetchTurnstileToken();
       openChatUI();
       messagesContainer.style.setProperty('display', 'none', 'important');
       chatForm.style.setProperty('display', 'none', 'important');
@@ -1649,7 +1971,7 @@ const CONNECTING_TIMEOUT_MS = 20000;
           }
 
           const firstName = getFirstName(storedName);
-          const session = await ensureChatSession();
+          const session = await ensureChatSessionForRequest();
           const welcomeStr = getFormattedWelcomeMessage(storedName);
           const systemPrompt = `You are ${agentName}, ${agentRole}, the AI assistant for ${businessName || 'our business'}.${firstName ? ` The customer's first name is ${firstName}.` : ''} You have already greeted them with: "${welcomeStr}". Do not greet them again or re-introduce yourself; answer their next question. Use British English.`;
 
@@ -1724,7 +2046,15 @@ const CONNECTING_TIMEOUT_MS = 20000;
         } catch (e: any) {
           console.error('[StyleFlo Widget] Vapi start error:', e);
           hideConnecting();
-          appendMessage('bot', e?.message ? `Microphone / Voice Error: ${e.message}` : 'Microphone access denied or voice connection failed.');
+          const code = e instanceof TurnstileVerificationError ? e.code : '';
+          const detail = e?.message ? e.message : 'Microphone access denied or voice connection failed.';
+          const msg = code && !detail.includes(`[${code}]`)
+            ? turnstileMessageWithCode(code, detail)
+            : detail;
+          appendMessage('bot', `Microphone / Voice Error: ${msg}`);
+          if (e instanceof TurnstileVerificationError) {
+            showGateSecurityRetry(e.code);
+          }
         }
       };
 
@@ -1825,7 +2155,7 @@ const CONNECTING_TIMEOUT_MS = 20000;
       const typingIndicator = showTypingIndicator();
 
       try {
-        const session = await ensureChatSession();
+        const session = await ensureChatSessionForRequest();
         const requestData: any = {
           message: messageText,
           chatbotId: chatbotId,
@@ -1844,9 +2174,9 @@ const CONNECTING_TIMEOUT_MS = 20000;
           body: JSON.stringify(requestData),
         });
 
-        // Auto-refresh token on 401 retry
+        // Auto-refresh token on 401 retry (single session refresh, not a new Turnstile iframe per message).
         if (response.status === 401) {
-          const freshSession = await ensureChatSession(true);
+          const freshSession = await ensureChatSessionForRequest(true);
           if (freshSession.sessionToken) {
             requestData.sessionId = freshSession.sessionId;
             response = await fetch(`${apiHost}/api/chat/stream`, {
@@ -2185,8 +2515,16 @@ const CONNECTING_TIMEOUT_MS = 20000;
       } catch (err: any) {
         console.error('[StyleFlo Widget] Chat Stream fetch error:', err);
         typingIndicator.remove();
-        const msg = err && err.message ? err.message : 'An error occurred. Please try again or refresh the page.';
+        const base = err && err.message ? err.message : 'An error occurred. Please try again or refresh the page.';
+        const code = err instanceof TurnstileVerificationError ? err.code : '';
+        const msg =
+          code && !base.includes(`[${code}]`)
+            ? turnstileMessageWithCode(code, base)
+            : base;
         appendMessage('bot', `⚠️ ${msg}`);
+        if (err instanceof TurnstileVerificationError && needsGate) {
+          showGateSecurityRetry(err.code);
+        }
       }
     }
 
