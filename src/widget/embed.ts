@@ -1,7 +1,7 @@
 import Vapi from '@vapi-ai/web';
 import { buildGreeting, getFirstName, isEchoOfGreeting } from '../lib/greeting';
 import { resolveChatFooter } from '../lib/billing/branding';
-import { resolveTurnstileSiteKey } from './turnstile-config';
+import { TurnstileBridge, TurnstileTokenError } from './turnstile-bridge';
 import { voiceUnavailableMessage, webCallFailureMessage } from '../lib/voice/voice-user-messages';
 import { buildWebCallVapiStartFields } from '../lib/voice/web-call-config';
 
@@ -55,90 +55,8 @@ const CONNECTING_TIMEOUT_MS = 20000;
   // Site key: esbuild may inline NEXT_PUBLIC_TURNSTILE_SITE_KEY at deploy build time.
   // Empty bake (committed CI bundles) loads the key from /api/config/public on the
   // app origin. Never read the site key from the host-page embed snippet.
-  const TURNSTILE_TOKEN_TIMEOUT_MS = 30000;
   const bakedTurnstileSiteKey = process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY || '';
-
-  function reportTurnstileFailure(code: string) {
-    // No client error-ingest route exists; the browser console is the log.
-    console.error('[StyleFlo Widget] Turnstile error:', code);
-  }
-
-  function revealTurnstileOverlay(overlay: HTMLElement) {
-    overlay.style.opacity = '1';
-    overlay.style.pointerEvents = 'auto';
-  }
-
-  async function getTurnstileViaIframe(): Promise<string> {
-    const turnstileSiteKey = await resolveTurnstileSiteKey(appOrigin, bakedTurnstileSiteKey);
-    return new Promise((resolve, reject) => {
-      const frameId = 'styleflo-turnstile-frame';
-      const panel = shadowRoot.querySelector('.styleflo-chat-window') as HTMLElement | null;
-      const mount = panel || shadowRoot;
-      mount.querySelector('#styleflo-turnstile-overlay')?.remove();
-
-      const overlay = document.createElement('div');
-      overlay.id = 'styleflo-turnstile-overlay';
-      overlay.style.position = 'absolute';
-      overlay.style.inset = '0';
-      overlay.style.display = 'flex';
-      overlay.style.alignItems = 'center';
-      overlay.style.justifyContent = 'center';
-      overlay.style.background = 'rgba(17, 24, 39, 0.45)';
-      overlay.style.zIndex = '40';
-      overlay.style.opacity = '0';
-      overlay.style.pointerEvents = 'none';
-
-      const iframe = document.createElement('iframe');
-      iframe.id = frameId;
-      iframe.title = 'Security verification';
-      const sitekeyQuery = `?sitekey=${encodeURIComponent(turnstileSiteKey)}`;
-      iframe.src = `${appOrigin}/turnstile.html${sitekeyQuery}`;
-      iframe.style.width = '300px';
-      iframe.style.height = '70px';
-      iframe.style.border = '0';
-      iframe.style.borderRadius = '8px';
-      iframe.style.background = '#ffffff';
-
-      const timeout = setTimeout(() => {
-        window.removeEventListener('message', messageHandler);
-        overlay.remove();
-        reportTurnstileFailure('timeout');
-        reject(new Error('Turnstile verification timed out.'));
-      }, TURNSTILE_TOKEN_TIMEOUT_MS);
-
-      function messageHandler(event: MessageEvent) {
-        // Tokens are only accepted from this app-origin iframe. On a customer
-        // site the parent origin is the customer domain, so the check is the
-        // sender (the iframe), not the host page.
-        if (event.origin !== appOrigin) return;
-        if (event.source !== iframe.contentWindow) return;
-        if (!event.data || typeof event.data !== 'object') return;
-        if (event.data.type === 'STYLEFLO_TURNSTILE_INTERACTIVE') {
-          revealTurnstileOverlay(overlay);
-          return;
-        }
-        if (event.data.type === 'STYLEFLO_TURNSTILE_TOKEN' && event.data.token) {
-          clearTimeout(timeout);
-          window.removeEventListener('message', messageHandler);
-          overlay.remove();
-          resolve(event.data.token);
-          return;
-        }
-        if (event.data.type === 'STYLEFLO_TURNSTILE_ERROR') {
-          const code = String(event.data.code || event.data.error || 'unknown');
-          reportTurnstileFailure(code);
-          clearTimeout(timeout);
-          window.removeEventListener('message', messageHandler);
-          overlay.remove();
-          reject(new Error(`Turnstile bridge error: ${code}`));
-        }
-      }
-
-      window.addEventListener('message', messageHandler);
-      overlay.appendChild(iframe);
-      mount.appendChild(overlay);
-    });
-  }
+  let turnstileBridge: TurnstileBridge | null = null;
 
   async function getTurnstileToken(): Promise<string> {
     if (typeof window !== 'undefined' && (window as any).__STYLEFLO_TEST_TURNSTILE_TOKEN__) {
@@ -147,11 +65,10 @@ const CONNECTING_TIMEOUT_MS = 20000;
     const scriptTestToken = scriptEl?.getAttribute('data-turnstile-token');
     if (scriptTestToken) return scriptTestToken;
 
-    try {
-      return await getTurnstileViaIframe();
-    } catch {
-      return '';
+    if (!turnstileBridge) {
+      throw new TurnstileTokenError('not_ready');
     }
+    return turnstileBridge.acquireToken({ visible: 'always', retryOnce: true });
   }
 
   let currentTermsVersion = '1.0';
@@ -185,9 +102,18 @@ const CONNECTING_TIMEOUT_MS = 20000;
       }
     }
 
-    const turnstileToken = await getTurnstileToken();
-    if (!turnstileToken) {
-      throw new Error('Security verification failed. Please refresh the page and try again.');
+    if (forceRefresh) {
+      turnstileBridge?.markConsumed();
+    }
+
+    let turnstileToken: string;
+    try {
+      turnstileToken = await getTurnstileToken();
+    } catch (err) {
+      const code = err instanceof TurnstileTokenError ? err.code : 'unknown';
+      throw new Error(
+        `Security verification failed (${code}). Please refresh the page and try again.`,
+      );
     }
 
     const res = await fetch(`${apiHost}/api/chat/public-init`, {
@@ -217,6 +143,8 @@ const CONNECTING_TIMEOUT_MS = 20000;
       localStorage.setItem(sessIdKey, data.sessionId);
       localStorage.setItem(sessionKey, data.sessionId);
       localStorage.setItem(expKey, String(expTime));
+      turnstileBridge?.markConsumed();
+      turnstileBridge?.prewarm();
       return { sessionToken: data.sessionToken, sessionId: data.sessionId };
     }
 
@@ -765,6 +693,14 @@ const CONNECTING_TIMEOUT_MS = 20000;
     `;
     widgetContainer.appendChild(chatWindow);
 
+    turnstileBridge = new TurnstileBridge({
+      appOrigin,
+      parentPageOrigin: window.location.origin,
+      bakedTurnstileSiteKey,
+      getMount: () => chatWindow,
+    });
+    turnstileBridge.prewarm();
+
     // References to DOM elements inside Shadow DOM
     const messagesContainer = shadowRoot.getElementById('styleflo-messages') as HTMLDivElement;
     const chatForm = shadowRoot.getElementById('styleflo-chat-form') as HTMLFormElement;
@@ -1294,10 +1230,33 @@ const CONNECTING_TIMEOUT_MS = 20000;
         at: new Date().toISOString(),
       }));
 
+      const previousSubmitLabel = submitBtn?.textContent || '';
+      if (submitBtn) {
+        submitBtn.setAttribute('disabled', 'disabled');
+        submitBtn.setAttribute('aria-disabled', 'true');
+        submitBtn.classList.add('opacity-50', 'cursor-not-allowed');
+        submitBtn.classList.remove('opacity-100', 'cursor-pointer', 'hover:opacity-95');
+        submitBtn.textContent = 'Connecting securely…';
+      }
+
       try {
         await ensureChatSession(true);
       } catch (err) {
         console.warn('[StyleFlo Widget] Token init on gate submit:', err);
+        const detail = err instanceof Error ? err.message : 'Security verification failed.';
+        if (gateErrorEl) {
+          gateErrorEl.textContent = detail;
+          gateErrorEl.classList.remove('hidden');
+        }
+        if (submitBtn) {
+          submitBtn.removeAttribute('disabled');
+          submitBtn.setAttribute('aria-disabled', 'false');
+          submitBtn.classList.remove('opacity-50', 'cursor-not-allowed');
+          submitBtn.classList.add('opacity-100', 'cursor-pointer', 'hover:opacity-95');
+          submitBtn.textContent = previousSubmitLabel;
+          updateSubmitButtonState();
+        }
+        return;
       }
 
       if (welcomeTextEl) {
@@ -1337,6 +1296,7 @@ const CONNECTING_TIMEOUT_MS = 20000;
       chatIcon.classList.add('scale-0');
       closeIcon.classList.remove('scale-0');
       closeIcon.classList.add('scale-100');
+      turnstileBridge?.prewarm();
       inputField.focus();
     }
 
