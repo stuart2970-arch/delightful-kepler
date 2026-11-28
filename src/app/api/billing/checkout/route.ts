@@ -24,6 +24,10 @@ import {
   billingUnauthRateLimit,
   consumeMemoryRateLimit,
 } from '@/lib/security/billing-rate-limit';
+import {
+  buildAddonCheckoutLineItem,
+  shouldApplyCustomCheckoutPrice,
+} from '@/lib/billing/stripe-addon-checkout';
 
 export const dynamic = 'force-dynamic';
 
@@ -204,7 +208,7 @@ export async function GET(req: Request) {
     if (selectedAddonIds.length > 0) {
       const { data: dbAddons, error: addonError } = await supabase
         .from('addon_catalog')
-        .select('id, name, description, monthly_price_pence, category, is_active')
+        .select('id, name, description, monthly_price_pence, category, is_active, is_sliding, stripe_price_id, stripe_product_id')
         .in('id', selectedAddonIds);
 
       if (addonError || !dbAddons) {
@@ -227,25 +231,21 @@ export async function GET(req: Request) {
           return NextResponse.json({ error: 'This pack can be bought from your dashboard after you sign up' }, { status: 400, headers: corsHeaders(req) });
         }
 
-        lineItems.push({
-          price_data: {
-            currency: 'gbp',
-            product_data: {
-              name: addon.name,
-              description: buildCheckoutLineDescription(addon),
-              metadata: {
-                addon_catalog_id: addon.id,
-                category: addon.category,
-                type: 'addon',
-              },
-            },
-            unit_amount: addon.monthly_price_pence,
-            recurring: {
-              interval: 'month',
-            },
+        const built = buildAddonCheckoutLineItem({
+          addon,
+          unitAmountPence: addon.monthly_price_pence,
+          description: buildCheckoutLineDescription(addon),
+          recurring: true,
+          metadata: {
+            addon_catalog_id: addon.id,
+            category: addon.category || '',
+            type: 'addon',
           },
-          quantity: 1,
         });
+        if (!built.ok) {
+          return NextResponse.json({ error: built.error }, { status: built.status, headers: corsHeaders(req) });
+        }
+        lineItems.push(built.lineItem);
       }
     }
 
@@ -422,20 +422,14 @@ export async function POST(req: Request) {
       let finalVoiceMinutes = addon.included_voice_minutes || 0;
       let finalSms = addon.included_sms || 0;
 
-      // Validate client-supplied customPricePence
-      if (customPricePence !== undefined && customPricePence !== null && customPricePence !== '') {
+      // Validate client-supplied customPricePence (flat bolt-ons ignore off-catalog amounts — STYL-230)
+      if (shouldApplyCustomCheckoutPrice(addon, customPricePence)) {
         const priceNum = Number(customPricePence);
         const minPrice = addon.monthly_price_pence;
-        const maxPrice = addon.max_price_pence;
+        const maxPrice = addon.max_price_pence ?? addon.monthly_price_pence;
         const stepPence = addon.price_step_pence || 100;
 
-        if (!addon.is_sliding) {
-          if (isNaN(priceNum) || Math.round(priceNum) !== Number(addon.monthly_price_pence)) {
-            return NextResponse.json({
-              error: 'Custom price is only allowed for sliding-scale add-ons',
-            }, { status: 400, headers: corsHeaders(req) });
-          }
-        } else {
+        {
           if (maxPrice == null || isNaN(priceNum) || priceNum < minPrice || priceNum > maxPrice) {
             return NextResponse.json({ error: 'Invalid custom price: out of allowed range' }, { status: 400, headers: corsHeaders(req) });
           }
@@ -467,35 +461,25 @@ export async function POST(req: Request) {
         addon.category === 'voice_pack' || 
         addonCatalogId?.startsWith('voice_pack');
 
-      // Option 1: Always use price_data with unit_amount from addon_catalog
       const lineDescription = buildCheckoutLineDescription(addon, {
         voiceMinutes: finalVoiceMinutes,
         sms: finalSms,
       });
 
-      const priceData: Stripe.Checkout.SessionCreateParams.LineItem.PriceData = {
-        currency: 'gbp',
-        product_data: {
-          name: addon.name,
-          description: lineDescription,
-          metadata: {
-            addon_catalog_id: addonCatalogId,
-            tenant_id: tenantId,
-          },
+      const lineBuild = buildAddonCheckoutLineItem({
+        addon,
+        unitAmountPence: finalPricePence,
+        description: lineDescription,
+        recurring: !isOneOff,
+        metadata: {
+          addon_catalog_id: addonCatalogId,
+          tenant_id: tenantId,
         },
-        unit_amount: finalPricePence,
-      };
-
-      if (!isOneOff) {
-        priceData.recurring = {
-          interval: 'month',
-        };
+      });
+      if (!lineBuild.ok) {
+        return NextResponse.json({ error: lineBuild.error }, { status: lineBuild.status, headers: corsHeaders(req) });
       }
-
-      const lineItem: Stripe.Checkout.SessionCreateParams.LineItem = {
-        price_data: priceData,
-        quantity: 1,
-      };
+      const lineItem = lineBuild.lineItem;
 
       const defaultAppUrl = publicAppPath(dashboardPathForAddon(addonCatalogId));
       const targetSuccessUrl = safePublicReturnUrl(returnUrl, defaultAppUrl);
@@ -655,7 +639,7 @@ export async function POST(req: Request) {
       if (selectedAddonIds.length > 0) {
         const { data: dbAddons, error: addonError } = await supabase
           .from('addon_catalog')
-          .select('id, name, description, monthly_price_pence, category, is_active')
+          .select('id, name, description, monthly_price_pence, category, is_active, is_sliding, stripe_price_id, stripe_product_id')
           .in('id', selectedAddonIds);
 
         if (addonError || !dbAddons) {
@@ -678,25 +662,21 @@ export async function POST(req: Request) {
             return NextResponse.json({ error: 'This pack can be bought from your dashboard after you sign up' }, { status: 400, headers: corsHeaders(req) });
           }
 
-          lineItems.push({
-            price_data: {
-              currency: 'gbp',
-              product_data: {
-                name: addon.name,
-                description: buildCheckoutLineDescription(addon),
-                metadata: {
-                  addon_catalog_id: addon.id,
-                  category: addon.category,
-                  type: 'addon',
-                },
-              },
-              unit_amount: addon.monthly_price_pence,
-              recurring: {
-                interval: 'month',
-              },
+          const built = buildAddonCheckoutLineItem({
+            addon,
+            unitAmountPence: addon.monthly_price_pence,
+            description: buildCheckoutLineDescription(addon),
+            recurring: true,
+            metadata: {
+              addon_catalog_id: addon.id,
+              category: addon.category || '',
+              type: 'addon',
             },
-            quantity: 1,
           });
+          if (!built.ok) {
+            return NextResponse.json({ error: built.error }, { status: built.status, headers: corsHeaders(req) });
+          }
+          lineItems.push(built.lineItem);
         }
       }
 

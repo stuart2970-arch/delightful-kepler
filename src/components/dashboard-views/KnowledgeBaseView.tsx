@@ -2,6 +2,7 @@
 import React, { useState, useEffect } from 'react';
 import { useDashboardStore } from '../../lib/store';
 import { dashboardFetch } from '../../lib/auth/dashboard-auth-headers';
+import { dedupeKnowledgeImportUrls, knowledgeImportUrlRejectionReason } from '../../lib/knowledge/url-import-filter';
 
 export default function KnowledgeBaseView() {
   const { chatbots, setChatbots, setMetrics, billingData } = useDashboardStore();
@@ -351,10 +352,24 @@ export default function KnowledgeBaseView() {
     e.preventDefault();
     if (!crawlUrl.trim() || !crawlBotId) return;
 
-    const urls = crawlUrl.split(/[\s,]+/).map(u => u.trim()).filter(u => u);
+    const rawUrls = crawlUrl.split(/[\s,]+/).map((u) => u.trim()).filter((u) => u);
+    const urls = dedupeKnowledgeImportUrls(rawUrls);
+    const skipped = rawUrls.length - urls.length;
+    if (urls.length === 0) {
+      setCrawlResult({
+        success: false,
+        message: rawUrls[0]
+          ? knowledgeImportUrlRejectionReason(rawUrls[0]) || 'No importable URLs — skipped login, checkout, feeds, assets, and duplicates.'
+          : 'Enter at least one website URL to import.',
+      });
+      return;
+    }
     setIsCrawling(true);
     setCrawlResult(null);
-    setCrawlLogs([`[System] Initialising scraper for ${urls.length} ${urls.length === 1 ? 'URL' : 'URLs'}...`]);
+    setCrawlLogs([
+      `[System] Initialising scraper for ${urls.length} ${urls.length === 1 ? 'URL' : 'URLs'}...`,
+      ...(skipped > 0 ? [`[System] Skipped ${skipped} blocked or duplicate URL(s).`] : []),
+    ]);
     if (quotaInfo) {
       setCrawlLogs(prev => [...prev, `[System] Knowledge quota: ${quotaInfo.remaining} items remaining (${quotaInfo.currentUsage}/${quotaInfo.limit} used).`]);
     }

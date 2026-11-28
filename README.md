@@ -4875,3 +4875,8 @@ Highlighted adjustments in the modal:
 * **Changes**: `src/widget/turnstile-bridge.ts` (single iframe, prewarm mount + reset, token cache/consume, retry UI, mobile iframe sizing); widget embed/index wired to bridge; gate shows **Connecting securely…** and blocks chat without a session; `public/turnstile.html` accepts `parent_origin` with `src/lib/turnstile-parent-origin.ts` allowlist (StyleFlo / Firebase / local hosts; referrer wins when present).
 * **Tests**: `tests/styl-turnstile-prewarm-mobile.spec.ts`; updated `tests/styl-361-turnstile-iframe.spec.ts`.
 * **Verify**: `npm run build:widget`; Playwright `tests/styl-turnstile-prewarm-mobile.spec.ts` + `tests/styl-361-turnstile-iframe.spec.ts` — 8 passed on local Supabase; `NODE_OPTIONS=--max-old-space-size=6144 npm run typecheck`.
+
+### Session (STYL-364/230/248/367/366/360/211 billing and knowledge bundle — 28 Nov 2026)
+* **User**: One PR into `staging` for repeatable Extra Knowledge, Google Calendar checkout fixes, Stripe catalog price/product ids, hide voice/SMS one-off packs, 20MB knowledge upload cap, website import URL filtering, and purchase slider reliability.
+* **Changes**: Migrations `20261128120000_styl364_repeatable_extra_knowledge.sql` and `20261128120100_styl248_styl230_stripe_catalog_columns.sql`; `src/lib/billing/stripe-addon-checkout.ts`, `repeatable-addons.ts`; checkout uses catalog Stripe ids; `public-catalogue` hides retired packs; knowledge `url-import-filter.ts` and `upload-limits.ts`.
+* **Verify**: `scripts/agent-supabase-up.sh`; related Playwright specs (addons-sliding-scale, styl-179, styl-360, styl-364, styl-366); typecheck with raised Node heap.

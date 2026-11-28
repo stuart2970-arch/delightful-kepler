@@ -1225,13 +1225,6 @@ const globalBotId = '00000000-0000-0000-0000-000000000000';
                         <h4 className="text-sm font-bold text-[var(--awb-color7)]">Shared Voice Minutes</h4>
                         <span className="text-[9px] font-bold bg-amber-100 text-amber-700 px-1.5 py-0.5 rounded-full">3-month rollover</span>
                       </div>
-                      <button
-                        onClick={() => setBillingUpsellCategory('voice_pack')}
-                        className="bg-[#9333ea] hover:bg-[#7e22ce] text-white text-[11px] font-bold py-1 px-3 rounded-[4px] shadow-sm transition-colors cursor-pointer flex items-center gap-1 shrink-0"
-                        title="Purchase sliding voice minute pack (20 to 100 mins)"
-                      >
-                        + Add Minutes
-                      </button>
                     </div>
                     <div className="flex justify-between text-xs text-[var(--awb-color6)] mb-2">
                       <span>{billingData?.rolloverUsage?.voice_minutes_consumed || 0} used</span>
@@ -1249,13 +1242,6 @@ const globalBotId = '00000000-0000-0000-0000-000000000000';
                         <h4 className="text-sm font-bold text-[var(--awb-color7)]">SMS Messages</h4>
                         <span className="text-[9px] font-bold bg-amber-100 text-amber-700 px-1.5 py-0.5 rounded-full">3-month rollover</span>
                       </div>
-                      <button
-                        onClick={() => setBillingUpsellCategory('sms_pack')}
-                        className="bg-[#198fd9] hover:bg-[#157ab9] text-white text-[11px] font-bold py-1 px-3 rounded-[4px] shadow-sm transition-colors cursor-pointer flex items-center gap-1 shrink-0"
-                        title="Purchase sliding SMS pack (100 to 500 SMS)"
-                      >
-                        + Add SMS
-                      </button>
                     </div>
                     <div className="flex justify-between text-xs text-[var(--awb-color6)] mb-2">
                       <span>{billingData?.rolloverUsage?.sms_consumed || 0} used</span>
@@ -1421,6 +1407,7 @@ const globalBotId = '00000000-0000-0000-0000-000000000000';
                     </div>
                   </div>
 
+                  {(billingData?.ownership?.one_off_packs || []).length > 0 && (
                   <div>
                     <div className="mb-4">
                       <h4 className="text-base font-extrabold text-[var(--awb-color8)]">One-off packs</h4>
@@ -1470,6 +1457,7 @@ const globalBotId = '00000000-0000-0000-0000-000000000000';
                       })}
                     </div>
                   </div>
+                  )}
                 </div>
 
 

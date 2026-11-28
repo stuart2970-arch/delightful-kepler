@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { requireTenantMember } from '@/lib/auth/require-tenant-role';
 import { consumeTenantOutboundLimit, fetchPublic, OutboundUrlError } from '@/lib/security/safe-outbound';
+import { dedupeKnowledgeImportUrls, filterKnowledgeImportUrl } from '@/lib/knowledge/url-import-filter';
 
 export const dynamic = 'force-dynamic';
 
@@ -79,17 +80,14 @@ export async function POST(request: Request) {
       extractUrls(xml, discoveredUrls);
     }
 
-    // Filter out non-http/https URLs and images/pdfs
-    const validUrls = Array.from(discoveredUrls).filter(url => {
-      if (!url.startsWith('http')) return false;
-      const lower = url.toLowerCase();
-      if (lower.endsWith('.pdf') || lower.endsWith('.jpg') || lower.endsWith('.png') || lower.endsWith('.gif') || lower.endsWith('.svg') || lower.endsWith('.jpeg')) {
-        return false;
-      }
-      return true;
-    });
+    const validUrls = dedupeKnowledgeImportUrls(discoveredUrls);
+    const skipped = discoveredUrls.size - validUrls.length;
 
-    return NextResponse.json({ urls: validUrls, message: `Found ${validUrls.length} pages in sitemap.` });
+    return NextResponse.json({
+      urls: validUrls,
+      skipped,
+      message: `Found ${validUrls.length} pages to import${skipped > 0 ? ` (${skipped} skipped as non-content or duplicate URLs)` : ''}.`,
+    });
 
   } catch (error: any) {
     if (error instanceof OutboundUrlError) {
