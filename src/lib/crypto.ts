@@ -8,7 +8,10 @@ const DEFAULT_KEY_VERSION = 1;
  * Derives a consistent 32-byte (256-bit) buffer key from the provided secret or environment variable.
  */
 function getEncryptionKey(): Buffer {
-  const secret = process.env.TOKEN_ENC_KEY || process.env.META_APP_SECRET || 'styleflo_default_dev_enc_key_32b_!';
+  const secret = (process.env.TOKEN_ENC_KEY || '').trim();
+  if (!secret) {
+    throw new Error('TOKEN_ENC_KEY is not configured.');
+  }
   return crypto.createHash('sha256').update(secret).digest();
 }
 

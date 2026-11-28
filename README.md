@@ -4868,3 +4868,8 @@ Highlighted adjustments in the modal:
 * **Changes**: `normalizeGeminiModelId` in `src/lib/gemini-config.ts`; `persistInboundUserMessage` and early insert in `src/app/api/chat/stream/route.ts` with `onFinish` de-duplication; `tests/unit/styl-425-gemini-chat-persist.spec.ts`; CI group mapping in `scripts/ci-playwright-groups.mjs`.
 * **Verify**: `NODE_OPTIONS=--max-old-space-size=8192 npm run typecheck`; Playwright `tests/unit/styl-425-gemini-chat-persist.spec.ts` — 5 passed on local Supabase.
 * **Follow-up (Bugbot)**: Inbound user `created_at` at stream start (`Date.now()`), assistant at `max(stream end, userMs+1)` via `inboundChatUserCreatedAtIso` / `assistantChatReplyCreatedAtIso`; unit test for ordering; 6 specs passed.
+
+### Session (STYL-339/340/316/282/259 — webhook hardening + staging WP embed — 28 Nov 2026)
+* **User**: Single PR to `staging`: Vapi secret on voice completions, Twilio signature on SMS/voice webhooks, parameterised tenant phone lookup, `TOKEN_ENC_KEY`-only crypto, `META_VERIFY_TOKEN` UI label, staging `styleflo-final.staging.tempurl.host` in CSP/embed allowlist.
+* **Changes**: `twilio-webhook-auth.ts`, `tenant-by-twilio-number.ts`; auth on completion routes, Twilio webhooks, telephony inbound; `vapi-webhook-auth` bypass only when `PLAYWRIGHT_TEST=true`; focused Playwright specs per ticket.
+* **Verify**: typecheck; 30 related Playwright specs passed on local Supabase.

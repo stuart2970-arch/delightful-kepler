@@ -3,12 +3,8 @@ import { timingSafeEqual } from 'node:crypto';
 
 export const VAPI_SECRET_HEADER = 'x-vapi-secret';
 
-function isTestProcess(env: NodeJS.ProcessEnv = process.env): boolean {
-  return (
-    env.PLAYWRIGHT_TEST === 'true' ||
-    env.NODE_ENV === 'test' ||
-    (env.APP_ENV || '').trim().toLowerCase() === 'test'
-  );
+export function shouldBypassVapiWebhookSignature(env: NodeJS.ProcessEnv = process.env): boolean {
+  return env.PLAYWRIGHT_TEST === 'true';
 }
 
 function safeEqual(a: string, b: string): boolean {
@@ -24,11 +20,12 @@ export function verifyVapiWebhookSecret(
   request: Request,
   env: NodeJS.ProcessEnv = process.env,
 ): { ok: true } | { ok: false; response: NextResponse } {
+  if (shouldBypassVapiWebhookSignature(env)) {
+    return { ok: true };
+  }
+
   const expected = (env.VAPI_WEBHOOK_SECRET || '').trim();
   if (!expected) {
-    if (isTestProcess(env)) {
-      return { ok: true };
-    }
     return {
       ok: false,
       response: NextResponse.json(

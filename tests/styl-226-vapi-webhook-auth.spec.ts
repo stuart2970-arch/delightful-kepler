@@ -22,7 +22,9 @@ test.describe('STYL-226: Vapi webhook secret and logging', () => {
   test('POST without the secret is rejected when the secret is set', async () => {
     const previous = process.env.VAPI_WEBHOOK_SECRET;
     const appEnv = process.env.APP_ENV;
+    const playwright = process.env.PLAYWRIGHT_TEST;
     try {
+      delete process.env.PLAYWRIGHT_TEST;
       process.env.VAPI_WEBHOOK_SECRET = TEST_SECRET;
       process.env.APP_ENV = 'staging';
       const payload = JSON.stringify({ message: { type: 'assistant-request', call: { id: 'x' } } });
@@ -48,6 +50,8 @@ test.describe('STYL-226: Vapi webhook secret and logging', () => {
       else process.env.VAPI_WEBHOOK_SECRET = previous;
       if (appEnv === undefined) delete process.env.APP_ENV;
       else process.env.APP_ENV = appEnv;
+      if (playwright === undefined) delete process.env.PLAYWRIGHT_TEST;
+      else process.env.PLAYWRIGHT_TEST = playwright;
     }
   });
 

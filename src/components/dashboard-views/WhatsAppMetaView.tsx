@@ -1100,7 +1100,7 @@ export default function WhatsAppMetaView() {
                 className="w-full bg-white p-3 rounded-lg border border-[#f2f3f5] font-mono text-xs text-[#212326] focus:outline-none focus:border-[#198fd9] shadow-sm"
               />
               <p className="text-[11px] text-gray-500">
-                Matches the <code>META_WEBHOOK_VERIFY_TOKEN</code> server environment variable.
+                Matches the <code>META_VERIFY_TOKEN</code> server environment variable.
               </p>
             </div>
           </div>

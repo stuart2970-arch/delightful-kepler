@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import twilio from 'twilio';
 import { encryptToken } from '@/lib/crypto';
+import { verifyTwilioWebhookRequest } from '@/lib/env/twilio-webhook-auth';
 
 export const dynamic = 'force-dynamic';
 
@@ -28,6 +29,9 @@ function voiceXmlResponse(xml: string) {
  * Gathers speech transcription, extracts 6-digit code, stores it encrypted, and deletes audio immediately.
  */
 export async function POST(req: NextRequest) {
+  const twilioAuth = await verifyTwilioWebhookRequest(req);
+  if (!twilioAuth.ok) return twilioAuth.response;
+
   try {
     const { searchParams } = new URL(req.url);
     const step = searchParams.get('step');
