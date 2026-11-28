@@ -7,6 +7,12 @@ export function shouldBypassVapiWebhookSignature(env: NodeJS.ProcessEnv = proces
   return env.PLAYWRIGHT_TEST === 'true';
 }
 
+function vapiSecretHeaderPresent(request: Request): boolean {
+  if (request.headers.get(VAPI_SECRET_HEADER) !== null) return true;
+  const authorization = request.headers.get('authorization') || '';
+  return /^Bearer\s+/i.test(authorization);
+}
+
 function safeEqual(a: string, b: string): boolean {
   const left = Buffer.from(a);
   const right = Buffer.from(b);
@@ -20,7 +26,7 @@ export function verifyVapiWebhookSecret(
   request: Request,
   env: NodeJS.ProcessEnv = process.env,
 ): { ok: true } | { ok: false; response: NextResponse } {
-  if (shouldBypassVapiWebhookSignature(env)) {
+  if (shouldBypassVapiWebhookSignature(env) && !vapiSecretHeaderPresent(request)) {
     return { ok: true };
   }
 

@@ -1,3 +1,4 @@
+import './direct-route-test-env';
 import { test, expect } from '@playwright/test';
 import { execFileSync } from 'node:child_process';
 import { readFileSync } from 'node:fs';
