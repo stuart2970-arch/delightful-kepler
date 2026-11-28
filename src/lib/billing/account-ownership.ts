@@ -3,6 +3,8 @@
  * A connected calendar is not an input: only a purchase row or an include switch counts.
  */
 
+import { HIDDEN_PURCHASE_CATEGORIES } from '@/lib/addons/public-catalogue';
+
 export const ONE_OFF_CATEGORIES = new Set(['voice_pack', 'sms_pack']);
 
 export type CatalogAddon = {
@@ -159,7 +161,10 @@ function priceLabel(product: {
 }
 
 function sellable(addon: CatalogAddon): boolean {
-  return addon.is_active !== false && addon.id !== 'whatsapp_primary';
+  if (addon.is_active === false) return false;
+  if (addon.id === 'whatsapp_primary') return false;
+  if (HIDDEN_PURCHASE_CATEGORIES.has(addon.category)) return false;
+  return true;
 }
 
 export function buildAccountOwnership(input: {

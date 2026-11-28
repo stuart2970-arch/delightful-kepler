@@ -351,10 +351,14 @@ VALUES (
 ) ON CONFLICT (id) DO NOTHING;
 
 -- Active add-on for Acme; keep a known disabled catalogue row for smoke checks.
--- Unique (tenant_id, addon_catalog_id) from STYL-202 follow-up — safe to re-run seed via SQL alone.
 INSERT INTO public.tenant_active_addons (tenant_id, addon_catalog_id, is_active)
-VALUES ('10000000-0000-0000-0000-000000000001', 'google_calendar_addon', true)
-ON CONFLICT (tenant_id, addon_catalog_id) DO NOTHING;
+SELECT '10000000-0000-0000-0000-000000000001', 'google_calendar_addon', true
+WHERE NOT EXISTS (
+  SELECT 1 FROM public.tenant_active_addons
+  WHERE tenant_id = '10000000-0000-0000-0000-000000000001'
+    AND addon_catalog_id = 'google_calendar_addon'
+    AND is_active IS TRUE
+);
 
 UPDATE public.addon_catalog
 SET is_active = false

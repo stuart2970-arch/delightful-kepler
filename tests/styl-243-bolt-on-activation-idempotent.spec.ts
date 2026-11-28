@@ -363,12 +363,13 @@ test.describe('STYL-243 activate_tenant_addon on the local stack', () => {
   });
 
   test('two concurrent RPC calls leave one active row', async () => {
-    await admin.from('tenant_active_addons').delete().eq('tenant_id', GLOBEX).eq('addon_catalog_id', FIXTURE_CATALOG);
+    const catalogId = 'microsoft_calendar_addon';
+    await admin.from('tenant_active_addons').delete().eq('tenant_id', GLOBEX).eq('addon_catalog_id', catalogId);
 
     const base = {
       p_tenant_id: GLOBEX,
-      p_addon_catalog_id: FIXTURE_CATALOG,
-      p_feature_id: 'data_chunks_addon',
+      p_addon_catalog_id: catalogId,
+      p_feature_id: 'microsoft_calendar',
       p_subscription_status: 'active',
       p_stripe_subscription_id: 'sub_local_fixture',
       p_price_paid_pence: 499,
@@ -387,7 +388,7 @@ test.describe('STYL-243 activate_tenant_addon on the local stack', () => {
       .from('tenant_active_addons')
       .select('id, is_active, stripe_subscription_item_id')
       .eq('tenant_id', GLOBEX)
-      .eq('addon_catalog_id', FIXTURE_CATALOG);
+      .eq('addon_catalog_id', catalogId);
     expect(error).toBeNull();
     expect(rows).toHaveLength(1);
     expect(rows?.[0].is_active).toBe(true);
