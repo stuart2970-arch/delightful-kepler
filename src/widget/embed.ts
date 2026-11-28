@@ -68,7 +68,7 @@ const CONNECTING_TIMEOUT_MS = 20000;
     if (!turnstileBridge) {
       throw new TurnstileTokenError('not_ready');
     }
-    return turnstileBridge.acquireToken({ visible: 'always', retryOnce: true });
+    return turnstileBridge.acquireToken({ visible: 'auto', retryOnce: true });
   }
 
   let currentTermsVersion = '1.0';
@@ -102,10 +102,6 @@ const CONNECTING_TIMEOUT_MS = 20000;
       }
     }
 
-    if (forceRefresh) {
-      turnstileBridge?.markConsumed();
-    }
-
     let turnstileToken: string;
     try {
       turnstileToken = await getTurnstileToken();
@@ -116,20 +112,37 @@ const CONNECTING_TIMEOUT_MS = 20000;
       );
     }
 
-    const res = await fetch(`${apiHost}/api/chat/public-init`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'x-turnstile-token': turnstileToken,
-      },
-      body: JSON.stringify({
-        chatbotId,
-        termsAccepted: getSessionGateState(),
-        termsVersion: currentTermsVersion,
-      }),
-    });
+    const postPublicInit = (token: string) =>
+      fetch(`${apiHost}/api/chat/public-init`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-turnstile-token': token,
+        },
+        body: JSON.stringify({
+          chatbotId,
+          termsAccepted: getSessionGateState(),
+          termsVersion: currentTermsVersion,
+        }),
+      });
+
+    let res = await postPublicInit(turnstileToken);
 
     if (!res.ok) {
+      turnstileBridge?.markConsumed();
+      try {
+        turnstileToken = await getTurnstileToken();
+        res = await postPublicInit(turnstileToken);
+      } catch (retryErr) {
+        const code = retryErr instanceof TurnstileTokenError ? retryErr.code : 'unknown';
+        throw new Error(
+          `Security verification failed (${code}). Please refresh the page and try again.`,
+        );
+      }
+    }
+
+    if (!res.ok) {
+      turnstileBridge?.markConsumed();
       const errJson = await res.json().catch(() => ({}));
       const msg = errJson.error || `Security verification failed with HTTP ${res.status}.`;
       throw new Error(msg);

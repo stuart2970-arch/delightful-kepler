@@ -4876,6 +4876,12 @@ Highlighted adjustments in the modal:
 * **Tests**: `tests/styl-turnstile-prewarm-mobile.spec.ts`; updated `tests/styl-361-turnstile-iframe.spec.ts`.
 * **Verify**: `npm run build:widget`; Playwright `tests/styl-turnstile-prewarm-mobile.spec.ts` + `tests/styl-361-turnstile-iframe.spec.ts` — 8 passed on local Supabase; `NODE_OPTIONS=--max-old-space-size=6144 npm run typecheck`.
 
+### Session (Turnstile gate overlay — Samsung S25 / prod — 28 Nov 2026)
+* **User**: Fix chat widget gate showing “Complete the security check below” over an empty box and hanging on Connecting securely (prod Samsung S25 Chrome).
+* **Changes**: `turnstile-bridge.ts` defers overlay until `STYLEFLO_TURNSTILE_INTERACTIVE` or 9s fallback; ignores transient 600/300 errors while waiting; reuses prewarmed/pending tokens (no premature `markConsumed` / reset). Widget `ensureChatSession` consumes Turnstile only after successful `public-init`, with one retry on HTTP failure. `public/turnstile.html` uses `retry: auto`, transient error callback, fatal vs deferred errors.
+* **Tests**: `tests/styl-turnstile-gate-overlay.spec.ts`; STYL-361/226/prewarm specs updated.
+* **Verify**: `NODE_OPTIONS=--max-old-space-size=8192 npm run typecheck`; Playwright turnstile specs (13) on local Supabase.
+
 ### Session (STYL-364/230/248/367/366/360/211 billing and knowledge bundle — 28 Nov 2026)
 * **User**: One PR into `staging` for repeatable Extra Knowledge, Google Calendar checkout fixes, Stripe catalog price/product ids, hide voice/SMS one-off packs, 20MB knowledge upload cap, website import URL filtering, and purchase slider reliability.
 * **Changes**: Migrations `20261128120000_styl364_repeatable_extra_knowledge.sql` and `20261128120100_styl248_styl230_stripe_catalog_columns.sql`; `src/lib/billing/stripe-addon-checkout.ts`, `repeatable-addons.ts`; checkout uses catalog Stripe ids; `public-catalogue` hides retired packs; knowledge `url-import-filter.ts` and `upload-limits.ts`.
