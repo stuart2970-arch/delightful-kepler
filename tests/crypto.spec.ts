@@ -2,6 +2,11 @@ import { test, expect } from '@playwright/test';
 import { encryptToken, decryptToken, encryptPin, decryptPin, maskPhoneNumber } from '../src/lib/crypto';
 
 test.describe('Phase 1: Cryptographic Infrastructure & Privacy Protection', () => {
+  test.beforeAll(() => {
+    if (!process.env.TOKEN_ENC_KEY) {
+      process.env.TOKEN_ENC_KEY = 'crypto_spec_token_enc_key_32bytes!';
+    }
+  });
   test('should encrypt and decrypt access tokens successfully', () => {
     const rawToken = 'EAABwb01ZBz8wBA...mock_meta_system_user_token_long_string';
     const encrypted = encryptToken(rawToken, 1);

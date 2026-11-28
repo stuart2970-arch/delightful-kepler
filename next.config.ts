@@ -82,8 +82,10 @@ const nextConfig: any = {
           {
             key: 'Content-Security-Policy',
             // STYL-203: allow staging App Hosting host (+ optional custom domain) for widget embeds.
-            value:
-              "frame-ancestors 'self' https://styleflo.ai https://*.styleflo.ai https://*.hosted.app https://*.web.app http://styleflo.test:* http://styleflo.test http://*.styleflo.test:*"
+            value: [
+              "frame-ancestors 'self' https://styleflo.ai https://*.styleflo.ai https://*.hosted.app https://*.web.app http://styleflo.test:* http://styleflo.test http://*.styleflo.test:*",
+              isStaging ? " https://styleflo-final.staging.tempurl.host" : "",
+            ].join("")
           },
           ...stagingNoIndex,
         ],

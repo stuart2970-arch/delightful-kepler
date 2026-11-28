@@ -14,6 +14,7 @@ import { voiceLogError } from '@/lib/voice/log-error';
 import { resolveMockModelReply } from '@/lib/env/allow-mock-reply';
 import { formatOpeningHoursForPrompt, normaliseOpeningHours } from '@/lib/opening-hours';
 import { loadVoiceSalon } from '@/lib/voice-salon';
+import { verifyVapiWebhookSecret } from '@/lib/env/vapi-webhook-auth';
 
 export const maxDuration = 300;
 
@@ -31,6 +32,12 @@ export async function POST(
   req: Request,
   { params }: { params: Promise<{ chatbotId: string }> }
 ) {
+  const auth = verifyVapiWebhookSecret(req);
+  if (!auth.ok) {
+    const payload = await auth.response.json().catch(() => ({ error: 'Unauthorized' }));
+    return NextResponse.json(payload, { status: auth.response.status, headers: corsHeaders });
+  }
+
   try {
     const resolvedParams = await params;
     let chatbotId = resolvedParams.chatbotId;

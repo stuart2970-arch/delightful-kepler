@@ -12,6 +12,9 @@ concurrency:
   # Cancel superseded runs so a stuck/failed job does not block the branch for hours.
   cancel-in-progress: true
 
+env:
+  PLAYWRIGHT_TEST: "true"
+
 jobs:
   playwright-changes:
     name: Playwright area selection

@@ -4,12 +4,47 @@ const ALGORITHM = 'aes-256-gcm';
 const IV_LENGTH = 12; // 96-bit IV recommended for GCM
 const DEFAULT_KEY_VERSION = 1;
 
+/** Pre-STYL-282 local dev fallback; used only for legacy decrypt attempts. */
+const LEGACY_DEFAULT_DEV_KEY = 'styleflo_default_dev_enc_key_32b_!';
+
+function deriveKeyFromSecret(secret: string): Buffer {
+  return crypto.createHash('sha256').update(secret).digest();
+}
+
 /**
- * Derives a consistent 32-byte (256-bit) buffer key from the provided secret or environment variable.
+ * Primary encryption key — TOKEN_ENC_KEY only (encrypt and preferred decrypt).
  */
 function getEncryptionKey(): Buffer {
-  const secret = process.env.TOKEN_ENC_KEY || process.env.META_APP_SECRET || 'styleflo_default_dev_enc_key_32b_!';
-  return crypto.createHash('sha256').update(secret).digest();
+  const secret = (process.env.TOKEN_ENC_KEY || '').trim();
+  if (!secret) {
+    throw new Error('TOKEN_ENC_KEY is not configured.');
+  }
+  return deriveKeyFromSecret(secret);
+}
+
+function legacyDecryptKeyCandidates(env: NodeJS.ProcessEnv = process.env): Buffer[] {
+  const seen = new Set<string>();
+  const keys: Buffer[] = [];
+  const add = (material: string) => {
+    const trimmed = material.trim();
+    if (!trimmed || seen.has(trimmed)) return;
+    seen.add(trimmed);
+    keys.push(deriveKeyFromSecret(trimmed));
+  };
+  add(env.META_APP_SECRET || '');
+  add(LEGACY_DEFAULT_DEV_KEY);
+  return keys;
+}
+
+function decryptWithKey(parts: string[], key: Buffer): string {
+  const [, ivHex, authTagHex, cipherHex] = parts;
+  const iv = Buffer.from(ivHex, 'hex');
+  const authTag = Buffer.from(authTagHex, 'hex');
+  const decipher = crypto.createDecipheriv(ALGORITHM, key, iv);
+  decipher.setAuthTag(authTag);
+  let decrypted = decipher.update(cipherHex, 'hex', 'utf8');
+  decrypted += decipher.final('utf8');
+  return decrypted;
 }
 
 /**
@@ -33,6 +68,14 @@ export function encryptToken(plainText: string, keyVersion: number = DEFAULT_KEY
 }
 
 /**
+ * Re-wrap ciphertext with TOKEN_ENC_KEY when a caller persists an updated row
+ * (natural write paths such as WhatsApp onboarding).
+ */
+export function reencryptWithPrimaryKey(plainText: string, keyVersion: number = DEFAULT_KEY_VERSION): string {
+  return encryptToken(plainText, keyVersion);
+}
+
+/**
  * Decrypts an AES-256-GCM encrypted token string.
  * Expects format: `v{version}:{iv_hex}:{authTag_hex}:{ciphertext_hex}`
  */
@@ -44,22 +87,32 @@ export function decryptToken(encryptedString: string): string {
     throw new Error('Invalid encrypted token format');
   }
 
-  const [versionTag, ivHex, authTagHex, cipherHex] = parts;
+  const [versionTag] = parts;
   if (!versionTag.startsWith('v')) {
     throw new Error('Unsupported encryption version');
   }
 
-  const key = getEncryptionKey();
-  const iv = Buffer.from(ivHex, 'hex');
-  const authTag = Buffer.from(authTagHex, 'hex');
+  let primaryError: unknown;
+  try {
+    return decryptWithKey(parts, getEncryptionKey());
+  } catch (err) {
+    primaryError = err;
+  }
 
-  const decipher = crypto.createDecipheriv(ALGORITHM, key, iv);
-  decipher.setAuthTag(authTag);
+  for (const legacyKey of legacyDecryptKeyCandidates()) {
+    try {
+      const plain = decryptWithKey(parts, legacyKey);
+      console.warn(
+        '[crypto] Decrypted with a legacy key material (pre-STYL-282 fallback); migrate by re-saving with TOKEN_ENC_KEY.',
+      );
+      return plain;
+    } catch {
+      // try next legacy candidate
+    }
+  }
 
-  let decrypted = decipher.update(cipherHex, 'hex', 'utf8');
-  decrypted += decipher.final('utf8');
-
-  return decrypted;
+  if (primaryError instanceof Error) throw primaryError;
+  throw new Error('Failed to decrypt token');
 }
 
 /**

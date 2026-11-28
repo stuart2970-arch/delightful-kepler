@@ -11,6 +11,7 @@ function stripTrailingSlash(url: string): string {
 
 const PRODUCTION_EMBED_PARENT = 'https://styleflo.ai';
 const STAGING_EMBED_PARENT = 'https://staging.styleflo.ai';
+const STAGING_WORDPRESS_PARENT = 'https://styleflo-final.staging.tempurl.host';
 
 function originFromUrl(raw: string | undefined | null): string | null {
   const value = (raw || '').trim();
@@ -20,6 +21,18 @@ function originFromUrl(raw: string | undefined | null): string | null {
   } catch {
     return null;
   }
+}
+
+/** Extra staging WordPress hosts allowed to embed the /app/ iframe (CSP + postMessage). */
+export function extraStagingEmbedParentOrigins(env: NodeJS.ProcessEnv = process.env): string[] {
+  if (!isStagingAppEnv(env)) return [];
+  return [STAGING_WORDPRESS_PARENT];
+}
+
+export function resolveEmbedParentOrigins(env: NodeJS.ProcessEnv = process.env): string[] {
+  const primary = resolveEmbedParentOrigin(env);
+  const extras = extraStagingEmbedParentOrigins(env).filter((origin) => origin !== primary);
+  return [primary, ...extras];
 }
 
 export function resolveEmbedParentOrigin(env: NodeJS.ProcessEnv = process.env): string {

@@ -1,3 +1,4 @@
+import './direct-route-test-env';
 import { test, expect } from '@playwright/test';
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 import {

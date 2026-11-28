@@ -54,6 +54,7 @@ const ENV_KEYS = [
   'SUPABASE_ANON_KEY',
   'NEXT_PUBLIC_SUPABASE_ANON_KEY',
   'NEXT_PUBLIC_APP_URL',
+  'VAPI_WEBHOOK_SECRET',
 ] as const;
 
 type SavedEnv = Partial<Record<(typeof ENV_KEYS)[number], string | undefined>>;
@@ -573,9 +574,13 @@ async function postVoice(
   headers: Record<string, string> = {},
 ): Promise<{ status: number; text: string }> {
   const { POST } = await import('../src/app/api/voice/[chatbotId]/chat/completions/route');
+  const vapiHeaders =
+    process.env.VAPI_WEBHOOK_SECRET && process.env.PLAYWRIGHT_TEST !== 'true'
+      ? { 'x-vapi-secret': process.env.VAPI_WEBHOOK_SECRET }
+      : {};
   const req = new NextRequest(`http://localhost:3001/api/voice/${BOT}/chat/completions`, {
     method: 'POST',
-    headers: { 'content-type': 'application/json', ...headers },
+    headers: { 'content-type': 'application/json', ...vapiHeaders, ...headers },
     body: JSON.stringify({
       stream: true,
       messages: [{ role: 'user', content: 'I would like to book a haircut next week' }],

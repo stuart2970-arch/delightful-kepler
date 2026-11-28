@@ -89,6 +89,7 @@ function buildEnvFile({ apiUrl, anon, service, appUrl, appEnv, playwright }) {
     'STRIPE_WEBHOOK_SECRET=whsec_test_local_mock_secret',
     'TWILIO_ACCOUNT_SID=ACmocktwilioaccountsid000000000000',
     'TWILIO_AUTH_TOKEN=mock_twilio_auth_token',
+    'TOKEN_ENC_KEY=local_test_token_enc_key_32bytes!!',
     'META_APP_SECRET=test_meta_app_secret_123',
     'META_VERIFY_TOKEN=styleflo_meta_verify_2026',
     'CRON_SECRET=mock_cron_secret_for_local_testing',

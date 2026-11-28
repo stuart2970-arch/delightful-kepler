@@ -1,7 +1,7 @@
 'use client';
 
 import { getPublicAppOrigin, publicAppPath } from './public-app-url';
-import { resolveEmbedParentOrigin, embedParentAppEntryUrl } from './embed-parent';
+import { resolveEmbedParentOrigins, embedParentAppEntryUrl } from './embed-parent';
 
 export const STYLEFLO_EMBED_STORAGE_KEY = 'styleflo_embed_mode';
 export const STYLEFLO_EMBED_VALUE = 'styleflo';
@@ -13,7 +13,9 @@ export const STYLEFLO_OAUTH_DONE = 'STYLEFLO_OAUTH_DONE';
 const pinnedParentOrigins = (): Set<string> => {
   const origins = new Set<string>();
   try {
-    origins.add(resolveEmbedParentOrigin());
+    for (const origin of resolveEmbedParentOrigins()) {
+      origins.add(origin);
+    }
   } catch {
     // ignore
   }

@@ -6,6 +6,7 @@ import twilio from 'twilio';
 import { sendConsolidatedLeadEmail } from '@/lib/lead-notifier';
 import { getActiveGeminiModel } from '@/lib/gemini-config';
 import { CUSTOMER_UNFINISHED_REPLY, sanitiseForTranscript } from '@/lib/chat/customer-output-guard';
+import { verifyTwilioWebhookRequest } from '@/lib/env/twilio-webhook-auth';
 
 export const dynamic = 'force-dynamic';
 
@@ -70,6 +71,9 @@ export async function POST(request: NextRequest) {
   if (process.env.GEMINI_API_KEY && !process.env.GOOGLE_GENERATIVE_AI_API_KEY) {
     process.env.GOOGLE_GENERATIVE_AI_API_KEY = process.env.GEMINI_API_KEY;
   }
+
+  const twilioAuth = await verifyTwilioWebhookRequest(request);
+  if (!twilioAuth.ok) return twilioAuth.response;
 
   try {
     // 1. Parse Twilio payload (searchParams, formData, or raw URLSearchParams)

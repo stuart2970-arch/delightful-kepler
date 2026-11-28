@@ -4,6 +4,8 @@ import path from 'path';
 
 // Read from default ".env.test" file.
 dotenv.config({ path: path.resolve(__dirname, '.env.test') });
+// Workers do not always inherit dotenv-injected values; keep test bypass flags explicit.
+process.env.PLAYWRIGHT_TEST = process.env.PLAYWRIGHT_TEST || 'true';
 
 export default defineConfig({
   testDir: './tests',

@@ -8,6 +8,7 @@ const PRODUCTION_APP_ORIGIN = 'https://app.styleflo.ai';
 const STAGING_APP_ORIGIN = 'https://staging.styleflo.ai';
 const PRODUCTION_EMBED_PARENT = 'https://styleflo.ai';
 const STAGING_EMBED_PARENT = 'https://staging.styleflo.ai';
+const STAGING_WORDPRESS_PARENT = 'https://styleflo-final.staging.tempurl.host';
 
 function stripTrailingSlash(url: string): string {
   return url.replace(/\/+$/, '');
@@ -77,15 +78,17 @@ function originOf(raw: string): string | null {
   }
 }
 
-function resolveEmbedParentOriginForReturnUrl(
+function resolveEmbedParentOriginsForReturnUrl(
   env: NodeJS.ProcessEnv = process.env,
-): string {
+): string[] {
   const fromEnv = originFromUrl(env.NEXT_PUBLIC_EMBED_PARENT_URL);
-  if (fromEnv) return fromEnv;
+  if (fromEnv) return [fromEnv];
   const wp = originFromUrl(env.WORDPRESS_SITE_URL);
-  if (wp) return wp;
-  if (isStagingAppEnv(env)) return STAGING_EMBED_PARENT;
-  return PRODUCTION_EMBED_PARENT;
+  if (wp) return [wp];
+  if (isStagingAppEnv(env)) {
+    return [STAGING_EMBED_PARENT, STAGING_WORDPRESS_PARENT];
+  }
+  return [PRODUCTION_EMBED_PARENT];
 }
 
 /** True when `candidate` is the WP /app/ iframe entry on the configured parent origin. */
@@ -99,8 +102,8 @@ export function isAllowedEmbedParentReturnUrl(
     const url = new URL(trimmed);
     if (url.protocol !== 'http:' && url.protocol !== 'https:') return false;
     if (url.username || url.password) return false;
-    const parentOrigin = resolveEmbedParentOriginForReturnUrl(env);
-    if (url.origin !== parentOrigin) return false;
+    const allowedParents = resolveEmbedParentOriginsForReturnUrl(env);
+    if (!allowedParents.includes(url.origin)) return false;
     const pathname = url.pathname.replace(/\/+$/, '') || '/';
     return pathname === '/app';
   } catch {

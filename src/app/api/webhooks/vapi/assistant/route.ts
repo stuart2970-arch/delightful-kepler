@@ -8,6 +8,7 @@ import { handleEndOfCallReport, unwrapVapiMessage } from '@/lib/voice/end-of-cal
 import { voiceUnavailableAssistantResponse } from '@/lib/voice/unavailable-assistant';
 import { VAPI_SERVER_MESSAGES, vapiEndOfCallServer } from '@/lib/voice/vapi-server';
 import { applyVapiNoRecordingFlags } from '@/lib/voice/vapi-recording-policy';
+import { findTenantByDialledTwilioNumber } from '@/lib/telephony/tenant-by-twilio-number';
 
 export const dynamic = 'force-dynamic';
 
@@ -69,33 +70,11 @@ export async function POST(request: Request) {
       auth: { persistSession: false, autoRefreshToken: false },
     });
 
-    // 1. Look up the tenant by their Twilio shadow number
-    let tenant: any = null;
+    let tenant: Awaited<ReturnType<typeof findTenantByDialledTwilioNumber>> = null;
     let chatbot: any = null;
 
     if (twilioNumber) {
-      // Try exact match first on shadow landline or mobile
-      const { data: exactMatch } = await supabaseAdmin
-        .from('tenants')
-        .select('id, plan_tier')
-        .or(`twilio_shadow_number.eq.${twilioNumber},twilio_mobile_number.eq.${twilioNumber}`)
-        .maybeSingle();
-
-      tenant = exactMatch;
-
-      // If no exact match, try matching without leading '+' or with clean digits
-      if (!tenant) {
-        const cleanDigits = twilioNumber.replace(/\D/g, '');
-        if (cleanDigits) {
-          const { data: fuzzyMatch } = await supabaseAdmin
-            .from('tenants')
-            .select('id, plan_tier')
-            .or(`twilio_shadow_number.ilike.%${cleanDigits}%,twilio_mobile_number.ilike.%${cleanDigits}%`)
-            .maybeSingle();
-
-          tenant = fuzzyMatch;
-        }
-      }
+      tenant = await findTenantByDialledTwilioNumber(supabaseAdmin, twilioNumber);
     }
 
     // 2. Fetch the chatbot config if tenant was found

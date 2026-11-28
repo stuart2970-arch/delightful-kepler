@@ -10,6 +10,8 @@ import {
 } from '@/lib/entitlements';
 import { INBOUND_MINUTES_EXHAUSTED_MESSAGE } from '@/lib/telephony/voice-minute-gate';
 import { evaluateTenantVoiceMinuteGate, type TenantVoiceMinuteSources } from '@/lib/telephony/tenant-voice-minute-gate';
+import { verifyTwilioWebhookRequest } from '@/lib/env/twilio-webhook-auth';
+import { findTenantByDialledTwilioNumber } from '@/lib/telephony/tenant-by-twilio-number';
 
 export const dynamic = 'force-dynamic';
 
@@ -32,6 +34,9 @@ export async function POST(request: Request) {
 }
 
 export async function handleInboundPost(request: Request, sources?: Partial<InboundMinuteSources>) {
+  const twilioAuth = await verifyTwilioWebhookRequest(request);
+  if (!twilioAuth.ok) return twilioAuth.response;
+
   try {
     const supabase = getSupabaseAdmin();
     const minuteSources: InboundMinuteSources = {
@@ -65,15 +70,9 @@ export async function handleInboundPost(request: Request, sources?: Partial<Inbo
       return new NextResponse('Invalid request', { status: 400 });
     }
 
-    // 1. Find the tenant by landline (twilio_shadow_number) or mobile (twilio_mobile_number)
-    const { data: tenant, error: tenantError } = await supabase
-      .from('tenants')
-      .select('id')
-      .or(`twilio_shadow_number.eq.${to},twilio_mobile_number.eq.${to}`)
-      .limit(1)
-      .maybeSingle();
+    const tenant = await findTenantByDialledTwilioNumber(supabase, to);
 
-    if (tenantError || !tenant) {
+    if (!tenant) {
       console.error(`[Telephony Inbound] No tenant found for number: ${to}`);
       // Fallback TwiML if no tenant found
       const VoiceResponse = twilio.twiml.VoiceResponse;
