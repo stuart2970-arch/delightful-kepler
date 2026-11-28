@@ -4873,3 +4873,4 @@ Highlighted adjustments in the modal:
 * **User**: Single PR to `staging`: Vapi secret on voice completions, Twilio signature on SMS/voice webhooks, parameterised tenant phone lookup, `TOKEN_ENC_KEY`-only crypto, `META_VERIFY_TOKEN` UI label, staging `styleflo-final.staging.tempurl.host` in CSP/embed allowlist.
 * **Changes**: `twilio-webhook-auth.ts`, `tenant-by-twilio-number.ts`; auth on completion routes, Twilio webhooks, telephony inbound; `vapi-webhook-auth` bypass only when `PLAYWRIGHT_TEST=true`; focused Playwright specs per ticket.
 * **Verify**: typecheck; 30 related Playwright specs passed on local Supabase.
+* **Follow-up**: Vapi bypass in Playwright only when no `X-Vapi-Secret` header; `tests/direct-route-test-env.ts` + CI `PLAYWRIGHT_TEST` for direct handler imports.
