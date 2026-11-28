@@ -6,6 +6,7 @@ import { z } from 'zod';
 import { sanitizeForPostgres } from '@/lib/file-parser';
 import { requireUser } from '@/lib/auth/require-superadmin';
 import { dedupedIngest } from '@/lib/knowledge/ingest-documents';
+import { filterKnowledgeImportUrl } from '@/lib/knowledge/url-import-filter';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 120;
@@ -51,6 +52,11 @@ export async function POST(request: Request) {
 
     const { url, chatbotId, dryRun } = validation.data;
 
+    const urlVerdict = filterKnowledgeImportUrl(url);
+    if (!urlVerdict.allowed) {
+      return NextResponse.json({ error: urlVerdict.reason }, { status: 400 });
+    }
+
     const adminClient = createClient(supabaseUrl, serviceRoleKey, {
       auth: { persistSession: false, autoRefreshToken: false }
     });
@@ -93,11 +99,13 @@ export async function POST(request: Request) {
       }
     }
 
+    const fetchUrl = urlVerdict.normalized;
+
     // 4. Fetch and Scrape HTML content from URL
-    console.log(`[Ingest Route][${requestId}] Fetching content from: ${url}`);
+    console.log(`[Ingest Route][${requestId}] Fetching content from: ${fetchUrl}`);
     let htmlContent: string;
     try {
-      const response = await fetch(url, {
+      const response = await fetch(fetchUrl, {
         headers: {
           'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
           'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',

@@ -14,6 +14,7 @@ import {
   planVoiceCheckoutSectorTag,
 } from '@/lib/billing/credit-grant-keys';
 import { isBoltOnMetadata, mapAddonCategoryToFeatureId } from '@/lib/billing/bolt-on';
+import { isRepeatableAddonCatalogId } from '@/lib/billing/repeatable-addons';
 import { resolvePricePaidPence } from '@/lib/billing/account-ownership';
 import {
   addonActivateStatusFields,
@@ -541,7 +542,15 @@ async function fallbackActivateTenantAddon(options: {
   }
 
   const statusFields = addonActivateStatusFields(options.subscriptionStatus);
-  if (listed.row) {
+  if (listed.row && isRepeatableAddonCatalogId(options.addonCatalogId)) {
+    if (
+      options.subscriptionItemId &&
+      listed.row.stripe_subscription_item_id === options.subscriptionItemId
+    ) {
+      return { ok: true, outcome: 'already_active', id: listed.row.id };
+    }
+    // fall through to insert a second Extra Knowledge row
+  } else if (listed.row) {
     const { error: updateErr } = await options.supabaseAdmin
       .from('tenant_active_addons')
       .update({

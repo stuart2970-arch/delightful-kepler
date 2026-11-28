@@ -4,6 +4,11 @@ import { RecursiveCharacterTextSplitter } from '@langchain/textsplitters';
 import { extractTextFromFile, sanitizeForPostgres } from '@/lib/file-parser';
 import { requireUser } from '@/lib/auth/require-superadmin';
 import { dedupedIngest } from '@/lib/knowledge/ingest-documents';
+import {
+  isKnowledgeFileTooLarge,
+  KNOWLEDGE_FILE_TOO_LARGE_MESSAGE,
+  MAX_KNOWLEDGE_FILE_BYTES,
+} from '@/lib/knowledge/upload-limits';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 120;
@@ -30,6 +35,11 @@ export async function POST(request: Request) {
       return auth.response;
     }
 
+    const contentLength = Number(request.headers.get('content-length') || 0);
+    if (isKnowledgeFileTooLarge(contentLength)) {
+      return NextResponse.json({ error: KNOWLEDGE_FILE_TOO_LARGE_MESSAGE }, { status: 413 });
+    }
+
     // 2. Parse form data
     let formData: FormData;
     try {
@@ -44,6 +54,10 @@ export async function POST(request: Request) {
 
     if (!file || !chatbotId) {
       return NextResponse.json({ error: 'Missing file or chatbotId' }, { status: 400 });
+    }
+
+    if (isKnowledgeFileTooLarge(file.size)) {
+      return NextResponse.json({ error: KNOWLEDGE_FILE_TOO_LARGE_MESSAGE }, { status: 413 });
     }
 
     if (!/^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/.test(chatbotId)) {

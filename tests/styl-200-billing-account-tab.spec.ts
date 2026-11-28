@@ -93,7 +93,7 @@ test.describe('STYL-200 billing account tab (STYL-194/196 + STYL-193)', () => {
     await expect(page.getByText('£4.99/mo').first()).toBeVisible();
     await expect(page.getByRole('button', { name: 'Already included' }).first()).toBeVisible();
     await expect(page.getByText('£3.50/mo').first()).toBeVisible();
-    await expect(page.getByRole('heading', { name: 'One-off packs' })).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'One-off packs' })).toHaveCount(0);
   });
 
   test('buying Remove StyleFlo branding via include-switch path hides the widget footer', async ({ request }) => {

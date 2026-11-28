@@ -24,13 +24,18 @@ test.describe('STYL-242 entitlement SELECT policies', () => {
       auth: { persistSession: false, autoRefreshToken: false },
     });
 
-    const { error: fixtureError } = await admin.from('tenant_active_addons').upsert({
+    await admin
+      .from('tenant_active_addons')
+      .delete()
+      .eq('tenant_id', GLOBEX)
+      .eq('addon_catalog_id', 'microsoft_calendar_addon');
+    const { error: fixtureError } = await admin.from('tenant_active_addons').insert({
       tenant_id: GLOBEX,
       addon_catalog_id: 'microsoft_calendar_addon',
       feature_id: 'microsoft_calendar',
       quantity: 1,
       is_active: true,
-    }, { onConflict: 'tenant_id,addon_catalog_id' });
+    });
     expect(fixtureError).toBeNull();
 
     const { error: acmeOverrideError } = await admin.from('tenant_feature_overrides').upsert({

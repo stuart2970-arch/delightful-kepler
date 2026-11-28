@@ -62,12 +62,11 @@ test.describe('STYL-202 follow-up: seed idempotency and SQL reset guard', () => 
     expect(after).toBe(before);
   });
 
-  test('seed ON CONFLICT targets (tenant_id, addon_catalog_id)', () => {
+  test('seed idempotent google_calendar_addon row uses WHERE NOT EXISTS', () => {
     const seedPath = path.resolve(__dirname, '../supabase/seed.sql');
     const seed = fs.readFileSync(seedPath, 'utf8');
-    expect(seed).toContain('ON CONFLICT (tenant_id, addon_catalog_id) DO NOTHING');
     expect(seed).toMatch(
-      /tenant_active_addons[\s\S]*google_calendar_addon[\s\S]*ON CONFLICT \(tenant_id, addon_catalog_id\) DO NOTHING/,
+      /tenant_active_addons[\s\S]*google_calendar_addon[\s\S]*WHERE NOT EXISTS/,
     );
   });
 

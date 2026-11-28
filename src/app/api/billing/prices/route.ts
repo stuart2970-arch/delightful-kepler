@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
-import { applyPublicAddonFilter } from '@/lib/addons/public-catalogue';
+import { applyPublicAddonFilter, isAddonSellable } from '@/lib/addons/public-catalogue';
 
 export const dynamic = 'force-dynamic';
 
@@ -44,7 +44,7 @@ export async function GET() {
     // 2. Fetch sellable add-ons from addon_catalog (using shared public filter)
     const addonsQuery = supabase
       .from('addon_catalog')
-      .select('id, name, description, category, monthly_price_pence, max_price_pence, price_step_pence, is_sliding, included_voice_minutes, max_voice_minutes, included_sms, max_sms, included_messages, included_data_chunks');
+      .select('id, name, description, category, monthly_price_pence, max_price_pence, price_step_pence, is_sliding, is_active, included_voice_minutes, max_voice_minutes, included_sms, max_sms, included_messages, included_data_chunks');
     const { data: addons, error: addonsError } = await applyPublicAddonFilter(addonsQuery)
       .order('display_order', { ascending: true });
 
@@ -59,7 +59,7 @@ export async function GET() {
           name: foundationTier.name || 'Foundation Plan',
           monthly_price: Number(foundationTier.monthly_price),
         },
-        addons: addons.map(a => ({
+        addons: addons.filter(isAddonSellable).map(a => ({
           id: a.id,
           name: a.name,
           description: a.description,

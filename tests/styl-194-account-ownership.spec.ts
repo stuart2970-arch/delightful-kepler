@@ -125,7 +125,7 @@ test.describe('STYL-194 monthly total, Already included, and one-off packs', () 
     expect(result.monthly_total_pence).toBe(999 + 350);
   });
 
-  test('one-off voice and SMS packs stay out of the monthly total and can be bought again', () => {
+  test('one-off voice and SMS packs stay out of the monthly total and are hidden from purchase catalogue (STYL-367)', () => {
     const result = ownership({
       purchases: [
         { addon_catalog_id: 'google_calendar_addon', is_active: true, price_paid_pence: 350 },
@@ -134,10 +134,10 @@ test.describe('STYL-194 monthly total, Already included, and one-off packs', () 
       ],
     });
     expect(result.monthly_total_pence).toBe(999 + 350);
-    expect(result.one_off_packs.map((item) => item.id)).toEqual(['voice_pack_20', 'sms_pack_100']);
-    expect(result.one_off_packs.every((item) => item.already_included === false && item.billing === 'one_off')).toBe(true);
-    expect(result.one_off_packs.find((item) => item.id === 'voice_pack_20')?.price_label).toBe('From £15.00');
-    expect(result.active_bolt_ons.map((item) => item.addon_catalog_id)).toEqual(['google_calendar_addon']);
+    expect(result.one_off_packs).toEqual([]);
+    expect(result.active_bolt_ons.map((item) => item.addon_catalog_id).sort()).toEqual(
+      ['google_calendar_addon', 'sms_pack_100', 'voice_pack_20'].sort(),
+    );
     expect(result.heading).not.toContain('Voice Minutes Pack');
     expect(result.heading).not.toContain('SMS Text Pack');
   });
@@ -271,18 +271,17 @@ test.describe('STYL-196 account ownership endpoint', () => {
     expect(res.status()).toBe(200);
     const body = await res.json();
     const google = body.monthly_bolt_ons.find((item: { id: string }) => item.id === 'google_calendar_addon');
-    const voice = body.one_off_packs.find((item: { id: string }) => item.id === 'voice_pack_20');
     expect(google.already_included).toBe(true);
     expect(google.ownership).toBe('purchased');
     expect(google.price_paid_pence).toBe(350);
     expect(google.price_label).toBe('£3.50/mo');
     expect(google.catalogue_price_pence).not.toBe(350);
-    expect(voice.billing).toBe('one_off');
-    expect(voice.already_included).toBe(false);
+    expect(body.one_off_packs.find((item: { id: string }) => item.id === 'voice_pack_20')).toBeUndefined();
+    expect(body.active_bolt_ons.some((item: { addon_catalog_id: string }) => item.addon_catalog_id === 'voice_pack_20')).toBe(true);
     expect(body.monthly_total_pence).toBe(beforeTotal + 350);
     expect(body.heading).toContain(formatPounds(beforeTotal + 350));
     expect(body.heading).not.toContain(formatPounds(google.catalogue_price_pence));
-    expect(body.heading).not.toContain(voice.name);
+    expect(body.heading).not.toContain('Voice Minutes Pack');
 
     await admin.from('tenants').update({ has_google_calendar: flagRow?.has_google_calendar ?? false }).eq('id', GLOBEX);
   });

@@ -351,14 +351,34 @@ VALUES (
 ) ON CONFLICT (id) DO NOTHING;
 
 -- Active add-on for Acme; keep a known disabled catalogue row for smoke checks.
--- Unique (tenant_id, addon_catalog_id) from STYL-202 follow-up — safe to re-run seed via SQL alone.
 INSERT INTO public.tenant_active_addons (tenant_id, addon_catalog_id, is_active)
-VALUES ('10000000-0000-0000-0000-000000000001', 'google_calendar_addon', true)
-ON CONFLICT (tenant_id, addon_catalog_id) DO NOTHING;
+SELECT '10000000-0000-0000-0000-000000000001', 'google_calendar_addon', true
+WHERE NOT EXISTS (
+  SELECT 1 FROM public.tenant_active_addons
+  WHERE tenant_id = '10000000-0000-0000-0000-000000000001'
+    AND addon_catalog_id = 'google_calendar_addon'
+    AND is_active IS TRUE
+);
 
 UPDATE public.addon_catalog
 SET is_active = false
 WHERE id = 'whatsapp_addon';
+
+-- Local/test Stripe catalogue placeholders (agent Supabase db reset only — do not copy to hosted resets).
+UPDATE public.addon_catalog
+SET stripe_price_id = 'price_local_' || id
+WHERE id IN (
+  'data_pack_500',
+  'google_calendar_addon',
+  'microsoft_calendar_addon',
+  'remove_styleflo_branding'
+)
+  AND (stripe_price_id IS NULL OR btrim(stripe_price_id) = '');
+
+UPDATE public.addon_catalog
+SET stripe_product_id = 'prod_local_' || id
+WHERE (is_sliding IS TRUE OR category IN ('voice_pack', 'sms_pack'))
+  AND (stripe_product_id IS NULL OR btrim(stripe_product_id) = '');
 
 -- Seed Services for Acme Corp
 INSERT INTO public.services (id, tenant_id, name, duration_minutes, price)

@@ -86,15 +86,12 @@ test.describe('Modular Add-Ons & Sliding Scale Checkout API', () => {
     expect([200, 409]).toContain(res.status());
   });
 
-  test('GET /api/billing/addons?category=voice_pack returns voice pack bolt-ons', async ({ request }) => {
+  test('GET /api/billing/addons?category=voice_pack hides retired one-off packs (STYL-367)', async ({ request }) => {
     const res = await request.get('/api/billing/addons?category=voice_pack');
     expect(res.status()).toBe(200);
     const data = await res.json();
     const list = Array.isArray(data) ? data : data.addons || [];
-    expect(list.length).toBeGreaterThan(0);
-    const voice20 = list.find((item: any) => item.id === 'voice_pack_20');
-    expect(voice20).toBeDefined();
-    expect(voice20.category).toBe('voice_pack');
+    expect(list.find((item: any) => item.id === 'voice_pack_20')).toBeUndefined();
   });
 
   test('PATCH /api/tenants/settings updates voice auto top-up configuration', async ({ request }) => {
@@ -430,7 +427,7 @@ test.describe('Modular Add-Ons & Sliding Scale Checkout API', () => {
     expect(json.cancel_url).not.toContain('evil.example');
   });
 
-  test('POST /api/billing/checkout rejects a non-catalogue custom price on a non-sliding add-on with a clear error', async ({ request }) => {
+  test('POST /api/billing/checkout ignores stray customPricePence on flat Google Calendar bolt-on (STYL-230)', async ({ request }) => {
     const res = await request.post('/api/billing/checkout', {
       headers: ownerHeaders(),
       data: {
@@ -439,10 +436,10 @@ test.describe('Modular Add-Ons & Sliding Scale Checkout API', () => {
         customPricePence: 1299,
       },
     });
-    expect(res.status()).toBe(400);
+    expect(res.status()).toBe(200);
     const json = await res.json();
-    expect(json.error).toMatch(/sliding/i);
-    expect(json.error).not.toBe('Invalid custom price: out of allowed range');
+    expect(json.url).toContain('stripe.com');
+    expect(json.cataloguePricePence).toBe(499);
   });
 
   test('mocked Stripe return and cancel URLs resolve to existing app routes', async ({ request }) => {

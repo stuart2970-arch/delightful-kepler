@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
-import { applyPublicAddonFilter } from '@/lib/addons/public-catalogue';
+import { applyPublicAddonFilter, isAddonSellable, isAddonVisibleInPurchaseUi } from '@/lib/addons/public-catalogue';
 
 export const dynamic = 'force-dynamic';
 
@@ -30,7 +30,8 @@ export async function GET(req: Request) {
       throw error;
     }
 
-    return NextResponse.json(data);
+    const sellable = (data || []).filter(isAddonSellable).filter(isAddonVisibleInPurchaseUi);
+    return NextResponse.json(sellable);
   } catch (error: any) {
     console.error('Error fetching addons:', error);
     return NextResponse.json({ error: error.message || 'Failed to fetch addons' }, { status: 500 });

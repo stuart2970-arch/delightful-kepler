@@ -80,6 +80,20 @@ export default function AddOnUpsellModal({ isOpen, onClose, category, tenantId }
     };
   }, [isOpen, category]);
 
+  useEffect(() => {
+    if (!isOpen) return;
+    setLandlineStep(0);
+    setMobileStep(0);
+    setVoiceStep(0);
+    setSmsStep(0);
+  }, [isOpen, category, addOns.length]);
+
+  const slidingCatalogReady = (item?: AddOn | null) => {
+    if (!item?.is_sliding || item.monthly_price_pence == null) return false;
+    const max = item.max_price_pence ?? item.monthly_price_pence;
+    return max >= item.monthly_price_pence;
+  };
+
   if (!isOpen) return null;
 
   const handleSubscribe = async (
@@ -150,9 +164,9 @@ export default function AddOnUpsellModal({ isOpen, onClose, category, tenantId }
   const smsItem = activeAddOns.find((a) => a.id === 'sms_pack_100') || activeAddOns.find((a) => a.category === 'sms_pack');
 
   // Dynamic Landline Computations:
-  const isLandlineAvailable = Boolean(landlineItem && landlineItem.monthly_price_pence != null && landlineItem.max_price_pence != null);
+  const isLandlineAvailable = slidingCatalogReady(landlineItem);
   const landlineMinPrice = landlineItem?.monthly_price_pence ?? 0;
-  const landlineMaxPrice = landlineItem?.max_price_pence ?? 0;
+  const landlineMaxPrice = landlineItem?.max_price_pence ?? landlineItem?.monthly_price_pence ?? 0;
   const landlineMinMins = landlineItem?.included_voice_minutes ?? 0;
   const landlineMaxMins = landlineItem?.max_voice_minutes ?? 0;
   const landlineStepPence = landlineItem?.price_step_pence || 100;
@@ -163,9 +177,9 @@ export default function AddOnUpsellModal({ isOpen, onClose, category, tenantId }
   const landlineVoiceMinutes = Math.round(landlineMinMins + safeLandlineStep * ((landlineMaxMins - landlineMinMins) / landlineMaxSteps));
 
   // Dynamic Mobile Computations:
-  const isMobileAvailable = Boolean(mobileItem && mobileItem.monthly_price_pence != null && mobileItem.max_price_pence != null);
+  const isMobileAvailable = slidingCatalogReady(mobileItem);
   const mobileMinPrice = mobileItem?.monthly_price_pence ?? 0;
-  const mobileMaxPrice = mobileItem?.max_price_pence ?? 0;
+  const mobileMaxPrice = mobileItem?.max_price_pence ?? mobileItem?.monthly_price_pence ?? 0;
   const mobileMinSms = mobileItem?.included_sms ?? 0;
   const mobileMaxSms = mobileItem?.max_sms ?? 0;
   const mobileVoiceMins = 0;
@@ -177,9 +191,9 @@ export default function AddOnUpsellModal({ isOpen, onClose, category, tenantId }
   const mobileSmsCount = Math.round(mobileMinSms + safeMobileStep * ((mobileMaxSms - mobileMinSms) / mobileMaxSteps));
 
   // Dynamic Voice Pack Computations:
-  const isVoiceAvailable = Boolean(voiceItem && voiceItem.monthly_price_pence != null && voiceItem.max_price_pence != null);
+  const isVoiceAvailable = slidingCatalogReady(voiceItem);
   const voiceMinPrice = voiceItem?.monthly_price_pence ?? 0;
-  const voiceMaxPrice = voiceItem?.max_price_pence ?? 0;
+  const voiceMaxPrice = voiceItem?.max_price_pence ?? voiceItem?.monthly_price_pence ?? 0;
   const voiceMinMins = voiceItem?.included_voice_minutes ?? 0;
   const voiceMaxMins = voiceItem?.max_voice_minutes ?? 0;
   const voiceStepPence = voiceItem?.price_step_pence || 100;
@@ -190,9 +204,9 @@ export default function AddOnUpsellModal({ isOpen, onClose, category, tenantId }
   const voiceMinutesCount = Math.round(voiceMinMins + safeVoiceStep * ((voiceMaxMins - voiceMinMins) / voiceMaxSteps));
 
   // Dynamic SMS Pack Computations:
-  const isSmsAvailable = Boolean(smsItem && smsItem.monthly_price_pence != null && smsItem.max_price_pence != null);
+  const isSmsAvailable = slidingCatalogReady(smsItem);
   const smsMinPrice = smsItem?.monthly_price_pence ?? 0;
-  const smsMaxPrice = smsItem?.max_price_pence ?? 0;
+  const smsMaxPrice = smsItem?.max_price_pence ?? smsItem?.monthly_price_pence ?? 0;
   const smsMinSms = smsItem?.included_sms ?? 0;
   const smsMaxSms = smsItem?.max_sms ?? 0;
   const smsStepPence = smsItem?.price_step_pence || 100;
