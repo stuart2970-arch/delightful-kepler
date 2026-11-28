@@ -15,31 +15,102 @@
     (function() {
       var urlParams = new URLSearchParams(window.location.search);
       var sitekey = (urlParams.get('sitekey') || '').trim();
+      var parentOriginParam = (urlParams.get('parent_origin') || '').trim();
       var widgetId = null;
+      var resolvedPostMessageTarget = null;
+      var resolvedPostMessageError = null;
 
-      // The parent is the customer website, not the app. postMessage must
-      // target that parent origin (from the referrer). Using the app origin
-      // as the target would drop the token on every third-party embed.
-      // The widget checks event.origin is this app page before accepting it.
-      function parentTargetOrigin() {
+      // Keep in sync with src/lib/turnstile-parent-origin.ts
+      var EXACT_ORIGINS = {
+        'https://styleflo.ai': true,
+        'http://styleflo.ai': true,
+        'https://staging.styleflo.ai': true,
+        'http://staging.styleflo.ai': true,
+        'https://styleflo.test': true,
+        'http://styleflo.test': true,
+        'http://localhost:3000': true,
+        'http://localhost:3001': true,
+        'http://127.0.0.1:3000': true,
+        'http://127.0.0.1:3001': true
+      };
+      var HOST_SUFFIXES = ['.styleflo.ai', '.hosted.app', '.web.app', '.styleflo.test'];
+
+      function normalizeOrigin(value) {
+        var trimmed = (value || '').trim();
+        if (!trimmed) return null;
         try {
-          if (document.referrer) return new URL(document.referrer).origin;
+          var url = new URL(trimmed);
+          if (url.protocol !== 'http:' && url.protocol !== 'https:') return null;
+          if (url.username || url.password) return null;
+          return url.origin;
+        } catch (e) {
+          return null;
+        }
+      }
+
+      function isAllowedParentOrigin(origin) {
+        var normalized = normalizeOrigin(origin);
+        if (!normalized) return false;
+        if (EXACT_ORIGINS[normalized]) return true;
+        var host = '';
+        try {
+          host = new URL(normalized).hostname.toLowerCase();
+        } catch (e) {
+          return false;
+        }
+        if (host === 'styleflo.ai' || host === 'styleflo.test') return true;
+        for (var i = 0; i < HOST_SUFFIXES.length; i++) {
+          if (host.endsWith(HOST_SUFFIXES[i])) return true;
+        }
+        return false;
+      }
+
+      function resolvePostMessageTarget() {
+        var declared = normalizeOrigin(parentOriginParam);
+        var fromReferrer = null;
+        try {
+          if (document.referrer) fromReferrer = new URL(document.referrer).origin;
         } catch (e) {}
-        return '*';
+        if (fromReferrer) {
+          if (declared && declared !== fromReferrer) return { error: 'parent_origin_mismatch' };
+          return { target: fromReferrer };
+        }
+        if (declared && isAllowedParentOrigin(declared)) return { target: declared };
+        return { error: 'invalid_parent_origin' };
       }
 
       function notifyParent(payload) {
         try {
+          if (!resolvedPostMessageTarget) return;
           if (window.parent && window.parent !== window) {
-            window.parent.postMessage(payload, parentTargetOrigin());
+            window.parent.postMessage(payload, resolvedPostMessageTarget);
           }
         } catch (e) {
           console.error('[StyleFlo Turnstile Bridge] postMessage failed:', e);
         }
       }
 
+      (function initPostMessageTarget() {
+        var resolved = resolvePostMessageTarget();
+        if (resolved.error) {
+          resolvedPostMessageTarget = null;
+          resolvedPostMessageError = resolved.error;
+          console.error('[StyleFlo Turnstile Bridge] parent origin rejected:', resolved.error);
+          return;
+        }
+        resolvedPostMessageTarget = resolved.target;
+      })();
+
       if (!sitekey) {
         notifyParent({ type: 'STYLEFLO_TURNSTILE_ERROR', code: 'missing_sitekey' });
+        return;
+      }
+
+      if (!resolvedPostMessageTarget) {
+        notifyParent({
+          type: 'STYLEFLO_TURNSTILE_ERROR',
+          code: resolvedPostMessageError || 'invalid_parent_origin'
+        });
         return;
       }
 

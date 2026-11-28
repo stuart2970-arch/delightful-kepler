@@ -62,6 +62,7 @@ export const CI_PLAYWRIGHT_GROUPS = [
       /tests\/styl-271-widget-channel-lead\.spec\.ts$/,
       /tests\/styl-295-296-voice-minute-gate\.spec\.ts$/,
       /tests\/styl-361-turnstile-iframe\.spec\.ts$/,
+      /tests\/styl-turnstile-prewarm-mobile\.spec\.ts$/,
       /tests\/styl-226-widget-turnstile\.spec\.ts$/,
       /tests\/styl-226-widget-voice-recording\.spec\.ts$/,
       /tests\/openclaw\.spec\.ts$/,
