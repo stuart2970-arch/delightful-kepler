@@ -53,6 +53,8 @@ test.describe('STYL-361: Turnstile stays on the app origin', () => {
     expect(html).toContain('STYLEFLO_TURNSTILE_INTERACTIVE');
     expect(html).toContain('document.referrer');
     expect(html).toContain('parent_origin');
+    expect(html).toContain('invalid_parent_origin');
+    expect(html).toContain('parent_origin_mismatch');
     expect(html).toContain("console.error('[StyleFlo Turnstile Bridge] error:'");
     expect(html).toContain('event.source !== window.parent');
     expect(html).not.toMatch(/postMessage\(\s*payload\s*,\s*['"]\*['"]\s*\)/);

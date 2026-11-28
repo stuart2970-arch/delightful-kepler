@@ -1,3 +1,4 @@
+import { normalizeBrowserOrigin } from '../lib/turnstile-parent-origin';
 import { resolveTurnstileSiteKey } from './turnstile-config';
 
 export const TURNSTILE_TOKEN_TIMEOUT_MS = 30000;
@@ -318,9 +319,11 @@ export class TurnstileBridge {
     const iframe = document.createElement('iframe');
     iframe.id = 'styleflo-turnstile-frame';
     iframe.title = 'Security verification';
+    const parentOrigin =
+      normalizeBrowserOrigin(this.deps.parentPageOrigin) || this.deps.parentPageOrigin;
     const params = new URLSearchParams({
       sitekey: turnstileSiteKey,
-      parent_origin: this.deps.parentPageOrigin,
+      parent_origin: parentOrigin,
     });
     iframe.src = `${this.deps.appOrigin}/turnstile.html?${params.toString()}`;
     iframe.setAttribute(
