@@ -24,9 +24,16 @@ export function isAddonSellable(
   if (!addon) return false;
   if (addon.is_active === false) return false;
   if (addon.id === 'whatsapp_primary') return false;
-  if (addon.category && HIDDEN_PURCHASE_CATEGORIES.has(addon.category)) return false;
   if (addon.id && (EXPECTED_DISABLED_ADDON_IDS as readonly string[]).includes(addon.id)) {
     if (addon.is_active !== true) return false;
   }
   return true;
+}
+
+/** Customer purchase surfaces (dashboard catalogue, category pickers) — not API pricing or post-signup checkout. */
+export function isAddonVisibleInPurchaseUi(
+  addon: { category?: string | null } | null | undefined,
+): boolean {
+  if (!addon?.category) return true;
+  return !HIDDEN_PURCHASE_CATEGORIES.has(addon.category);
 }
